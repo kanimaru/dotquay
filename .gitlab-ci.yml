@@ -33,12 +33,13 @@ test:
   tags:
     - linux
   cache:
+    # GitLab caps cache:key:files at 2 entries, and there's no single NuGet lockfile in this repo
+    # to key off of (no RestorePackagesWithLockFile) — Dependi.sln alone is good enough: a stale key
+    # (e.g. only a csproj's package version bumped, not the sln) just means `dotnet restore` adds
+    # the newly-needed package into the existing cache dir, not a correctness problem.
     key:
       files:
         - Dependi.sln
-        - src/Dependi.Core/Dependi.Core.csproj
-        - src/Dependi.Cli/Dependi.Cli.csproj
-        - tests/Dependi.Tests/Dependi.Tests.csproj
     paths:
       - .nuget/packages/
   script:
@@ -54,8 +55,6 @@ build:linux-x64:
     key:
       files:
         - Dependi.sln
-        - src/Dependi.Core/Dependi.Core.csproj
-        - src/Dependi.Cli/Dependi.Cli.csproj
     paths:
       - .nuget/packages/
   before_script:
@@ -78,8 +77,6 @@ build:windows-x64:
     key:
       files:
         - Dependi.sln
-        - src/Dependi.Core/Dependi.Core.csproj
-        - src/Dependi.Cli/Dependi.Cli.csproj
     paths:
       - .nuget\packages\
   script:
