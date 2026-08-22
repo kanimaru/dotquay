@@ -1,0 +1,54 @@
+using System.CommandLine;
+using Dependi.Core.Workflows;
+
+namespace Dependi.Cli.Commands;
+
+internal static class InstallCommand
+{
+    public static Command Build()
+    {
+        var forceOption = new Option<bool>("--force")
+        {
+            Description = "Overwrite a hand-modified addon instead of refusing (bypasses dirty detection, P0-6).",
+        };
+
+        var command = new Command("install", "Make addons/ and .csproj match the lockfile exactly.")
+        {
+            forceOption,
+        };
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            var force = parseResult.GetValue(forceOption);
+            var workflow = WorkflowFactory.Create();
+
+            try
+            {
+                var result = await workflow.InstallAsync(Directory.GetCurrentDirectory(), force, cancellationToken);
+
+                foreach (var addon in result.Addons.OrderBy(a => a.Name, StringComparer.Ordinal))
+                {
+                    ConsoleOutput.WriteLine(ConsoleColor.Green, $"  {addon.Name} @ {addon.Version} ({ShortSha(addon.Resolved)})");
+                }
+
+                foreach (var dependency in result.Dotnet.OrderBy(d => d.Name, StringComparer.Ordinal))
+                {
+                    ConsoleOutput.WriteLine(ConsoleColor.Green, $"  {dependency.Name} @ {dependency.Resolved} (NuGet)");
+                }
+
+                ConsoleOutput.WriteLine(
+                    ConsoleColor.Green, $"Installed {result.Addons.Count} addon(s), {result.Dotnet.Count} dotnet package(s).");
+                return 0;
+            }
+            catch (WorkflowException ex)
+            {
+                ConsoleOutput.WriteLine(ConsoleColor.Red, ex.Message);
+                return 1;
+            }
+        });
+
+        return command;
+    }
+
+    private static string ShortSha(string sha) => sha.Length > 7 ? sha[..7] : sha;
+}

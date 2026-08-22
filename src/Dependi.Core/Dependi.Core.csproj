@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dependi.Core</RootNamespace>
+    <AssemblyName>Dependi.Core</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- TOML parser/writer for dependi.toml and dependi.lock (SPEC.md §12). -->
+    <PackageReference Include="Tomlyn" Version="2.3.2" />
+    <!-- NuGet.Versioning only (not the full NuGet.Protocol) — see Dotnet/NuGetFlatContainerClient.cs
+         for why: NuGet.Protocol's repository-signature check throws under NativeAOT (confirmed via a
+         real AOT publish, docs/SPRINT-01.md). NuGet.Versioning is just version parsing/comparison,
+         no reflection-based JSON deserialization, and is what NuGetVersionSelector uses to compare
+         version strings. -->
+    <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
+  </ItemGroup>
+
+</Project>

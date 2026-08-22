@@ -1,0 +1,13 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+
+## Publish output
+publish/
+
+## Dependi's own runtime state (not the repo's dependi.toml / dependi.lock, those are tracked)
+/.dependi/
