@@ -1,17 +1,25 @@
 # GitLab CI for dependi (SPEC.md §12: NativeAOT self-contained single-file publish, win-x64 +
-# linux-x64). Two independent build jobs, one per target OS, because NativeAOT compilation is not
-# cross-platform: the linker/toolchain that turns IL into a native binary has to run on (or at
-# least be fully provisioned for) the OS it's compiling for. See docs/SPRINT-01.md's "AOT verdict"
-# sections for why this project treats "builds clean" and "the published binary actually runs" as
-# two separate, both-required facts.
+# linux-x64; §16 OQ-6: "trimmed self-contained publish only as fallback" where real NativeAOT
+# compilation for the target isn't available).
 #
-# Runner prerequisites (adjust the `tags:` below to match your actual GitLab Runner setup):
-#   - A Linux runner (Docker executor is fine — this job pulls the .NET SDK image itself), tagged
-#     `linux` below.
-#   - A Windows runner with a Windows shell executor (native Windows OS, not a Linux container —
-#     NativeAOT's Windows path needs the MSVC/Windows SDK linker, which only exists on real
-#     Windows) with the .NET 10 SDK and the "Desktop development with C++" Visual Studio Build
-#     Tools workload already installed, tagged `windows` below.
+# Runner reality (confirmed from a real pipeline run 2026-08-22): this GitLab instance's runner
+# (`docker@kemomi.de`) is Docker-executor-only, backed by a Linux host — there is no native
+# Windows machine to build on. Native AOT compilation is NOT cross-OS: producing a real win-x64
+# native binary requires an actual Windows toolchain (the MSVC/Windows SDK linker), which doesn't
+# exist inside a Linux container. So:
+#
+#   - `build:linux-x64` publishes a genuine NativeAOT binary — host OS == target OS, this is the
+#     fully-supported, already-verified-elsewhere path (see docs/SPRINT-01.md's "AOT verdict"
+#     sections).
+#   - `build:windows-x64` falls back to a trimmed, self-contained, single-file publish
+#     (`PublishAot=false`, explicitly overriding the csproj's default) instead of NativeAOT. This
+#     is still a fully self-contained single .exe with no separate runtime install needed — just
+#     not natively compiled — and it's exactly the documented OQ-6 fallback, not an improvised
+#     workaround. If this project ever gets a real Windows runner, swap this job back to
+#     `-p:PublishAot=true` to match `build:linux-x64`.
+#
+# Both jobs run on the same Docker image; no special runner tags are required beyond whatever
+# this project's default runner already picks up.
 
 stages:
   - test
@@ -23,23 +31,25 @@ variables:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
   NUGET_PACKAGES: "$CI_PROJECT_DIR/.nuget/packages"
 
-# Runs once, on Linux, ahead of both platform-specific publish jobs — the whole point of Dependi.Tests
+.dotnet_cache: &dotnet_cache
+  # GitLab caps cache:key:files at 2 entries, and there's no single NuGet lockfile in this repo to
+  # key off of (no RestorePackagesWithLockFile) — Dependi.sln alone is good enough: a stale key
+  # (e.g. only a csproj's package version bumped, not the sln) just means `dotnet restore` adds the
+  # newly-needed package into the existing cache dir, not a correctness problem.
+  key:
+    files:
+      - Dependi.sln
+  paths:
+    - .nuget/packages/
+
+# Runs once, ahead of both platform-specific publish jobs below — the whole point of Dependi.Tests
 # is that it never touches a real filesystem/network/git/dotnet process (fakes only, see
 # docs/SPRINT-01.md), so its result doesn't depend on which OS it runs on and only needs to happen
 # once per pipeline rather than being duplicated in each platform build below.
 test:
   stage: test
   image: mcr.microsoft.com/dotnet/sdk:10.0
-  cache:
-    # GitLab caps cache:key:files at 2 entries, and there's no single NuGet lockfile in this repo
-    # to key off of (no RestorePackagesWithLockFile) — Dependi.sln alone is good enough: a stale key
-    # (e.g. only a csproj's package version bumped, not the sln) just means `dotnet restore` adds
-    # the newly-needed package into the existing cache dir, not a correctness problem.
-    key:
-      files:
-        - Dependi.sln
-    paths:
-      - .nuget/packages/
+  cache: *dotnet_cache
   script:
     - dotnet restore
     - dotnet test -c Release --logger "console;verbosity=normal"
@@ -47,12 +57,7 @@ test:
 build:linux-x64:
   stage: build
   image: mcr.microsoft.com/dotnet/sdk:10.0
-  cache:
-    key:
-      files:
-        - Dependi.sln
-    paths:
-      - .nuget/packages/
+  cache: *dotnet_cache
   before_script:
     # NativeAOT on Linux needs clang (the native code generator's back end) — not present in the
     # base SDK image by default.
@@ -67,16 +72,14 @@ build:linux-x64:
 
 build:windows-x64:
   stage: build
-  cache:
-    key:
-      files:
-        - Dependi.sln
-    paths:
-      - .nuget\packages\
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  cache: *dotnet_cache
   script:
-    - dotnet publish src\Dependi.Cli -c Release -r win-x64 --self-contained -p:PublishAot=true -o publish\win-x64
+    # PublishAot explicitly disabled here -- see the file header. Still self-contained + trimmed +
+    # single-file, just not natively compiled, since no real Windows build host is available.
+    - dotnet publish src/Dependi.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true -o publish/win-x64
   artifacts:
     name: "dependi-windows-x64-$CI_COMMIT_SHORT_SHA"
     paths:
-      - publish\win-x64\dependi.exe
+      - publish/win-x64/dependi.exe
     expire_in: 30 days
