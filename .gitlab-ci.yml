@@ -24,6 +24,7 @@
 stages:
   - test
   - build
+  - release
 
 variables:
   DOTNET_NOLOGO: "1"
@@ -83,3 +84,56 @@ build:windows-x64:
     paths:
       - publish/win-x64/dependi.exe
     expire_in: 30 days
+
+# --- Release: only runs when the pipeline is for a tag (push a tag like `v0.4.0` to trigger it).
+# GitLab job artifacts expire (see `expire_in` above) and aren't a stable release-asset URL, so both
+# binaries are first uploaded to this project's own Generic Package Registry (a durable, versioned
+# file store keyed by package name + version), then the release is created with links pointing at
+# those uploaded copies rather than at the job artifacts directly.
+
+upload:linux-x64:
+  stage: release
+  image: curlimages/curl:8.10.1
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - build:linux-x64
+  script:
+    - >-
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dependi
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-linux-x64"
+
+upload:windows-x64:
+  stage: release
+  image: curlimages/curl:8.10.1
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - build:windows-x64
+  script:
+    - >-
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dependi.exe
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-windows-x64.exe"
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - job: upload:linux-x64
+      artifacts: false
+    - job: upload:windows-x64
+      artifacts: false
+  script:
+    - echo "Creating release ${CI_COMMIT_TAG}"
+  release:
+    tag_name: "${CI_COMMIT_TAG}"
+    name: "dependi ${CI_COMMIT_TAG}"
+    description: "See docs/SPRINT-01.md and docs/SPEC.md for what shipped in this release."
+    assets:
+      links:
+        - name: "dependi-linux-x64"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-linux-x64"
+        - name: "dependi-windows-x64.exe"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-windows-x64.exe"
