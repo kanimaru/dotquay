@@ -32,12 +32,12 @@ public sealed class AddonResolver
     private static ResolvedAddon ResolveRev(AddonSpec spec) =>
         // A hard pin: the manifest already names the exact commit. No pseudo-version needed —
         // display the rev as given (SPEC.md §7.1, "hard pin for untagged repos").
-        new(spec.Name, spec.Git, spec.Rev!, DisplayVersion: null, spec.EffectivePath);
+        new(spec.Name, spec.Git, spec.Rev!, DisplayVersion: null, spec.EffectivePath, spec.InstallAs);
 
     private async Task<ResolvedAddon> ResolveBranchAsync(AddonSpec spec, CancellationToken cancellationToken)
     {
         var sha = await _gitClient.ResolveBranchTipAsync(spec.Git, spec.Branch!, cancellationToken);
-        return new ResolvedAddon(spec.Name, spec.Git, sha, DisplayVersion: null, spec.EffectivePath);
+        return new ResolvedAddon(spec.Name, spec.Git, sha, DisplayVersion: null, spec.EffectivePath, spec.InstallAs);
     }
 
     private async Task<ResolvedAddon> ResolveVersionAsync(AddonSpec spec, CancellationToken cancellationToken)
@@ -58,6 +58,7 @@ public sealed class AddonResolver
             throw new AddonResolutionException($"'{spec.Name}': {hint}");
         }
 
-        return new ResolvedAddon(spec.Name, spec.Git, match.Ref.CommitSha, match.Version.OriginalTag, spec.EffectivePath);
+        return new ResolvedAddon(
+            spec.Name, spec.Git, match.Ref.CommitSha, match.Version.OriginalTag, spec.EffectivePath, spec.InstallAs);
     }
 }

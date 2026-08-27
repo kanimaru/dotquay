@@ -1,7 +1,6 @@
 using Dotquay.Core.Abstractions;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Sync;
-using Dotquay.Core.Versioning;
 
 namespace Dotquay.Core.Resolve;
 
@@ -16,6 +15,7 @@ namespace Dotquay.Core.Resolve;
 /// whatever spec first requested it).
 /// </summary>
 /// <remarks>
+/// <para>
 /// This is deliberately not a full constraint solver (SPEC.md §8 says so explicitly): each addon
 /// name's own dependencies are discovered exactly once, using whichever spec is chosen for
 /// <em>discovery</em> purposes (the override if one exists, otherwise the first requirement seen for
@@ -25,15 +25,21 @@ namespace Dotquay.Core.Resolve;
 /// when a name's own declared dependencies change meaningfully between the discovery version and the
 /// unified version, which is expected to be rare for the kind of properly-tagged, dotquay-aware
 /// addons this feature targets (initially: Kani's own).
+/// </para>
+/// <para>
+/// Two entry points share that one walk (v0.5): <see cref="ResolveGraphAsync"/> for the
+/// install/update path, where an unresolvable name is a hard error, and
+/// <see cref="AnalyzeGraphAsync"/> for <c>dotquay graph</c>, where it is a
+/// <see cref="GraphConflict"/> the editor plugin turns into a version picker (SPEC.md §18). The
+/// unification rules live in <see cref="AddonUnifier"/> so both see identical behaviour.
+/// </para>
 /// </remarks>
 public sealed class DependencyGraphResolver
 {
-    private const string ProjectRequirerName = "<project>";
-
     private readonly IFileSystem _fileSystem;
-    private readonly IGitClient _gitClient;
     private readonly RepoCache _cache;
     private readonly AddonResolver _addonResolver;
+    private readonly AddonUnifier _unifier;
     private readonly string _discoveryStagingRoot;
 
     /// <param name="discoveryStagingRoot">A scratch directory used only to extract each addon's
@@ -43,28 +49,103 @@ public sealed class DependencyGraphResolver
     public DependencyGraphResolver(IFileSystem fileSystem, IGitClient gitClient, RepoCache cache, string discoveryStagingRoot)
     {
         _fileSystem = fileSystem;
-        _gitClient = gitClient;
         _cache = cache;
         _addonResolver = new AddonResolver(gitClient);
+        _unifier = new AddonUnifier(gitClient);
         _discoveryStagingRoot = discoveryStagingRoot;
     }
 
-    private sealed record Requirement(string RequirerName, AddonSpec Spec);
-
+    /// <summary>The install/update entry point: unifies every name or throws
+    /// <see cref="AddonResolutionException"/> naming the requirers that can't be reconciled
+    /// (SPEC.md §8: "constraints that cannot be unified... are a hard error").</summary>
     public async Task<GraphResolutionResult> ResolveGraphAsync(
         IReadOnlyDictionary<string, AddonSpec> rootAddons,
         IReadOnlyDictionary<string, AddonSpec> overrides,
         CancellationToken cancellationToken = default)
     {
-        var constraintsByName = new Dictionary<string, List<Requirement>>(StringComparer.Ordinal);
+        var analysis = await AnalyzeGraphAsync(rootAddons, overrides, cancellationToken);
+
+        if (analysis.Conflicts.Count > 0)
+        {
+            throw new AddonResolutionException(analysis.Conflicts[0].Message);
+        }
+
+        return new GraphResolutionResult(analysis.Addons, analysis.AddonDeclaredDotnet, analysis.Warnings);
+    }
+
+    /// <summary>
+    /// The reporting entry point (v0.5): resolves as much of the graph as it can and returns every
+    /// name it could not unify as a <see cref="GraphConflict"/> instead of failing on the first one.
+    /// Reporting all conflicts at once matters for a UI — resolving them one error message at a time
+    /// is exactly the CLI experience the editor plugin exists to replace.
+    /// </summary>
+    public async Task<GraphAnalysis> AnalyzeGraphAsync(
+        IReadOnlyDictionary<string, AddonSpec> rootAddons,
+        IReadOnlyDictionary<string, AddonSpec> overrides,
+        CancellationToken cancellationToken = default)
+    {
+        var walk = await WalkAsync(rootAddons, overrides, cancellationToken);
+
+        var addons = new List<GraphAddonEntry>();
+        var conflicts = new List<GraphConflict>();
+
+        foreach (var (name, requirements) in walk.RequirementsByName)
+        {
+            var outcome = overrides.TryGetValue(name, out var overrideSpec)
+                // An override skips unification entirely and wins unconditionally (SPEC.md §8) —
+                // that is precisely what makes it the documented escape hatch out of a conflict.
+                ? await _unifier.UnifyAsync(name, [new AddonRequirement(GraphConflict.ProjectRequirerName, overrideSpec)], cancellationToken)
+                : await _unifier.UnifyAsync(name, requirements, cancellationToken);
+
+            if (!outcome.IsResolved)
+            {
+                conflicts.Add(outcome.Conflict);
+                continue;
+            }
+
+            var dependencyNames = walk.DependencyNamesByAddon.TryGetValue(name, out var children)
+                ? (IReadOnlyList<string>)children
+                : [];
+
+            addons.Add(new GraphAddonEntry(outcome.Resolved, dependencyNames));
+        }
+
+        return new GraphAnalysis(
+            addons,
+            walk.AddonDeclaredDotnet,
+            conflicts,
+            walk.RequirementsByName.ToDictionary(
+                kv => kv.Key,
+                kv => (IReadOnlyList<GraphRequirement>)kv.Value.Select(r => r.ToGraphRequirement()).ToList(),
+                StringComparer.Ordinal),
+            walk.Warnings);
+    }
+
+    private sealed record WalkResult(
+        IReadOnlyDictionary<string, List<AddonRequirement>> RequirementsByName,
+        IReadOnlyDictionary<string, List<string>> DependencyNamesByAddon,
+        IReadOnlyList<DotnetSpec> AddonDeclaredDotnet,
+        IReadOnlyList<GraphWarning> Warnings);
+
+    /// <summary>The breadth-first discovery half, shared by both entry points: expands each addon
+    /// name's own package manifest exactly once and records who required what. Never unifies —
+    /// that's <see cref="AddonUnifier"/>'s job, and keeping the two apart is what lets one walk
+    /// serve both a throwing and a reporting caller.</summary>
+    private async Task<WalkResult> WalkAsync(
+        IReadOnlyDictionary<string, AddonSpec> rootAddons,
+        IReadOnlyDictionary<string, AddonSpec> overrides,
+        CancellationToken cancellationToken)
+    {
+        var requirementsByName = new Dictionary<string, List<AddonRequirement>>(StringComparer.Ordinal);
         var dependencyNamesByAddon = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var discoveredNames = new HashSet<string>(StringComparer.Ordinal);
         var addonDeclaredDotnet = new Dictionary<string, DotnetSpec>(StringComparer.Ordinal);
-        var queue = new Queue<Requirement>();
+        var warnings = new List<GraphWarning>();
+        var queue = new Queue<AddonRequirement>();
 
         foreach (var spec in rootAddons.Values)
         {
-            queue.Enqueue(new Requirement(ProjectRequirerName, spec));
+            queue.Enqueue(new AddonRequirement(GraphConflict.ProjectRequirerName, spec));
         }
 
         try
@@ -74,10 +155,10 @@ public sealed class DependencyGraphResolver
                 var requirement = queue.Dequeue();
                 var name = requirement.Spec.Name;
 
-                if (!constraintsByName.TryGetValue(name, out var requirementsForName))
+                if (!requirementsByName.TryGetValue(name, out var requirementsForName))
                 {
                     requirementsForName = [];
-                    constraintsByName[name] = requirementsForName;
+                    requirementsByName[name] = requirementsForName;
                 }
 
                 requirementsForName.Add(requirement);
@@ -88,19 +169,18 @@ public sealed class DependencyGraphResolver
                 }
 
                 var specForDiscovery = overrides.TryGetValue(name, out var overrideSpec) ? overrideSpec : requirement.Spec;
-                var provisional = await _addonResolver.ResolveAsync(specForDiscovery, cancellationToken);
-                var packageManifest = await TryReadPackageManifestAsync(provisional, cancellationToken);
+                var packageManifest = await TryReadPackageManifestAsync(specForDiscovery, warnings, cancellationToken);
 
                 if (packageManifest is null)
                 {
-                    continue; // leaf: no dotquay.toml, or one without a valid [package] header
+                    continue; // leaf: no dotquay.toml, one without a valid [package] header, or unresolvable
                 }
 
                 var childNames = new List<string>();
                 foreach (var childSpec in packageManifest.Addons.Values)
                 {
                     childNames.Add(childSpec.Name);
-                    queue.Enqueue(new Requirement(name, childSpec));
+                    queue.Enqueue(new AddonRequirement(name, childSpec));
                 }
 
                 dependencyNamesByAddon[name] = childNames;
@@ -121,124 +201,26 @@ public sealed class DependencyGraphResolver
             _fileSystem.DeleteDirectory(_discoveryStagingRoot);
         }
 
-        var addons = new List<GraphAddonEntry>();
-        foreach (var (name, requirements) in constraintsByName)
-        {
-            var resolved = overrides.TryGetValue(name, out var overrideSpec)
-                ? await _addonResolver.ResolveAsync(overrideSpec, cancellationToken)
-                : await UnifyAndResolveAsync(name, requirements, cancellationToken);
-
-            var dependencyNames = dependencyNamesByAddon.TryGetValue(name, out var children)
-                ? (IReadOnlyList<string>)children
-                : [];
-
-            addons.Add(new GraphAddonEntry(resolved, dependencyNames));
-        }
-
-        return new GraphResolutionResult(addons, addonDeclaredDotnet.Values.ToList());
+        return new WalkResult(requirementsByName, dependencyNamesByAddon, addonDeclaredDotnet.Values.ToList(), warnings);
     }
 
-    /// <summary>Unifies every requirer's constraint on one addon name down to a single commit, or
-    /// throws <see cref="AddonResolutionException"/> naming the requirers that can't be reconciled
-    /// (SPEC.md §8: "constraints that cannot be unified... are a hard error").</summary>
-    private async Task<ResolvedAddon> UnifyAndResolveAsync(
-        string name, IReadOnlyList<Requirement> requirements, CancellationToken cancellationToken)
+    private async Task<PackageManifest?> TryReadPackageManifestAsync(
+        AddonSpec specForDiscovery, List<GraphWarning> warnings, CancellationToken cancellationToken)
     {
-        if (requirements.Count == 1)
+        ResolvedAddon resolved;
+        try
         {
-            return await _addonResolver.ResolveAsync(requirements[0].Spec, cancellationToken);
+            resolved = await _addonResolver.ResolveAsync(specForDiscovery, cancellationToken);
+        }
+        catch (AddonResolutionException)
+        {
+            // The discovery spec doesn't resolve (e.g. a constraint no tag satisfies). Unification
+            // will report that properly per-name; during discovery it just means there is nothing to
+            // peek at, rather than a reason to abort the whole walk — which is what lets
+            // AnalyzeGraphAsync surface *every* conflict instead of only the first.
+            return null;
         }
 
-        var distinctGitUrls = requirements.Select(r => r.Spec.Git).Distinct(StringComparer.Ordinal).ToList();
-        if (distinctGitUrls.Count > 1)
-        {
-            throw new AddonResolutionException(
-                $"'{name}' is required from different git repositories and can't be unified: "
-                + string.Join("; ", requirements.Select(r => $"{Describe(r)} wants {r.Spec.Git}")) + ".");
-        }
-
-        var pinRequirements = requirements.Where(r => r.Spec.SourceKind != AddonSourceKind.Version).ToList();
-        var versionRequirements = requirements.Where(r => r.Spec.SourceKind == AddonSourceKind.Version).ToList();
-
-        if (pinRequirements.Count > 0)
-        {
-            var distinctPins = pinRequirements
-                .Select(r => r.Spec.SourceKind == AddonSourceKind.Rev ? $"rev:{r.Spec.Rev}" : $"branch:{r.Spec.Branch}")
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-
-            if (distinctPins.Count > 1 || versionRequirements.Count > 0)
-            {
-                throw DisjointPinsError(name, requirements);
-            }
-
-            return await _addonResolver.ResolveAsync(pinRequirements[0].Spec, cancellationToken);
-        }
-
-        return await ResolveVersionIntersectionAsync(name, versionRequirements, cancellationToken);
-    }
-
-    /// <summary>Every requirement on <paramref name="name"/> is a <c>version</c> constraint against
-    /// the same repo — finds the highest tag satisfying all of them simultaneously (SPEC.md §8:
-    /// "pick the highest version satisfying all constraints on a name").</summary>
-    private async Task<ResolvedAddon> ResolveVersionIntersectionAsync(
-        string name, IReadOnlyList<Requirement> versionRequirements, CancellationToken cancellationToken)
-    {
-        var constraints = new List<VersionConstraint>();
-        foreach (var requirement in versionRequirements)
-        {
-            if (!VersionConstraint.TryParse(requirement.Spec.Version!, out var constraint) || constraint is null)
-            {
-                throw new AddonResolutionException(
-                    $"'{name}': '{requirement.Spec.Version}' (from {Describe(requirement)}) is not a valid version constraint.");
-            }
-
-            constraints.Add(constraint);
-        }
-
-        var gitUrl = versionRequirements[0].Spec.Git;
-        // Simplification: the effective subtree path is taken from whichever requirement happened
-        // to be first in the list rather than cross-checked for agreement — Path is a fact about the
-        // repo's own layout, not something two consumers of the same addon should realistically
-        // disagree about, and SPEC.md §8 already scopes this feature away from being a full solver.
-        var effectivePath = versionRequirements[0].Spec.EffectivePath;
-
-        var refs = await _gitClient.ListRemoteRefsAsync(gitUrl, cancellationToken);
-
-        AddonVersion? best = null;
-        GitRef? bestRef = null;
-        foreach (var gitRef in refs)
-        {
-            if (gitRef.Kind != GitRefKind.Tag || !AddonVersion.TryParse(gitRef.Name, out var version) || version is null || version.IsPrerelease)
-            {
-                continue;
-            }
-
-            if (!constraints.All(c => c.IsSatisfiedBy(version)))
-            {
-                continue;
-            }
-
-            if (best is null || version.CompareTo(best) > 0)
-            {
-                best = version;
-                bestRef = gitRef;
-            }
-        }
-
-        if (best is null || bestRef is null)
-        {
-            throw new AddonResolutionException(
-                $"'{name}': no tag satisfies every requested version constraint at once: "
-                + string.Join("; ", versionRequirements.Select(r => $"{Describe(r)} wants {r.Spec.Version}"))
-                + $". Add an [overrides.{name}] entry in the project manifest to force one.");
-        }
-
-        return new ResolvedAddon(name, gitUrl, bestRef.CommitSha, best.OriginalTag, effectivePath);
-    }
-
-    private async Task<PackageManifest?> TryReadPackageManifestAsync(ResolvedAddon resolved, CancellationToken cancellationToken)
-    {
         var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
 
         var discoveryPath = _fileSystem.CombinePath(_discoveryStagingRoot, resolved.Name);
@@ -258,6 +240,7 @@ public sealed class DependencyGraphResolver
         var manifestPath = _fileSystem.CombinePath(discoveryPath, "dotquay.toml");
         if (!_fileSystem.FileExists(manifestPath))
         {
+            WarnIfManifestIsOutsideTheSubtree(resolved, cachedRepoPath, warnings);
             return null;
         }
 
@@ -265,28 +248,68 @@ public sealed class DependencyGraphResolver
         {
             return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
         }
-        catch (ManifestParseException)
+        catch (ManifestParseException ex)
         {
             // Not every dotquay.toml an addon happens to ship is a valid [package] manifest -- treat
             // as a leaf rather than failing the whole graph walk (SPEC.md §7.2: "third-party addons
-            // without this file are leaf nodes"; a malformed one is treated the same way).
+            // without this file are leaf nodes"; a malformed one is treated the same way). Since
+            // v0.5 that decision is still made, but no longer silently: a file sitting right next to
+            // plugin.cfg and named dotquay.toml is a clear statement of intent, so being ignored
+            // without a word is the single most confusing outcome available.
+            warnings.Add(new GraphWarning(
+                resolved.Name,
+                GraphWarningKind.PackageManifestNotReadable,
+                $"'{resolved.Name}' ships a dotquay.toml that isn't a valid package manifest, so its own "
+                + $"dependencies are being ignored. {ex.Message}"));
+
             return null;
         }
     }
 
-    private static AddonResolutionException DisjointPinsError(string name, IReadOnlyList<Requirement> requirements) =>
-        new(
-            $"'{name}' has conflicting pins that can't be unified: "
-            + string.Join("; ", requirements.Select(r => $"{Describe(r)} wants {PinDescription(r.Spec)}"))
-            + $". Add an [overrides.{name}] entry in the project manifest to force one.");
-
-    private static string PinDescription(AddonSpec spec) => spec.SourceKind switch
+    /// <summary>
+    /// The subtree has no <c>dotquay.toml</c>. That is completely normal for a third-party addon —
+    /// but if the repository has one <em>somewhere else</em>, the author almost certainly meant it to
+    /// be the package manifest and put it in the wrong place (typically the repo root, or the Godot
+    /// project folder that contains <c>addons/</c>). Only the subtree is ever extracted and installed,
+    /// so a manifest outside it can never reach a consumer.
+    /// </summary>
+    /// <remarks>
+    /// Searches the cached repo, which is already on disk — no extra fetch. The subtree itself is
+    /// excluded from the search because the caller already established there is nothing there.
+    /// </remarks>
+    private void WarnIfManifestIsOutsideTheSubtree(
+        ResolvedAddon resolved, string cachedRepoPath, List<GraphWarning> warnings)
     {
-        AddonSourceKind.Rev => $"rev {spec.Rev}",
-        AddonSourceKind.Branch => $"branch {spec.Branch}",
-        _ => $"version {spec.Version}",
-    };
+        var subtreePrefix = NormalizeRelative(resolved.Path);
 
-    private static string Describe(Requirement requirement) =>
-        requirement.RequirerName == ProjectRequirerName ? "the project" : $"'{requirement.RequirerName}'";
+        foreach (var file in _fileSystem.EnumerateFiles(cachedRepoPath))
+        {
+            if (!file.EndsWith("dotquay.toml", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var relative = NormalizeRelative(file[cachedRepoPath.Length..]);
+            if (subtreePrefix.Length > 0 && relative.StartsWith(subtreePrefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // inside the subtree after all — nothing to warn about
+            }
+
+            warnings.Add(new GraphWarning(
+                resolved.Name,
+                GraphWarningKind.PackageManifestOutsideSubtree,
+                $"'{resolved.Name}' has no dotquay.toml inside '{resolved.Path}', but its repository has one at "
+                + $"'{relative}'. Only the subtree is installed, so that file can't declare dependencies for "
+                + $"consumers — move a [package] manifest into '{resolved.Path}' (SPEC.md §7.2). Until then "
+                + $"'{resolved.Name}' is treated as having no dependencies."));
+
+            return; // one warning per addon is enough to send someone to the right place
+        }
+    }
+
+    /// <summary>Normalises a path fragment to forward slashes with no leading or trailing separator,
+    /// so a manifest's <c>path = "godot/addons/foo/"</c> compares equal to the same subtree written
+    /// any other way.</summary>
+    private static string NormalizeRelative(string path) =>
+        path.Replace('\\', '/').Trim('/');
 }

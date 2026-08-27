@@ -1,10 +1,13 @@
 using System.CommandLine;
+using Dotquay.Core.Json;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
 internal static class InstallCommand
 {
+    private const string CommandName = "install";
+
     public static Command Build()
     {
         var forceOption = new Option<bool>("--force")
@@ -12,19 +15,29 @@ internal static class InstallCommand
             Description = "Overwrite a hand-modified addon instead of refusing (bypasses dirty detection, P0-6).",
         };
 
-        var command = new Command("install", "Make addons/ and .csproj match the lockfile exactly.")
+        var jsonOption = JsonOutput.CreateOption();
+
+        var command = new Command(CommandName, "Make addons/ and .csproj match the lockfile exactly.")
         {
             forceOption,
+            jsonOption,
         };
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             var force = parseResult.GetValue(forceOption);
+            var json = parseResult.GetValue(jsonOption);
             var workflow = WorkflowFactory.Create();
 
             try
             {
-                var result = await workflow.InstallAsync(Directory.GetCurrentDirectory(), force, cancellationToken);
+                var result = await workflow.InstallAsync(GlobalOptions.Resolve(parseResult), force, cancellationToken);
+
+                if (json)
+                {
+                    JsonOutput.WriteOperation(CommandName, JsonMapper.ToJson(result));
+                    return 0;
+                }
 
                 foreach (var addon in result.Addons.OrderBy(a => a.Name, StringComparer.Ordinal))
                 {
@@ -42,8 +55,7 @@ internal static class InstallCommand
             }
             catch (WorkflowException ex)
             {
-                ConsoleOutput.WriteLine(ConsoleColor.Red, ex.Message);
-                return 1;
+                return JsonOutput.Fail(json, CommandName, ex);
             }
         });
 

@@ -1,11 +1,14 @@
 using System.CommandLine;
 using Dotquay.Core.Init;
 using Dotquay.Core.IO;
+using Dotquay.Core.Json;
 
 namespace Dotquay.Cli.Commands;
 
 internal static class InitCommand
 {
+    private const string CommandName = "init";
+
     public static Command Build()
     {
         var directoryArgument = new Argument<string?>("directory")
@@ -41,7 +44,9 @@ internal static class InitCommand
             Description = "Package version. Only used with --package. Defaults to \"0.1.0\".",
         };
 
-        var command = new Command("init", "Scaffold a dotquay.toml in the project root (or, with --package, inside an addon folder).")
+        var jsonOption = JsonOutput.CreateOption();
+
+        var command = new Command(CommandName, "Scaffold a dotquay.toml in the project root (or, with --package, inside an addon folder).")
         {
             directoryArgument,
             packageOption,
@@ -49,12 +54,17 @@ internal static class InitCommand
             nuGetSourceOption,
             nameOption,
             packageVersionOption,
+            jsonOption,
         };
 
         command.SetAction(parseResult =>
         {
-            var directory = Path.GetFullPath(parseResult.GetValue(directoryArgument) ?? Directory.GetCurrentDirectory());
+            // The positional argument wins over --project: `init <dir>` predates the global option
+            // and reads more naturally for the one command whose whole job is to create a directory's
+            // manifest.
+            var directory = Path.GetFullPath(parseResult.GetValue(directoryArgument) ?? GlobalOptions.Resolve(parseResult));
             var isPackage = parseResult.GetValue(packageOption);
+            var json = parseResult.GetValue(jsonOption);
             var initService = new InitService(new SystemFileSystem());
 
             var result = isPackage
@@ -64,14 +74,60 @@ internal static class InitCommand
                     parseResult.GetValue(packageVersionOption) ?? "0.1.0")
                 : initService.InitProject(directory, parseResult.GetValue(godotOption), parseResult.GetValue(nuGetSourceOption));
 
+            var kind = isPackage ? "package" : "project";
+
             if (!result.WasCreated)
             {
-                ConsoleOutput.WriteLine(ConsoleColor.Yellow, $"{result.ManifestPath} already exists — not overwriting.");
+                // Not an error envelope: the manifest the caller asked for exists, which is the state
+                // it wanted. Refusing to overwrite is the safety behaviour, not a failure — a GUI
+                // that treated this as an error would show a red banner on a project that is fine.
+                var message = $"{result.ManifestPath} already exists — not overwriting.";
+
+                if (json)
+                {
+                    JsonOutput.WriteOperation(CommandName, new OperationJson
+                    {
+                        Changes =
+                        [
+                            new ChangeJson
+                            {
+                                Name = kind,
+                                Kind = JsonMapper.ChangeKind.Addon,
+                                Action = JsonMapper.ChangeAction.Unchanged,
+                                To = result.ManifestPath,
+                            },
+                        ],
+                        Messages = [message],
+                    });
+                    return 0;
+                }
+
+                ConsoleOutput.WriteLine(ConsoleColor.Yellow, message);
                 return 1;
             }
 
-            var kind = isPackage ? "package" : "project";
-            ConsoleOutput.WriteLine(ConsoleColor.Green, $"Wrote {kind} manifest to {result.ManifestPath}");
+            var created = $"Wrote {kind} manifest to {result.ManifestPath}";
+
+            if (json)
+            {
+                JsonOutput.WriteOperation(CommandName, new OperationJson
+                {
+                    Changes =
+                    [
+                        new ChangeJson
+                        {
+                            Name = kind,
+                            Kind = JsonMapper.ChangeKind.Addon,
+                            Action = JsonMapper.ChangeAction.Added,
+                            To = result.ManifestPath,
+                        },
+                    ],
+                    Messages = [created],
+                });
+                return 0;
+            }
+
+            ConsoleOutput.WriteLine(ConsoleColor.Green, created);
             return 0;
         });
 

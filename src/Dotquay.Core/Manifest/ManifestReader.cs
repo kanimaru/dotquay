@@ -89,6 +89,7 @@ public static class ManifestReader
             var branch = GetString(entry, "branch");
             var rev = GetString(entry, "rev");
             var path = GetString(entry, "path");
+            var installAs = GetString(entry, "install_as");
 
             var sourceCount = new[] { version, branch, rev }.Count(v => v is not null);
             if (sourceCount != 1)
@@ -96,6 +97,14 @@ public static class ManifestReader
                 throw new ManifestParseException(
                     $"{sourcePath}: [{sectionKey}.{name}] must set exactly one of 'version', 'branch', or "
                     + $"'rev' (SPEC.md §7.1); found {sourceCount}.");
+            }
+
+            if (installAs is not null && !IsSafeFolderName(installAs))
+            {
+                throw new ManifestParseException(
+                    $"{sourcePath}: [{sectionKey}.{name}] has install_as = \"{installAs}\", which is not a plain "
+                    + "folder name. It must be a single directory name — no slashes, no '..', no drive letters — "
+                    + "because dotquay deletes and replaces that folder wholesale during install (SPEC.md §9).");
             }
 
             result[name] = new AddonSpec
@@ -106,6 +115,7 @@ public static class ManifestReader
                 Branch = branch,
                 Rev = rev,
                 Path = path,
+                InstallAs = installAs,
             };
         }
 
@@ -161,6 +171,23 @@ public static class ManifestReader
             }
         }
     }
+
+    /// <summary>
+    /// Whether <paramref name="folder"/> is a single, ordinary directory name.
+    /// </summary>
+    /// <remarks>
+    /// This is a safety boundary, not tidiness. The sync engine deletes and replaces the destination
+    /// folder wholesale (SPEC.md §9 step 5), and <c>install_as</c> is the one field that chooses it —
+    /// so a value like <c>"../.."</c>, <c>"/etc"</c>, or <c>"C:\Windows"</c> would aim that deletion
+    /// outside the project. Manifests travel with third-party addons and are read from repositories
+    /// nobody in the dependency chain necessarily audited, so this is checked at parse time, before
+    /// the value can reach a path operation.
+    /// </remarks>
+    private static bool IsSafeFolderName(string folder) =>
+        !string.IsNullOrWhiteSpace(folder)
+        && folder is not ("." or "..")
+        && folder.IndexOfAny(['/', '\\', ':']) < 0
+        && folder.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) < 0;
 
     private static string? GetString(TomlTable table, string key) =>
         table.TryGetValue(key, out var value) && value is string s ? s : null;

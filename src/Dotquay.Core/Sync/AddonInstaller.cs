@@ -54,8 +54,26 @@ public sealed class AddonInstaller
             await ReapplyPatchOrThrowAsync(previous, projectDirectory, stagingPath, cancellationToken);
         }
 
-        var destinationPath = _fileSystem.CombinePath(projectDirectory, "addons", resolved.Name);
-        var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, previous?.ContentHash, force);
+        var isRename = previous is not null
+            && !string.Equals(previous.EffectiveFolder, resolved.EffectiveFolder, StringComparison.Ordinal);
+
+        // Checked before anything is written, so a refusal leaves the project exactly as it was.
+        if (isRename)
+        {
+            GuardOldFolderBeforeRename(previous!, projectDirectory, force);
+        }
+
+        var destinationPath = InstallPaths.For(_fileSystem, projectDirectory, resolved);
+        var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, isRename ? null : previous?.ContentHash, force);
+
+        // A changed install_as leaves the previous folder behind, still full of the addon's files.
+        // That is worse than untidy: Godot loads whatever is under addons/, and a stale copy keeps
+        // satisfying the `preload` paths this feature exists to redirect — so the rename looks like it
+        // worked while the old code is what actually runs.
+        if (isRename)
+        {
+            _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, previous!));
+        }
 
         return new LockedAddon
         {
@@ -64,11 +82,43 @@ public sealed class AddonInstaller
             Resolved = resolved.ResolvedSha,
             Version = resolved.DisplayVersion ?? BuildPseudoVersion(resolved.ResolvedSha),
             Path = resolved.Path,
+            Folder = resolved.InstallAs,
             ContentHash = contentHash,
             PatchHash = previous?.PatchHash,
             PatchBaseSha = previous?.PatchBaseSha,
             Dependencies = [],
         };
+    }
+
+    /// <summary>
+    /// Applies the dirty check (requirement P0-6) to the folder a rename is about to delete.
+    /// </summary>
+    /// <remarks>
+    /// Without this, changing <c>install_as</c> would be the one way to get dotquay to destroy
+    /// hand-edits without asking: the swap's own check looks at the <em>new</em> destination, which
+    /// doesn't exist yet and is therefore trivially clean, while the old folder — the one holding the
+    /// user's actual files — gets deleted unexamined. The protection has to follow the content, not
+    /// the path.
+    /// </remarks>
+    private void GuardOldFolderBeforeRename(LockedAddon previous, string projectDirectory, bool force)
+    {
+        if (force)
+        {
+            return;
+        }
+
+        var oldPath = InstallPaths.For(_fileSystem, projectDirectory, previous);
+
+        // A patched addon legitimately differs from its recorded pristine hash; PatchAsync records
+        // the patched tree as the new baseline, so ContentHash is still the right comparison.
+        if (DirtyChecker.Check(_fileSystem, oldPath, previous.ContentHash).IsDirty)
+        {
+            throw new SyncException(
+                $"'{previous.Name}' is being moved from addons/{previous.EffectiveFolder} to a different folder, "
+                + $"but addons/{previous.EffectiveFolder} has local modifications that don't match the lockfile. "
+                + $"Moving it would delete them. Run 'dotquay patch {previous.Name}' to capture them first, or "
+                + "pass --force to discard them (SPEC.md requirement P0-6).");
+        }
     }
 
     private async Task ReapplyPatchOrThrowAsync(

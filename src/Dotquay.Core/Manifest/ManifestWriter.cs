@@ -113,6 +113,11 @@ public static class ManifestWriter
             {
                 sb.AppendLine($"path = {Quote(addon.Path)}");
             }
+
+            if (addon.InstallAs is not null)
+            {
+                sb.AppendLine($"install_as = {Quote(addon.InstallAs)}");
+            }
         }
     }
 

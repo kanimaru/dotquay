@@ -15,7 +15,26 @@ public sealed class LockedAddon
     /// <c>"0.0.0-20260821-9f2c1ab"</c> (SPEC.md §6).</summary>
     public string? Version { get; init; }
 
+    /// <summary>The subtree extracted from the addon's <em>own</em> repo — not where it is installed.
+    /// See <see cref="Folder"/> for that.</summary>
     public required string Path { get; init; }
+
+    /// <summary>
+    /// The folder under <c>addons/</c> this addon is installed into (SPEC.md §7.1's <c>install_as</c>).
+    /// Null means the default, which is <see cref="Name"/> — so every lockfile written before this
+    /// field existed still reads correctly.
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than recomputed from the manifest because <c>install</c> must be able to find,
+    /// hash, and replace an installed addon from the lockfile alone (SPEC.md §5) — including for a
+    /// transitive addon that appears in no manifest the project owns. It is also what lets
+    /// <c>update</c> notice that a folder name changed and clean up the old directory instead of
+    /// leaving it behind to satisfy stale <c>preload</c> paths.
+    /// </remarks>
+    public string? Folder { get; init; }
+
+    /// <summary>Where this addon actually lives under <c>addons/</c>.</summary>
+    public string EffectiveFolder => Folder ?? Name;
 
     /// <summary>Hash of the installed tree, for dirty detection (SPEC.md §9 step 4, requirement P0-6).</summary>
     public string? ContentHash { get; init; }

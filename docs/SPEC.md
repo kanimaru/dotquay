@@ -25,7 +25,7 @@ The cost: broken updates, unreproducible projects, and manual bookkeeping for ev
 - **Central package registry** — huge separate project; git URLs + NuGet metadata are sufficient sources for v1.
 - **Dependency resolution across the unmanaged ecosystem** — third-party addons declare no dependencies, so there is nothing to resolve. Graph resolution exists only for dotquay-aware addons (see §8).
 - **Godot 3/4 auto-detection** — branch conventions vary per repo; the user picks the branch explicitly.
-- **Editor plugin / GUI** — CLI only. A GUI could wrap the CLI later.
+- ~~**Editor plugin / GUI** — CLI only.~~ **Reversed in v0.5** (§17, §18): the GUI ships, but strictly as a *wrapper*. The plugin is GDScript-only, holds no resolution logic of its own, and reaches dotquay exclusively through `--json`. Every button is one CLI invocation; the CLI remains the only thing that writes `dotquay.toml`, `dotquay.lock`, or `addons/`.
 - **Godot Asset Library integration** — the asset library lags behind git repos; git is the source of truth. Revisit as a P2 source type.
 
 ## 4. User stories
@@ -76,7 +76,14 @@ Key consequence: commands split along the stage boundary.
 | `dotquay outdated` | — | `git ls-remote` per repo + NuGet metadata check; compares against lockfile without cloning |
 | `dotquay status` | — | Diff disk against lockfile hashes: `clean` / `patched as expected` / `modified` |
 | `dotquay patch <name>` | — | Diff installed addon against pristine cache copy, write `patches/<name>.patch` |
-| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/` |
+| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, and (v0.5) installed addons shipping an unreadable package manifest |
+| `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
+| `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
+
+Two options are global to every command (v0.5):
+
+- `--project <dir>` / `-C <dir>` — operate on that directory instead of the current one. Needed because a GUI caller cannot set a working directory (§18).
+- `--json` — emit one machine-readable document on stdout and nothing else (§17).
 
 ### 6.1 `outdated` / `status` / `doctor` implementation notes (v0.2)
 
@@ -204,6 +211,31 @@ version = "13.0.*"
 ```
 
 Third-party addons without this file are leaf nodes. The graph feature costs them nothing.
+
+**The manifest must be inside the installed subtree.** Discovery extracts whatever a consumer's
+`path` points at (§9 step 2) and looks for `dotquay.toml` *there* — never at the repo root. This
+isn't a convention, it's forced: the subtree is the only thing that is ever copied into a consumer's
+`addons/`, so a manifest outside it does not exist from the consumer's point of view and could never
+declare anything for them.
+
+This bites a specific, common layout. An addon repo that is itself a Godot project keeps its own
+`dotquay.toml` next to `project.godot` — e.g. `godot/dotquay.toml`, with the addon at
+`godot/addons/<name>/`. Those are two different manifests answering two different questions, and both
+are needed:
+
+| File | Kind | Answers |
+|---|---|---|
+| `godot/dotquay.toml` | `[project]` | "what do I need to develop this addon" |
+| `godot/addons/<name>/dotquay.toml` | `[package]` | "what must anyone *using* this addon also get" |
+
+Before v0.5 an addon in this shape resolved and installed perfectly while every dependency it
+declared was silently dropped, with nothing reported anywhere. Two warnings now cover it (§17), and
+`dotquay doctor` gained an offline check for the second one:
+
+- the subtree has no `dotquay.toml` but the repo has one elsewhere — almost always this mistake;
+- the subtree has one that isn't a valid package manifest, usually a missing `[package]` header.
+
+Both keep the leaf behaviour exactly as it was. They change the silence, not the resolution.
 
 ### 7.3 Lockfile — `dotquay.lock`
 
@@ -379,12 +411,16 @@ earlier `NU1101: ... source(s): nuget.org` gap), `install` (fresh restore from a
 | P1-4 | `status` / `doctor` | `status` reports clean / patched / modified per addon; `doctor` flags `plugin.cfg` version drift and orphaned `addons/` folders — **done (v0.2, 2026-08-22)**, `status` also reports a fourth `missing` state and `doctor` also checks git-on-PATH and dangling lockfile entries |
 | P1-5 | Addon-declared `[dotnet]` deps unioned into `.csproj` | Given an addon declaring a NuGet dep, when installed, then the project's `.csproj` gains the reference — **done (v0.4, 2026-08-22)**, verified against a real repo declaring `[dotnet.Newtonsoft.Json]` in its own `dotquay.toml`: `add`ing the addon alone installed the reference into `.csproj` without writing a `[dotnet.*]` entry into the project's own manifest |
 
+| P1-6 | Machine-readable `--json` output on every command | Given any command with `--json`, when it runs, then stdout holds exactly one envelope (§17) whose `ok`/`error.kind` a consumer can branch on without parsing prose — **done (v0.5)** |
+| P1-7 | Conflicts reported as data, with candidates | Given an unresolvable name, when `graph --resolve` runs, then every conflict is reported at once with each requirer's constraint and the concrete versions that would settle it, annotated by which requirers each satisfies (§17) — **done (v0.5)** |
+| P1-8 | Godot editor plugin (§18) | Given the plugin enabled in a Godot 4.7 project, when the Dotquay tab is opened, then the dependency graph renders from the lockfile with no network access, conflicts can be resolved by picking a version, and add/update/remove/install run through the CLI — **done (v0.5)** |
+
 ### P2 — future considerations (design for, don't build)
 
 - Community metadata index for third-party addon dependencies (registry-lite).
 - Godot Asset Library as an additional source type.
 - Godot-version-aware branch selection.
-- Editor plugin GUI wrapping the CLI.
+- ~~Editor plugin GUI wrapping the CLI.~~ **Promoted and shipped in v0.5** (§18).
 - Pure-library git (drop the PATH requirement).
 
 ## 14. Success metrics
@@ -437,8 +473,111 @@ Implications for the resolver:
 - **v0.2 — safety and visibility**: P1-3, P1-4 (`outdated`, `status`, `doctor`). **Shipped 2026-08-22** — see docs/SPRINT-01.md.
 - **v0.3 — patches**: P1-1. The differentiator feature; ships once the sync engine is battle-tested. **Shipped 2026-08-22** — see docs/SPRINT-01.md.
 - **v0.4 — dependency graph**: P1-2, P1-5. Package manifests, unification, overrides. **Shipped 2026-08-22** — see docs/SPRINT-01.md.
+- **v0.5 — machine-readable output and the Godot editor plugin**: P1-6, P1-7, P1-8 (§17, §18). Promotes the "editor plugin GUI wrapping the CLI" item out of P2 — it became worth building once the graph existed, because a dependency graph and a version conflict are the two things a terminal explains worst.
 
 No hard deadlines. Each phase is independently shippable and dogfooded before the next.
+
+## 17. Machine-readable output (v0.5)
+
+Every command accepts `--json` and answers with exactly one document on stdout — no colored status
+lines, no hints, no progress. One envelope covers success and failure alike, so a consumer writes one
+parse path and one error check instead of guessing whether stdout holds a result or a message:
+
+```json
+{
+  "schema": 1,
+  "tool": "dotquay",
+  "version": "0.5.0",
+  "command": "graph",
+  "ok": true,
+  "data": { "...": "command-specific payload" },
+  "error": null,
+  "warnings": ["'foo' has no git tags — pinned to its current default-branch commit"]
+}
+```
+
+Design decisions, and why:
+
+- **`schema` is checked, not ignored.** A consumer that doesn't recognise the number refuses the
+  payload rather than half-reading it. Silently mis-parsing a dependency graph is worse than saying
+  "update one side of this pair".
+- **`tool` is asserted.** The single most likely misconfiguration is a CLI path pointing at some
+  other executable; a plugin that checks this can say so instead of showing an empty panel.
+- **`error.kind` is a stable category, not free text** (`workflow`, `no_manifest`, `conflict`,
+  `git`, `unexpected`). A UI reacts to `no_manifest` with an "Initialise project" button — something
+  it cannot do with a message string.
+- **Optional fields are emitted as `null`, never omitted.** Present-but-null distinguishes "dotquay
+  says there is no version" from "this dotquay is too old to have that field".
+- **Enums map to explicit strings** (`JsonMapper`), not to a naming convention. Renaming a C# enum
+  member must be a compile error, not a silent break in the plugin.
+- **`warnings` exists so nothing is lost.** Without `--json`, the untagged-repo hint is a yellow
+  console line; a GUI user needs it just as much.
+- **Failures still set a non-zero exit code**, so a caller that ignores JSON entirely keeps working.
+
+Serialization is source-generated `System.Text.Json` (`DotquayJsonContext`). Not an optimisation:
+reflection-based `JsonSerializer` is stripped by the trimmer under NativeAOT (§12, OQ-6) — the same
+class of failure that already forced out Spectre.Console.Cli and NuGet.Protocol. Every closed generic
+must be registered, and a missing one fails only in the published binary, so `graph --json` is
+verified against a real AOT publish rather than `dotnet run`.
+
+`dotquay graph` has two modes because they answer different questions. The default reconstructs the
+graph from `dotquay.lock`'s recorded `dependencies` edges plus the manifest and disk — instant,
+offline, exactly the property §8 introduced those edges for, applied to drawing rather than
+installing. It can never report a conflict, because a lockfile only exists once conflicts were
+settled. `--resolve` re-walks live git refs and is the only mode that can.
+
+Conflicts became data rather than exceptions in v0.5 (`AddonUnifier`, `GraphConflict`). The
+unification rules are unchanged from v0.4; what is new is that a failure carries who required what,
+and which concrete versions are on offer — each candidate annotated with which requirers it would
+satisfy. `install`/`update` still turn the first conflict into a hard error with the identical
+message; `graph --resolve` reports all of them at once, because resolving conflicts one error message
+at a time is the CLI experience the editor plugin exists to replace.
+
+## 18. Godot editor plugin (v0.5)
+
+`src/Dotquay.Godot/addons/dotquay/` — GDScript only, Godot 4.7+, distributed as a normal Godot addon.
+It appears as a main-screen tab beside 2D, 3D, Script, Game, and AssetLib: a dependency graph is a
+full-canvas pan-and-zoom view of the whole project, which is what the main screen is for and what a
+200px dock cannot show.
+
+```mermaid
+flowchart LR
+    P["Godot editor plugin<br/><i>GDScript, no logic</i>"] -->|"OS.execute, background thread"| C["dotquay --json --project &lt;dir&gt;"]
+    C -->|"one JSON envelope"| P
+    C --> M["dotquay.toml"]
+    C --> L["dotquay.lock"]
+    C --> A["addons/"]
+```
+
+Structural rules, each load-bearing:
+
+- **The plugin owns no logic.** It parses payloads and renders them. Resolution, unification, and
+  every write live in the CLI — one implementation, not two that drift.
+- **The CLI is the only writer.** A choice made in the conflict picker runs `dotquay override` and
+  behaves identically to the same choice typed at a terminal.
+- **Every command runs on a worker thread.** `OS.execute` blocks, and an `update` that fetches half a
+  dozen repositories takes seconds; on the main thread that freezes the editor.
+- **After any mutating command the panel re-runs `graph`** rather than patching its own state, so
+  what is on screen is always something dotquay said, never something the UI inferred.
+- **`--project` exists for this plugin.** Godot's `OS.execute` inherits the editor's working
+  directory, which is never the Godot project root; `cd` is a shell feature a GUI cannot rely on.
+- **The CLI path is an *editor* setting** (`dotquay/general/cli_path`), auto-discovered via
+  `where`/`which` on first run. It is a tool installed on this machine, not a property of the
+  project — committing a machine-specific absolute path into `project.godot` would break every
+  teammate on a different OS.
+
+What it shows and does: the graph laid out left-to-right by shallowest depth (so a diamond reads as
+one shared node, not a tangle); per-addon badges for conflict / modified / missing / patched /
+override / orphan; a conflict sidebar and a version picker that ranks candidates satisfying *every*
+requirer first; add (git URL or NuGet ID), update, remove, install, patch capture, outdated, and
+doctor; and a first-run banner offering exactly the one button that fixes the problem it is showing.
+
+Tested by a dependency-free headless GDScript runner (`src/Dotquay.Godot/run_tests.ps1`) covering
+envelope parsing and graph layout, plus a live contract suite that runs the real binary and parses
+its real output — the fixture tests prove the parser handles the payload the plugin *expects*, and
+only the live one proves the CLI still emits it. That gap is exactly where a two-language wire
+contract breaks: a renamed JSON key compiles, passes every fixture, and produces an empty panel.
+
 
 ---
 

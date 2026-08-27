@@ -16,4 +16,10 @@ public enum DoctorIssueKind
 
     /// <summary>A folder under <c>addons/</c> that no locked addon's name accounts for.</summary>
     OrphanedAddonFolder,
+
+    /// <summary>An installed addon ships a <c>dotquay.toml</c> that isn't a valid package manifest —
+    /// usually a missing <c>[package]</c> header (SPEC.md §7.2). The addon still installs fine, but
+    /// every dependency it declares is being silently ignored. Purely local, so this catches the
+    /// problem without a network round-trip.</summary>
+    UnreadablePackageManifest,
 }

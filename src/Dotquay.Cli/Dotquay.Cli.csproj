@@ -9,6 +9,10 @@
     <AssemblyName>dotquay</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
 
+    <!-- Reported in every JSON envelope (SPEC.md §17) so the editor plugin can tell an older
+         dotquay from a newer one before blaming the payload. -->
+    <Version>0.5.0</Version>
+
     <!-- Distribution decision (SPEC.md §12, OQ-6): NativeAOT is the target. Spectre.Console.Cli
          was tried first (§12 OQ-1) but a real `dotnet publish -p:PublishAot=true` build+run proved
          it crashes at startup under NativeAOT (trimmer strips the reflection its command-settings

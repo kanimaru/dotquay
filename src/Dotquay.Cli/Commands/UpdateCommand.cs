@@ -1,10 +1,13 @@
 using System.CommandLine;
+using Dotquay.Core.Json;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
 internal static class UpdateCommand
 {
+    private const string CommandName = "update";
+
     public static Command Build()
     {
         var nameArgument = new Argument<string?>("name")
@@ -18,21 +21,31 @@ internal static class UpdateCommand
             Description = "Overwrite a hand-modified addon instead of refusing (bypasses dirty detection, P0-6).",
         };
 
-        var command = new Command("update", "Re-resolve one dependency (or all of them) and reinstall.")
+        var jsonOption = JsonOutput.CreateOption();
+
+        var command = new Command(CommandName, "Re-resolve one dependency (or all of them) and reinstall.")
         {
             nameArgument,
             forceOption,
+            jsonOption,
         };
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             var name = parseResult.GetValue(nameArgument);
             var force = parseResult.GetValue(forceOption);
+            var json = parseResult.GetValue(jsonOption);
             var workflow = WorkflowFactory.Create();
 
             try
             {
-                var result = await workflow.UpdateAsync(Directory.GetCurrentDirectory(), name, force, cancellationToken);
+                var result = await workflow.UpdateAsync(GlobalOptions.Resolve(parseResult), name, force, cancellationToken);
+
+                if (json)
+                {
+                    JsonOutput.WriteOperation(CommandName, JsonMapper.ToJson(result), result.Warnings);
+                    return 0;
+                }
 
                 if (result.Addons.Count == 0 && result.Dotnet.Count == 0)
                 {
@@ -50,12 +63,19 @@ internal static class UpdateCommand
                     PrintDotnetResult(dependency);
                 }
 
+                // Printed last, and only after the results, so the thing someone is actually waiting
+                // for isn't pushed off screen by an advisory note.
+                foreach (var warning in result.Warnings)
+                {
+                    Console.WriteLine();
+                    ConsoleOutput.WriteLine(ConsoleColor.Yellow, warning);
+                }
+
                 return 0;
             }
             catch (WorkflowException ex)
             {
-                ConsoleOutput.WriteLine(ConsoleColor.Red, ex.Message);
-                return 1;
+                return JsonOutput.Fail(json, CommandName, ex);
             }
         });
 

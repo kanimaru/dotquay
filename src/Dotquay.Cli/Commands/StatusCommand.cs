@@ -1,31 +1,52 @@
 using System.CommandLine;
+using Dotquay.Core.Json;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
 internal static class StatusCommand
 {
+    private const string CommandName = "status";
+
     public static Command Build()
     {
-        var command = new Command("status", "Diff disk against the lockfile: clean / patched as expected / modified.");
-
-        command.SetAction(_ =>
+        var jsonOption = JsonOutput.CreateOption();
+        var command = new Command(CommandName, "Diff disk against the lockfile: clean / patched as expected / modified.")
         {
-            var workflow = WorkflowFactory.Create();
-            var result = workflow.Status(Directory.GetCurrentDirectory());
+            jsonOption,
+        };
 
-            if (result.Addons.Count == 0)
+        command.SetAction(parseResult =>
+        {
+            var json = parseResult.GetValue(jsonOption);
+
+            try
             {
-                Console.WriteLine("Nothing locked yet. Run 'dotquay add <git-url>' to add one.");
+                var result = WorkflowFactory.Create().Status(GlobalOptions.Resolve(parseResult));
+
+                if (json)
+                {
+                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<StatusJson>.Success(CommandName, JsonMapper.ToJson(result))));
+                    return 0;
+                }
+
+                if (result.Addons.Count == 0)
+                {
+                    Console.WriteLine("Nothing locked yet. Run 'dotquay add <git-url>' to add one.");
+                    return 0;
+                }
+
+                foreach (var addon in result.Addons.OrderBy(a => a.Name, StringComparer.Ordinal))
+                {
+                    Print(addon);
+                }
+
                 return 0;
             }
-
-            foreach (var addon in result.Addons.OrderBy(a => a.Name, StringComparer.Ordinal))
+            catch (WorkflowException ex)
             {
-                Print(addon);
+                return JsonOutput.Fail(json, CommandName, ex);
             }
-
-            return 0;
         });
 
         return command;

@@ -1,23 +1,35 @@
 using System.CommandLine;
+using Dotquay.Core.Json;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
 internal static class ListCommand
 {
+    private const string CommandName = "list";
+
     public static Command Build()
     {
-        var command = new Command("list", "Show installed dependencies with their versions.");
+        var jsonOption = JsonOutput.CreateOption();
+        var command = new Command(CommandName, "Show installed dependencies with their versions.") { jsonOption };
 
-        command.SetAction(_ =>
+        command.SetAction(parseResult =>
         {
+            var json = parseResult.GetValue(jsonOption);
             var workflow = WorkflowFactory.Create();
 
             try
             {
-                var projectDirectory = Directory.GetCurrentDirectory();
+                var projectDirectory = GlobalOptions.Resolve(parseResult);
                 var addons = workflow.ListInstalled(projectDirectory);
                 var dotnet = workflow.ListInstalledDotnet(projectDirectory);
+
+                if (json)
+                {
+                    Console.WriteLine(DotquayJson.Write(
+                        JsonEnvelope<ListJson>.Success(CommandName, JsonMapper.ToListJson(addons, dotnet))));
+                    return 0;
+                }
 
                 if (addons.Count == 0 && dotnet.Count == 0)
                 {
@@ -41,8 +53,7 @@ internal static class ListCommand
             }
             catch (WorkflowException ex)
             {
-                ConsoleOutput.WriteLine(ConsoleColor.Red, ex.Message);
-                return 1;
+                return JsonOutput.Fail(json, CommandName, ex);
             }
         });
 

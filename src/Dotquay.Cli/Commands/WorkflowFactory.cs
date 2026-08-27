@@ -9,10 +9,10 @@ namespace Dotquay.Cli.Commands;
 /// construct real (non-test-double) infrastructure, so every command wires it the same way.</summary>
 internal static class WorkflowFactory
 {
-    public static DependencyWorkflow Create()
-    {
-        var cacheRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotquay", "cache");
-        return new DependencyWorkflow(new SystemFileSystem(), new ProcessGitClient(), cacheRoot);
-    }
+    public static DependencyWorkflow Create() =>
+        new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root());
+
+    /// <summary>Overrides are a pure manifest edit — no git, no NuGet, no cache (see
+    /// <see cref="OverrideWorkflow"/>'s remarks for why that separation is deliberate).</summary>
+    public static OverrideWorkflow CreateOverrides() => new(new SystemFileSystem());
 }

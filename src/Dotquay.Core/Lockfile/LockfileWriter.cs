@@ -26,6 +26,13 @@ public static class LockfileWriter
 
             sb.AppendLine($"path = {Quote(addon.Path)}");
 
+            // Written only when it differs from the name, so adding this field doesn't churn the
+            // lockfile of every project that never needed it.
+            if (addon.Folder is not null && addon.Folder != addon.Name)
+            {
+                sb.AppendLine($"folder = {Quote(addon.Folder)}");
+            }
+
             if (addon.ContentHash is not null)
             {
                 sb.AppendLine($"content_hash = {Quote(addon.ContentHash)}");

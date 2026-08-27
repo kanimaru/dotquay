@@ -1,0 +1,23 @@
+; Godot project used to develop, script-check, and dogfood the Dotquay editor plugin.
+;
+; It is deliberately minimal: the deliverable is `addons/dotquay/`, and everything else here exists
+; only so Godot has a project root to resolve `res://` against — which is also what lets CI run
+; `godot --headless --check-only` and the test scene against the real engine rather than trusting
+; that the GDScript parses.
+
+config_version=5
+
+[application]
+
+config/name="Dotquay Plugin Dev"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+; The plugin is intentionally NOT enabled here. `enabled=` makes Godot instantiate the EditorPlugin
+; during project load, which a headless `--script` run has no editor for — the test runner would hang
+; before reaching a single assertion. Enable it from Project Settings -> Plugins when using this
+; project by hand.
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

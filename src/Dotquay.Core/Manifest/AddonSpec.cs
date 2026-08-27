@@ -33,6 +33,22 @@ public sealed class AddonSpec
     /// </summary>
     public string? Path { get; init; }
 
+    /// <summary>
+    /// Folder name to install into under <c>addons/</c>, overriding the default of the addon's own
+    /// name (<see cref="EffectiveFolder"/>). The counterpart to <see cref="Path"/>: that one says
+    /// where the addon lives in <em>its</em> repo, this one says where it lands in <em>your</em>
+    /// project.
+    /// </summary>
+    /// <remarks>
+    /// Exists because a Godot addon's folder name is frequently part of its public contract rather
+    /// than a preference. Addons routinely <c>preload("res://addons/&lt;Name&gt;/...")</c>, which
+    /// Godot resolves at parse time — install such an addon under any other name and its dependents
+    /// fail to compile, not at runtime but on load. The canonical folder often differs from both the
+    /// repo name and whatever key a manifest happens to use, so it needs to be stateable
+    /// independently of the addon's identity (SPEC.md §7.1).
+    /// </remarks>
+    public string? InstallAs { get; init; }
+
     /// <summary>Exactly one of <see cref="Version"/>, <see cref="Branch"/>, or <see cref="Rev"/> is
     /// set by the time an <see cref="AddonSpec"/> exists — <see cref="Manifest.ManifestReader"/>
     /// enforces that invariant while parsing.</summary>
@@ -42,4 +58,8 @@ public sealed class AddonSpec
         AddonSourceKind.Version;
 
     public string EffectivePath => Path ?? $"addons/{Name}";
+
+    /// <summary>The folder under <c>addons/</c> this addon installs into. Defaults to the addon's
+    /// name, which is what every project relied on before <see cref="InstallAs"/> existed.</summary>
+    public string EffectiveFolder => InstallAs ?? Name;
 }

@@ -24,10 +24,11 @@ namespace Dotquay.Core.Workflows;
 /// </summary>
 public sealed class DependencyWorkflow
 {
-    private const string ManifestFileName = "dotquay.toml";
-    private const string LockfileFileName = "dotquay.lock";
+    private const string ManifestFileName = ProjectFileStore.ManifestFileName;
+    private const string LockfileFileName = ProjectFileStore.LockfileFileName;
 
     private readonly IFileSystem _fileSystem;
+    private readonly ProjectFileStore _projectFiles;
     private readonly IGitClient _gitClient;
     private readonly INuGetClientFactory _nuGetClientFactory;
     private readonly AddonResolver _resolver;
@@ -124,6 +125,7 @@ public sealed class DependencyWorkflow
         DotnetInstaller dotnetInstaller)
     {
         _fileSystem = fileSystem;
+        _projectFiles = new ProjectFileStore(fileSystem);
         _gitClient = gitClient;
         _nuGetClientFactory = nuGetClientFactory;
         _resolver = new AddonResolver(gitClient);
@@ -171,7 +173,7 @@ public sealed class DependencyWorkflow
         // silently move an unrelated one forward (SPEC.md §8 unification still runs across the whole
         // graph, it just treats untouched addons as exact pins for that purpose; see
         // SyncAddonGraphAsync's remarks).
-        var (syncedAddons, addonDeclaredDotnet) = await SyncAddonGraphAsync(
+        var (syncedAddons, addonDeclaredDotnet, _) = await SyncAddonGraphAsync(
             projectDirectory, updatedManifest, lockfile, freshNames: new HashSet<string>(StringComparer.Ordinal) { name },
             force: false, cancellationToken);
 
@@ -278,8 +280,24 @@ public sealed class DependencyWorkflow
     /// teammate hand-added to the manifest without running <c>dotquay add</c>: with no prior lock
     /// entry, this locks and installs it for the first time (SPEC.md §6).
     /// </summary>
-    public async Task<UpdateResult> UpdateAsync(
-        string projectDirectory, string? name, bool force, CancellationToken cancellationToken = default)
+    public Task<UpdateResult> UpdateAsync(
+        string projectDirectory, string? name, bool force, CancellationToken cancellationToken = default) =>
+        UpdateCoreAsync(projectDirectory, name, resync: false, force, cancellationToken);
+
+    /// <summary>
+    /// Re-walks and reinstalls the dependency graph without re-resolving anything the user didn't ask
+    /// to move: every top-level addon stays pinned to exactly its locked commit, and no NuGet package
+    /// is bumped. What can change is what the *graph* now decides — which is precisely what happens
+    /// after an <c>[overrides.*]</c> entry is written or cleared (SPEC.md §8). Backs
+    /// <c>dotquay override</c> (v0.5) and the editor plugin's conflict picker (SPEC.md §18): applying
+    /// a chosen version must not smuggle in unrelated updates, which a plain <c>dotquay update</c>
+    /// would.
+    /// </summary>
+    public Task<UpdateResult> ResyncAsync(string projectDirectory, bool force, CancellationToken cancellationToken = default) =>
+        UpdateCoreAsync(projectDirectory, name: null, resync: true, force, cancellationToken);
+
+    private async Task<UpdateResult> UpdateCoreAsync(
+        string projectDirectory, string? name, bool resync, bool force, CancellationToken cancellationToken)
     {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
@@ -290,10 +308,11 @@ public sealed class DependencyWorkflow
         }
 
         var previousAddonsByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
-        var walksAddonGraph = name is null || manifest.Addons.ContainsKey(name);
+        var walksAddonGraph = resync || name is null || manifest.Addons.ContainsKey(name);
 
         IReadOnlyList<LockedAddon> addons = lockfile.Addons;
         IReadOnlyList<DotnetSpec> addonDeclaredDotnet = [];
+        IReadOnlyList<GraphWarning> graphWarnings = [];
         var addonResults = new List<AddonUpdateResult>();
 
         if (walksAddonGraph)
@@ -302,11 +321,15 @@ public sealed class DependencyWorkflow
             // then treats the walk as exhaustive and prunes anything no longer reachable. A single
             // named addon update only re-resolves that one addon; every other top-level addon (and,
             // transitively, anything only it needs) is frozen exactly as it's currently locked.
-            var freshNames = name is null
-                ? manifest.Addons.Keys.ToHashSet(StringComparer.Ordinal)
-                : new HashSet<string>(StringComparer.Ordinal) { name };
+            // A resync freshens nothing: every root is frozen to its locked commit, so the only thing
+            // that can move the graph is a changed [overrides.*] entry.
+            var freshNames = resync
+                ? new HashSet<string>(StringComparer.Ordinal)
+                : name is null
+                    ? manifest.Addons.Keys.ToHashSet(StringComparer.Ordinal)
+                    : new HashSet<string>(StringComparer.Ordinal) { name };
 
-            (addons, addonDeclaredDotnet) = await SyncAddonGraphAsync(projectDirectory, manifest, lockfile, freshNames, force, cancellationToken);
+            (addons, addonDeclaredDotnet, graphWarnings) = await SyncAddonGraphAsync(projectDirectory, manifest, lockfile, freshNames, force, cancellationToken);
 
             var currentByName = addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
             foreach (var addonName in freshNames.Union(previousAddonsByName.Keys).Union(currentByName.Keys))
@@ -328,18 +351,25 @@ public sealed class DependencyWorkflow
         }
 
         var dotnetTargetNames = new HashSet<string>(StringComparer.Ordinal);
-        if (name is null)
+        if (!resync)
         {
-            dotnetTargetNames.UnionWith(manifest.Dotnet.Keys);
-        }
-        else if (manifest.Dotnet.ContainsKey(name))
-        {
-            dotnetTargetNames.Add(name);
+            if (name is null)
+            {
+                dotnetTargetNames.UnionWith(manifest.Dotnet.Keys);
+            }
+            else if (manifest.Dotnet.ContainsKey(name))
+            {
+                dotnetTargetNames.Add(name);
+            }
         }
 
         foreach (var spec in addonDeclaredDotnet)
         {
-            if (!manifest.Dotnet.ContainsKey(spec.Name))
+            // On a resync, only *genuinely new* addon-declared packages are resolved — one already
+            // locked stays exactly where it is, the same "don't move what wasn't asked to move" rule
+            // AddAsync applies (requirement P1-5).
+            if (!manifest.Dotnet.ContainsKey(spec.Name)
+                && (!resync || lockfile.Dotnet.All(d => d.Name != spec.Name)))
             {
                 dotnetTargetNames.Add(spec.Name);
             }
@@ -347,7 +377,7 @@ public sealed class DependencyWorkflow
 
         var previousDotnetByName = lockfile.Dotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var syncedDotnet = await SyncDotnetAsync(
-            projectDirectory, manifest, lockfile.Dotnet, dotnetTargetNames, pruneUnreachable: name is null, cancellationToken);
+            projectDirectory, manifest, lockfile.Dotnet, dotnetTargetNames, pruneUnreachable: !resync && name is null, cancellationToken);
 
         var syncedDotnetByName = syncedDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var dotnetResults = new List<DotnetUpdateResult>();
@@ -361,7 +391,7 @@ public sealed class DependencyWorkflow
         }
 
         WriteLockfile(lockfilePath, lockfile with { Addons = addons, Dotnet = syncedDotnet });
-        return new UpdateResult(addonResults, dotnetResults);
+        return new UpdateResult(addonResults, dotnetResults, graphWarnings.Select(w => w.Message).ToList());
     }
 
     /// <summary>Removes an addon or a dotnet dependency (whichever <paramref name="name"/> matches)
@@ -396,7 +426,7 @@ public sealed class DependencyWorkflow
 
             foreach (var orphan in lockfile.Addons.Where(a => !reachable.Contains(a.Name)))
             {
-                _fileSystem.DeleteDirectory(_fileSystem.CombinePath(projectDirectory, "addons", orphan.Name));
+                _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, orphan));
             }
 
             WriteLockfile(lockfilePath, lockfile with { Addons = lockfile.Addons.Where(a => reachable.Contains(a.Name)).ToList() });
@@ -455,10 +485,11 @@ public sealed class DependencyWorkflow
         var locked = lockfile.Addons.FirstOrDefault(a => a.Name == name)
             ?? throw new WorkflowException($"'{name}' is not a locked addon. Run 'dotquay add' or 'dotquay install' first.");
 
-        var installedPath = _fileSystem.CombinePath(projectDirectory, "addons", name);
+        var installedPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
         if (!_fileSystem.DirectoryExists(installedPath))
         {
-            throw new WorkflowException($"'addons/{name}' does not exist on disk — nothing to diff. Run 'dotquay install' first.");
+            throw new WorkflowException(
+                $"'addons/{locked.EffectiveFolder}' does not exist on disk — nothing to diff. Run 'dotquay install' first.");
         }
 
         // Deliberately its own staging subfolder, not the one AddonInstaller uses for the same
@@ -561,30 +592,9 @@ public sealed class DependencyWorkflow
     {
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
 
-        var results = new List<AddonStatusInfo>();
-        foreach (var locked in lockfile.Addons)
-        {
-            // Deliberately "addons/<name>", not locked.Path: Path is the SOURCE subtree extracted
-            // from the upstream repo (spec.EffectivePath — can differ from the destination when
-            // --path overrides it, SPEC.md §7.1 OQ-2), while AddonInstaller always installs to
-            // "addons/<name>" regardless (see AddonInstaller.InstallAsync's destinationPath). The two
-            // only coincide when no --path override is used, which is why this bug went unnoticed
-            // until an addon with an overridden path exercised status/doctor.
-            var installedPath = _fileSystem.CombinePath(projectDirectory, "addons", locked.Name);
-
-            if (!_fileSystem.DirectoryExists(installedPath))
-            {
-                results.Add(new AddonStatusInfo(locked.Name, AddonStatusKind.Missing));
-                continue;
-            }
-
-            var dirty = DirtyChecker.Check(_fileSystem, installedPath, locked.ContentHash);
-            var kind = dirty.IsDirty
-                ? AddonStatusKind.Modified
-                : locked.PatchHash is not null ? AddonStatusKind.PatchedAsExpected : AddonStatusKind.Clean;
-
-            results.Add(new AddonStatusInfo(locked.Name, kind));
-        }
+        var results = lockfile.Addons
+            .Select(locked => new AddonStatusInfo(locked.Name, AddonStatusEvaluator.Evaluate(_fileSystem, projectDirectory, locked)))
+            .ToList();
 
         return new StatusResult(results);
     }
@@ -618,12 +628,13 @@ public sealed class DependencyWorkflow
 
         if (manifest is not null)
         {
-            CheckDanglingLockfileEntries(manifest, lockfile, issues);
+            CheckDanglingLockfileEntries(projectDirectory, manifest, lockfile, issues);
         }
 
         foreach (var locked in lockfile.Addons)
         {
             CheckPluginCfgDrift(projectDirectory, locked, issues);
+            CheckPackageManifestReadable(projectDirectory, locked, issues);
         }
 
         CheckOrphanedAddonFolders(projectDirectory, lockfile, issues);
@@ -631,30 +642,77 @@ public sealed class DependencyWorkflow
         return new DoctorResult(issues);
     }
 
-    private static void CheckDanglingLockfileEntries(ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    /// <summary>
+    /// Reports lockfile entries nothing accounts for any more.
+    /// </summary>
+    /// <remarks>
+    /// "Not in the project manifest" is <em>not</em> the test, and treating it as one was a real bug:
+    /// since the dependency graph landed (v0.4, requirement P1-2/P1-5), a transitive addon and an
+    /// addon-declared NuGet package are both legitimately locked while appearing in no manifest the
+    /// project owns. Checking membership alone made doctor flag every single transitive dependency —
+    /// noise that arrives precisely when the graph feature starts working, and that teaches people to
+    /// ignore the check.
+    /// <para>
+    /// Addons use the lockfile's own <see cref="LockedAddon.Dependencies"/> edges for reachability,
+    /// the same rule <see cref="RemoveAsync"/> prunes with. NuGet has no such edges, so the installed
+    /// addons' package manifests are read off disk instead — they live inside
+    /// <c>addons/&lt;name&gt;/</c> (SPEC.md §7.2), which makes this answerable without any network.
+    /// </para>
+    /// </remarks>
+    private void CheckDanglingLockfileEntries(
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
     {
-        foreach (var locked in lockfile.Addons)
+        var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
+        var reachable = ComputeReachableAddonNames(lockedByName, manifest.Addons.Keys);
+
+        foreach (var locked in lockfile.Addons.Where(a => !reachable.Contains(a.Name)))
         {
-            if (!manifest.Addons.ContainsKey(locked.Name))
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.DanglingLockfileEntry,
+                $"'{locked.Name}' is locked but nothing requires it any more — run "
+                + $"'dotquay remove {locked.Name}' to clean it up, or re-add the [addons.{locked.Name}] "
+                + "entry if that was unintentional."));
+        }
+
+        var declaredDotnet = new HashSet<string>(manifest.Dotnet.Keys, StringComparer.Ordinal);
+        foreach (var locked in lockfile.Addons.Where(a => reachable.Contains(a.Name)))
+        {
+            foreach (var name in ReadInstalledPackageDotnetNames(projectDirectory, locked.EffectiveFolder))
             {
-                issues.Add(new DoctorIssue(
-                    DoctorIssueKind.DanglingLockfileEntry,
-                    $"'{locked.Name}' is locked but no longer declared in {ManifestFileName} — run "
-                    + $"'dotquay remove {locked.Name}' to clean it up, or re-add the [addons.{locked.Name}] "
-                    + "entry if that was unintentional."));
+                declaredDotnet.Add(name);
             }
         }
 
-        foreach (var locked in lockfile.Dotnet)
+        foreach (var locked in lockfile.Dotnet.Where(d => !declaredDotnet.Contains(d.Name)))
         {
-            if (!manifest.Dotnet.ContainsKey(locked.Name))
-            {
-                issues.Add(new DoctorIssue(
-                    DoctorIssueKind.DanglingLockfileEntry,
-                    $"'{locked.Name}' (NuGet) is locked but no longer declared in {ManifestFileName} — run "
-                    + $"'dotquay remove {locked.Name}' to clean it up, or re-add the [dotnet.{locked.Name}] "
-                    + "entry if that was unintentional."));
-            }
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.DanglingLockfileEntry,
+                $"'{locked.Name}' (NuGet) is locked but nothing requires it any more — run "
+                + $"'dotquay remove {locked.Name}' to clean it up, or re-add the [dotnet.{locked.Name}] "
+                + "entry if that was unintentional."));
+        }
+    }
+
+    /// <summary>The <c>[dotnet.*]</c> names an installed addon declares in its own package manifest.
+    /// Empty for an addon that ships none, isn't installed, or ships one that doesn't parse —
+    /// the unreadable case is <see cref="CheckPackageManifestReadable"/>'s to report, and reporting it
+    /// twice would be worse than reporting it once.</summary>
+    private IReadOnlyList<string> ReadInstalledPackageDotnetNames(string projectDirectory, string folder)
+    {
+        var manifestPath = _fileSystem.CombinePath(
+            InstallPaths.ForFolder(_fileSystem, projectDirectory, folder), ManifestFileName);
+        if (!_fileSystem.FileExists(manifestPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath).Dotnet.Keys.ToList();
+        }
+        catch (ManifestParseException)
+        {
+            return [];
         }
     }
 
@@ -667,8 +725,8 @@ public sealed class DependencyWorkflow
             return;
         }
 
-        // Same "addons/<name>", not locked.Path, reasoning as Status() above.
-        var pluginCfgPath = _fileSystem.CombinePath(projectDirectory, "addons", locked.Name, "plugin.cfg");
+        var pluginCfgPath = _fileSystem.CombinePath(
+            InstallPaths.For(_fileSystem, projectDirectory, locked), "plugin.cfg");
         var cfgVersion = PluginCfgReader.TryReadVersion(_fileSystem, pluginCfgPath);
         if (cfgVersion is null)
         {
@@ -690,20 +748,53 @@ public sealed class DependencyWorkflow
         }
     }
 
+    /// <summary>
+    /// An installed addon that ships its own <c>dotquay.toml</c> is declaring dependencies (SPEC.md
+    /// §7.2). If that file doesn't parse as a package manifest, the graph walk treats the addon as a
+    /// leaf and skips every dependency it names — correct behaviour, but invisible. This is the local
+    /// half of the same warning the resolver emits, and it needs no network at all: the installed
+    /// folder <em>is</em> the extracted subtree, so what's on disk is exactly what the walk reads.
+    /// </summary>
+    private void CheckPackageManifestReadable(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
+    {
+        var manifestPath = _fileSystem.CombinePath(
+            InstallPaths.For(_fileSystem, projectDirectory, locked), ManifestFileName);
+        if (!_fileSystem.FileExists(manifestPath))
+        {
+            // No manifest is the normal case for a third-party addon and costs it nothing
+            // (SPEC.md §7.2). Only a manifest that exists but can't be read is worth reporting.
+            return;
+        }
+
+        try
+        {
+            ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
+        }
+        catch (ManifestParseException ex)
+        {
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.UnreadablePackageManifest,
+                $"'{locked.Name}' ships a dotquay.toml that isn't a valid package manifest, so any dependencies "
+                + $"it declares are being ignored. {ex.Message}"));
+        }
+    }
+
     private void CheckOrphanedAddonFolders(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
     {
-        var addonsPath = _fileSystem.CombinePath(projectDirectory, "addons");
+        var addonsPath = InstallPaths.AddonsRoot(_fileSystem, projectDirectory);
         if (!_fileSystem.DirectoryExists(addonsPath))
         {
             return;
         }
 
-        var lockedNames = lockfile.Addons.Select(a => a.Name).ToHashSet(StringComparer.Ordinal);
+        // Compared against install folders, not addon names: with install_as they differ, and an
+        // addon deliberately installed under another name is the opposite of an orphan.
+        var lockedFolders = lockfile.Addons.Select(a => a.EffectiveFolder).ToHashSet(StringComparer.Ordinal);
 
         foreach (var dir in _fileSystem.EnumerateDirectories(addonsPath))
         {
             var name = dir.Replace('\\', '/').TrimEnd('/').Split('/').Last();
-            if (!lockedNames.Contains(name))
+            if (!lockedFolders.Contains(name))
             {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.OrphanedAddonFolder,
@@ -947,7 +1038,7 @@ public sealed class DependencyWorkflow
     /// managers let transitive versions shift slightly on any resolve, while top-level identities
     /// stay put unless asked to move.
     /// </remarks>
-    private async Task<(IReadOnlyList<LockedAddon> Addons, IReadOnlyList<DotnetSpec> AddonDeclaredDotnet)> SyncAddonGraphAsync(
+    private async Task<(IReadOnlyList<LockedAddon> Addons, IReadOnlyList<DotnetSpec> AddonDeclaredDotnet, IReadOnlyList<GraphWarning> Warnings)> SyncAddonGraphAsync(
         string projectDirectory,
         ProjectManifest manifest,
         DotquayLockfile lockfile,
@@ -1013,7 +1104,7 @@ public sealed class DependencyWorkflow
             _fileSystem.DeleteDirectory(_fileSystem.CombinePath(projectDirectory, "addons", orphan.Name));
         }
 
-        return (resultByName.Values.ToList(), graph.AddonDeclaredDotnet);
+        return (resultByName.Values.ToList(), graph.AddonDeclaredDotnet, graph.Warnings);
     }
 
     /// <summary>
@@ -1134,44 +1225,20 @@ public sealed class DependencyWorkflow
         Dependencies = dependencyNames,
     };
 
-    private (ProjectManifest Manifest, string Path) ReadManifestOrThrow(string projectDirectory)
-    {
-        var path = _fileSystem.CombinePath(projectDirectory, ManifestFileName);
-        if (!_fileSystem.FileExists(path))
-        {
-            throw new WorkflowException($"No {ManifestFileName} found in {projectDirectory}. Run 'dotquay init' first.");
-        }
+    private (ProjectManifest Manifest, string Path) ReadManifestOrThrow(string projectDirectory) =>
+        _projectFiles.ReadManifestOrThrow(projectDirectory);
 
-        return (ManifestReader.ReadProject(_fileSystem.ReadAllText(path), path), path);
-    }
+    private (DotquayLockfile Lockfile, string Path) ReadOrCreateLockfile(string projectDirectory) =>
+        _projectFiles.ReadOrCreateLockfile(projectDirectory);
 
-    private (DotquayLockfile Lockfile, string Path) ReadOrCreateLockfile(string projectDirectory)
-    {
-        var path = _fileSystem.CombinePath(projectDirectory, LockfileFileName);
-        if (!_fileSystem.FileExists(path))
-        {
-            return (new DotquayLockfile(), path);
-        }
-
-        return (LockfileReader.Read(_fileSystem.ReadAllText(path), path), path);
-    }
-
-    private (DotquayLockfile Lockfile, string Path) ReadLockfileOrThrow(string projectDirectory)
-    {
-        var path = _fileSystem.CombinePath(projectDirectory, LockfileFileName);
-        if (!_fileSystem.FileExists(path))
-        {
-            throw new WorkflowException($"No {LockfileFileName} found in {projectDirectory}. Run 'dotquay add' first.");
-        }
-
-        return (LockfileReader.Read(_fileSystem.ReadAllText(path), path), path);
-    }
+    private (DotquayLockfile Lockfile, string Path) ReadLockfileOrThrow(string projectDirectory) =>
+        _projectFiles.ReadLockfileOrThrow(projectDirectory);
 
     private void WriteManifest(string manifestPath, ProjectManifest updated) =>
-        _fileSystem.WriteAllText(manifestPath, ManifestWriter.Serialize(updated));
+        _projectFiles.WriteManifest(manifestPath, updated);
 
     private void WriteLockfile(string lockfilePath, DotquayLockfile updated) =>
-        _fileSystem.WriteAllText(lockfilePath, LockfileWriter.Serialize(updated));
+        _projectFiles.WriteLockfile(lockfilePath, updated);
 
     /// <summary>Derives a manifest key from a git URL, e.g.
     /// <c>"https://github.com/nathanhoad/godot_dialogue_manager.git"</c> -> <c>"godot_dialogue_manager"</c>.

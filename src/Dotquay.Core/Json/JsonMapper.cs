@@ -1,0 +1,247 @@
+using Dotquay.Core.Graph;
+using Dotquay.Core.Lockfile;
+using Dotquay.Core.Manifest;
+using Dotquay.Core.Resolve;
+using Dotquay.Core.Workflows;
+
+namespace Dotquay.Core.Json;
+
+/// <summary>
+/// The one place domain models become wire payloads (SPEC.md §17). Every enum-to-string mapping is
+/// spelled out here rather than delegated to a naming convention, so the JSON contract can only
+/// change by editing this file — a renamed C# enum member is a compile error here, not a silent break
+/// in the Godot plugin.
+/// </summary>
+public static class JsonMapper
+{
+    public static GraphJson ToJson(GraphReport report) => new()
+    {
+        Source = report.Source switch
+        {
+            GraphSource.Lockfile => "lockfile",
+            GraphSource.Resolved => "resolved",
+            _ => "unknown",
+        },
+        ProjectDirectory = report.ProjectDirectory,
+        Roots = report.RootNames,
+        Addons = report.Addons.Select(ToJson).ToList(),
+        Edges = report.Edges.Select(e => new GraphEdgeJson(e.From, e.To)).ToList(),
+        Dotnet = report.Dotnet.Select(ToJson).ToList(),
+        Conflicts = report.Conflicts.Select(ToJson).ToList(),
+        Overrides = report.Overrides,
+        HasConflicts = report.Conflicts.Count > 0,
+    };
+
+    public static GraphNodeJson ToJson(GraphNode node) => new()
+    {
+        Name = node.Name,
+        Git = node.Git,
+        Version = node.Version,
+        Resolved = node.ResolvedSha,
+        ShortSha = ShortSha(node.ResolvedSha),
+        Path = node.Path,
+        Folder = node.Folder,
+        Origin = node.Origin switch
+        {
+            GraphNodeOrigin.Root => "root",
+            GraphNodeOrigin.Transitive => "transitive",
+            GraphNodeOrigin.Orphan => "orphan",
+            _ => "unknown",
+        },
+        SourceKind = node.SourceKind is null ? null : ToWire(node.SourceKind.Value),
+        Constraint = node.Constraint,
+        IsOverridden = node.IsOverridden,
+        IsPatched = node.IsPatched,
+        Status = node.Status is null ? null : ToWire(node.Status.Value),
+        Dependencies = node.Dependencies,
+        Requirements = node.Requirements.Select(ToJson).ToList(),
+    };
+
+    public static RequirementJson ToJson(GraphRequirement requirement) =>
+        new(requirement.Requirer, ToWire(requirement.Kind), requirement.Constraint, requirement.Git);
+
+    public static CandidateJson ToJson(GraphCandidate candidate) => new()
+    {
+        Kind = ToWire(candidate.Kind),
+        Value = candidate.Value,
+        Git = candidate.Git,
+        Resolved = candidate.CommitSha,
+        Satisfies = candidate.SatisfiedRequirers,
+        SatisfiesAll = candidate.SatisfiesAll,
+        InstallAs = candidate.InstallAs,
+    };
+
+    public static ConflictJson ToJson(GraphConflict conflict) => new()
+    {
+        Name = conflict.AddonName,
+        Kind = conflict.Kind switch
+        {
+            GraphConflictKind.DifferentGitUrls => "different_git_urls",
+            GraphConflictKind.DisjointPins => "disjoint_pins",
+            GraphConflictKind.NoCommonVersion => "no_common_version",
+            GraphConflictKind.InvalidConstraint => "invalid_constraint",
+            GraphConflictKind.DisagreeingInstallFolders => "disagreeing_install_folders",
+            _ => "unknown",
+        },
+        Message = conflict.Message,
+        Requirements = conflict.Requirements.Select(ToJson).ToList(),
+        Candidates = conflict.Candidates.Select(ToJson).ToList(),
+    };
+
+    public static DotnetJson ToJson(GraphDotnetNode node) => new()
+    {
+        Name = node.Name,
+        Constraint = node.Constraint,
+        Resolved = node.Resolved,
+        DeclaredByProject = node.DeclaredByProject,
+    };
+
+    public static ListJson ToListJson(IReadOnlyList<LockedAddon> addons, IReadOnlyList<LockedDotnet> dotnet) => new()
+    {
+        Addons = addons
+            .OrderBy(a => a.Name, StringComparer.Ordinal)
+            .Select(a => new ListAddonJson
+            {
+                Name = a.Name,
+                Version = a.Version,
+                Resolved = a.Resolved,
+                ShortSha = ShortSha(a.Resolved)!,
+                Git = a.Git,
+                IsPatched = a.PatchHash is not null,
+            })
+            .ToList(),
+        Dotnet = dotnet
+            .OrderBy(d => d.Name, StringComparer.Ordinal)
+            .Select(d => new DotnetJson { Name = d.Name, Constraint = null, Resolved = d.Resolved, DeclaredByProject = true })
+            .ToList(),
+    };
+
+    public static StatusJson ToJson(StatusResult status) => new()
+    {
+        Addons = status.Addons.Select(a => new StatusEntryJson(a.Name, ToWire(a.Kind))).ToList(),
+        AllClean = status.Addons.All(a => a.Kind is AddonStatusKind.Clean or AddonStatusKind.PatchedAsExpected),
+    };
+
+    public static OutdatedJson ToJson(OutdatedResult outdated)
+    {
+        var addons = outdated.Addons
+            .Select(a => new OutdatedEntryJson(a.Name, a.CurrentDisplay, a.LatestDisplay, a.IsOutdated))
+            .ToList();
+        var dotnet = outdated.Dotnet
+            .Select(d => new OutdatedEntryJson(d.Name, d.CurrentVersion, d.LatestVersion, d.IsOutdated))
+            .ToList();
+
+        return new OutdatedJson
+        {
+            Addons = addons,
+            Dotnet = dotnet,
+            OutdatedCount = addons.Count(a => a.IsOutdated) + dotnet.Count(d => d.IsOutdated),
+        };
+    }
+
+    public static DoctorJson ToJson(DoctorResult doctor) => new()
+    {
+        Issues = doctor.Issues.Select(i => new DoctorIssueJson(ToWire(i.Kind), i.Message)).ToList(),
+        Healthy = doctor.Issues.Count == 0,
+    };
+
+    public static OperationJson ToJson(UpdateResult update, IReadOnlyList<string>? messages = null) => new()
+    {
+        Changes = update.Addons
+            .Select(a => new ChangeJson
+            {
+                Name = a.Name,
+                Kind = ChangeKind.Addon,
+                Action = a.PreviousResolved is null ? ChangeAction.Added
+                    : a.PreviousResolved == a.Locked.Resolved ? ChangeAction.Unchanged
+                    : ChangeAction.Updated,
+                From = ShortSha(a.PreviousResolved),
+                To = a.Locked.Version ?? ShortSha(a.Locked.Resolved),
+            })
+            .Concat(update.Dotnet.Select(d => new ChangeJson
+            {
+                Name = d.Name,
+                Kind = ChangeKind.Dotnet,
+                Action = d.PreviousResolved is null ? ChangeAction.Added
+                    : d.PreviousResolved == d.Locked.Resolved ? ChangeAction.Unchanged
+                    : ChangeAction.Updated,
+                From = d.PreviousResolved,
+                To = d.Locked.Resolved,
+            }))
+            .ToList(),
+        Messages = messages ?? [],
+    };
+
+    public static OperationJson ToJson(InstallResult install, IReadOnlyList<string>? messages = null) => new()
+    {
+        Changes = install.Addons
+            .Select(a => new ChangeJson
+            {
+                Name = a.Name,
+                Kind = ChangeKind.Addon,
+                Action = ChangeAction.Installed,
+                From = null,
+                To = a.Version ?? ShortSha(a.Resolved),
+            })
+            .Concat(install.Dotnet.Select(d => new ChangeJson
+            {
+                Name = d.Name,
+                Kind = ChangeKind.Dotnet,
+                Action = ChangeAction.Installed,
+                From = null,
+                To = d.Resolved,
+            }))
+            .ToList(),
+        Messages = messages ?? [],
+    };
+
+    public static string ToWire(AddonSourceKind kind) => kind switch
+    {
+        AddonSourceKind.Version => "version",
+        AddonSourceKind.Branch => "branch",
+        AddonSourceKind.Rev => "rev",
+        _ => "unknown",
+    };
+
+    public static string ToWire(AddonStatusKind status) => status switch
+    {
+        AddonStatusKind.Clean => "clean",
+        // Deliberately "patched", not "patched_as_expected": the wire name is what a UI shows on a
+        // badge, and the C# name's emphasis reads as an apology in that context.
+        AddonStatusKind.PatchedAsExpected => "patched",
+        AddonStatusKind.Modified => "modified",
+        AddonStatusKind.Missing => "missing",
+        _ => "unknown",
+    };
+
+    public static string ToWire(DoctorIssueKind kind) => kind switch
+    {
+        DoctorIssueKind.GitNotOnPath => "git_not_on_path",
+        DoctorIssueKind.DanglingLockfileEntry => "dangling_lockfile_entry",
+        DoctorIssueKind.PluginCfgVersionDrift => "plugin_cfg_version_drift",
+        DoctorIssueKind.OrphanedAddonFolder => "orphaned_addon_folder",
+        DoctorIssueKind.UnreadablePackageManifest => "unreadable_package_manifest",
+        _ => "unknown",
+    };
+
+    /// <summary>Precomputed so every consumer abbreviates a SHA the same way the CLI prints it.</summary>
+    public static string? ShortSha(string? sha) =>
+        sha is null ? null : sha.Length > 7 ? sha[..7] : sha;
+
+    /// <summary>Wire values for <see cref="ChangeJson.Kind"/>.</summary>
+    public static class ChangeKind
+    {
+        public const string Addon = "addon";
+        public const string Dotnet = "dotnet";
+    }
+
+    /// <summary>Wire values for <see cref="ChangeJson.Action"/>.</summary>
+    public static class ChangeAction
+    {
+        public const string Added = "added";
+        public const string Updated = "updated";
+        public const string Removed = "removed";
+        public const string Installed = "installed";
+        public const string Unchanged = "unchanged";
+    }
+}

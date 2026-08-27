@@ -1,21 +1,31 @@
 using System.CommandLine;
+using Dotquay.Core.Json;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
 internal static class OutdatedCommand
 {
+    private const string CommandName = "outdated";
+
     public static Command Build()
     {
-        var command = new Command("outdated", "Check for newer versions without cloning anything.");
+        var jsonOption = JsonOutput.CreateOption();
+        var command = new Command(CommandName, "Check for newer versions without cloning anything.") { jsonOption };
 
-        command.SetAction(async (_, cancellationToken) =>
+        command.SetAction(async (parseResult, cancellationToken) =>
         {
-            var workflow = WorkflowFactory.Create();
+            var json = parseResult.GetValue(jsonOption);
 
             try
             {
-                var result = await workflow.OutdatedAsync(Directory.GetCurrentDirectory(), cancellationToken);
+                var result = await WorkflowFactory.Create().OutdatedAsync(GlobalOptions.Resolve(parseResult), cancellationToken);
+
+                if (json)
+                {
+                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<OutdatedJson>.Success(CommandName, JsonMapper.ToJson(result))));
+                    return 0;
+                }
 
                 var outdatedAddons = result.Addons.Where(a => a.IsOutdated).ToList();
                 var outdatedDotnet = result.Dotnet.Where(d => d.IsOutdated).ToList();
@@ -41,8 +51,7 @@ internal static class OutdatedCommand
             }
             catch (WorkflowException ex)
             {
-                ConsoleOutput.WriteLine(ConsoleColor.Red, ex.Message);
-                return 1;
+                return JsonOutput.Fail(json, CommandName, ex);
             }
         });
 
