@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dotquay.Cli</RootNamespace>
+    <AssemblyName>dotquay</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Distribution decision (SPEC.md §12, OQ-6): NativeAOT is the target. Spectre.Console.Cli
+         was tried first (§12 OQ-1) but a real `dotnet publish -p:PublishAot=true` build+run proved
+         it crashes at startup under NativeAOT (trimmer strips the reflection its command-settings
+         binding needs) — see docs/SPRINT-01.md. Swapped to System.CommandLine, the documented
+         fallback. -->
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dotquay.Core\Dotquay.Core.csproj" />
+  </ItemGroup>
+
+</Project>

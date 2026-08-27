@@ -1,4 +1,4 @@
-# GitLab CI for dependi (SPEC.md §12: NativeAOT self-contained single-file publish, win-x64 +
+# GitLab CI for dotquay (SPEC.md §12: NativeAOT self-contained single-file publish, win-x64 +
 # linux-x64; §16 OQ-6: "trimmed self-contained publish only as fallback" where real NativeAOT
 # compilation for the target isn't available).
 #
@@ -34,16 +34,16 @@ variables:
 
 .dotnet_cache: &dotnet_cache
   # GitLab caps cache:key:files at 2 entries, and there's no single NuGet lockfile in this repo to
-  # key off of (no RestorePackagesWithLockFile) — Dependi.sln alone is good enough: a stale key
+  # key off of (no RestorePackagesWithLockFile) — Dotquay.sln alone is good enough: a stale key
   # (e.g. only a csproj's package version bumped, not the sln) just means `dotnet restore` adds the
   # newly-needed package into the existing cache dir, not a correctness problem.
   key:
     files:
-      - Dependi.sln
+      - Dotquay.sln
   paths:
     - .nuget/packages/
 
-# Runs once, ahead of both platform-specific publish jobs below — the whole point of Dependi.Tests
+# Runs once, ahead of both platform-specific publish jobs below — the whole point of Dotquay.Tests
 # is that it never touches a real filesystem/network/git/dotnet process (fakes only, see
 # docs/SPRINT-01.md), so its result doesn't depend on which OS it runs on and only needs to happen
 # once per pipeline rather than being duplicated in each platform build below.
@@ -64,11 +64,11 @@ build:linux-x64:
     # base SDK image by default.
     - apt-get update && apt-get install -y --no-install-recommends clang zlib1g-dev
   script:
-    - dotnet publish src/Dependi.Cli -c Release -r linux-x64 --self-contained -p:PublishAot=true -o publish/linux-x64
+    - dotnet publish src/Dotquay.Cli -c Release -r linux-x64 --self-contained -p:PublishAot=true -o publish/linux-x64
   artifacts:
-    name: "dependi-linux-x64-$CI_COMMIT_SHORT_SHA"
+    name: "dotquay-linux-x64-$CI_COMMIT_SHORT_SHA"
     paths:
-      - publish/linux-x64/dependi
+      - publish/linux-x64/dotquay
     expire_in: 30 days
 
 build:windows-x64:
@@ -78,11 +78,11 @@ build:windows-x64:
   script:
     # PublishAot explicitly disabled here -- see the file header. Still self-contained + trimmed +
     # single-file, just not natively compiled, since no real Windows build host is available.
-    - dotnet publish src/Dependi.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true -o publish/win-x64
+    - dotnet publish src/Dotquay.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true -o publish/win-x64
   artifacts:
-    name: "dependi-windows-x64-$CI_COMMIT_SHORT_SHA"
+    name: "dotquay-windows-x64-$CI_COMMIT_SHORT_SHA"
     paths:
-      - publish/win-x64/dependi.exe
+      - publish/win-x64/dotquay.exe
     expire_in: 30 days
 
 # --- Release: only runs when the pipeline is for a tag (push a tag like `v0.4.0` to trigger it).
@@ -100,8 +100,8 @@ upload:linux-x64:
     - build:linux-x64
   script:
     - >-
-      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dependi
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-linux-x64"
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dotquay
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64"
 
 upload:windows-x64:
   stage: release
@@ -112,8 +112,8 @@ upload:windows-x64:
     - build:windows-x64
   script:
     - >-
-      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dependi.exe
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-windows-x64.exe"
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dotquay.exe
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"
 
 release:
   stage: release
@@ -129,11 +129,11 @@ release:
     - echo "Creating release ${CI_COMMIT_TAG}"
   release:
     tag_name: "${CI_COMMIT_TAG}"
-    name: "dependi ${CI_COMMIT_TAG}"
+    name: "dotquay ${CI_COMMIT_TAG}"
     description: "See docs/SPRINT-01.md and docs/SPEC.md for what shipped in this release."
     assets:
       links:
-        - name: "dependi-linux-x64"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-linux-x64"
-        - name: "dependi-windows-x64.exe"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dependi/${CI_COMMIT_TAG}/dependi-windows-x64.exe"
+        - name: "dotquay-linux-x64"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64"
+        - name: "dotquay-windows-x64.exe"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"

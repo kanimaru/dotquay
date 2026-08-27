@@ -1,6 +1,6 @@
-# dependi
+# dotquay
 
-[![pipeline status](https://gitlab.kemomi.de/wild-alliance/dependi/badges/main/pipeline.svg)](https://gitlab.kemomi.de/wild-alliance/dependi/-/pipelines)
+[![pipeline status](https://gitlab.kemomi.de/wild-alliance/dotquay/badges/main/pipeline.svg)](https://gitlab.kemomi.de/wild-alliance/dotquay/-/pipelines)
 
 A package manager for Godot projects: GDScript addons from git repositories, plus .NET
 dependencies via NuGet, in one manifest with reproducible, lockfile-driven installs.
@@ -18,26 +18,26 @@ NuGet paths, a real NativeAOT publish), not just fakes:
   git source kinds (`version`/`branch`/`rev`), NuGet delegation, a global content-addressed fetch
   cache, and private NuGet feed support.
 - **v0.2 — safety and visibility**: `outdated`, `status`, `doctor`.
-- **v0.3 — patches**: `dependi patch <name>` captures hand-edits, `install`/`update` re-apply them
+- **v0.3 — patches**: `dotquay patch <name>` captures hand-edits, `install`/`update` re-apply them
   via a real 3-way merge, with conflicts halting cleanly instead of clobbering anything.
-- **v0.4 — dependency graph**: dependi-aware addons can declare their own dependencies; dependi
+- **v0.4 — dependency graph**: dotquay-aware addons can declare their own dependencies; dotquay
   walks the graph, unifies shared dependencies to one version, and unions any addon-declared NuGet
   packages into the project's `.csproj`.
 
 ## Quick start
 
 ```
-dependi init                                   # scaffold dependi.toml in a Godot project
-dependi add https://github.com/nathanhoad/godot_dialogue_manager   # git addon
-dependi add Newtonsoft.Json                    # NuGet package
-dependi install                                # fresh clone -> addons/ + .csproj match the lockfile
+dotquay init                                   # scaffold dotquay.toml in a Godot project
+dotquay add https://github.com/nathanhoad/godot_dialogue_manager   # git addon
+dotquay add Newtonsoft.Json                    # NuGet package
+dotquay install                                # fresh clone -> addons/ + .csproj match the lockfile
 ```
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `init <directory>` | Scaffold a `dependi.toml` in the project root (or, with `--package`, inside an addon folder — see "Declaring dependencies as an addon author" below). |
+| `init <directory>` | Scaffold a `dotquay.toml` in the project root (or, with `--package`, inside an addon folder — see "Declaring dependencies as an addon author" below). |
 | `add <source>` | Add a dependency (git URL or NuGet package ID), resolve it, lock it, and install it. |
 | `remove <name>` | Remove a dependency from the manifest, lockfile, and disk. |
 | `install` | Make `addons/` and `.csproj` match the lockfile exactly — the reproducible, no-network-resolution path for a fresh clone or CI. |
@@ -48,9 +48,9 @@ dependi install                                # fresh clone -> addons/ + .cspro
 | `patch <name>` | Capture hand-edits to an installed addon as a patch file, replayed via 3-way merge on future `install`/`update`. |
 | `doctor` | Run sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned `addons/` folders. |
 
-Run `dependi --help` or `dependi <command> --help` for the full option list.
+Run `dotquay --help` or `dotquay <command> --help` for the full option list.
 
-## The manifest (`dependi.toml`)
+## The manifest (`dotquay.toml`)
 
 ```toml
 [project]
@@ -71,13 +71,13 @@ version = "~2.0"
 ```
 
 `version` matches against git tags using Cargo-style `~` ranges (`~2.44` matches `2.44.x`, `~2`
-matches any `2.x.x`). `dependi add` picks a sensible default automatically: the latest release
+matches any `2.x.x`). `dotquay add` picks a sensible default automatically: the latest release
 tag's `~major.minor` range if the repo has tags, otherwise a hard `rev` pin to the default
 branch's tip.
 
 ## Dependency graph (v0.4)
 
-Dependi-aware addons can declare their own dependencies, and dependi walks and unifies that graph
+Dotquay-aware addons can declare their own dependencies, and dotquay walks and unifies that graph
 automatically — if two addons you depend on both need a third shared addon, exactly one copy of it
 lands in `addons/`, at a version satisfying every requirer's constraint at once. Conflicting
 requirements (disjoint version ranges, or the same name pinned to two different commits) are a
@@ -85,7 +85,7 @@ hard error naming every requirer, not a silent pick.
 
 ### Declaring dependencies as an addon author
 
-Ship a `dependi.toml` inside your addon's own folder (next to `plugin.cfg`) with a `[package]`
+Ship a `dotquay.toml` inside your addon's own folder (next to `plugin.cfg`) with a `[package]`
 header instead of `[project]`:
 
 ```toml
@@ -109,16 +109,16 @@ this file are treated as leaf nodes, same as before — this is additive, not a 
 ## Project layout
 
 ```
-src/Dependi.Core/    pipeline stages behind interfaces — manifest/lockfile I/O, git resolution,
+src/Dotquay.Core/    pipeline stages behind interfaces — manifest/lockfile I/O, git resolution,
                       the dependency graph resolver, sync engine, patch workflow, NuGet delegation.
                       No console/CLI code lives here.
-src/Dependi.Cli/     thin System.CommandLine command layer over Dependi.Core.
-tests/Dependi.Tests/ xUnit tests. Everything goes through IFileSystem/IGitClient/INuGetClient/
+src/Dotquay.Cli/     thin System.CommandLine command layer over Dotquay.Core.
+tests/Dotquay.Tests/ xUnit tests. Everything goes through IFileSystem/IGitClient/INuGetClient/
                       IPatchTool/IDotnetCliRunner fakes, never real disk or network — see
-                      Dependi.Tests/Support/.
+                      Dotquay.Tests/Support/.
 ```
 
-The `Dependi.Core` / `Dependi.Cli` / `Dependi.Tests` split and the interface seams are a deliberate
+The `Dotquay.Core` / `Dotquay.Cli` / `Dotquay.Tests` split and the interface seams are a deliberate
 architecture decision — see SPEC.md §12.
 
 ## Build & test
@@ -133,7 +133,7 @@ dotnet test
 Try it:
 
 ```
-dotnet run --project src/Dependi.Cli -- init
+dotnet run --project src/Dotquay.Cli -- init
 ```
 
 ## Publishing
@@ -141,7 +141,7 @@ dotnet run --project src/Dependi.Cli -- init
 The distribution target is a trimmed NativeAOT single-file binary (SPEC.md §12, decided OQ-6):
 
 ```
-dotnet publish src/Dependi.Cli -c Release -r <win-x64|linux-x64|osx-arm64> -p:PublishAot=true
+dotnet publish src/Dotquay.Cli -c Release -r <win-x64|linux-x64|osx-arm64> -p:PublishAot=true
 ```
 
 Spectre.Console.Cli was tried first but proved incompatible with NativeAOT — it built cleanly but
@@ -156,7 +156,7 @@ only has a Linux Docker runner, so its Windows build can't natively compile), th
 fallback is a trimmed self-contained publish instead:
 
 ```
-dotnet publish src/Dependi.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true
+dotnet publish src/Dotquay.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true
 ```
 
 ## CI/CD and releases
