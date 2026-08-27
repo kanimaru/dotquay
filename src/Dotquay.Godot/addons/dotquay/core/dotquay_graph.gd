@@ -17,6 +17,8 @@ class AddonNode extends RefCounted:
 	var resolved: String = ""
 	var short_sha: String = ""
 	var path: String = ""
+	## The folder under addons/ this addon installs into — its name unless install_as redirects it.
+	var folder: String = ""
 	var origin: String = DotquayWire.ORIGIN_ROOT
 	var source_kind: String = ""
 	var constraint: String = ""
@@ -34,6 +36,8 @@ class AddonNode extends RefCounted:
 		node.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
 		node.short_sha = DotquayWire.str_or_empty(payload.get("short_sha"))
 		node.path = String(payload.get("path", ""))
+		# Falls back to the name so a payload from a dotquay predating install_as still renders.
+		node.folder = String(payload.get("folder", node.name))
 		node.origin = String(payload.get("origin", DotquayWire.ORIGIN_ROOT))
 		node.source_kind = DotquayWire.str_or_empty(payload.get("source_kind"))
 		node.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
@@ -60,7 +64,15 @@ class AddonNode extends RefCounted:
 		return "unresolved"
 
 	func is_healthy() -> bool:
-		return status.is_empty() or status == DotquayWire.STATUS_CLEAN or status == DotquayWire.STATUS_PATCHED
+		return (status.is_empty()
+			or status == DotquayWire.STATUS_CLEAN
+			or status == DotquayWire.STATUS_PATCHED
+			or status == DotquayWire.STATUS_LINKED)
+
+	## True when this addon is a live link into a folder on this machine rather than an installed
+	## copy of the locked commit.
+	func is_linked() -> bool:
+		return status == DotquayWire.STATUS_LINKED
 
 	## True when removing this addon is a meaningful action — only the project's own entries can be
 	## removed from the manifest, because only they are in it.
@@ -70,6 +82,11 @@ class AddonNode extends RefCounted:
 	## True when the addon is locked but nothing requires it any more.
 	func is_orphan() -> bool:
 		return origin == DotquayWire.ORIGIN_ORPHAN
+
+	## True when install_as sends this addon somewhere other than addons/<name>. Worth surfacing,
+	## because "where did this go?" is only ever asked when the two differ.
+	func is_renamed() -> bool:
+		return not folder.is_empty() and folder != name
 
 
 class Requirement extends RefCounted:
@@ -97,6 +114,9 @@ class Candidate extends RefCounted:
 	var resolved: String = ""
 	var satisfies: PackedStringArray = PackedStringArray()
 	var satisfies_all: bool = false
+	## Set only for a disagreeing_install_folders conflict, where the disagreement is about the
+	## destination folder rather than the commit.
+	var install_as: String = ""
 
 	static func from_payload(payload: Dictionary) -> Candidate:
 		var candidate := Candidate.new()
@@ -109,11 +129,20 @@ class Candidate extends RefCounted:
 			candidate.satisfies.append(String(requirer))
 
 		candidate.satisfies_all = bool(payload.get("satisfies_all", false))
+		candidate.install_as = DotquayWire.str_or_empty(payload.get("install_as"))
 		return candidate
 
 	## The CLI flag this candidate maps to, so the picker never translates anything itself.
 	func override_flag() -> String:
 		return "--" + kind
+
+	## True when accepting this candidate means choosing a folder rather than a version.
+	func is_folder_choice() -> bool:
+		return not install_as.is_empty()
+
+	## What to show on the picker's radio button.
+	func display_label() -> String:
+		return "install as addons/%s" % install_as if is_folder_choice() else "%s %s" % [kind, value]
 
 	func describe_satisfies() -> String:
 		if satisfies_all:
@@ -179,6 +208,8 @@ class Conflict extends RefCounted:
 				return "No released version of '%s' satisfies every requirer." % name
 			DotquayWire.CONFLICT_INVALID_CONSTRAINT:
 				return "'%s' has a malformed version constraint." % name
+			DotquayWire.CONFLICT_DISAGREEING_INSTALL_FOLDERS:
+				return "'%s' is wanted in two different folders under addons/." % name
 			_:
 				return "'%s' could not be resolved." % name
 
@@ -334,6 +365,7 @@ func counts() -> Dictionary:
 	var modified := 0
 	var missing := 0
 	var patched := 0
+	var linked := 0
 	var orphans := 0
 
 	for node in addons:
@@ -344,6 +376,8 @@ func counts() -> Dictionary:
 				missing += 1
 			DotquayWire.STATUS_PATCHED:
 				patched += 1
+			DotquayWire.STATUS_LINKED:
+				linked += 1
 		if node.is_orphan():
 			orphans += 1
 
@@ -354,5 +388,6 @@ func counts() -> Dictionary:
 		"modified": modified,
 		"missing": missing,
 		"patched": patched,
+		"linked": linked,
 		"orphans": orphans,
 	}

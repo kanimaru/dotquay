@@ -15,9 +15,15 @@ public sealed class InMemoryFileSystem : IFileSystem
     private readonly Dictionary<string, byte[]> _files = new(StringComparer.Ordinal);
     private readonly HashSet<string> _directories = new(StringComparer.Ordinal) { "" };
 
-    public bool FileExists(string path) => _files.ContainsKey(Normalize(path));
+    // Directory links, keyed by the link's own path. Modelled rather than stubbed out because the
+    // behaviour that actually matters about links is what happens when something *deletes* one
+    // (SPEC.md §7.4) — a fake that pretended links were ordinary directories would make the one
+    // dangerous case untestable.
+    private readonly Dictionary<string, string> _links = new(StringComparer.Ordinal);
 
-    public bool DirectoryExists(string path) => _directories.Contains(Normalize(path));
+    public bool FileExists(string path) => _files.ContainsKey(Resolve(path));
+
+    public bool DirectoryExists(string path) => _directories.Contains(Resolve(path));
 
     public string ReadAllText(string path) => System.Text.Encoding.UTF8.GetString(ReadAllBytes(path));
 
@@ -25,7 +31,7 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public byte[] ReadAllBytes(string path)
     {
-        var key = Normalize(path);
+        var key = Resolve(path);
         if (!_files.TryGetValue(key, out var contents))
         {
             throw new FileNotFoundException($"No such file in the in-memory filesystem: {path}", path);
@@ -36,7 +42,7 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public void WriteAllBytes(string path, byte[] contents)
     {
-        var key = Normalize(path);
+        var key = Resolve(path);
         CreateDirectory(ParentOf(key));
         _files[key] = contents;
     }
@@ -56,12 +62,34 @@ public sealed class InMemoryFileSystem : IFileSystem
     public void DeleteDirectory(string path)
     {
         var key = Normalize(path);
+
+        // Deleting a link removes the link and nothing else. The target is somebody's own checkout of
+        // the addon; recursing into it would delete their working copy, uncommitted work included.
+        if (_links.Remove(key))
+        {
+            _directories.Remove(key);
+            return;
+        }
+
         _directories.RemoveWhere(d => d == key || d.StartsWith(key + "/", StringComparison.Ordinal));
 
         foreach (var file in _files.Keys.Where(f => f == key || f.StartsWith(key + "/", StringComparison.Ordinal)).ToList())
         {
             _files.Remove(file);
         }
+    }
+
+    public bool IsDirectoryLink(string path) => _links.ContainsKey(Normalize(path));
+
+    public void CreateDirectoryLink(string linkPath, string targetPath)
+    {
+        var key = Normalize(linkPath);
+
+        DeleteDirectory(key);
+        CreateDirectory(ParentOf(key));
+
+        _links[key] = Normalize(targetPath);
+        _directories.Add(key);
     }
 
     public void DeleteFile(string path) => _files.Remove(Normalize(path));
@@ -92,7 +120,7 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public IEnumerable<string> EnumerateFiles(string path, bool recursive = true)
     {
-        var key = Normalize(path);
+        var key = Resolve(path);
         var prefix = key.Length == 0 ? "" : key + "/";
 
         foreach (var file in _files.Keys)
@@ -113,7 +141,7 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public IEnumerable<string> EnumerateDirectories(string path, bool recursive = false)
     {
-        var key = Normalize(path);
+        var key = Resolve(path);
         var prefix = key.Length == 0 ? "" : key + "/";
 
         foreach (var dir in _directories)
@@ -139,6 +167,41 @@ public sealed class InMemoryFileSystem : IFileSystem
     public string GetFullPath(string path) => "/" + Normalize(path);
 
     private static string Normalize(string path) => path.Replace('\\', '/').Trim('/');
+
+    /// <summary>
+    /// Normalises, then redirects through any directory link on the path — so reading
+    /// <c>addons/foo/thing.gd</c> when <c>addons/foo</c> is linked returns the file from the link's
+    /// target, exactly as a real filesystem would.
+    /// </summary>
+    /// <remarks>
+    /// This is what makes "a linked addon shows the developer's live edits" a real assertion rather
+    /// than a mocked one. Deliberately not applied to the link's own bookkeeping (create, delete,
+    /// and the link test itself), which must act on the literal path.
+    /// </remarks>
+    private string Resolve(string path)
+    {
+        var key = Normalize(path);
+
+        if (_links.Count == 0)
+        {
+            return key;
+        }
+
+        foreach (var (link, target) in _links)
+        {
+            if (key == link)
+            {
+                return target;
+            }
+
+            if (key.StartsWith(link + "/", StringComparison.Ordinal))
+            {
+                return target + key[link.Length..];
+            }
+        }
+
+        return key;
+    }
 
     private static string ParentOf(string key)
     {

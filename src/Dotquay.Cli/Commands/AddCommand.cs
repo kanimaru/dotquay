@@ -4,6 +4,17 @@ using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
+/// <summary>
+/// <c>dotquay add</c> — add a dependency, resolve it, lock it, install it (SPEC.md §6).
+/// </summary>
+/// <remarks>
+/// With no source named, a git URL resolves to the newest release tag (or a pin to the default
+/// branch's tip for a repo with no tags). Since v0.6 the source can be stated outright instead —
+/// either with <c>--branch</c>/<c>--rev</c>/<c>--version</c>, or as <c>&lt;url&gt;#ref</c>, which asks
+/// the remote whether the ref is a branch, a tag, or a commit. "Give me this repo on main" is the most
+/// common thing the tag-seeking default doesn't do, and it previously required hand-editing the
+/// manifest afterwards.
+/// </remarks>
 internal static class AddCommand
 {
     private const string CommandName = "add";
@@ -12,7 +23,7 @@ internal static class AddCommand
     {
         var sourceArgument = new Argument<string>("source")
         {
-            Description = "A git URL or a NuGet package ID.",
+            Description = "A git URL (optionally with #branch, #tag, or #commit) or a NuGet package ID.",
         };
 
         var pathOption = new Option<string?>("--path")
@@ -22,9 +33,27 @@ internal static class AddCommand
                 + "inside it is just dialogue_manager). Repos where the addon lives at the repo root: pass \".\".",
         };
 
+        var installAsOption = new Option<string?>("--install-as")
+        {
+            Description = "Git sources only. Folder to install into under addons/, if it shouldn't be the "
+                + "addon's own name — some addons are preloaded by an exact path and must land under it.",
+        };
+
         var versionOption = new Option<string?>("--version")
         {
-            Description = "NuGet sources only. Exact package version to add. Defaults to the latest stable release.",
+            Description = "Version to add. For git, a constraint matched against tags (e.g. \"~2.5\"). For NuGet, "
+                + "an exact package version. Defaults to the latest release either way.",
+        };
+
+        var branchOption = new Option<string?>("--branch")
+        {
+            Description = "Git sources only. Track a branch instead of a tag; the lockfile still pins the "
+                + "resolved commit, so teammates get exactly what you tested.",
+        };
+
+        var revOption = new Option<string?>("--rev")
+        {
+            Description = "Git sources only. Pin to an exact commit.",
         };
 
         var jsonOption = JsonOutput.CreateOption();
@@ -33,47 +62,98 @@ internal static class AddCommand
         {
             sourceArgument,
             pathOption,
+            installAsOption,
             versionOption,
+            branchOption,
+            revOption,
             jsonOption,
         };
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             var source = parseResult.GetValue(sourceArgument)!;
-            var path = parseResult.GetValue(pathOption);
-            var version = parseResult.GetValue(versionOption);
             var json = parseResult.GetValue(jsonOption);
             var projectDirectory = GlobalOptions.Resolve(parseResult);
-            var workflow = WorkflowFactory.Create();
+            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
+
+            var options = new AddonAddOptions
+            {
+                Version = parseResult.GetValue(versionOption),
+                Branch = parseResult.GetValue(branchOption),
+                Rev = parseResult.GetValue(revOption),
+                Path = parseResult.GetValue(pathOption),
+                InstallAs = parseResult.GetValue(installAsOption),
+            };
 
             try
             {
-                return LooksLikeGitUrl(source)
-                    ? await AddGitAsync(workflow, projectDirectory, source, path, json, cancellationToken)
-                    : await AddDotnetAsync(workflow, projectDirectory, source, version, json, cancellationToken);
+                if (!LooksLikeGitUrl(source))
+                {
+                    return await AddDotnetAsync(workflow, projectDirectory, source, options, json, progress, cancellationToken);
+                }
+
+                var (gitUrl, reference) = SplitRef(source);
+
+                if (reference is not null)
+                {
+                    options = await workflow.ResolveShorthandAsync(gitUrl, reference, options, cancellationToken);
+                }
+
+                return await AddGitAsync(workflow, projectDirectory, gitUrl, options, json, progress, cancellationToken);
             }
             catch (WorkflowException ex)
             {
                 return JsonOutput.Fail(json, CommandName, ex);
+            }
+            finally
+            {
+                progress.Dispose();
             }
         });
 
         return command;
     }
 
-    private static async Task<int> AddGitAsync(
-        DependencyWorkflow workflow, string projectDirectory, string gitUrl, string? path, bool json, CancellationToken cancellationToken)
+    /// <summary>
+    /// Splits <c>https://host/repo#main</c> into the URL and the ref.
+    /// </summary>
+    /// <remarks>
+    /// Splits on the <em>last</em> <c>#</c>, and only when something follows it. A fragment has no
+    /// meaning in a git URL, so this can't collide with a real one — but a trailing bare <c>#</c> is a
+    /// typo, not a request for an empty ref.
+    /// </remarks>
+    private static (string GitUrl, string? Reference) SplitRef(string source)
     {
-        var locked = await workflow.AddAsync(projectDirectory, gitUrl, path, cancellationToken);
-        var summary = $"Added '{locked.Name}' @ {locked.Version} ({ShortSha(locked.Resolved)}) -> addons/{locked.Name}";
+        var index = source.LastIndexOf('#');
+        return index > 0 && index < source.Length - 1
+            ? (source[..index], source[(index + 1)..])
+            : (source, null);
+    }
 
-        // Pseudo-version means BuildDefaultSpecAsync fell back to pinning the default branch's tip as
-        // a hard `rev` (SPEC.md §6: "No tags found -> ... print a hint"). Without --json this is a
-        // yellow console line; with it, the hint travels in the envelope's warnings rather than being
-        // dropped on the floor — a GUI user needs it just as much.
-        var untagged = locked.Version is not null && locked.Version.StartsWith("0.0.0-", StringComparison.Ordinal);
+    private static async Task<int> AddGitAsync(
+        DependencyWorkflow workflow,
+        string projectDirectory,
+        string gitUrl,
+        AddonAddOptions options,
+        bool json,
+        IDisposable progress,
+        CancellationToken cancellationToken)
+    {
+        var locked = await workflow.AddAsync(projectDirectory, gitUrl, options, cancellationToken);
+        progress.Dispose();
+
+        var summary = $"Added '{locked.Name}' @ {locked.Version} ({ShortSha(locked.Resolved)}) -> addons/{locked.EffectiveFolder}";
+
+        // Pseudo-version means no explicit source was given and BuildDefaultSpecAsync fell back to
+        // pinning the default branch's tip (SPEC.md §6: "No tags found -> ... print a hint"). Naming a
+        // ref yourself is a deliberate choice, so the nudge would just be noise.
+        var untagged = !options.HasExplicitSource
+            && locked.Version is not null
+            && locked.Version.StartsWith("0.0.0-", StringComparison.Ordinal);
+
         var hint = $"'{locked.Name}' has no git tags — pinned to its current default-branch commit instead of a "
-            + "version range. Run 'dotquay update' later to move to a newer commit.";
+            + $"version range. Add it with --branch <name> to track a branch instead, or run 'dotquay update "
+            + $"{locked.Name}' later to move to a newer commit.";
 
         if (json)
         {
@@ -109,9 +189,34 @@ internal static class AddCommand
     }
 
     private static async Task<int> AddDotnetAsync(
-        DependencyWorkflow workflow, string projectDirectory, string packageId, string? version, bool json, CancellationToken cancellationToken)
+        DependencyWorkflow workflow,
+        string projectDirectory,
+        string packageId,
+        AddonAddOptions options,
+        bool json,
+        IDisposable progress,
+        CancellationToken cancellationToken)
     {
-        var locked = await workflow.AddDotnetAsync(projectDirectory, packageId, version, cancellationToken);
+        // Git-only options against a NuGet id are a misunderstanding worth naming, not something to
+        // accept and quietly ignore — the user would be left wondering why their branch had no effect.
+        var gitOnly = new (string Flag, string? Value)[]
+        {
+            ("--branch", options.Branch),
+            ("--rev", options.Rev),
+            ("--path", options.Path),
+            ("--install-as", options.InstallAs),
+        }.Where(o => o.Value is not null).Select(o => o.Flag).ToList();
+
+        if (gitOnly.Count > 0)
+        {
+            throw new WorkflowException(
+                $"{string.Join(" and ", gitOnly)} {(gitOnly.Count == 1 ? "applies" : "apply")} to git addons, but "
+                + $"'{packageId}' is a NuGet package. NuGet packages have no branches, commits, or install folder.");
+        }
+
+        var locked = await workflow.AddDotnetAsync(projectDirectory, packageId, options.Version, cancellationToken);
+        progress.Dispose();
+
         var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored";
 
         if (json)

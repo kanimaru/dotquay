@@ -157,7 +157,7 @@ public class DependencyWorkflowTests
             [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
         var workflow = new DependencyWorkflow(fileSystem, gitClient, "cache");
 
-        var locked = await workflow.AddAsync(ProjectDir, mismatchedRepoUrl, pathOverride: "addons/dialogue_manager");
+        var locked = await workflow.AddAsync(ProjectDir, mismatchedRepoUrl, new AddonAddOptions { Path = "addons/dialogue_manager" });
 
         Assert.Equal("godot_dialogue_manager", locked.Name); // still derived from the URL
         Assert.Equal("addons/dialogue_manager", locked.Path); // but extracted from the overridden subtree
@@ -895,7 +895,7 @@ public class DependencyWorkflowTests
         gitClient.RemoteRefsByUrl[mismatchedRepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
         var workflow = new DependencyWorkflow(fileSystem, gitClient, "cache");
 
-        var locked = await workflow.AddAsync(ProjectDir, mismatchedRepoUrl, pathOverride: "addons/dialogue_manager");
+        var locked = await workflow.AddAsync(ProjectDir, mismatchedRepoUrl, new AddonAddOptions { Path = "addons/dialogue_manager" });
         Assert.Equal("addons/dialogue_manager", locked.Path); // source subtree
         Assert.True(fileSystem.FileExists($"{ProjectDir}/addons/godot_dialogue_manager/plugin.cfg")); // actual install location
 
@@ -918,7 +918,7 @@ public class DependencyWorkflowTests
         };
         gitClient.RemoteRefsByUrl[mismatchedRepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
         var workflow = new DependencyWorkflow(fileSystem, gitClient, "cache");
-        await workflow.AddAsync(ProjectDir, mismatchedRepoUrl, pathOverride: "addons/dialogue_manager");
+        await workflow.AddAsync(ProjectDir, mismatchedRepoUrl, new AddonAddOptions { Path = "addons/dialogue_manager" });
 
         var result = await workflow.DoctorAsync(ProjectDir);
 
@@ -961,7 +961,7 @@ public class DependencyWorkflowTests
 
         Assert.True(result.Captured);
         Assert.Equal("dialogue_manager", result.Name);
-        Assert.Equal($"{ProjectDir}/patches/dialogue_manager.patch", result.PatchFilePath);
+        Assert.Equal($"{ProjectDir}/.dotquay/patches/dialogue_manager.patch", result.PatchFilePath);
         Assert.Equal("fake-diff-text", fileSystem.ReadAllText(result.PatchFilePath));
 
         var lockedAfter = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock")).Addons.Single();

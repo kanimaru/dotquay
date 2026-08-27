@@ -106,6 +106,7 @@ public class JsonContractTests
     [InlineData(AddonStatusKind.PatchedAsExpected, "patched")]
     [InlineData(AddonStatusKind.Modified, "modified")]
     [InlineData(AddonStatusKind.Missing, "missing")]
+    [InlineData(AddonStatusKind.Linked, "linked")]
     public void StatusKind_MapsToItsBadgeText(AddonStatusKind kind, string expected) =>
         Assert.Equal(expected, JsonMapper.ToWire(kind));
 

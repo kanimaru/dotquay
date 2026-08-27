@@ -12,18 +12,22 @@ public static class ManifestReader
     {
         var table = Parse(text, sourcePath);
 
-        string? godot = null;
         string? nuGetSource = null;
+        string? patchesDirectory = null;
         if (table.TryGetValue("project", out var projectObj) && projectObj is TomlTable projectTable)
         {
-            godot = GetString(projectTable, "godot");
+            patchesDirectory = GetString(projectTable, "patches_dir");
+
+            // A `godot` key here is read and discarded on purpose. It existed through v0.5, nothing
+            // consumed it, and it has been removed — but manifests in the wild still carry it, and
+            // an unknown key must not be an error for a file people hand-edit.
             nuGetSource = GetString(projectTable, "nuget_source");
         }
 
         return new ProjectManifest
         {
-            Godot = godot,
             NuGetSource = nuGetSource,
+            PatchesDirectory = patchesDirectory,
             Addons = ReadAddonTable(table, "addons", sourcePath),
             Dotnet = ReadDotnetTable(table, "dotnet", sourcePath),
             Overrides = ReadAddonTable(table, "overrides", sourcePath),
@@ -42,13 +46,13 @@ public static class ManifestReader
 
         var name = GetString(packageTable, "name")
             ?? throw new ManifestParseException($"{sourcePath}: [package] is missing required key 'name'.");
-        var version = GetString(packageTable, "version")
-            ?? throw new ManifestParseException($"{sourcePath}: [package] is missing required key 'version'.");
 
+        // `version` is optional: nothing reads it, the git tag decides resolution, and plugin.cfg is
+        // what doctor checks for drift. Requiring it only added a third place to bump.
         return new PackageManifest
         {
             Name = name,
-            Version = version,
+            Version = GetString(packageTable, "version"),
             Addons = ReadAddonTable(table, "addons", sourcePath),
             Dotnet = ReadDotnetTable(table, "dotnet", sourcePath),
         };

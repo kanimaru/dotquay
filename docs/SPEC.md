@@ -68,22 +68,47 @@ Key consequence: commands split along the stage boundary.
 |---|---|---|
 | `dotquay init` | — | Scaffold `dotquay.toml` in the project root |
 | `dotquay init --package` | — | Scaffold a package manifest (with `[package]` header) inside an addon folder |
-| `dotquay add <git-url \| nuget-id> [--path <subtree>]` | resolve | Add dependency to manifest, resolve, lock, install. No tags found → pin default-branch tip as `rev` and print a hint. `--path` overrides the default `addons/<name>` subtree guess for repos where the addon folder doesn't match the repo name (§7.1, OQ-2) — added after hitting exactly this against a real repo during Sprint 01 verification |
+| `dotquay add <git-url>[#ref] \| <nuget-id>` | resolve | Add dependency to manifest, resolve, lock, install. With no source named, picks the newest release tag; no tags found → pin default-branch tip as `rev` and print a hint. Options: `--version`/`--branch`/`--rev` to name the source outright, `--path` for the subtree (§7.1, OQ-2), `--install-as` for the install folder. `#ref` shorthand asks the remote whether the ref is a branch, tag, or commit (v0.6) |
 | `dotquay remove <name>` | sync | Remove from manifest, lockfile, and disk |
 | `dotquay install` | sync | Make disk match lockfile exactly. Errors if lockfile missing entries from manifest |
 | `dotquay update [name]` | resolve | Re-resolve one or all dependencies, rewrite lockfile, install |
 | `dotquay list` | — | Show installed dependencies with versions (pseudo-versions for untagged: `0.0.0-20260821-9f2c1ab`) |
 | `dotquay outdated` | — | `git ls-remote` per repo + NuGet metadata check; compares against lockfile without cloning |
 | `dotquay status` | — | Diff disk against lockfile hashes: `clean` / `patched as expected` / `modified` |
-| `dotquay patch <name>` | — | Diff installed addon against pristine cache copy, write `patches/<name>.patch` |
+| `dotquay patch <name>` | — | Diff installed addon against pristine cache copy, write `<patches_dir>/<name>.patch` (§10.1). `--resolve` finishes a conflicted update; `--abandon` drops the patch (v0.6) |
 | `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, and (v0.5) installed addons shipping an unreadable package manifest |
 | `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
 | `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
+| `dotquay link <name> <path>` | sync | Point an addon at a local folder for development (§7.4). `--remove` unlinks; no arguments lists them (v0.6) |
 
 Two options are global to every command (v0.5):
 
 - `--project <dir>` / `-C <dir>` — operate on that directory instead of the current one. Needed because a GUI caller cannot set a working directory (§18).
 - `--json` — emit one machine-readable document on stdout and nothing else (§17).
+
+### 6.2 Naming a source on `add` (v0.6)
+
+`add` originally always guessed: newest release tag, or a `rev` pin to the default branch's tip for a
+repo with no tags. That is the right default and the wrong only option — "give me this repo on `main`"
+is the most common thing it can't express, and it previously meant hand-editing the manifest right
+after adding.
+
+Two ways to say it, and they can't be combined:
+
+- **Flags** — `--version "~2.5"`, `--branch main`, `--rev <sha>`. Exactly one, mirroring §7.1's rule
+  that an `[addons.*]` entry names exactly one source. `--version` works for git *and* NuGet, matching
+  the manifest, where `version` means the same thing on both sides.
+- **`#ref` shorthand** — `dotquay add <url>#main`. Resolved by asking the remote, not by inspecting the
+  string: a branch becomes `branch`, a tag becomes an **exact** `version`, and a 40-character hex (or
+  a 7+ character one that matches nothing) becomes `rev`. A branch wins over a same-named tag.
+
+Deliberately not pattern-matched, because guessing is wrong often enough to matter — `1.0` is a real
+branch naming convention and `release` is a plausible tag, and picking wrong silently gives a moving
+branch where a fixed tag was meant, or the reverse. An unknown ref lists the branches and recent tags
+that do exist rather than just refusing.
+
+A named tag becomes an exact pin, not a widened range: typing one tag is a request for that tag, and
+broadening `v1.0.0` to `~1.0` would install something nobody wrote down.
 
 ### 6.1 `outdated` / `status` / `doctor` implementation notes (v0.2)
 
@@ -167,13 +192,20 @@ issue above.
 ### 7.1 Project manifest — `dotquay.toml`
 
 ```toml
-[project]
-godot = "4.3"                     # informational in v1
+# [project] is optional and only holds nuget_source. A `godot` key existed through v0.5; nothing ever
+# read it and the scaffold hardcoded "4.3" into every project regardless, so it was removed (v0.6).
+# The reader still ignores it if present.
 
 [addons.dialogue_manager]
 git = "https://github.com/nathanhoad/godot_dialogue_manager"
 version = "~2.44"                  # matched against git tags
 path = "addons/dialogue_manager"   # subtree to extract; default: addons/<name>
+
+[addons.mtoon-shader]
+git = "https://gitlab.example.com/mtoon-shader"
+rev = "dd4dd78"
+path = "."                         # the repo root IS the addon
+install_as = "Godot-MToon-Shader"  # folder under addons/; default: the addon's name
 
 [addons.some_addon]
 git = "https://github.com/foo/some_addon"
@@ -193,14 +225,40 @@ rev = "abc123"
 
 Rules: each `[addons.*]` entry names exactly one of `version`, `branch`, or `rev`. `version` requires tags to exist. Whatever the source spec, the lockfile always stores a commit SHA. For repos where the repository root *is* the addon (no `addons/` subfolder), the user must state `path = "."` explicitly — dotquay never guesses the layout (decided, was OQ-2).
 
+**`path` vs `install_as` (v0.5).** They are opposite ends of the same move and are easy to confuse:
+`path` is where the addon lives in *its* repo; `install_as` is the folder it lands in under *your*
+`addons/`. Neither affects the addon's identity — the manifest key is still the name unification,
+dependency edges, and `remove` all key on, so an addon installed under an alias is one addon, not two.
+
+`install_as` exists because a Godot addon's folder name is frequently part of its public contract
+rather than a preference. Addons routinely `preload("res://addons/<Name>/...")`, and Godot resolves
+`preload` at *parse* time — install such an addon anywhere else and its dependents don't degrade,
+they fail to compile, with the error pointing at the innocent dependent rather than at the folder
+that moved. The canonical folder often matches neither the repo name nor the manifest key (the
+motivating case: a repo named `mtoon-shader` that everything preloads as `Godot-MToon-Shader`).
+
+Consequences, each load-bearing:
+
+- The value must be a **plain folder name** — no slashes, no `..`, no drive letters. Rejected at parse
+  time, because the sync engine deletes and replaces that folder wholesale (§9 step 5) and manifests
+  are read from third-party repositories nobody in the chain necessarily audited.
+- The lockfile records it (`folder`, omitted when it equals the name), so `install` replays the same
+  destination and a transitive addon — which appears in no manifest the project owns — is still
+  findable.
+- Changing it **moves** the addon: the old folder is deleted, or Godot keeps loading the stale copy
+  and the rename only appears to have worked. The dirty check applies to the folder being deleted, not
+  just the one being written, or renaming would be the one way to destroy hand-edits without asking.
+- Two requirers wanting different folders is a **hard error** (§8), not a first-wins guess. Unlike
+  `path`, a wrong choice here breaks a dependent addon at parse time.
+
 ### 7.2 Package manifest — `dotquay.toml` inside an addon
 
 Same schema plus a `[package]` header. Ships in the addon's folder next to `plugin.cfg`, so the metadata travels with the package. An addon repo is itself a valid dotquay project — addons are developed *using* dotquay.
 
 ```toml
 [package]
-name = "kani_dialogue_tools"
-version = "1.2.0"
+name = "kani_dialogue_tools"      # required; `version` is optional and read by nothing (v0.6) —
+                                  # plugin.cfg and the git tag already carry it
 
 [addons.kani_core]
 git = "https://github.com/kani/kani_core"
@@ -247,7 +305,8 @@ name = "dialogue_manager"
 git = "https://github.com/nathanhoad/godot_dialogue_manager"
 resolved = "e4f7a21c..."           # always a full commit SHA
 version = "2.46.1"                 # display only; pseudo-version if untagged
-path = "addons/dialogue_manager"
+path = "addons/dialogue_manager"   # source subtree in the addon's repo
+folder = "Godot-MToon-Shader"      # install destination; omitted when it equals name (v0.5)
 content_hash = "sha256:..."        # hash of installed tree, for dirty detection
 patch_hash = "sha256:..."          # present only if patched
 patch_base_sha = "e4f7a21c..."     # SHA the patch was captured against; present only if patched
@@ -258,12 +317,51 @@ name = "Newtonsoft.Json"
 resolved = "13.0.3"
 ```
 
+### 7.4 Local links — `dotquay.local.toml` (v0.6)
+
+Per-machine, **never committed**. Points an addon at a folder on this machine instead of its
+upstream repository:
+
+```toml
+[link.mtoon-shader]
+path = "F:/projects/godot/mtoon-shader"   # the addon folder itself
+```
+
+Resolution is commit-based by design (§5), which is right for reproducibility and wrong for the
+person *writing* the addon: every edit otherwise means commit → push → `dotquay update` before the
+consuming project sees it. A link installs `addons/<folder>` as a directory link into the working
+checkout, so an edit is live on Godot's next reload with no dotquay command at all.
+
+- **Managed with `dotquay link <name> <path>`** and removed with `--remove`; bare `dotquay link`
+  lists them. The command appends the file to an existing `.gitignore`, because the value is an
+  absolute path on one person's disk and committing it breaks every teammate and every CI run.
+- **The lockfile is untouched** and keeps naming the upstream commit. A link is a local detour, not a
+  change to what the project depends on — anyone without the link is unaffected, and unlinking puts
+  this machine straight back on what the lockfile always said. `content_hash` is deliberately not
+  recomputed: hashing a live working copy would record in-progress edits as the expected content of
+  a release.
+- **A linked addon reports `linked`**, its own status, not `clean` or `modified`. Its contents are a
+  working copy and will never match the lockfile; without this every linked addon would sit
+  permanently in a state that reads like a problem, and the dirty check would refuse to touch it.
+- **Replacing a real installed addon with a link runs the dirty check** (requirement P0-6) — linking
+  must not be a way to discard hand-edits without asking.
+- **Deleting a linked folder removes the link, never its target.** `addons/<folder>` is deleted during
+  orphan pruning, `remove`, and the `install_as` rename; when it's a link, that folder is somebody's
+  source checkout. Recursing through one is the only way dotquay could destroy work git cannot bring
+  back, so `IFileSystem.DeleteDirectory` is required not to follow links.
+
+Implemented as a junction on Windows and a symlink elsewhere. Windows only permits unprivileged
+symlink creation with Developer Mode enabled, which is off by default; junctions have no such
+requirement and Godot follows both identically.
+
 ## 8. Resolution
 
 The resolver walks the dependency graph breadth-first, reading each dotquay-aware addon's package manifest, and collects all constraints per addon name. Godot's flat `addons/` folder allows exactly one copy of each addon, so the policy is **unification, not side-by-side**:
 
 - Pick the highest version satisfying all constraints on a name.
 - Constraints that cannot be unified (e.g. two different `rev` pins) are a hard error.
+- Two requirers wanting the same addon in different `install_as` folders is a hard error too (v0.5),
+  reported before any version disagreement — it's the one a user can't discover from a version error.
 - `[overrides]` in the *project* manifest wins unconditionally — the escape hatch.
 
 ```mermaid
@@ -306,6 +404,38 @@ Workflow:
 1. Edit the installed addon directly.
 2. `dotquay patch <name>` diffs against the pristine cache copy → writes `patches/<name>.patch` (committed, so teammates get it). Lockfile records `patch_hash`.
 3. On `install`/`update`, the patch is re-applied in staging via 3-way merge (`git merge-file` per file). Clean → atomic swap as usual. Conflict → `<<<<<<<`/`>>>>>>>` markers in staging, sync halts for that addon with instructions: resolve in staging, run `dotquay patch <name>` to re-capture against the new base.
+
+### 10.1 Where patches live, and finishing a conflict (v0.6)
+
+Patches default to `.dotquay/patches/` and are configurable via `[project] patches_dir`. Because
+`.dotquay/` also holds cache and staging, dotquay writes a `.dotquay/.gitignore` when it first
+captures a patch:
+
+```gitignore
+*
+!.gitignore
+!patches/
+!patches/**
+```
+
+The folder carries its own rules rather than relying on every project's root `.gitignore` drawing the
+distinction — patches are source and only work if teammates get them, while cache and staging must
+never be committed. A project that already has a `patches/` folder keeps using it: changing the
+default without that fallback would make dotquay stop looking where existing patches are, and those
+projects would silently install unpatched code while `status` reported everything fine.
+
+**Re-applying a patch is automatic on every install and update.** The two commands that exist are for
+the moments that aren't automatic: capturing the edit, and deciding what to do when upstream changes
+the same lines.
+
+- `dotquay patch <name> --resolve` — install the files you fixed in staging and recapture in one step.
+- `dotquay patch <name> --abandon` — drop the patch and take upstream as-is.
+
+A conflicted update aborts before writing the lockfile, which still names the *old* commit. The
+conflict therefore also writes `.dotquay/staging/<name>.conflict` recording the commit the staged tree
+came from, and `--resolve` uses it to advance the lockfile before recapturing. Without that note the
+recapture diffs against the old base and produces a patch that conflicts against upstream on every
+future update — resolve appears to work once and then wedges the addon permanently.
 
 ## 11. .NET / NuGet handling
 
@@ -474,6 +604,8 @@ Implications for the resolver:
 - **v0.3 — patches**: P1-1. The differentiator feature; ships once the sync engine is battle-tested. **Shipped 2026-08-22** — see docs/SPRINT-01.md.
 - **v0.4 — dependency graph**: P1-2, P1-5. Package manifests, unification, overrides. **Shipped 2026-08-22** — see docs/SPRINT-01.md.
 - **v0.5 — machine-readable output and the Godot editor plugin**: P1-6, P1-7, P1-8 (§17, §18). Promotes the "editor plugin GUI wrapping the CLI" item out of P2 — it became worth building once the graph existed, because a dependency graph and a version conflict are the two things a terminal explains worst.
+
+- **v0.6 — living with it**: the round of changes dogfooding produced. `install_as` (§7.1) because a Godot addon's folder name is part of its public contract; local links (§7.4) because commit-based resolution made the addon-author's own loop painful; warnings for a misplaced or unreadable package manifest (§7.2); and the removal of two fields nothing read — `[project] godot` and a required `[package] version`.
 
 No hard deadlines. Each phase is independently shippable and dogfooded before the next.
 

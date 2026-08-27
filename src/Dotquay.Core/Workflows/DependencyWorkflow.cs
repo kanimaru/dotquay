@@ -5,9 +5,11 @@ using Dotquay.Core.Abstractions;
 using Dotquay.Core.Doctor;
 using Dotquay.Core.Dotnet;
 using Dotquay.Core.Git;
+using Dotquay.Core.Local;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Patch;
+using Dotquay.Core.Progress;
 using Dotquay.Core.Resolve;
 using Dotquay.Core.Sync;
 using Dotquay.Core.Versioning;
@@ -29,6 +31,11 @@ public sealed class DependencyWorkflow
 
     private readonly IFileSystem _fileSystem;
     private readonly ProjectFileStore _projectFiles;
+    private readonly LocalLinks _localLinks;
+
+    /// <summary>Where long operations announce themselves. Defaults to discarding, so nothing had to
+    /// change at any existing call site to add progress (SPEC.md §12).</summary>
+    private IProgressReporter _progress = NullProgressReporter.Instance;
     private readonly IGitClient _gitClient;
     private readonly INuGetClientFactory _nuGetClientFactory;
     private readonly AddonResolver _resolver;
@@ -126,6 +133,7 @@ public sealed class DependencyWorkflow
     {
         _fileSystem = fileSystem;
         _projectFiles = new ProjectFileStore(fileSystem);
+        _localLinks = new LocalLinks(fileSystem);
         _gitClient = gitClient;
         _nuGetClientFactory = nuGetClientFactory;
         _resolver = new AddonResolver(gitClient);
@@ -133,6 +141,48 @@ public sealed class DependencyWorkflow
         _repoCache = repoCache;
         _patchTool = patchTool;
         _dotnetInstaller = dotnetInstaller;
+    }
+
+    /// <summary>
+    /// Asks the remote what a bare ref means, so <c>dotquay add &lt;url&gt;#main</c> can fill in the
+    /// right manifest field (SPEC.md §6).
+    /// </summary>
+    /// <remarks>
+    /// Lives here rather than in the CLI because it needs a git client, and because the Godot plugin
+    /// will want the same shorthand eventually — the CLI should not be the only thing that knows how
+    /// to read a ref.
+    /// </remarks>
+    public async Task<AddonAddOptions> ResolveShorthandAsync(
+        string gitUrl, string reference, AddonAddOptions options, CancellationToken cancellationToken = default)
+    {
+        if (options.HasExplicitSource)
+        {
+            throw new WorkflowException(
+                $"'{gitUrl}#{reference}' already names a ref, so --version/--branch/--rev would contradict it. "
+                + "Use one or the other.");
+        }
+
+        try
+        {
+            var classified = await new RefClassifier(_gitClient).ClassifyAsync(gitUrl, reference, cancellationToken);
+            return options.WithSource(classified.Kind, classified.Value);
+        }
+        catch (AddonResolutionException ex)
+        {
+            throw new WorkflowException(ex.Message, ex);
+        }
+        catch (GitCommandException ex)
+        {
+            throw new WorkflowException($"{gitUrl}: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>Attaches a progress reporter for the lifetime of this workflow instance. Fluent so a
+    /// CLI command can write <c>WorkflowFactory.Create().WithProgress(reporter)</c> in one line.</summary>
+    public DependencyWorkflow WithProgress(IProgressReporter progress)
+    {
+        _progress = progress;
+        return this;
     }
 
     /// <summary>
@@ -149,8 +199,14 @@ public sealed class DependencyWorkflow
     /// instead of hand-editing the manifest after a failed add.
     /// </param>
     public async Task<LockedAddon> AddAsync(
-        string projectDirectory, string gitUrl, string? pathOverride = null, CancellationToken cancellationToken = default)
+        string projectDirectory,
+        string gitUrl,
+        AddonAddOptions? options = null,
+        CancellationToken cancellationToken = default)
     {
+        options ??= new AddonAddOptions();
+        options.Validate();
+
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
         var name = DeriveAddonName(gitUrl);
@@ -160,7 +216,20 @@ public sealed class DependencyWorkflow
                 $"'{name}' is already declared in {manifestPath}. Use 'dotquay update {name}' instead.");
         }
 
-        var spec = await BuildDefaultSpecAsync(name, gitUrl, pathOverride, cancellationToken);
+        // An explicitly named source skips the newest-tag guess entirely — the whole point of saying
+        // "--branch main" is that you do not want whatever the tag heuristic would have chosen.
+        var spec = options.HasExplicitSource
+            ? new AddonSpec
+            {
+                Name = name,
+                Git = gitUrl,
+                Version = options.Version,
+                Branch = options.Branch,
+                Rev = options.Rev,
+                Path = options.Path,
+                InstallAs = options.InstallAs,
+            }
+            : await BuildDefaultSpecAsync(name, gitUrl, options.Path, options.InstallAs, cancellationToken);
         var updatedManifest = manifest with
         {
             Addons = new Dictionary<string, AddonSpec>(manifest.Addons) { [name] = spec },
@@ -250,9 +319,16 @@ public sealed class DependencyWorkflow
         }
 
         var installedAddons = new List<LockedAddon>();
+        var installedCount = 0;
         foreach (var addon in lockfile.Addons)
         {
-            var resolved = new ResolvedAddon(addon.Name, addon.Git, addon.Resolved, addon.Version, addon.Path);
+            _progress.Report($"installing {addon.Name}", ++installedCount, lockfile.Addons.Count);
+
+            // addon.Folder is part of what was locked: install replays the lockfile exactly (SPEC.md
+            // §5), and dropping it here would silently relocate the addon back to the default folder
+            // on every fresh clone — the precise opposite of the reproducibility guarantee.
+            var resolved = new ResolvedAddon(
+                addon.Name, addon.Git, addon.Resolved, addon.Version, addon.Path, addon.Folder);
             installedAddons.Add(await InstallAddonOrThrowAsync(resolved, projectDirectory, addon, force, cancellationToken));
         }
 
@@ -504,8 +580,8 @@ public sealed class DependencyWorkflow
 
             var patchText = await DiffForPatchOrThrowAsync(baseStagingPath, installedPath, name, cancellationToken);
 
-            var patchesDirectory = _fileSystem.CombinePath(projectDirectory, "patches");
-            var patchFilePath = _fileSystem.CombinePath(patchesDirectory, $"{name}.patch");
+            var layout = ReadLayout(projectDirectory);
+            var patchFilePath = layout.PatchFilePath(_fileSystem, name);
 
             // The state on disk right now becomes the new expected baseline either way (see the
             // <remarks> above) — computed once, after the diff, so it reflects addons/<name> exactly
@@ -528,6 +604,7 @@ public sealed class DependencyWorkflow
             else
             {
                 _fileSystem.WriteAllText(patchFilePath, patchText);
+                EnsurePatchesStayTracked(layout);
                 updated = WithPatch(locked, contentHash, patchHash: ComputePatchHash(patchText), patchBaseSha: locked.Resolved);
                 captured = true;
             }
@@ -545,6 +622,186 @@ public sealed class DependencyWorkflow
         }
     }
 
+    /// <summary>
+    /// Finishes a conflicted patch re-apply: takes the files the user resolved in staging, installs
+    /// them, and recaptures the patch against the new upstream base (SPEC.md §10).
+    /// </summary>
+    /// <remarks>
+    /// Replaces three manual steps the conflict message used to spell out — copy these files there,
+    /// then run this, then remember to recapture. The middle step is the one people skipped, and
+    /// skipping it leaves the lockfile describing a patch that no longer matches the tree.
+    /// Deliberately refuses while conflict markers remain: installing a file with <c>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</c>
+    /// in it produces a Godot script that won't parse, reported far from its cause.
+    /// </remarks>
+    public async Task<PatchCaptureResult> ResolvePatchAsync(
+        string projectDirectory, string name, CancellationToken cancellationToken = default)
+    {
+        var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
+        var locked = lockfile.Addons.FirstOrDefault(a => a.Name == name)
+            ?? throw new WorkflowException($"'{name}' is not a locked addon.");
+
+        var layout = ReadLayout(projectDirectory);
+        var stagingPath = layout.StagingPath(_fileSystem, name);
+        if (!_fileSystem.DirectoryExists(stagingPath))
+        {
+            throw new WorkflowException(
+                $"There is no conflicted update waiting for '{name}' ({stagingPath} doesn't exist). "
+                + $"Run 'dotquay update {name}' first — this command only finishes an update that stopped on a "
+                + "patch conflict.");
+        }
+
+        var unresolved = FindConflictMarkers(stagingPath).ToList();
+        if (unresolved.Count > 0)
+        {
+            throw new WorkflowException(
+                $"'{name}': {unresolved.Count} file(s) in {stagingPath} still contain conflict markers: "
+                + $"{string.Join(", ", unresolved.Take(5))}. Edit them first — installing them as-is would give "
+                + "Godot a script that doesn't parse.");
+        }
+
+        var installedPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
+        _fileSystem.MoveDirectory(stagingPath, installedPath);
+
+        // Finish the update the conflict aborted. The staged tree came from a commit the lockfile
+        // never got to record, so advance it here — otherwise the recapture below would diff against
+        // the *old* pristine base and produce a patch that conflicts against upstream forever.
+        var markerPath = layout.ConflictMarkerPath(_fileSystem, name);
+        if (_fileSystem.FileExists(markerPath))
+        {
+            var lines = _fileSystem.ReadAllText(markerPath)
+                .Split('\n')
+                .Select(l => l.Trim('\r', ' '))
+                .ToArray();
+
+            if (lines.Length > 0 && lines[0].Length > 0)
+            {
+                var version = lines.Length > 1 && lines[1].Length > 0 ? lines[1] : locked.Version;
+                WriteLockfile(lockfilePath, lockfile with
+                {
+                    Addons = lockfile.Addons
+                        .Select(a => a.Name == name ? a with { Resolved = lines[0], Version = version } : a)
+                        .ToList(),
+                });
+            }
+
+            _fileSystem.DeleteFile(markerPath);
+        }
+
+        // Recapture against the now-current commit. The resolved tree is the new intent, and leaving
+        // the old patch and base SHA in the lockfile would describe a state that no longer exists.
+        return await PatchAsync(projectDirectory, name, cancellationToken);
+    }
+
+    /// <summary>
+    /// Drops an addon's patch and takes upstream as it is (SPEC.md §10). The other way out of a
+    /// conflict, for when the local change has been upstreamed or is no longer wanted.
+    /// </summary>
+    public async Task<PatchCaptureResult> AbandonPatchAsync(
+        string projectDirectory, string name, bool force, CancellationToken cancellationToken = default)
+    {
+        var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
+        var locked = lockfile.Addons.FirstOrDefault(a => a.Name == name)
+            ?? throw new WorkflowException($"'{name}' is not a locked addon.");
+
+        var layout = ReadLayout(projectDirectory);
+        var patchFilePath = layout.PatchFilePath(_fileSystem, name);
+
+        if (_fileSystem.FileExists(patchFilePath))
+        {
+            _fileSystem.DeleteFile(patchFilePath);
+        }
+
+        // Clear the patch bookkeeping before reinstalling, or the installer would dutifully re-apply
+        // the patch this call exists to discard.
+        WriteLockfile(lockfilePath, lockfile with
+        {
+            Addons = lockfile.Addons
+                .Select(a => a.Name == name ? a with { PatchHash = null, PatchBaseSha = null } : a)
+                .ToList(),
+        });
+
+        // force: the installed tree is the patched one, so it will not match the pristine hash — and
+        // discarding exactly that is what was asked for.
+        await UpdateAsync(projectDirectory, name, force: true, cancellationToken);
+
+        return new PatchCaptureResult(name, Captured: false, patchFilePath);
+    }
+
+    /// <summary>Files under <paramref name="root"/> that still carry a git conflict marker.</summary>
+    private IEnumerable<string> FindConflictMarkers(string root)
+    {
+        foreach (var file in _fileSystem.EnumerateFiles(root))
+        {
+            string contents;
+            try
+            {
+                contents = _fileSystem.ReadAllText(file);
+            }
+            catch (Exception)
+            {
+                // Binary files (.png, .ttf) routinely fail to decode as text and can't carry markers
+                // anyway — an addon is full of them, and a crash here would block every resolve.
+                continue;
+            }
+
+            if (contents.Contains("<<<<<<<", StringComparison.Ordinal)
+                && contents.Contains(">>>>>>>", StringComparison.Ordinal))
+            {
+                yield return file;
+            }
+        }
+    }
+
+    /// <summary>The project's layout, honouring <c>[project] patches_dir</c> when the manifest can be
+    /// read. A missing manifest isn't fatal here — <c>patch</c> works off the lockfile and disk, and
+    /// refusing to capture a patch because <c>dotquay.toml</c> is absent would be a rule with no
+    /// purpose.</summary>
+    private ProjectLayout ReadLayout(string projectDirectory)
+    {
+        var manifestPath = _projectFiles.ManifestPath(projectDirectory);
+        var manifest = _fileSystem.FileExists(manifestPath)
+            ? ManifestReader.ReadProject(_fileSystem.ReadAllText(manifestPath), manifestPath)
+            : null;
+
+        return ProjectLayout.For(_fileSystem, projectDirectory, manifest);
+    }
+
+    /// <summary>
+    /// Writes <c>.dotquay/.gitignore</c> so cache and staging stay out of git while patches stay in.
+    /// </summary>
+    /// <remarks>
+    /// Patches only do their job if teammates get them (SPEC.md §10). Since v0.6 they default to
+    /// living inside <c>.dotquay/</c>, next to two directories that must never be committed — so the
+    /// folder carries its own rules rather than relying on every project's root <c>.gitignore</c>
+    /// getting the distinction right. Written when a patch is captured rather than at <c>init</c>, so
+    /// projects that predate this get it the moment it starts mattering.
+    /// </remarks>
+    private void EnsurePatchesStayTracked(ProjectLayout layout)
+    {
+        if (!layout.PatchesAreInsideDotquay)
+        {
+            return;
+        }
+
+        var gitignorePath = _fileSystem.CombinePath(layout.ProjectDirectory, ProjectLayout.DotquayDirectory, ".gitignore");
+        if (_fileSystem.FileExists(gitignorePath))
+        {
+            return;
+        }
+
+        var patchesFolder = layout.PatchesDirectory.Replace('\\', '/')[(ProjectLayout.DotquayDirectory.Length + 1)..].Trim('/');
+
+        _fileSystem.WriteAllText(gitignorePath, string.Join(
+            Environment.NewLine,
+            "# dotquay keeps throwaway state here (cache, staging) and it must not be committed.",
+            $"# {patchesFolder}/ is the exception: patches are source, and teammates need them.",
+            "*",
+            "!.gitignore",
+            $"!{patchesFolder}/",
+            $"!{patchesFolder}/**",
+            string.Empty));
+    }
+
     private async Task<string> DiffForPatchOrThrowAsync(
         string baseDirectory, string oursDirectory, string name, CancellationToken cancellationToken)
     {
@@ -558,18 +815,8 @@ public sealed class DependencyWorkflow
         }
     }
 
-    private static LockedAddon WithPatch(LockedAddon locked, string contentHash, string? patchHash, string? patchBaseSha) => new()
-    {
-        Name = locked.Name,
-        Git = locked.Git,
-        Resolved = locked.Resolved,
-        Version = locked.Version,
-        Path = locked.Path,
-        ContentHash = contentHash,
-        PatchHash = patchHash,
-        PatchBaseSha = patchBaseSha,
-        Dependencies = locked.Dependencies,
-    };
+    private static LockedAddon WithPatch(LockedAddon locked, string contentHash, string? patchHash, string? patchBaseSha) =>
+        locked with { ContentHash = contentHash, PatchHash = patchHash, PatchBaseSha = patchBaseSha };
 
     private static string ComputePatchHash(string patchText) =>
         "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(patchText))).ToLowerInvariant();
@@ -818,12 +1065,17 @@ public sealed class DependencyWorkflow
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
 
         var addonResults = new List<AddonOutdatedInfo>();
+        var checkedCount = 0;
         foreach (var locked in lockfile.Addons)
         {
             if (!manifest.Addons.TryGetValue(locked.Name, out var spec))
             {
                 continue;
             }
+
+            // One `git ls-remote` per addon, each a network round trip — the exact shape of work that
+            // looks like a hang on a project with a dozen dependencies.
+            _progress.Report($"checking {locked.Name}", ++checkedCount, lockfile.Addons.Count);
 
             var info = await CheckAddonOutdatedOrThrowAsync(spec, locked, cancellationToken);
             if (info is not null)
@@ -955,7 +1207,8 @@ public sealed class DependencyWorkflow
         }
     }
 
-    private async Task<AddonSpec> BuildDefaultSpecAsync(string name, string gitUrl, string? pathOverride, CancellationToken cancellationToken)
+    private async Task<AddonSpec> BuildDefaultSpecAsync(
+        string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken)
     {
         var refs = await _gitClient.ListRemoteRefsAsync(gitUrl, cancellationToken);
 
@@ -971,7 +1224,11 @@ public sealed class DependencyWorkflow
             var minorComponents = highestTag.Version.Components.Take(Math.Min(2, highestTag.Version.Components.Count));
             return new AddonSpec
             {
-                Name = name, Git = gitUrl, Version = "~" + string.Join('.', minorComponents), Path = pathOverride,
+                Name = name,
+                Git = gitUrl,
+                Version = "~" + string.Join('.', minorComponents),
+                Path = pathOverride,
+                InstallAs = installAs,
             };
         }
 
@@ -979,7 +1236,7 @@ public sealed class DependencyWorkflow
         // (SPEC.md §6: "No tags found -> pin default-branch tip as rev and print a hint").
         var branch = await _gitClient.ResolveDefaultBranchAsync(gitUrl, cancellationToken);
         var sha = await _gitClient.ResolveBranchTipAsync(gitUrl, branch, cancellationToken);
-        return new AddonSpec { Name = name, Git = gitUrl, Rev = sha, Path = pathOverride };
+        return new AddonSpec { Name = name, Git = gitUrl, Rev = sha, Path = pathOverride, InstallAs = installAs };
     }
 
     private async Task<ResolvedAddon> ResolveOrThrowAsync(AddonSpec spec, CancellationToken cancellationToken)
@@ -998,12 +1255,22 @@ public sealed class DependencyWorkflow
         }
     }
 
+    /// <summary>Installs one addon, honouring a local link for it if this machine declares one
+    /// (SPEC.md §7.4). The link lookup happens here rather than inside
+    /// <see cref="AddonInstaller"/> so the installer stays a pure "put this commit at this path"
+    /// step and every caller gets link behaviour without asking for it.</summary>
     private async Task<LockedAddon> InstallAddonOrThrowAsync(
         ResolvedAddon resolved, string projectDirectory, LockedAddon? previous, bool force, CancellationToken cancellationToken)
     {
         try
         {
-            return await _addonInstaller.InstallAsync(resolved, projectDirectory, previous, force, cancellationToken);
+            _localLinks.Read(projectDirectory).TryGetValue(resolved.Name, out var link);
+            return await _addonInstaller.InstallAsync(
+                resolved, ReadLayout(projectDirectory), previous, force, link, cancellationToken);
+        }
+        catch (LocalLinkException ex)
+        {
+            throw new WorkflowException(ex.Message, ex);
         }
         catch (SyncException ex)
         {
@@ -1059,12 +1326,23 @@ public sealed class DependencyWorkflow
             {
                 rootSpecs[addonName] = new AddonSpec
                 {
-                    Name = addonName, Git = previousLocked.Git, Rev = previousLocked.Resolved, Path = previousLocked.Path,
+                    Name = addonName,
+                    Git = previousLocked.Git,
+                    Rev = previousLocked.Resolved,
+                    Path = previousLocked.Path,
+                    // Carried through, or freezing an addon would quietly relocate it back to the
+                    // default folder — an "untouched" addon moving on disk is the opposite of frozen.
+                    InstallAs = previousLocked.Folder,
                 };
             }
         }
 
-        var discoveryRoot = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging", "graph-discovery");
+        // The graph walk is the slowest part of an update by a wide margin — it fetches every addon in
+        // the graph to read its manifest — and until v0.6 it produced no output at all, so a large
+        // project looked hung for the whole of it.
+        _progress.Report("resolving the dependency graph");
+
+        var discoveryRoot = _fileSystem.CombinePath(projectDirectory, ProjectLayout.DotquayDirectory, "staging", "graph-discovery");
         var graphResolver = new DependencyGraphResolver(_fileSystem, _gitClient, _repoCache, discoveryRoot);
 
         GraphResolutionResult graph;
@@ -1082,9 +1360,11 @@ public sealed class DependencyWorkflow
         }
 
         var resultByName = new Dictionary<string, LockedAddon>(StringComparer.Ordinal);
+        var syncedCount = 0;
         foreach (var entry in graph.Addons)
         {
             var addonName = entry.Resolved.Name;
+            _progress.Report($"installing {addonName}", ++syncedCount, graph.Addons.Count);
             previousAddonsByName.TryGetValue(addonName, out var previous);
 
             var unchanged = previous is not null
@@ -1212,18 +1492,8 @@ public sealed class DependencyWorkflow
         return reachable;
     }
 
-    private static LockedAddon WithDependencies(LockedAddon locked, IReadOnlyList<string> dependencyNames) => new()
-    {
-        Name = locked.Name,
-        Git = locked.Git,
-        Resolved = locked.Resolved,
-        Version = locked.Version,
-        Path = locked.Path,
-        ContentHash = locked.ContentHash,
-        PatchHash = locked.PatchHash,
-        PatchBaseSha = locked.PatchBaseSha,
-        Dependencies = dependencyNames,
-    };
+    private static LockedAddon WithDependencies(LockedAddon locked, IReadOnlyList<string> dependencyNames) =>
+        locked with { Dependencies = dependencyNames };
 
     private (ProjectManifest Manifest, string Path) ReadManifestOrThrow(string projectDirectory) =>
         _projectFiles.ReadManifestOrThrow(projectDirectory);

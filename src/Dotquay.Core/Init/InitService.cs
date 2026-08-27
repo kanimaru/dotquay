@@ -18,7 +18,7 @@ public sealed class InitService
     /// <summary>Scaffolds a project manifest (SPEC.md §7.1) in <paramref name="projectDirectory"/>.
     /// <paramref name="nuGetSource"/> records a private NuGet feed's V3 service-index URL, if the
     /// project uses one — see <see cref="Manifest.ProjectManifest.NuGetSource"/>.</summary>
-    public InitResult InitProject(string projectDirectory, string? godotVersion = null, string? nuGetSource = null)
+    public InitResult InitProject(string projectDirectory, string? nuGetSource = null)
     {
         var manifestPath = _fileSystem.CombinePath(projectDirectory, "dotquay.toml");
 
@@ -28,13 +28,13 @@ public sealed class InitService
         }
 
         _fileSystem.CreateDirectory(projectDirectory);
-        _fileSystem.WriteAllText(manifestPath, ManifestWriter.ScaffoldProjectToml(godotVersion, nuGetSource));
+        _fileSystem.WriteAllText(manifestPath, ManifestWriter.ScaffoldProjectToml(nuGetSource));
 
         return InitResult.Created(manifestPath);
     }
 
     /// <summary>Scaffolds a package manifest (SPEC.md §7.2) inside an addon folder.</summary>
-    public InitResult InitPackage(string addonDirectory, string packageName, string packageVersion)
+    public InitResult InitPackage(string addonDirectory, string packageName)
     {
         var manifestPath = _fileSystem.CombinePath(addonDirectory, "dotquay.toml");
 
@@ -44,7 +44,7 @@ public sealed class InitService
         }
 
         _fileSystem.CreateDirectory(addonDirectory);
-        _fileSystem.WriteAllText(manifestPath, ManifestWriter.ScaffoldPackageToml(packageName, packageVersion));
+        _fileSystem.WriteAllText(manifestPath, ManifestWriter.ScaffoldPackageToml(packageName));
 
         return InitResult.Created(manifestPath);
     }

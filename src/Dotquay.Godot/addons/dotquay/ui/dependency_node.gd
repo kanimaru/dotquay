@@ -74,6 +74,10 @@ func _add_status_row() -> void:
 			"Hand-edited without a captured patch. Install and update will refuse to overwrite it (SPEC.md P0-6)."))
 	elif _model.status == DotquayWire.STATUS_MISSING:
 		row.add_child(_badge("missing", COLOR_WARN, "Locked, but the folder isn't on disk. Run Install."))
+	elif _model.is_linked():
+		row.add_child(_badge("linked", COLOR_OVERRIDE,
+			"Linked to a folder on this machine, so its contents are a live working copy rather than the "
+			+ "locked commit. Run 'dotquay link --remove' to put it back."))
 	elif _model.is_patched:
 		row.add_child(_badge("patched", COLOR_OK, "A captured patch is re-applied on every update (SPEC.md §10)."))
 
@@ -82,6 +86,15 @@ func _add_status_row() -> void:
 
 	if _model.is_orphan():
 		row.add_child(_badge("orphan", COLOR_WARN, "Locked but no longer required by anything."))
+
+	# The folder is only worth showing when it isn't the name — that difference is precisely when
+	# someone goes looking for the addon and can't find it.
+	if _model.is_renamed():
+		row.add_child(_badge(
+			"→ %s" % _model.folder,
+			COLOR_OVERRIDE,
+			"Installed into addons/%s instead of addons/%s (install_as). Addons that preload each other "
+			% [_model.folder, _model.name] + "by absolute path need a specific folder name."))
 
 	add_child(row)
 

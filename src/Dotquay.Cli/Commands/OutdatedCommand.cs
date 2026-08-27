@@ -16,10 +16,12 @@ internal static class OutdatedCommand
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             var json = parseResult.GetValue(jsonOption);
+            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
 
             try
             {
-                var result = await WorkflowFactory.Create().OutdatedAsync(GlobalOptions.Resolve(parseResult), cancellationToken);
+                var result = await workflow.OutdatedAsync(GlobalOptions.Resolve(parseResult), cancellationToken);
+                progress.Dispose();
 
                 if (json)
                 {
@@ -52,6 +54,10 @@ internal static class OutdatedCommand
             catch (WorkflowException ex)
             {
                 return JsonOutput.Fail(json, CommandName, ex);
+            }
+            finally
+            {
+                progress.Dispose();
             }
         });
 

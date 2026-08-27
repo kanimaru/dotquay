@@ -10,7 +10,6 @@ public class ManifestWriterTests
     {
         var manifest = new ProjectManifest
         {
-            Godot = "4.3",
             Addons = new Dictionary<string, AddonSpec>
             {
                 ["dialogue_manager"] = new AddonSpec
@@ -45,7 +44,6 @@ public class ManifestWriterTests
         var toml = ManifestWriter.Serialize(manifest);
         var roundTripped = ManifestReader.ReadProject(toml);
 
-        Assert.Equal(manifest.Godot, roundTripped.Godot);
         Assert.Equal(manifest.Addons.Count, roundTripped.Addons.Count);
         Assert.Equal("~2.44", roundTripped.Addons["dialogue_manager"].Version);
         Assert.Equal("godot4", roundTripped.Addons["some_addon"].Branch);
@@ -56,10 +54,9 @@ public class ManifestWriterTests
     [Fact]
     public void ScaffoldProjectToml_ProducesValidToml()
     {
-        var toml = ManifestWriter.ScaffoldProjectToml(godotVersion: null);
+        var toml = ManifestWriter.ScaffoldProjectToml();
         var manifest = ManifestReader.ReadProject(toml);
 
-        Assert.Equal("4.3", manifest.Godot);
         Assert.Null(manifest.NuGetSource);
         Assert.Empty(manifest.Addons);
     }
@@ -67,7 +64,7 @@ public class ManifestWriterTests
     [Fact]
     public void ScaffoldProjectToml_WithNuGetSource_RecordsIt()
     {
-        var toml = ManifestWriter.ScaffoldProjectToml(godotVersion: null, nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
+        var toml = ManifestWriter.ScaffoldProjectToml(nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
         var manifest = ManifestReader.ReadProject(toml);
 
         Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", manifest.NuGetSource);
@@ -87,11 +84,11 @@ public class ManifestWriterTests
     [Fact]
     public void ScaffoldPackageToml_ProducesValidToml()
     {
-        var toml = ManifestWriter.ScaffoldPackageToml("kani_dialogue_tools", "1.2.0");
+        var toml = ManifestWriter.ScaffoldPackageToml("kani_dialogue_tools");
         var package = ManifestReader.ReadPackage(toml);
 
         Assert.Equal("kani_dialogue_tools", package.Name);
-        Assert.Equal("1.2.0", package.Version);
+        Assert.Null(package.Version);
     }
 
     [Fact]

@@ -1,7 +1,9 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Local;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Patch;
 using Dotquay.Core.Resolve;
+using Dotquay.Core.Workflows;
 
 namespace Dotquay.Core.Sync;
 
@@ -39,11 +41,19 @@ public sealed class AddonInstaller
     /// </summary>
     public async Task<LockedAddon> InstallAsync(
         ResolvedAddon resolved,
-        string projectDirectory,
+        ProjectLayout layout,
         LockedAddon? previous,
         bool force,
+        LocalLink? link = null,
         CancellationToken cancellationToken = default)
     {
+        var projectDirectory = layout.ProjectDirectory;
+
+        if (link is not null)
+        {
+            return InstallAsLink(resolved, projectDirectory, previous, force, link);
+        }
+
         var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
 
         var stagingPath = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging", resolved.Name);
@@ -51,7 +61,7 @@ public sealed class AddonInstaller
 
         if (previous is { PatchHash: not null, PatchBaseSha: not null })
         {
-            await ReapplyPatchOrThrowAsync(previous, projectDirectory, stagingPath, cancellationToken);
+            await ReapplyPatchOrThrowAsync(previous, resolved, layout, stagingPath, cancellationToken);
         }
 
         var isRename = previous is not null
@@ -64,7 +74,18 @@ public sealed class AddonInstaller
         }
 
         var destinationPath = InstallPaths.For(_fileSystem, projectDirectory, resolved);
-        var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, isRename ? null : previous?.ContentHash, force);
+
+        // Unlinking: the destination is currently a link into someone's checkout. Remove the link
+        // first — it holds no content of its own to protect, and leaving it would make the dirty check
+        // hash their working copy and then the swap overwrite through it.
+        var wasLinked = _fileSystem.IsDirectoryLink(destinationPath);
+        if (wasLinked)
+        {
+            _fileSystem.DeleteDirectory(destinationPath);
+        }
+
+        var expectedContentHash = isRename || wasLinked ? null : previous?.ContentHash;
+        var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, expectedContentHash, force);
 
         // A changed install_as leaves the previous folder behind, still full of the addon's files.
         // That is worse than untidy: Godot loads whatever is under addons/, and a stale copy keeps
@@ -87,6 +108,65 @@ public sealed class AddonInstaller
             PatchHash = previous?.PatchHash,
             PatchBaseSha = previous?.PatchBaseSha,
             Dependencies = [],
+        };
+    }
+
+    /// <summary>
+    /// Points <c>addons/&lt;folder&gt;</c> at a folder on this machine instead of installing the
+    /// resolved commit (SPEC.md §7.4).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The lockfile entry still records the upstream commit, not the local path. The lockfile is
+    /// committed and must stay reproducible for everyone else (goal #1); a machine-specific path in it
+    /// would break every teammate. A link is a local detour, and unlinking puts the project straight
+    /// back on the commit the lockfile always claimed.
+    /// </para>
+    /// <para>
+    /// <see cref="LockedAddon.ContentHash"/> is deliberately carried over rather than recomputed:
+    /// hashing a link means hashing the developer's in-progress edits, which would then be recorded as
+    /// the expected content of an upstream release.
+    /// </para>
+    /// </remarks>
+    private LockedAddon InstallAsLink(
+        ResolvedAddon resolved, string projectDirectory, LockedAddon? previous, bool force, LocalLink link)
+    {
+        var destinationPath = InstallPaths.For(_fileSystem, projectDirectory, resolved);
+
+        if (!_fileSystem.DirectoryExists(link.Path))
+        {
+            throw new SyncException(
+                $"'{resolved.Name}' is linked to '{link.Path}', which does not exist. Fix the path in "
+                + $"{Local.LocalLinks.FileName} or remove the link.");
+        }
+
+        // A real installed folder is about to be replaced by a link, so the usual protection applies:
+        // whatever is in there is content dotquay would otherwise refuse to overwrite (requirement
+        // P0-6). An existing *link* needs no such check — it holds nothing of its own.
+        if (!force && !_fileSystem.IsDirectoryLink(destinationPath)
+            && DirtyChecker.Check(_fileSystem, destinationPath, previous?.ContentHash).IsDirty)
+        {
+            throw new SyncException(
+                $"'{resolved.Name}' is being replaced by a link to '{link.Path}', but addons/"
+                + $"{resolved.EffectiveFolder} has local modifications that don't match the lockfile. Linking "
+                + $"would discard them. Run 'dotquay patch {resolved.Name}' to capture them first, or pass "
+                + "--force to discard them (SPEC.md requirement P0-6).");
+        }
+
+        _fileSystem.CreateDirectoryLink(destinationPath, link.Path);
+
+        return new LockedAddon
+        {
+            Name = resolved.Name,
+            Git = resolved.Git,
+            Resolved = resolved.ResolvedSha,
+            Version = resolved.DisplayVersion ?? previous?.Version ?? BuildPseudoVersion(resolved.ResolvedSha),
+            Path = resolved.Path,
+            Folder = resolved.InstallAs,
+            ContentHash = previous?.ContentHash,
+            PatchHash = previous?.PatchHash,
+            PatchBaseSha = previous?.PatchBaseSha,
+            Dependencies = previous?.Dependencies ?? [],
         };
     }
 
@@ -122,9 +202,13 @@ public sealed class AddonInstaller
     }
 
     private async Task ReapplyPatchOrThrowAsync(
-        LockedAddon previous, string projectDirectory, string stagingPath, CancellationToken cancellationToken)
+        LockedAddon previous,
+        ResolvedAddon resolved,
+        ProjectLayout layout,
+        string stagingPath,
+        CancellationToken cancellationToken)
     {
-        var patchFilePath = _fileSystem.CombinePath(projectDirectory, "patches", $"{previous.Name}.patch");
+        var patchFilePath = layout.PatchFilePath(_fileSystem, previous.Name);
         if (!_fileSystem.FileExists(patchFilePath))
         {
             // The lockfile says there's a patch but the file itself is gone (deleted by hand,
@@ -150,12 +234,28 @@ public sealed class AddonInstaller
 
         if (conflicts.Count > 0)
         {
+            // Record which commit the staged tree came from. The update is about to abort, so the
+            // lockfile is never written and still names the *old* commit — without this note,
+            // `patch --resolve` would recapture the resolved tree against the old base, producing a
+            // patch that conflicts against the new upstream on every future update, forever. Found
+            // exactly that way: resolve worked once and then the addon could never update again.
+            _fileSystem.WriteAllText(
+                layout.ConflictMarkerPath(_fileSystem, previous.Name),
+                $"{resolved.ResolvedSha}{Environment.NewLine}{resolved.DisplayVersion}{Environment.NewLine}");
+
+            // The patch was re-applied automatically (that part always happens, SPEC.md §10 step 3);
+            // upstream simply changed the same lines this patch touches. Leading with what dotquay
+            // did, and what is safe, matters — the old wording read like the update had failed
+            // outright and left the project in an unknown state.
             throw new SyncException(
-                $"'{previous.Name}': updating produced {conflicts.Count} conflicting file(s) while re-applying "
-                + $"its patch: {string.Join(", ", conflicts)}. Conflict markers are left in {stagingPath} — "
-                + $"resolve them there, copy the resolved files into addons/{previous.Name}, then run "
-                + $"'dotquay patch {previous.Name}' to recapture against the new base. addons/{previous.Name} "
-                + "was left untouched (SPEC.md requirement P1-1).");
+                $"'{previous.Name}': your patch still applies, but upstream changed the same lines in "
+                + $"{conflicts.Count} file(s): {string.Join(", ", conflicts)}.{Environment.NewLine}"
+                + $"  addons/{previous.EffectiveFolder} is untouched and still working (requirement P1-1)."
+                + $"{Environment.NewLine}"
+                + $"  1. Edit the conflict markers in {stagingPath}{Environment.NewLine}"
+                + $"  2. Run 'dotquay patch {previous.Name} --resolve' to apply and recapture."
+                + $"{Environment.NewLine}"
+                + $"  Or 'dotquay patch {previous.Name} --abandon' to drop the patch and take upstream as-is.");
         }
     }
 

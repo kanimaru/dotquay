@@ -89,17 +89,30 @@ public class DoctorPackageManifestTests
     }
 
     [Fact]
-    public async Task DoctorAsync_PackageManifestMissingRequiredKeys_IsReported()
+    public async Task DoctorAsync_PackageManifestMissingName_IsReported()
+    {
+        var issues = await RunAsync("""
+            [package]
+            version = "1.0.0"
+            """);
+
+        // `name` is the one key still required, so a [package] without it is as unusable as no header
+        // at all — the graph walk would skip the addon's dependencies just the same.
+        var issue = Assert.Single(issues);
+        Assert.Contains("'name'", issue.Message);
+    }
+
+    [Fact]
+    public async Task DoctorAsync_PackageManifestWithoutAVersion_IsNotReported()
     {
         var issues = await RunAsync("""
             [package]
             name = "leaf"
             """);
 
-        // [package] with no version is exactly as unusable as no header at all — ManifestReader
-        // rejects it, so the graph walk would skip the addon's dependencies just the same.
-        var issue = Assert.Single(issues);
-        Assert.Contains("version", issue.Message);
+        // `version` became optional: nothing reads it, and plugin.cfg plus the git tag already carry
+        // it. Flagging its absence would nag about the recommended shape.
+        Assert.Empty(issues);
     }
 
     [Fact]

@@ -26,6 +26,14 @@ public static class AddonStatusEvaluator
             return AddonStatusKind.Missing;
         }
 
+        // Checked before the content hash, because hashing a link means hashing the developer's live
+        // working copy — which will essentially never match the lockfile, so every linked addon would
+        // report as modified and the dirty check would refuse to touch it.
+        if (fileSystem.IsDirectoryLink(installedPath))
+        {
+            return AddonStatusKind.Linked;
+        }
+
         if (DirtyChecker.Check(fileSystem, installedPath, locked.ContentHash).IsDirty)
         {
             return AddonStatusKind.Modified;

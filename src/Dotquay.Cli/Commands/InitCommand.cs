@@ -22,11 +22,6 @@ internal static class InitCommand
             Description = "Scaffold a package manifest (with a [package] header) for an addon, instead of a project manifest.",
         };
 
-        var godotOption = new Option<string?>("--godot")
-        {
-            Description = "Godot version to record in [project]. Only used without --package. Defaults to \"4.3\".",
-        };
-
         var nuGetSourceOption = new Option<string?>("--nuget-source")
         {
             Description = "V3 service-index URL of a private NuGet feed (e.g. a GitLab/Azure Artifacts "
@@ -39,21 +34,14 @@ internal static class InitCommand
             Description = "Package name. Only used with --package. Defaults to the directory name.",
         };
 
-        var packageVersionOption = new Option<string?>("--package-version")
-        {
-            Description = "Package version. Only used with --package. Defaults to \"0.1.0\".",
-        };
-
         var jsonOption = JsonOutput.CreateOption();
 
         var command = new Command(CommandName, "Scaffold a dotquay.toml in the project root (or, with --package, inside an addon folder).")
         {
             directoryArgument,
             packageOption,
-            godotOption,
             nuGetSourceOption,
             nameOption,
-            packageVersionOption,
             jsonOption,
         };
 
@@ -68,11 +56,8 @@ internal static class InitCommand
             var initService = new InitService(new SystemFileSystem());
 
             var result = isPackage
-                ? initService.InitPackage(
-                    directory,
-                    parseResult.GetValue(nameOption) ?? new DirectoryInfo(directory).Name,
-                    parseResult.GetValue(packageVersionOption) ?? "0.1.0")
-                : initService.InitProject(directory, parseResult.GetValue(godotOption), parseResult.GetValue(nuGetSourceOption));
+                ? initService.InitPackage(directory, parseResult.GetValue(nameOption) ?? new DirectoryInfo(directory).Name)
+                : initService.InitProject(directory, parseResult.GetValue(nuGetSourceOption));
 
             var kind = isPackage ? "package" : "project";
 

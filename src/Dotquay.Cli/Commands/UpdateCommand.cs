@@ -35,11 +35,15 @@ internal static class UpdateCommand
             var name = parseResult.GetValue(nameArgument);
             var force = parseResult.GetValue(forceOption);
             var json = parseResult.GetValue(jsonOption);
-            var workflow = WorkflowFactory.Create();
+            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
 
             try
             {
                 var result = await workflow.UpdateAsync(GlobalOptions.Resolve(parseResult), name, force, cancellationToken);
+
+                // Stopped before anything is printed, so the spinner's last frame isn't left sitting
+                // on the line the results are about to occupy.
+                progress.Dispose();
 
                 if (json)
                 {
@@ -75,7 +79,12 @@ internal static class UpdateCommand
             }
             catch (WorkflowException ex)
             {
+                progress.Dispose();
                 return JsonOutput.Fail(json, CommandName, ex);
+            }
+            finally
+            {
+                progress.Dispose();
             }
         });
 

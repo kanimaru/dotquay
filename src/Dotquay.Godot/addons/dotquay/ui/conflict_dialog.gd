@@ -10,7 +10,8 @@ extends ConfirmationDialog
 ## identically to the same choice typed at a terminal.
 
 ## [param kind] is "version"/"branch"/"rev"; [param value] is the tag, branch, or SHA to pin to.
-signal override_chosen(addon_name: String, kind: String, value: String, git: String)
+## [param install_as] is the folder to force, empty for "leave the folder alone".
+signal override_chosen(addon_name: String, kind: String, value: String, git: String, install_as: String)
 
 const CUSTOM_ID := -1
 
@@ -148,7 +149,7 @@ func _candidate_row(candidate: DotquayGraph.Candidate, index: int) -> Control:
 
 	var radio := CheckBox.new()
 	radio.button_group = _candidate_group
-	radio.text = "%s %s" % [candidate.kind, candidate.value]
+	radio.text = candidate.display_label()
 	radio.set_meta("candidate_index", index)
 	row.add_child(radio)
 
@@ -184,7 +185,7 @@ func _on_confirmed() -> void:
 		# The custom path has no candidate to inherit a repository from, so it relies on the CLI
 		# filling `git` in from the manifest or lockfile — the common case, since a version conflict
 		# is a disagreement about which release, not about which repo.
-		override_chosen.emit(_conflict.name, _custom_kind.get_item_text(_custom_kind.selected), value, "")
+		override_chosen.emit(_conflict.name, _custom_kind.get_item_text(_custom_kind.selected), value, "", "")
 		return
 
 	var ranked := _conflict.ranked_candidates()
@@ -192,7 +193,7 @@ func _on_confirmed() -> void:
 		return
 
 	var candidate: DotquayGraph.Candidate = ranked[index]
-	override_chosen.emit(_conflict.name, candidate.kind, candidate.value, candidate.git)
+	override_chosen.emit(_conflict.name, candidate.kind, candidate.value, candidate.git, candidate.install_as)
 
 
 func _section_label(text: String) -> Label:

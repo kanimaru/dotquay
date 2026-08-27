@@ -1,6 +1,7 @@
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Resolve;
 using Dotquay.Core.Sync;
+using Dotquay.Core.Workflows;
 using Dotquay.Tests.Support;
 using Xunit;
 
@@ -34,7 +35,7 @@ public class AddonInstallerTests
         var (installer, fileSystem, gitClient, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: "v2.44.0", "addons/dialogue_manager");
 
-        var locked = await installer.InstallAsync(resolved, "project", previous: null, force: false);
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous: null, force: false);
 
         Assert.Equal("dialogue_manager", locked.Name);
         Assert.Equal(Sha, locked.Resolved);
@@ -53,7 +54,7 @@ public class AddonInstallerTests
         var (installer, _, _, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
-        var locked = await installer.InstallAsync(resolved, "project", previous: null, force: false);
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous: null, force: false);
 
         Assert.Matches(@"^0\.0\.0-\d{8}-1111111$", locked.Version);
     }
@@ -66,7 +67,7 @@ public class AddonInstallerTests
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
         await Assert.ThrowsAsync<SyncException>(
-            () => installer.InstallAsync(resolved, "project", PreviousWithContentHash("sha256:original"), force: false));
+            () => installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), PreviousWithContentHash("sha256:original"), force: false));
     }
 
     [Fact]
@@ -76,7 +77,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "hand-edited");
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
-        await installer.InstallAsync(resolved, "project", PreviousWithContentHash("sha256:original"), force: true);
+        await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), PreviousWithContentHash("sha256:original"), force: true);
 
         Assert.Equal("cfg", fileSystem.ReadAllText("project/addons/dialogue_manager/plugin.cfg"));
     }
@@ -87,8 +88,8 @@ public class AddonInstallerTests
         var (installer, _, gitClient, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
-        await installer.InstallAsync(resolved, "project-a", previous: null, force: false);
-        await installer.InstallAsync(resolved, "project-b", previous: null, force: false);
+        await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project-a"), previous: null, force: false);
+        await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project-b"), previous: null, force: false);
 
         Assert.Single(gitClient.FetchCalls);
     }
@@ -113,7 +114,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "cfg-edited");
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
 
-        fileSystem.WriteAllText("project/patches/dialogue_manager.patch", "fake-patch-text");
+        fileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch", "fake-patch-text");
         patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string>
         {
             ["plugin.cfg"] = "cfg-edited",
@@ -131,7 +132,7 @@ public class AddonInstallerTests
         };
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, NewSha, DisplayVersion: null, "addons/dialogue_manager");
 
-        var locked = await installer.InstallAsync(resolved, "project", previous, force: false);
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous, force: false);
 
         Assert.Equal(NewSha, locked.Resolved);
         Assert.Equal("sha256:deadbeef", locked.PatchHash);
@@ -157,7 +158,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "cfg-edited");
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
 
-        fileSystem.WriteAllText("project/patches/dialogue_manager.patch", "fake-patch-text");
+        fileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch", "fake-patch-text");
         patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string>
         {
             ["plugin.cfg"] = "cfg-edited",
@@ -178,7 +179,7 @@ public class AddonInstallerTests
         };
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, NewSha, DisplayVersion: null, "addons/dialogue_manager");
 
-        var ex = await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(resolved, "project", previous, force: false));
+        var ex = await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous, force: false));
 
         Assert.Contains("plugin.cfg", ex.Message);
         Assert.Contains("dialogue_manager", ex.Message);
@@ -209,7 +210,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "cfg");
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
 
-        fileSystem.WriteAllText("project/patches/dialogue_manager.patch", "fake-delete-patch");
+        fileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch", "fake-delete-patch");
         patchTool.FileDeletionsByPatchText["fake-delete-patch"] = ["extra.gd"];
 
         var previous = new LockedAddon
@@ -224,7 +225,7 @@ public class AddonInstallerTests
         };
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, NewSha, DisplayVersion: null, "addons/dialogue_manager");
 
-        await installer.InstallAsync(resolved, "project", previous, force: false);
+        await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous, force: false);
 
         Assert.True(fileSystem.FileExists("project/addons/dialogue_manager/plugin.cfg"));
         Assert.False(fileSystem.FileExists("project/addons/dialogue_manager/extra.gd"));
@@ -241,7 +242,7 @@ public class AddonInstallerTests
 
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "cfg-edited");
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
-        // Deliberately no patches/dialogue_manager.patch written.
+        // Deliberately no .dotquay/patches/dialogue_manager.patch written.
 
         var previous = new LockedAddon
         {
@@ -255,7 +256,7 @@ public class AddonInstallerTests
         };
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, NewSha, DisplayVersion: null, "addons/dialogue_manager");
 
-        var locked = await installer.InstallAsync(resolved, "project", previous, force: true);
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous, force: true);
 
         Assert.Equal("cfg-from-upstream", fileSystem.ReadAllText("project/addons/dialogue_manager/plugin.cfg"));
         Assert.Equal("sha256:deadbeef", locked.PatchHash);

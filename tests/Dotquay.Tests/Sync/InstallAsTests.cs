@@ -3,6 +3,7 @@ using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Resolve;
 using Dotquay.Core.Sync;
+using Dotquay.Core.Workflows;
 using Dotquay.Tests.Support;
 using Xunit;
 
@@ -51,7 +52,7 @@ public class InstallAsTests
     {
         var (installer, fileSystem) = Build();
 
-        await installer.InstallAsync(Resolved(installAs: null), ProjectDirectory, previous: null, force: false);
+        await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
         // The behaviour every existing project depends on — adding the field must not move anything.
         Assert.True(fileSystem.FileExists(fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader", "mtoon.gdshader")));
@@ -62,7 +63,7 @@ public class InstallAsTests
     {
         var (installer, fileSystem) = Build();
 
-        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous: null, force: false);
+        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
         Assert.True(fileSystem.FileExists(
             fileSystem.CombinePath(ProjectDirectory, "addons", "Godot-MToon-Shader", "mtoon.gdshader")));
@@ -74,7 +75,7 @@ public class InstallAsTests
     {
         var (installer, _) = Build();
 
-        var locked = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous: null, force: false);
+        var locked = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
         // `install` replays from the lockfile alone (SPEC.md §5) and must find the same folder — this
         // is also the only record of where a *transitive* addon went, since it's in no manifest.
@@ -88,7 +89,7 @@ public class InstallAsTests
     {
         var (installer, _) = Build();
 
-        var locked = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous: null, force: false);
+        var locked = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
         // Identity stays the name: unification, dependency edges, and `remove` all key on it, so an
         // addon installed under an alias is still one addon, not two.
@@ -100,9 +101,9 @@ public class InstallAsTests
     public async Task InstallAsync_ChangingTheFolder_MovesTheAddon()
     {
         var (installer, fileSystem) = Build();
-        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectDirectory, previous: null, force: false);
+        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
-        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous, force: false);
+        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false);
 
         Assert.True(fileSystem.DirectoryExists(fileSystem.CombinePath(ProjectDirectory, "addons", "Godot-MToon-Shader")));
         // The old folder must go. Godot loads whatever is under addons/, so a leftover copy keeps
@@ -115,14 +116,14 @@ public class InstallAsTests
     public async Task InstallAsync_ChangingTheFolder_RefusesToDiscardHandEdits()
     {
         var (installer, fileSystem) = Build();
-        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectDirectory, previous: null, force: false);
+        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
         // A hand-edit in the folder the rename is about to delete.
         fileSystem.WriteAllText(
             fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader", "mtoon.gdshader"), "// my changes");
 
         var exception = await Assert.ThrowsAsync<SyncException>(
-            () => installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous, force: false));
+            () => installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false));
 
         // Without this guard, renaming would be the one way to make dotquay destroy hand-edits without
         // asking: the swap's own dirty check looks at the *new* folder, which doesn't exist yet and is
@@ -135,12 +136,12 @@ public class InstallAsTests
     public async Task InstallAsync_ChangingTheFolder_LeavesEverythingAloneWhenItRefuses()
     {
         var (installer, fileSystem) = Build();
-        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectDirectory, previous: null, force: false);
+        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
         fileSystem.WriteAllText(
             fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader", "mtoon.gdshader"), "// my changes");
 
         await Assert.ThrowsAsync<SyncException>(
-            () => installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous, force: false));
+            () => installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false));
 
         // Checked before anything is written, so a refusal is a no-op rather than a half-done move.
         Assert.True(fileSystem.DirectoryExists(fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader")));
@@ -154,11 +155,11 @@ public class InstallAsTests
     public async Task InstallAsync_ChangingTheFolder_WithForce_DiscardsThem()
     {
         var (installer, fileSystem) = Build();
-        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectDirectory, previous: null, force: false);
+        var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
         fileSystem.WriteAllText(
             fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader", "mtoon.gdshader"), "// my changes");
 
-        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous, force: true);
+        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: true);
 
         Assert.False(fileSystem.DirectoryExists(fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader")));
         Assert.True(fileSystem.DirectoryExists(fileSystem.CombinePath(ProjectDirectory, "addons", "Godot-MToon-Shader")));
@@ -168,9 +169,9 @@ public class InstallAsTests
     public async Task InstallAsync_ReinstallingIntoTheSameFolder_IsNotTreatedAsARename()
     {
         var (installer, fileSystem) = Build();
-        var previous = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous: null, force: false);
+        var previous = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
-        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectDirectory, previous, force: false);
+        await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false);
 
         // The rename branch deletes the old folder; if it fired here it would delete the addon it
         // just installed, since old and new are the same directory.
@@ -267,6 +268,24 @@ public class InstallAsTests
 
         // Adding this field must not churn the lockfile of every project that never needed it.
         Assert.DoesNotContain("folder =", LockfileWriter.Serialize(lockfile));
+    }
+
+    [Fact]
+    public void LockedAddon_CopyingWithAChange_KeepsTheFolder()
+    {
+        var locked = new LockedAddon
+        {
+            Name = "mtoon-shader", Git = RepoUrl, Resolved = Sha, Path = ".", Folder = "Godot-MToon-Shader",
+        };
+
+        var copied = locked with { Dependencies = ["other"] };
+
+        // LockedAddon is a record precisely so this can't be got wrong. It was a class, and the two
+        // hand-written copy helpers that replaced `with` both silently dropped Folder — the addon
+        // installed into the right folder, and every later command looked in the wrong one.
+        Assert.Equal("Godot-MToon-Shader", copied.Folder);
+        Assert.Equal(Sha, copied.Resolved);
+        Assert.Equal(["other"], copied.Dependencies);
     }
 
     [Fact]

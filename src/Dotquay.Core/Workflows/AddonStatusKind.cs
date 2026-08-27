@@ -22,4 +22,10 @@ public enum AddonStatusKind
     /// <c>install</c>, or after a manual delete) worth reporting distinctly rather than silently as
     /// "clean" or crashing while trying to hash a directory that isn't there.</summary>
     Missing,
+
+    /// <summary>The addon's folder is a directory link into a folder on this machine (SPEC.md §7.4),
+    /// so its contents are somebody's live working copy. Reported as its own state rather than
+    /// squeezed into the others: it is neither clean (the content isn't what the lockfile pinned) nor
+    /// modified (nothing is wrong, and there is nothing to capture as a patch).</summary>
+    Linked,
 }

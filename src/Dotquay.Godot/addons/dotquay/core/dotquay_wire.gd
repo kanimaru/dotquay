@@ -14,6 +14,7 @@ const STATUS_CLEAN := "clean"
 const STATUS_PATCHED := "patched"
 const STATUS_MODIFIED := "modified"
 const STATUS_MISSING := "missing"
+const STATUS_LINKED := "linked"
 
 ## `addons[].origin`
 const ORIGIN_ROOT := "root"
@@ -30,6 +31,7 @@ const CONFLICT_DIFFERENT_GIT_URLS := "different_git_urls"
 const CONFLICT_DISJOINT_PINS := "disjoint_pins"
 const CONFLICT_NO_COMMON_VERSION := "no_common_version"
 const CONFLICT_INVALID_CONSTRAINT := "invalid_constraint"
+const CONFLICT_DISAGREEING_INSTALL_FOLDERS := "disagreeing_install_folders"
 
 ## `graph.source`
 const GRAPH_SOURCE_LOCKFILE := "lockfile"

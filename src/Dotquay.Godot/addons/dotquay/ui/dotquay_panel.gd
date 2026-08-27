@@ -326,13 +326,21 @@ func _open_conflict_dialog(addon_name: String) -> void:
 	_conflict_dialog.show_conflict(conflict)
 
 
-func _on_override_chosen(addon_name: String, kind: String, value: String, git: String) -> void:
+func _on_override_chosen(addon_name: String, kind: String, value: String, git: String, install_as: String) -> void:
 	var args := PackedStringArray(["override", addon_name, "--" + kind, value])
 	if not git.is_empty():
 		args.append("--git")
 		args.append(git)
 
-	_log_line("Pinning %s to %s %s..." % [addon_name, kind, value])
+	if not install_as.is_empty():
+		args.append("--install-as")
+		args.append(install_as)
+
+	if install_as.is_empty():
+		_log_line("Pinning %s to %s %s..." % [addon_name, kind, value])
+	else:
+		_log_line("Pinning %s to addons/%s..." % [addon_name, install_as])
+
 	_run("override", args, true)
 
 
@@ -447,6 +455,8 @@ func _update_summary() -> void:
 		parts.append("%d NuGet" % counts["dotnet"])
 	if counts["patched"] > 0:
 		parts.append("%d patched" % counts["patched"])
+	if counts["linked"] > 0:
+		parts.append("%d linked" % counts["linked"])
 	if counts["modified"] > 0:
 		parts.append("%d modified" % counts["modified"])
 	if counts["missing"] > 0:

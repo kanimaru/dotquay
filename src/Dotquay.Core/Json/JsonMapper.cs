@@ -119,7 +119,10 @@ public static class JsonMapper
     public static StatusJson ToJson(StatusResult status) => new()
     {
         Addons = status.Addons.Select(a => new StatusEntryJson(a.Name, ToWire(a.Kind))).ToList(),
-        AllClean = status.Addons.All(a => a.Kind is AddonStatusKind.Clean or AddonStatusKind.PatchedAsExpected),
+        // A linked addon counts as clean: it is exactly where its owner put it, and nothing about it
+        // needs fixing (SPEC.md §7.4).
+        AllClean = status.Addons.All(
+            a => a.Kind is AddonStatusKind.Clean or AddonStatusKind.PatchedAsExpected or AddonStatusKind.Linked),
     };
 
     public static OutdatedJson ToJson(OutdatedResult outdated)
@@ -211,6 +214,7 @@ public static class JsonMapper
         AddonStatusKind.PatchedAsExpected => "patched",
         AddonStatusKind.Modified => "modified",
         AddonStatusKind.Missing => "missing",
+        AddonStatusKind.Linked => "linked",
         _ => "unknown",
     };
 

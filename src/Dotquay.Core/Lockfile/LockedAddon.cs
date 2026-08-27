@@ -1,7 +1,15 @@
 namespace Dotquay.Core.Lockfile;
 
 /// <summary>One resolved <c>[[addon]]</c> entry (SPEC.md §7.3).</summary>
-public sealed class LockedAddon
+/// <remarks>
+/// A <c>record</c> specifically so callers can say <c>locked with { Dependencies = ... }</c>. It was
+/// a class, which forced two hand-written copy helpers that listed every property — and when
+/// <see cref="Folder"/> was added, both silently dropped it, so an addon installed into the right
+/// folder was recorded as if it were in the default one. Every consumer then disagreed with disk:
+/// <c>status</c> called it missing and <c>doctor</c> called its folder an orphan. Copying by hand is
+/// exactly the wrong tool for a type that gains fields.
+/// </remarks>
+public sealed record LockedAddon
 {
     public required string Name { get; init; }
 

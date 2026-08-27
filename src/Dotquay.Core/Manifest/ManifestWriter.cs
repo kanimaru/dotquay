@@ -15,17 +15,19 @@ public static class ManifestWriter
     /// <paramref name="nuGetSource"/> is the V3 service-index URL of a private NuGet feed, if any —
     /// leave null to use the public default (nuget.org). Credentials never go here; see
     /// <see cref="Manifest.ProjectManifest.NuGetSource"/>.</summary>
-    public static string ScaffoldProjectToml(string? godotVersion, string? nuGetSource = null)
+    public static string ScaffoldProjectToml(string? nuGetSource = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Dotquay project manifest.");
         sb.AppendLine("# Run `dotquay add <git-url>` or `dotquay add <nuget-package-id>` to add a dependency.");
-        sb.AppendLine();
-        sb.AppendLine("[project]");
-        sb.AppendLine($"godot = {Quote(godotVersion ?? "4.3")}  # informational in v1 (SPEC.md §6)");
 
+        // No [project] header unless there is something to put in it. An empty section is a prompt to
+        // fill it in, and the only thing anyone ever filled it in with was a Godot version dotquay
+        // never read.
         if (nuGetSource is not null)
         {
+            sb.AppendLine();
+            sb.AppendLine("[project]");
             sb.AppendLine($"nuget_source = {Quote(nuGetSource)}  # V3 service-index URL; credentials come from");
             sb.AppendLine("                                    # DOTQUAY_NUGET_USERNAME / DOTQUAY_NUGET_TOKEN, never here");
         }
@@ -42,15 +44,17 @@ public static class ManifestWriter
 
     /// <summary>The commented starting point <c>dotquay init --package</c> writes inside an addon
     /// folder, next to <c>plugin.cfg</c> (SPEC.md §6, §7.2).</summary>
-    public static string ScaffoldPackageToml(string name, string version)
+    public static string ScaffoldPackageToml(string name)
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Dotquay package manifest — ships inside this addon's folder, next to plugin.cfg.");
+        sb.AppendLine("# It MUST live inside the folder consumers install, or its dependencies never reach them.");
         sb.AppendLine("# An addon repo is itself a valid dotquay project (SPEC.md §7.2).");
         sb.AppendLine();
         sb.AppendLine("[package]");
         sb.AppendLine($"name = {Quote(name)}");
-        sb.AppendLine($"version = {Quote(version)}");
+        // No `version` line: plugin.cfg and the git tag already carry it, and a third copy only ever
+        // drifts out of step with them.
         sb.AppendLine();
         sb.AppendLine("# [addons.kani_core]");
         sb.AppendLine("# git = \"https://github.com/kani/kani_core\"");
@@ -64,18 +68,18 @@ public static class ManifestWriter
     {
         var sb = new StringBuilder();
 
-        if (manifest.Godot is not null || manifest.NuGetSource is not null)
+        if (manifest.NuGetSource is not null || manifest.PatchesDirectory is not null)
         {
             sb.AppendLine("[project]");
-
-            if (manifest.Godot is not null)
-            {
-                sb.AppendLine($"godot = {Quote(manifest.Godot)}");
-            }
 
             if (manifest.NuGetSource is not null)
             {
                 sb.AppendLine($"nuget_source = {Quote(manifest.NuGetSource)}");
+            }
+
+            if (manifest.PatchesDirectory is not null)
+            {
+                sb.AppendLine($"patches_dir = {Quote(manifest.PatchesDirectory)}");
             }
         }
 

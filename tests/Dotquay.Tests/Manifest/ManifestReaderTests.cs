@@ -35,7 +35,6 @@ public class ManifestReaderTests
 
         var manifest = ManifestReader.ReadProject(toml);
 
-        Assert.Equal("4.3", manifest.Godot);
         Assert.Equal(3, manifest.Addons.Count);
 
         var dialogueManager = manifest.Addons["dialogue_manager"];
@@ -103,10 +102,25 @@ public class ManifestReaderTests
     {
         var manifest = ManifestReader.ReadProject("");
 
-        Assert.Null(manifest.Godot);
+        Assert.Null(manifest.NuGetSource);
         Assert.Empty(manifest.Addons);
         Assert.Empty(manifest.Dotnet);
         Assert.Empty(manifest.Overrides);
+    }
+
+    [Fact]
+    public void ReadProject_IgnoresTheRetiredGodotKey()
+    {
+        // [project] godot was removed after v0.5 (nothing ever read it), but manifests in the wild
+        // still carry it and dotquay.toml is a file people hand-edit — an unknown key must not be a
+        // parse error.
+        var manifest = ManifestReader.ReadProject("""
+            [project]
+            godot = "4.7"
+            nuget_source = "https://private.example.com/index.json"
+            """);
+
+        Assert.Equal("https://private.example.com/index.json", manifest.NuGetSource);
     }
 
     [Fact]
@@ -140,5 +154,35 @@ public class ManifestReaderTests
         Assert.Equal("kani_dialogue_tools", package.Name);
         Assert.Equal("1.2.0", package.Version);
         Assert.Single(package.Addons);
+    }
+
+    [Fact]
+    public void ReadPackage_VersionIsOptional()
+    {
+        // Nothing reads it: the git tag decides resolution and plugin.cfg is what doctor checks for
+        // drift. Requiring it made a third place to bump, which is a third place to forget.
+        var package = ManifestReader.ReadPackage("""
+            [package]
+            name = "kani_dialogue_tools"
+
+            [addons.kani_core]
+            git = "https://github.com/kani/kani_core"
+            version = "~1.4"
+            """);
+
+        Assert.Equal("kani_dialogue_tools", package.Name);
+        Assert.Null(package.Version);
+        Assert.Single(package.Addons);
+    }
+
+    [Fact]
+    public void ReadPackage_StillRequiresName()
+    {
+        var ex = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadPackage("""
+            [package]
+            version = "1.2.0"
+            """));
+
+        Assert.Contains("'name'", ex.Message);
     }
 }

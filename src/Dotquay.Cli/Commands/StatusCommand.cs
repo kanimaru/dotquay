@@ -68,6 +68,9 @@ internal static class StatusCommand
             case AddonStatusKind.Missing:
                 ConsoleOutput.WriteLine(ConsoleColor.Yellow, $"{addon.Name}  missing (run 'dotquay install')");
                 break;
+            case AddonStatusKind.Linked:
+                ConsoleOutput.WriteLine(ConsoleColor.Cyan, $"{addon.Name}  linked to a local folder (dotquay link --remove to undo)");
+                break;
         }
     }
 }

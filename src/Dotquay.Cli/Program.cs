@@ -11,6 +11,7 @@ var rootCommand = new RootCommand("dotquay - a package manager for Godot project
     ListCommand.Build(),
     GraphCommand.Build(),
     OverrideCommand.Build(),
+    LinkCommand.Build(),
     OutdatedCommand.Build(),
     StatusCommand.Build(),
     PatchCommand.Build(),

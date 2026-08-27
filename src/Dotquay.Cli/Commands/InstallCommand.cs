@@ -27,11 +27,12 @@ internal static class InstallCommand
         {
             var force = parseResult.GetValue(forceOption);
             var json = parseResult.GetValue(jsonOption);
-            var workflow = WorkflowFactory.Create();
+            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
 
             try
             {
                 var result = await workflow.InstallAsync(GlobalOptions.Resolve(parseResult), force, cancellationToken);
+                progress.Dispose();
 
                 if (json)
                 {
@@ -56,6 +57,10 @@ internal static class InstallCommand
             catch (WorkflowException ex)
             {
                 return JsonOutput.Fail(json, CommandName, ex);
+            }
+            finally
+            {
+                progress.Dispose();
             }
         });
 

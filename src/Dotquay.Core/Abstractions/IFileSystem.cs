@@ -25,8 +25,33 @@ public interface IFileSystem
     /// <summary>Creates the directory, including any missing parents. No-op if it already exists.</summary>
     void CreateDirectory(string path);
 
-    /// <summary>Recursively deletes a directory and everything under it. No-op if it doesn't exist.</summary>
+    /// <summary>
+    /// Recursively deletes a directory and everything under it. No-op if it doesn't exist.
+    /// </summary>
+    /// <remarks>
+    /// Implementations MUST NOT follow a directory link (SPEC.md §7.4): when
+    /// <paramref name="path"/> is a link, only the link itself is removed and the folder it points at
+    /// is left completely alone. dotquay deletes <c>addons/&lt;folder&gt;</c> in several places —
+    /// orphan pruning, <c>remove</c>, and the <c>install_as</c> rename — and with local links that
+    /// folder can be a live link into a developer's own checkout of the addon. Recursing through one
+    /// would delete their working copy, uncommitted work included.
+    /// </remarks>
     void DeleteDirectory(string path);
+
+    /// <summary>Whether <paramref name="path"/> is a directory link (a junction on Windows, a symlink
+    /// elsewhere) rather than a real directory.</summary>
+    bool IsDirectoryLink(string path);
+
+    /// <summary>
+    /// Creates a directory link at <paramref name="linkPath"/> pointing at
+    /// <paramref name="targetPath"/>, replacing anything already there.
+    /// </summary>
+    /// <remarks>
+    /// Backs <c>dotquay link</c> (SPEC.md §7.4). A link rather than a copy because the whole point is
+    /// that edits in the developer's checkout are visible to the project immediately — a copy would
+    /// need re-running on every keystroke, which is the workflow this replaces.
+    /// </remarks>
+    void CreateDirectoryLink(string linkPath, string targetPath);
 
     void DeleteFile(string path);
 

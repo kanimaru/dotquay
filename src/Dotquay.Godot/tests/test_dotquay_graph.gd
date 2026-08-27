@@ -200,6 +200,99 @@ func test_project_requirer_is_named_readably() -> void:
 	runner.equal(requirement.describe(), "this project wants version ~1.0", "'<project>' is wire syntax, not a name to show")
 
 
+func test_linked_addon_is_healthy_not_broken() -> void:
+	var node := DotquayGraph.AddonNode.from_payload({
+		"name": "my-addon", "git": "https://example.com/m", "path": ".", "folder": "my-addon",
+		"origin": "root", "status": "linked",
+	})
+
+	runner.check(node.is_linked(), "a linked addon should be recognisable")
+	# A link's contents are a live working copy, so it will never match the lockfile. Treating that
+	# as unhealthy would leave every linked addon badged as a problem for as long as it's linked.
+	runner.check(node.is_healthy(), "a linked addon is not in a bad state")
+
+
+func test_counts_include_links() -> void:
+	var payload := _diamond()
+	payload["addons"][0]["status"] = "linked"
+
+	var graph: DotquayGraph = GRAPH.from_payload(payload)
+
+	runner.equal(int(graph.counts()["linked"]), 1, "linked addons should be counted for the summary line")
+
+
+func test_install_as_folder_is_parsed() -> void:
+	var node := DotquayGraph.AddonNode.from_payload({
+		"name": "mtoon-shader", "git": "https://example.com/m", "path": ".",
+		"folder": "Godot-MToon-Shader", "origin": "transitive",
+	})
+
+	runner.equal(node.folder, "Godot-MToon-Shader", "the install folder should be carried through")
+	runner.check(node.is_renamed(), "a folder differing from the name is a rename worth badging")
+
+
+func test_folder_defaults_to_the_name() -> void:
+	# A payload from a dotquay predating install_as has no `folder` key at all; falling back to the
+	# name keeps an older CLI rendering correctly instead of showing a blank badge.
+	var node := DotquayGraph.AddonNode.from_payload({
+		"name": "leaf", "git": "https://example.com/leaf", "path": "addons/leaf", "origin": "root",
+	})
+
+	runner.equal(node.folder, "leaf", "an absent folder means the addon's own name")
+	runner.check(not node.is_renamed(), "matching name and folder is not a rename")
+
+
+func _folder_conflict() -> Dictionary:
+	var payload := _diamond()
+	payload["has_conflicts"] = true
+	payload["conflicts"] = [{
+		"name": "mtoon-shader",
+		"kind": "disagreeing_install_folders",
+		"message": "'mtoon-shader' is wanted in different folders under addons/.",
+		"requirements": [],
+		"candidates": [
+			{"kind": "rev", "value": "aaa", "git": "https://example.com/m", "resolved": null,
+			 "satisfies": ["vrm"], "satisfies_all": false, "install_as": "Godot-MToon-Shader"},
+			{"kind": "rev", "value": "aaa", "git": "https://example.com/m", "resolved": null,
+			 "satisfies": ["other"], "satisfies_all": false, "install_as": "mtoon"},
+		],
+	}]
+	return payload
+
+
+func test_folder_conflict_candidates_carry_their_folder() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_folder_conflict())
+	var candidate: DotquayGraph.Candidate = graph.conflict_for("mtoon-shader").candidates[0]
+
+	runner.check(candidate.is_folder_choice(), "a candidate with install_as is a folder choice")
+	runner.equal(candidate.install_as, "Godot-MToon-Shader", "the folder should be carried through")
+
+
+func test_folder_choice_reads_as_a_folder_not_a_version() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_folder_conflict())
+	var candidate: DotquayGraph.Candidate = graph.conflict_for("mtoon-shader").candidates[0]
+
+	# Both candidates name the same rev, so labelling them "rev aaa" twice would show the user two
+	# identical options for a choice that is entirely about the destination.
+	runner.equal(candidate.display_label(), "install as addons/Godot-MToon-Shader", "the label must name the folder")
+
+
+func test_version_candidate_is_not_a_folder_choice() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_conflicted())
+	var candidate: DotquayGraph.Candidate = graph.conflict_for("core").ranked_candidates()[0]
+
+	runner.check(not candidate.is_folder_choice(), "an ordinary version candidate has no install_as")
+	runner.equal(candidate.display_label(), "version v1.9.0", "and still labels itself by version")
+
+
+func test_folder_conflict_has_its_own_headline() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_folder_conflict())
+
+	runner.check(
+		graph.conflict_for("mtoon-shader").headline().contains("different folders"),
+		"a folder conflict should not be described as a version problem")
+
+
 func test_empty_payload_parses_cleanly() -> void:
 	# A freshly `init`ed project with no dependencies must render an empty panel, not an error.
 	var graph: DotquayGraph = GRAPH.from_payload({})
