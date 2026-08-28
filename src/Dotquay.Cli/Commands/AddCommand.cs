@@ -74,6 +74,13 @@ internal static class AddCommand
                 + "would ask this project to trust. Git sources only.",
         };
 
+        var forceOption = new Option<bool>("--force")
+        {
+            Description = "Git sources only. Overwrite a folder that already exists but isn't in the lockfile "
+                + "(bypasses dirty detection, P0-6) — the escape hatch for an addon a previous, partially-failed "
+                + "add or update already installed correctly but never got to record.",
+        };
+
         var adoptSourceOption = new Option<string[]>("--adopt-source")
         {
             Description = "Pre-approve an addon-declared NuGet feed by URL, as reported by --preview's "
@@ -93,6 +100,7 @@ internal static class AddCommand
             branchOption,
             revOption,
             previewOption,
+            forceOption,
             adoptSourceOption,
             jsonOption,
         };
@@ -120,6 +128,7 @@ internal static class AddCommand
                 Rev = parseResult.GetValue(revOption),
                 Path = parseResult.GetValue(pathOption),
                 InstallAs = parseResult.GetValue(installAsOption),
+                Force = parseResult.GetValue(forceOption),
             };
 
             try
@@ -383,19 +392,21 @@ internal static class AddCommand
     {
         // Git-only options against a NuGet id are a misunderstanding worth naming, not something to
         // accept and quietly ignore — the user would be left wondering why their branch had no effect.
-        var gitOnly = new (string Flag, string? Value)[]
+        var gitOnly = new (string Flag, bool Set)[]
         {
-            ("--branch", options.Branch),
-            ("--rev", options.Rev),
-            ("--path", options.Path),
-            ("--install-as", options.InstallAs),
-        }.Where(o => o.Value is not null).Select(o => o.Flag).ToList();
+            ("--branch", options.Branch is not null),
+            ("--rev", options.Rev is not null),
+            ("--path", options.Path is not null),
+            ("--install-as", options.InstallAs is not null),
+            ("--force", options.Force),
+        }.Where(o => o.Set).Select(o => o.Flag).ToList();
 
         if (gitOnly.Count > 0)
         {
             throw new WorkflowException(
                 $"{string.Join(" and ", gitOnly)} {(gitOnly.Count == 1 ? "applies" : "apply")} to git addons, but "
-                + $"'{packageId}' is a NuGet package. NuGet packages have no branches, commits, or install folder.");
+                + $"'{packageId}' is a NuGet package. NuGet packages have no branches, commits, install folder, or "
+                + "dirty-check override to bypass.");
         }
 
         var locked = await workflow.AddDotnetAsync(projectDirectory, packageId, options.Version, cancellationToken);

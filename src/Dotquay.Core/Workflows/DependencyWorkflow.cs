@@ -256,7 +256,7 @@ public sealed partial class DependencyWorkflow
         // SyncAddonGraphAsync's remarks).
         var graphSync = await SyncAddonGraphAsync(
             projectDirectory, updatedManifest, lockfile, freshNames: new HashSet<string>(StringComparer.Ordinal) { name },
-            force: false, cancellationToken);
+            force: options.Force, cancellationToken);
 
         var syncedAddons = graphSync.Addons;
         var addonDeclaredDotnet = graphSync.AddonDeclaredDotnet;

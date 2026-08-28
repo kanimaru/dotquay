@@ -27,6 +27,14 @@ public sealed record AddonAddOptions
     /// <summary>Folder to install into, overriding the addon's own name (SPEC.md §7.1).</summary>
     public string? InstallAs { get; init; }
 
+    /// <summary>Overwrite a folder <see cref="Dotquay.Core.Sync.DirtyChecker"/> would otherwise refuse to touch
+    /// (SPEC.md P0-6) — an addon-sized escape hatch matching <c>update --force</c>. Needed the moment
+    /// an addon occupies its destination without a matching lockfile entry: most often a previous
+    /// <c>add</c> that installed the addon graph before failing on an unrelated later step (a dotnet
+    /// package that couldn't resolve, say), leaving real, correctly-installed content the lockfile
+    /// never got a chance to record.</summary>
+    public bool Force { get; init; }
+
     /// <summary>True when the caller named a source explicitly, so the tag-seeking default should be
     /// skipped.</summary>
     public bool HasExplicitSource => Version is not null || Branch is not null || Rev is not null;

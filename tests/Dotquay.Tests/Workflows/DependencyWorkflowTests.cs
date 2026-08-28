@@ -826,6 +826,31 @@ public class DependencyWorkflowTests
         Assert.DoesNotContain("local modifications", retry.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <see cref="AddonAddOptions.Force"/>, added alongside the fix above for the situation it
+    /// doesn't cover: content installed by a binary built <em>before</em> that fix (or a manual copy
+    /// predating dotquay entirely) leaves an occupied, untracked folder with no lockfile entry and no
+    /// manifest declaration to fall back to <c>update</c> with. <c>add</c> itself has to be able to
+    /// reclaim it, the same way <c>update --force</c> already can (SPEC.md P0-6).
+    /// </summary>
+    [Fact]
+    public async Task AddAsync_DestinationAlreadyOccupiedByUntrackedContent_RefusesWithoutForce_SucceedsWithForce()
+    {
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v1.0.0");
+
+        // Predates this add entirely -- a manual copy, or an addon a pre-fix binary already installed
+        // correctly but never recorded.
+        fileSystem.WriteAllText($"{ProjectDir}/addons/dialogue_manager/plugin.cfg", "not from dotquay");
+
+        var ex = await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDir, RepoUrl));
+        Assert.Contains("local modifications", ex.Message, StringComparison.Ordinal);
+
+        var locked = await workflow.AddAsync(ProjectDir, RepoUrl, new AddonAddOptions { Force = true });
+        Assert.Equal("dialogue_manager", locked.Name);
+        Assert.Equal("cfg", fileSystem.ReadAllText($"{ProjectDir}/addons/dialogue_manager/plugin.cfg"));
+    }
+
     [Fact]
     public async Task Update_AddonDeclaredSourcePin_IsNotHonoured_ResolutionStillSearchesEveryFeed()
     {
