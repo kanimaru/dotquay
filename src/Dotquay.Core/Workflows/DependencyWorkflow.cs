@@ -266,12 +266,16 @@ public sealed partial class DependencyWorkflow
         IReadOnlyDictionary<string, string> refusalHints;
         (updatedManifest, refusalHints) = ApplyAdoption(updatedManifest, graphSync.Adoption);
 
-        // Persisted the moment it's decided, for the same reason as in UpdateAsync: an approval the
-        // user has already given must not be thrown away because a later step failed.
-        if (graphSync.Adoption.Adopted.Count > 0)
-        {
-            WriteManifest(manifestPath, updatedManifest);
-        }
+        // Persisted the moment the graph sync finishes, not after dotnet resolution succeeds.
+        // SyncAddonGraphAsync has *already* swapped every one of these addons onto disk — so if the
+        // dotnet step below throws (a missing stable release, a refused feed, a network error), a
+        // manifest/lockfile that still don't know about them would make the very next attempt see
+        // real, correctly-installed folders as untracked. DirtyChecker treats "occupied but
+        // untracked" as hand-edited content it must not silently overwrite (SPEC.md P0-6), so the
+        // retry fails with "local modifications" against content dotquay itself just put there.
+        // Same reasoning already applied to the adoption write above; it just stopped one step short.
+        WriteManifest(manifestPath, updatedManifest);
+        WriteLockfile(lockfilePath, lockfile with { Addons = syncedAddons });
 
         // Same "don't move what wasn't asked to move" treatment for dotnet: only genuinely new
         // addon-declared packages get resolved; anything already known (project-declared or already
@@ -284,7 +288,6 @@ public sealed partial class DependencyWorkflow
             projectDirectory, updatedManifest, lockfile.Dotnet, newDotnetNames, pruneUnreachable: false, cancellationToken,
             refusalHints);
 
-        WriteManifest(manifestPath, updatedManifest);
         WriteLockfile(lockfilePath, lockfile with { Addons = syncedAddons, Dotnet = syncedDotnet });
 
         return syncedAddons.First(a => a.Name == name);
@@ -459,6 +462,14 @@ public sealed partial class DependencyWorkflow
             {
                 WriteManifest(manifestPath, manifest);
             }
+
+            // Likewise for the addons themselves: SyncAddonGraphAsync has already swapped every one of
+            // them onto disk by this point, so the lockfile has to catch up now, not after dotnet
+            // resolution succeeds. Otherwise a failing dotnet step (below) leaves real,
+            // freshly-installed folders the lockfile doesn't know about, and the next attempt's
+            // DirtyChecker refuses to touch an "untracked" folder even though it's exactly what
+            // dotquay itself just installed (SPEC.md P0-6).
+            WriteLockfile(lockfilePath, lockfile with { Addons = addons });
 
             var currentByName = addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
             foreach (var addonName in freshNames.Union(previousAddonsByName.Keys).Union(currentByName.Keys))

@@ -747,6 +747,85 @@ public class DependencyWorkflowTests
         Assert.Contains("VBeami.Core", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Found in the field: adding vbeami to a real project failed exactly like the test above (the
+    /// feed genuinely wasn't adopted) -- but a second, identical attempt then failed a completely
+    /// different way: <c>'addons/vbeami' has local modifications that don't match the lockfile</c>,
+    /// against a folder nobody had touched by hand.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SyncAddonGraphAsync"/> installs every addon before the dotnet step runs, so by the
+    /// time dotnet resolution threw, vbeami was already sitting on disk with exactly the right
+    /// content. But the lockfile was only ever written at the very end of <c>update</c>/<c>add</c> --
+    /// after the throw -- so it still had no entry for vbeami. The next attempt's
+    /// <see cref="DirtyChecker"/> sees a folder with content but no prior record and calls that
+    /// "occupied but untracked", which is indistinguishable from a hand-edit it must not clobber
+    /// (SPEC.md P0-6). The fix persists the addon-side lockfile/manifest write the moment
+    /// <c>SyncAddonGraphAsync</c> returns, not after the dotnet step also succeeds -- the same
+    /// "persist an approval immediately" reasoning already applied to feed adoption a few lines up.
+    /// </remarks>
+    [Fact]
+    public async Task Update_AddonDeclaredNuGetPackage_FeedNotAdopted_RecordsTheInstalledAddonSoARetryDoesNotSeeItAsDirty()
+    {
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [addons.vbeami]
+            git = "{VbeamiUrl}"
+            version = "~1"
+            """,
+            """
+            [dotnet.VBeami.Core]
+            version = "1.0.0"
+            """);
+
+        var first = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+        Assert.Contains("VBeami.Core", first.Message, StringComparison.Ordinal);
+
+        // vbeami itself installed fine before the dotnet step failed -- the lockfile must already
+        // know about it.
+        Assert.True(fileSystem.DirectoryExists($"{ProjectDir}/addons/vbeami"));
+        var locked = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
+        Assert.Contains(locked.Addons, a => a.Name == "vbeami");
+
+        // The retry fails for the same real reason -- not because dotquay's own install now looks
+        // like an untracked hand-edit.
+        var retry = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+        Assert.Contains("VBeami.Core", retry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("local modifications", retry.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>The same fix, exercised through <c>add</c> instead of <c>update</c> -- the code path
+    /// the field report actually used. <c>add</c> writes the new <c>[addons.*]</c> entry itself, so
+    /// this also covers the manifest write, not just the lockfile.</summary>
+    [Fact]
+    public async Task AddAsync_AddonDeclaredNuGetPackage_FeedNotAdopted_RecordsTheInstalledAddonSoARetryDoesNotSeeItAsDirty()
+    {
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            projectManifest: "",
+            addonDotnetBlock: """
+                [dotnet.VBeami.Core]
+                version = "1.0.0"
+                """);
+
+        var first = await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDir, VbeamiUrl));
+        Assert.Contains("VBeami.Core", first.Message, StringComparison.Ordinal);
+
+        // The addon installed and got declared before the dotnet step failed.
+        Assert.True(fileSystem.DirectoryExists($"{ProjectDir}/addons/vbeami"));
+        Assert.Contains("[addons.vbeami]", fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
+        var locked = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
+        Assert.Contains(locked.Addons, a => a.Name == "vbeami");
+
+        // The error's own advice ("use 'dotquay update vbeami' instead") must lead somewhere sane --
+        // a repeat of the same real failure, not a spurious dirty-folder refusal.
+        var retry = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+        Assert.Contains("VBeami.Core", retry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("local modifications", retry.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Update_AddonDeclaredSourcePin_IsNotHonoured_ResolutionStillSearchesEveryFeed()
     {
