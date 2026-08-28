@@ -1358,9 +1358,7 @@ public sealed partial class DependencyWorkflow
             var latest = NuGetVersionSelector.SelectLatestStable(query.Versions);
             if (latest is null)
             {
-                throw new WorkflowException(
-                    $"'{packageId}' has no stable release on NuGet — pass an explicit version (including "
-                    + "prerelease) if you want to add it anyway.");
+                throw new WorkflowException(DescribeNoStableRelease(packageId, query));
             }
 
             return (latest, query.SourceName);
@@ -1369,6 +1367,38 @@ public sealed partial class DependencyWorkflow
         {
             throw new WorkflowException($"'{packageId}': {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// The "no stable release" message, sharpened with which feeds were actually asked.
+    /// </summary>
+    /// <remarks>
+    /// Without this, "no stable release on NuGet" reads identically whether nothing was ever
+    /// declared, or a named private feed answered and came back empty — and the second case is
+    /// exactly the confusing one: the feed was reached and even authenticated, and the package still
+    /// looks absent. Naming it, plus the GitLab-specific ambiguity <see cref="MultiSourceNuGetClient"/>
+    /// already calls out in its own remarks, turns "why is my package missing" into two concrete
+    /// things to go check (was it actually published? does the token have read_package_registry?)
+    /// instead of a dead end that looks like a typo in the package ID.
+    /// </remarks>
+    private static string DescribeNoStableRelease(string packageId, NuGetVersionQuery query)
+    {
+        var baseMessage =
+            $"'{packageId}' has no stable release on NuGet — pass an explicit version (including "
+            + "prerelease) if you want to add it anyway.";
+
+        // Only nuget.org was ever going to be asked (no private feed declared, or none reached this
+        // package) — there's nothing more specific to say than the message already says.
+        var privateSourcesChecked = query.CheckedSources.Where(s => s != NuGetSourceSpec.PublicName).ToList();
+        if (privateSourcesChecked.Count == 0)
+        {
+            return baseMessage;
+        }
+
+        return $"{baseMessage} Checked: {string.Join(", ", query.CheckedSources)}. If it's meant to come from "
+            + $"{string.Join(" or ", privateSourcesChecked)}, note that GitLab answers 404 both for a package "
+            + "that was never published and one your token isn't allowed to see — confirm it's actually in the "
+            + "project's package registry, and that the token has the read_package_registry scope.";
     }
 
     private async Task<LockedDotnet> InstallDotnetOrThrowAsync(

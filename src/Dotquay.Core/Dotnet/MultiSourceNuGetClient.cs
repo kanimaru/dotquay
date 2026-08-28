@@ -34,6 +34,7 @@ public sealed class MultiSourceNuGetClient : INuGetClient
     public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default)
     {
         NuGetVersionQuery? winner = null;
+        var checkedSources = new List<string>();
 
         foreach (var (source, client) in _clients)
         {
@@ -45,6 +46,8 @@ public sealed class MultiSourceNuGetClient : INuGetClient
             // problem to report, not a reason to silently resolve from somewhere else. That matters
             // most on GitLab, which answers 404 rather than 401 for a project you can't see.
             var query = await client.GetVersionsAsync(packageId, cancellationToken);
+            checkedSources.Add(source.Name);
+
             if (!query.Found)
             {
                 continue;
@@ -68,7 +71,9 @@ public sealed class MultiSourceNuGetClient : INuGetClient
             break;
         }
 
-        return winner ?? NuGetVersionQuery.Empty;
+        // Recorded only on the empty path: once something is found, which feeds came back empty
+        // first no longer matters to anyone.
+        return winner ?? NuGetVersionQuery.Empty with { CheckedSources = checkedSources };
     }
 
     public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>

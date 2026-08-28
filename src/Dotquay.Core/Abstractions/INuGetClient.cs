@@ -35,4 +35,11 @@ public sealed record NuGetVersionQuery(IReadOnlyList<string> Versions, string? S
     public static readonly NuGetVersionQuery Empty = new([], null);
 
     public bool Found => Versions.Count > 0;
+
+    /// <summary>Every source name <see cref="Dotnet.MultiSourceNuGetClient"/> actually queried before giving
+    /// up, in declared order — empty unless nothing was found. Lets "no stable release" name which
+    /// feeds came back empty instead of reading as "you never declared a source for this", which is
+    /// exactly the wrong read when a private feed was consulted and 404'd (SPEC.md §11.1's ambiguity:
+    /// GitLab answers 404 both for a package that was never published and one the token can't see).</summary>
+    public IReadOnlyList<string> CheckedSources { get; init; } = [];
 }

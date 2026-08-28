@@ -53,6 +53,31 @@ public class MultiSourceNuGetClientTests
         Assert.False((await client.GetVersionsAsync("Acme.Internal")).Found);
     }
 
+    /// <summary>
+    /// Every feed that came back empty is recorded, not just the fact that none of them had it —
+    /// this is what lets the caller say "checked core, tools" instead of a bare "no stable release"
+    /// that reads as though no source was ever declared.
+    /// </summary>
+    [Fact]
+    public async Task GetVersionsAsync_FoundNowhere_RecordsEveryFeedItChecked()
+    {
+        var client = Build(("core", new FakeNuGetClient("core")), ("tools", new FakeNuGetClient("tools")));
+
+        var query = await client.GetVersionsAsync("Acme.Internal");
+
+        Assert.Equal(["core", "tools"], query.CheckedSources);
+    }
+
+    [Fact]
+    public async Task GetVersionsAsync_FoundOnTheFirstFeed_DoesNotBotherRecordingCheckedSources()
+    {
+        var client = Build(("core", new FakeNuGetClient("core").With("Acme.Internal", "1.0.0")));
+
+        var query = await client.GetVersionsAsync("Acme.Internal");
+
+        Assert.Empty(query.CheckedSources);
+    }
+
     [Fact]
     public async Task GetVersionsAsync_AuthFailure_PropagatesInsteadOfFallingThrough()
     {

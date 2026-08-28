@@ -748,6 +748,45 @@ public class DependencyWorkflowTests
     }
 
     /// <summary>
+    /// The message itself, sharpened: naming which feed came back empty rather than just saying no
+    /// stable release exists anywhere -- this is what the field report turned out to actually be once
+    /// the feed was trusted. A trusted, adopted, reachable feed that still comes back empty for a
+    /// package reads exactly like "you never declared a source" unless the message says otherwise
+    /// (SPEC.md §11.1's GitLab 404 ambiguity: never-published and access-denied are indistinguishable
+    /// from the status code alone).
+    /// </summary>
+    [Fact]
+    public async Task Update_AddonDeclaredFeedIsTrustedAndAdoptedButPackageIsNotThere_NamesTheCheckedFeed()
+    {
+        var (workflow, factory, _) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget]
+            trusted_hosts = ["gitlab.example.com"]
+
+            [addons.vbeami]
+            git = "{VbeamiUrl}"
+            version = "~1"
+            """,
+            $"""
+            [nuget.sources.vbeami]
+            url = "{PrivateFeedUrl}"
+
+            [dotnet.VBeami.Core]
+            version = "1.0.0"
+            """);
+
+        // The fixture's default registers VBeami.Core on this client -- override it so the feed is
+        // real, trusted, and reached, but genuinely never had the package.
+        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami");
+
+        var exception = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Contains("Checked: vbeami", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("read_package_registry", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Found in the field: adding vbeami to a real project failed exactly like the test above (the
     /// feed genuinely wasn't adopted) -- but a second, identical attempt then failed a completely
     /// different way: <c>'addons/vbeami' has local modifications that don't match the lockfile</c>,
