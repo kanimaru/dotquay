@@ -1,11 +1,18 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Dotnet;
 
 namespace Dotquay.Tests.Support;
 
-/// <summary>Configurable <see cref="INuGetClientFactory"/> test double. By default hands back one
-/// shared <see cref="FakeNuGetClient"/> regardless of source (fine for tests that don't care which
-/// source was asked for); <see cref="ClientsBySource"/> lets a test configure a distinct fake per
-/// source URL to verify <c>[project] nuget_source</c> actually routes to the right one.</summary>
+/// <summary>
+/// Configurable <see cref="INuGetClientFactory"/> test double.
+/// </summary>
+/// <remarks>
+/// Keyed on source <em>name</em> since v0.7, not on a single URL. The pre-v0.7 shape — one URL in,
+/// one client out — could only express "this project has a feed"; the questions worth asking now are
+/// "which feeds were consulted, in what order" and "did the pin narrow the search", and a URL-keyed
+/// fake can't answer either. Records both, so a test asserts on routing rather than on a client
+/// having been handed back at all.
+/// </remarks>
 public sealed class FakeNuGetClientFactory : INuGetClientFactory
 {
     private readonly FakeNuGetClient _defaultClient;
@@ -15,21 +22,32 @@ public sealed class FakeNuGetClientFactory : INuGetClientFactory
         _defaultClient = defaultClient ?? new FakeNuGetClient();
     }
 
-    /// <summary>Keyed by the exact source URL passed to <see cref="Create"/> (nulls normalized to
-    /// <c>"(default)"</c>).</summary>
-    public Dictionary<string, FakeNuGetClient> ClientsBySource { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Per-source fakes, keyed by the declared <c>[nuget.sources.*]</c> name. A source with
+    /// no entry here falls back to the shared default client.</summary>
+    public Dictionary<string, FakeNuGetClient> ClientsBySource { get; } = new(StringComparer.Ordinal);
 
-    public List<string?> RequestedSources { get; } = [];
+    /// <summary>Every source URL consulted, in order, across all <see cref="Create"/> calls — so a
+    /// test can assert the manifest's declaration order actually reached the client.</summary>
+    public List<string> RequestedSources { get; } = [];
 
-    public INuGetClient Create(string? sourceUrl)
+    /// <summary>Every <c>source = "..."</c> pin passed to <see cref="Create"/>, including nulls for
+    /// unpinned lookups.</summary>
+    public List<string?> RequestedPins { get; } = [];
+
+    public INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null)
     {
-        RequestedSources.Add(sourceUrl);
+        RequestedPins.Add(pinnedSourceName);
 
-        if (sourceUrl is not null && ClientsBySource.TryGetValue(sourceUrl, out var configured))
-        {
-            return configured;
-        }
+        var selected = sources.Resolve(pinnedSourceName);
+        RequestedSources.AddRange(selected.All.Select(source => source.Url));
 
-        return _defaultClient;
+        // Composed the same way the real factory composes it, so ordering and first-match behaviour
+        // are exercised by workflow tests instead of only by MultiSourceNuGetClient's own unit tests.
+        return new MultiSourceNuGetClient(
+            selected.All
+                .Select(source => (source, ClientsBySource.TryGetValue(source.Name, out var configured)
+                    ? (INuGetClient)configured
+                    : _defaultClient))
+                .ToList());
     }
 }

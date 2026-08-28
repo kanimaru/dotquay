@@ -1,0 +1,155 @@
+@tool
+class_name DotquayInstallPreviewDialog
+extends ConfirmationDialog
+
+## The confirmation step between "add this addon" and actually adding it (SPEC.md §6, §11.3).
+##
+## Two consequences of an `add` are invisible from the URL a user typed: the addons it pulls in
+## transitively, and the NuGet feeds those addons want the project to trust. This dialog shows both,
+## from a real `add --preview` resolve, and turns the second into a decision the user makes before
+## anything is written rather than a prompt the plugin cannot answer.
+##
+## It decides nothing itself. Confirming emits the source and the feed URLs the user ticked, and the
+## panel runs `dotquay add --adopt-source ...` — so an install agreed to here is byte-for-byte the
+## install the same flags would have produced at a terminal.
+
+## [param adopt_source_urls] are the feeds the user approved, passed through as `--adopt-source`.
+signal install_confirmed(source: String, path_override: String, adopt_source_urls: PackedStringArray)
+
+const ADDON_ROW := preload("res://addons/dotquay/ui/items/preview_addon_row.tscn")
+const SOURCE_CARD := preload("res://addons/dotquay/ui/items/preview_source_card.tscn")
+const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
+
+const WRAP_WIDTH := 560.0
+
+@onready var _summary: Label = %Summary
+@onready var _addon_list: VBoxContainer = %AddonList
+@onready var _dotnet_section: VBoxContainer = %DotnetSection
+@onready var _dotnet_list: VBoxContainer = %DotnetList
+@onready var _source_section: VBoxContainer = %SourceSection
+@onready var _source_list: VBoxContainer = %SourceList
+@onready var _blocker: Label = %Blocker
+
+var _preview: DotquayPreview
+var _source := ""
+var _path_override := ""
+
+## The cards the user can still say no to. Kept as a list rather than re-walked from the container so
+## the enable/disable check reads as one question — "is every feed approved?" — instead of a scan.
+var _pending_cards: Array = []
+
+
+func _ready() -> void:
+	confirmed.connect(_on_confirmed)
+	_summary.add_theme_color_override("font_color", DotquayPalette.MUTED)
+	_blocker.add_theme_color_override("font_color", DotquayPalette.WARN)
+
+	for heading in [%AddonsHeading, %DotnetHeading, %SourcesHeading]:
+		(heading as Label).add_theme_color_override("font_color", DotquayPalette.MUTED)
+
+
+## [param source] and [param path_override] are carried through untouched so the confirmed add uses
+## exactly the arguments the preview was resolved from — re-deriving them from the payload would be a
+## second chance to get them wrong.
+func show_preview(preview: DotquayPreview, source: String, path_override: String) -> void:
+	_preview = preview
+	_source = source
+	_path_override = path_override
+	_pending_cards.clear()
+
+	title = "Install '%s'?" % preview.name
+	_summary.text = preview.summarize()
+
+	_render_addons()
+	_render_dotnet()
+	_render_sources()
+	_update_ok_state()
+
+	popup_centered()
+
+
+func _render_addons() -> void:
+	_clear(_addon_list)
+
+	# Every addon in the resolved graph, not only the new ones: a user agreeing to an install wants
+	# the shape of the graph, and omitting the diamond's shared corner misrepresents it. The rows say
+	# which are actually changing.
+	for addon in _preview.addons:
+		var row: DotquayPreviewAddonRow = ADDON_ROW.instantiate()
+		_addon_list.add_child(row)
+		row.setup(addon)
+
+
+func _render_dotnet() -> void:
+	_clear(_dotnet_list)
+
+	var packages := _preview.new_packages()
+	_dotnet_section.visible = not packages.is_empty()
+
+	for package in packages:
+		var label: DotquayStatusLabel = STATUS_LABEL.instantiate()
+		_dotnet_list.add_child(label)
+		label.setup(
+			"+ %s  %s  (%s)" % [package.name, package.constraint, package.describe_origin()],
+			DotquayPalette.OK,
+			"Written into your .csproj as a PackageReference and restored with dotnet.",
+			WRAP_WIDTH)
+
+
+func _render_sources() -> void:
+	_clear(_source_list)
+
+	var automatic := _preview.sources_to_adopt
+	var pending := _preview.sources_needing_approval
+	_source_section.visible = not (automatic.is_empty() and pending.is_empty())
+
+	# Feeds needing a decision come first. A card the user must act on must not be below one they
+	# can't.
+	for source in pending:
+		_pending_cards.append(_add_source_card(source, true))
+
+	for source in automatic:
+		_add_source_card(source, false)
+
+
+func _add_source_card(source: DotquayPreview.Source, needs_approval: bool) -> DotquayPreviewSourceCard:
+	var card: DotquayPreviewSourceCard = SOURCE_CARD.instantiate()
+	_source_list.add_child(card)
+	card.setup(source, needs_approval)
+
+	if needs_approval:
+		card.approval_changed.connect(_update_ok_state)
+
+	return card
+
+
+## The OK button is the enforcement point: a refused feed makes the add fail on the CLI side anyway,
+## and letting the user press "Install" into a guaranteed failure teaches them the dialog is noise.
+func _update_ok_state() -> void:
+	var unapproved := _pending_cards.filter(
+		func(card: DotquayPreviewSourceCard) -> bool: return not card.is_approved())
+
+	get_ok_button().disabled = not unapproved.is_empty()
+
+	_blocker.visible = not unapproved.is_empty()
+	_blocker.text = (
+		"%d feed(s) above still need your approval. Without them, dotquay cannot find the NuGet "
+		% unapproved.size()
+		+ "packages this addon requires, and the install would fail.")
+
+
+func _on_confirmed() -> void:
+	var urls := PackedStringArray()
+
+	for card in _pending_cards:
+		var url: String = card.approved_url()
+		if not url.is_empty():
+			urls.append(url)
+
+	install_confirmed.emit(_source, _path_override, urls)
+
+
+func _clear(container: Node) -> void:
+	for child in container.get_children():
+		container.remove_child(child)
+		child.queue_free()

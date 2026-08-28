@@ -13,7 +13,7 @@ extends GraphEdit
 ## [member DotquayDependencyNode.addon_name] off the node it hands over.
 signal node_action_requested(action: String, addon_name: String)
 
-const NODE_SCRIPT := preload("res://addons/dotquay/ui/dependency_node.gd")
+const NODE_SCENE := preload("res://addons/dotquay/ui/dependency_node.tscn")
 
 ## Layout spacing. Columns are wide enough that a 240px node plus its connection curve doesn't
 ## overlap the next column, which is what makes a diamond readable rather than a knot.
@@ -22,15 +22,6 @@ const ROW_HEIGHT := 170.0
 const MARGIN := Vector2(40, 40)
 
 var _nodes_by_name: Dictionary = {}
-
-
-func _init() -> void:
-	right_disconnects = false
-	show_grid = true
-	minimap_enabled = true
-	# No connection ports are user-editable, so the toolbar's connect/disconnect affordances would
-	# only advertise something that can't be done.
-	show_arrange_button = false
 
 
 func _ready() -> void:
@@ -47,6 +38,9 @@ func render(graph: DotquayGraph) -> void:
 
 	for child in get_children():
 		if child is GraphNode:
+			# Removed as well as freed: queue_free defers, and the connect_node calls below run this
+			# frame, so a stale node would still be found by name and take a new edge with it.
+			remove_child(child)
 			child.queue_free()
 
 	_nodes_by_name.clear()
@@ -66,11 +60,11 @@ func render(graph: DotquayGraph) -> void:
 			if model == null:
 				continue
 
-			var node: DotquayDependencyNode = NODE_SCRIPT.new()
-			node.setup(model, graph.conflict_for(model.name), roots.has(model.name))
+			var node: DotquayDependencyNode = NODE_SCENE.instantiate()
 			node.position_offset = MARGIN + Vector2(column * COLUMN_WIDTH, row * ROW_HEIGHT)
 			node.action_requested.connect(_on_node_action)
 			add_child(node)
+			node.setup(model, graph.conflict_for(model.name), roots.has(model.name))
 			_nodes_by_name[model.name] = node
 
 	# Connections must be made after every node exists: GraphEdit silently drops a connection whose

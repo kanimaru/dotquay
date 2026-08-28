@@ -16,6 +16,11 @@ var rootCommand = new RootCommand("dotquay - a package manager for Godot project
     StatusCommand.Build(),
     PatchCommand.Build(),
     DoctorCommand.Build(),
+    LoginCommand.Build(),
+    LogoutCommand.Build(),
+
+    // Hidden: git invokes this, people don't (SPEC.md §11.2).
+    CredentialHelperCommand.Build(),
 };
 
 // Recursive, so every subcommand accepts it without restating it (SPEC.md §17; see GlobalOptions

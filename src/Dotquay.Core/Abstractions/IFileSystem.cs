@@ -56,6 +56,19 @@ public interface IFileSystem
     void DeleteFile(string path);
 
     /// <summary>
+    /// Restricts <paramref name="path"/> so only its owner can read or write it (<c>0600</c> on
+    /// Unix). No-op on Windows and when the file doesn't exist.
+    /// </summary>
+    /// <remarks>
+    /// Exists for exactly one caller — <see cref="Dotquay.Core.Auth.TomlCredentialStore"/>, which
+    /// writes a file full of secrets (SPEC.md §11.2). It lives on this interface rather than being a
+    /// direct <c>File.SetUnixFileMode</c> call so the store stays behind the filesystem seam and the
+    /// permission behaviour is assertable against a fake, like every other disk effect in this
+    /// codebase.
+    /// </remarks>
+    void SetOwnerOnlyPermissions(string path);
+
+    /// <summary>
     /// Atomically (as far as the OS allows) makes <paramref name="destination"/> become what
     /// <paramref name="source"/> currently is, replacing any existing directory at
     /// <paramref name="destination"/>. This is the swap step of the sync engine's staging model

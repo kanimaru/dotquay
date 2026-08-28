@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/candidate_row.gd" id="1_candidate_row"]
+
+[node name="CandidateRow" type="HBoxContainer"]
+theme_override_constants/separation = 8
+script = ExtResource("1_candidate_row")
+
+[node name="Radio" type="CheckBox" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text = "version"
+
+[node name="Detail" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 0
+theme_override_font_sizes/font_size = 11
+text = "satisfies"

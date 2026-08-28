@@ -23,7 +23,7 @@ public class InitServiceTests
         var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml"));
         Assert.Empty(manifest.Addons);
         Assert.Empty(manifest.Dotnet);
-        Assert.Null(manifest.NuGetSource);
+        Assert.Empty(manifest.NuGetSources);
     }
 
     [Fact]
@@ -39,11 +39,11 @@ public class InitServiceTests
         // confidently is worse than stating none.
         // Matches the key, not the word — the commented example URL legitimately contains "godot".
         Assert.DoesNotContain("godot =", fileSystem.ReadAllText("project/dotquay.toml"));
-        Assert.Null(ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml")).NuGetSource);
+        Assert.Empty(ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml")).NuGetSources);
     }
 
     [Fact]
-    public void InitProject_WithNuGetSource_WritesTheProjectSection()
+    public void InitProject_WithNuGetSource_WritesANamedSource()
     {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
@@ -51,7 +51,20 @@ public class InitServiceTests
         service.InitProject("project", nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
 
         var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml"));
-        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", manifest.NuGetSource);
+        var source = Assert.Single(manifest.NuGetSources);
+        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", source.Url);
+    }
+
+    [Fact]
+    public void InitProject_ScaffoldNeverMentionsACredential()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        new InitService(fileSystem).InitProject(
+            "project", nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
+
+        var toml = fileSystem.ReadAllText("project/dotquay.toml");
+        Assert.DoesNotContain("token", toml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password", toml, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

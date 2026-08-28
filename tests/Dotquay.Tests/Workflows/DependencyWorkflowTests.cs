@@ -52,7 +52,7 @@ public class DependencyWorkflowTests
 
         var addonInstaller = new AddonInstaller(
             fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
-        var dotnetInstaller = new DotnetInstaller(fileSystem, runner);
+        var dotnetInstaller = new DotnetInstaller(fileSystem, runner, TestCredentials.None());
         var workflow = new DependencyWorkflow(fileSystem, gitClient, nuGetClientFactory, addonInstaller, dotnetInstaller);
 
         return (workflow, fileSystem, gitClient, nuGetClient, runner);
@@ -76,7 +76,7 @@ public class DependencyWorkflowTests
         var patchTool = new FakePatchTool(fileSystem);
         var addonInstaller = new AddonInstaller(fileSystem, repoCache, new SyncEngine(fileSystem), patchTool);
         var nuGetClientFactory = new FakeNuGetClientFactory(new FakeNuGetClient());
-        var dotnetInstaller = new DotnetInstaller(fileSystem, new FakeDotnetCliRunner());
+        var dotnetInstaller = new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None());
 
         var workflow = new DependencyWorkflow(fileSystem, gitClient, nuGetClientFactory, addonInstaller, repoCache, patchTool, dotnetInstaller);
         return (workflow, fileSystem, gitClient, patchTool);
@@ -506,14 +506,15 @@ public class DependencyWorkflowTests
 
         var gitClient = new FakeGitClient();
         var defaultClient = new FakeNuGetClient(); // should NOT be used — the manifest names a different source
-        var privateClient = new FakeNuGetClient();
+        var privateClient = new FakeNuGetClient(NuGetSourceSpec.LegacyName);
         privateClient.VersionsByPackageId["Acme.Internal"] = ["2.1.0"];
         var nuGetClientFactory = new FakeNuGetClientFactory(defaultClient);
-        nuGetClientFactory.ClientsBySource[privateSource] = privateClient;
+        // Keyed by declared source name — a legacy [project] nuget_source is read as "default".
+        nuGetClientFactory.ClientsBySource[NuGetSourceSpec.LegacyName] = privateClient;
 
         var addonInstaller = new AddonInstaller(
             fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
-        var dotnetInstaller = new DotnetInstaller(fileSystem, new FakeDotnetCliRunner());
+        var dotnetInstaller = new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None());
         var workflow = new DependencyWorkflow(fileSystem, gitClient, nuGetClientFactory, addonInstaller, dotnetInstaller);
 
         var locked = await workflow.AddDotnetAsync(ProjectDir, "Acme.Internal");
@@ -523,6 +524,461 @@ public class DependencyWorkflowTests
         // routed to that client, not the default one (which would have reported "no stable release").
         Assert.Equal("2.1.0", locked.Resolved);
         Assert.Contains(privateSource, nuGetClientFactory.RequestedSources);
+
+        // The feed that answered is recorded, so a teammate's install can't resolve it elsewhere.
+        Assert.Equal(NuGetSourceSpec.LegacyName, locked.Source);
+    }
+
+    [Fact]
+    public async Task AddDotnetAsync_TwoFeeds_TakesTheFirstThatHasThePackage_NotTheHighestVersion()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", """
+            [nuget.sources.core]
+            url = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json"
+
+            [nuget.sources.tools]
+            url = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json"
+            """);
+        fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
+
+        var gitClient = new FakeGitClient();
+        var factory = new FakeNuGetClientFactory(new FakeNuGetClient());
+        factory.ClientsBySource["core"] = new FakeNuGetClient("core").With("Acme.Internal", "1.0.0");
+        factory.ClientsBySource["tools"] = new FakeNuGetClient("tools").With("Acme.Internal", "99.0.0");
+
+        var addonInstaller = new AddonInstaller(
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+        var workflow = new DependencyWorkflow(
+            fileSystem, gitClient, factory, addonInstaller,
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()));
+
+        var locked = await workflow.AddDotnetAsync(ProjectDir, "Acme.Internal");
+
+        // 99.0.0 is higher and is deliberately not chosen. Taking the newest version wherever it
+        // lives is a dependency-confusion substitution attack with extra steps.
+        Assert.Equal("1.0.0", locked.Resolved);
+        Assert.Equal("core", locked.Source);
+    }
+
+    [Fact]
+    public async Task AddDotnetAsync_FeedRejectsCredentials_FailsInsteadOfFallingThroughToAPublicFeed()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", """
+            [nuget.sources.core]
+            url = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json"
+            """);
+        fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
+
+        var gitClient = new FakeGitClient();
+
+        // The private feed 401s; nuget.org would happily serve a same-named package. Falling through
+        // is exactly the substitution this must prevent.
+        var privateClient = new FakeNuGetClient("core");
+        privateClient.UnauthorizedPackageIds.Add("Acme.Internal");
+
+        var factory = new FakeNuGetClientFactory(new FakeNuGetClient().With("Acme.Internal", "99.0.0"));
+        factory.ClientsBySource["core"] = privateClient;
+
+        var addonInstaller = new AddonInstaller(
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+        var workflow = new DependencyWorkflow(
+            fileSystem, gitClient, factory, addonInstaller,
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()));
+
+        var exception = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.AddDotnetAsync(ProjectDir, "Acme.Internal"));
+
+        Assert.IsType<NuGetAuthenticationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task AddDotnetAsync_PinnedPackage_SearchesOnlyThatFeed()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", """
+            [nuget.sources.core]
+            url = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json"
+
+            [nuget.sources.tools]
+            url = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json"
+
+            [dotnet.Acme.Internal]
+            version = "1.0.0"
+            source = "tools"
+            """);
+        fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
+
+        var gitClient = new FakeGitClient();
+        var factory = new FakeNuGetClientFactory(new FakeNuGetClient());
+        factory.ClientsBySource["core"] = new FakeNuGetClient("core").With("Acme.Internal", "1.0.0");
+        factory.ClientsBySource["tools"] = new FakeNuGetClient("tools").With("Acme.Internal", "2.0.0");
+
+        var addonInstaller = new AddonInstaller(
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+        var workflow = new DependencyWorkflow(
+            fileSystem, gitClient, factory, addonInstaller,
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()));
+
+        await workflow.UpdateAsync(ProjectDir, "Acme.Internal", force: false);
+
+        Assert.Contains("tools", factory.RequestedPins);
+        Assert.DoesNotContain(
+            "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", factory.RequestedSources);
+    }
+
+    // -- v0.7: an addon's own [dotnet] dependency resolving from the *consuming project's* private
+    //    feed. The real shape people hit: an addon (vbeami) declares a NuGet package that only exists
+    //    on a private GitLab feed, and a project (botv2) depends on the addon.
+
+    private const string PrivateFeedUrl = "https://gitlab.example.com/api/v4/projects/42/packages/nuget/index.json";
+    private const string VbeamiUrl = "https://gitlab.example.com/wild-alliance/vbeami.git";
+
+    /// <summary>Approves every adoption request and records what it was asked.</summary>
+    private sealed class ApproveAllSources : ISourceApproval
+    {
+        public List<SourceAdoptionRequest> Seen { get; } = [];
+
+        public bool Approve(SourceAdoptionRequest request)
+        {
+            Seen.Add(request);
+            return true;
+        }
+    }
+
+    /// <summary>Project declares the private feed and depends on the addon; the addon's own package
+    /// manifest declares the NuGet package, which exists only on that feed.</summary>
+    private static (DependencyWorkflow Workflow, FakeNuGetClientFactory Factory, InMemoryFileSystem FileSystem)
+        BuildAddonDeclaredPrivatePackage(
+            string projectManifest, string addonDotnetBlock, ISourceApproval? approval = null)
+    {
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", projectManifest);
+        fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
+
+        var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
+        gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40), GitRefKind.Tag)];
+        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string>
+        {
+            ["addons/vbeami/plugin.cfg"] = "vbeami",
+            ["addons/vbeami/dotquay.toml"] = $"""
+                [package]
+                name = "vbeami"
+
+                {addonDotnetBlock}
+                """,
+        };
+
+        // VBeami.Core exists ONLY on the private feed. If resolution reached nuget.org instead, the
+        // package would simply not be found and the test would fail loudly.
+        //
+        // Registered under both names the feed can end up with: "gitlab" when the project declares it
+        // (v0.7), "vbeami" when it is adopted from the addon that declared it (v0.8), since adoption
+        // keeps the addon's own name for the block.
+        var factory = new FakeNuGetClientFactory(new FakeNuGetClient());
+        factory.ClientsBySource["gitlab"] = new FakeNuGetClient("gitlab").With("VBeami.Core", "1.2.0");
+        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami").With("VBeami.Core", "1.2.0");
+
+        var addonInstaller = new AddonInstaller(
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+        var workflow = new DependencyWorkflow(
+            fileSystem, gitClient, factory, addonInstaller,
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()))
+        {
+            SourceApproval = approval ?? DenyAllSourceApproval.Instance,
+        };
+
+        return (workflow, factory, fileSystem);
+    }
+
+    [Fact]
+    public async Task Update_AddonDeclaredNuGetPackage_ResolvesFromTheProjectsPrivateFeed()
+    {
+        var (workflow, factory, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget.sources.gitlab]
+            url = "{PrivateFeedUrl}"
+
+            [addons.vbeami]
+            git = "{VbeamiUrl}"
+            version = "~1"
+            """,
+            """
+            [dotnet.VBeami.Core]
+            version = "1.0.0"
+            """);
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        // The package the project never mentioned, pulled from the feed the project declared.
+        var locked = Assert.Single(result.Dotnet);
+        Assert.Equal("VBeami.Core", locked.Locked.Name);
+        Assert.Equal("1.2.0", locked.Locked.Resolved);
+        Assert.Equal("gitlab", locked.Locked.Source);
+
+        Assert.Contains(PrivateFeedUrl, factory.RequestedSources);
+        Assert.Contains("VBeami.Core", fileSystem.ReadAllText($"{ProjectDir}/Game.csproj"));
+
+        // NuGet.Config must declare the feed too, or `dotnet restore` — a separate process — can't
+        // reach it however well dotquay's own query went.
+        Assert.Contains(PrivateFeedUrl, fileSystem.ReadAllText($"{ProjectDir}/NuGet.Config"));
+    }
+
+    [Fact]
+    public async Task Update_AddonDeclaredNuGetPackage_ProjectDidNotDeclareTheFeed_FailsInsteadOfSilentlyMissing()
+    {
+        // The feed lives in the *project's* manifest; an addon cannot bring one with it. Without it,
+        // only nuget.org is searched and the package genuinely isn't there.
+        var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [addons.vbeami]
+            git = "{VbeamiUrl}"
+            version = "~1"
+            """,
+            """
+            [dotnet.VBeami.Core]
+            version = "1.0.0"
+            """);
+
+        var exception = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Contains("VBeami.Core", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_AddonDeclaredSourcePin_IsNotHonoured_ResolutionStillSearchesEveryFeed()
+    {
+        // An addon's `source = "..."` names a feed in the *consuming project's* namespace, which the
+        // addon cannot know — the same feed might be called "kemomi" downstream. So the pin is
+        // ignored and the package resolves by the normal first-match-in-declared-order rule.
+        var (workflow, factory, _) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget.sources.gitlab]
+            url = "{PrivateFeedUrl}"
+
+            [addons.vbeami]
+            git = "{VbeamiUrl}"
+            version = "~1"
+            """,
+            """
+            [dotnet.VBeami.Core]
+            version = "1.0.0"
+            source = "some-name-the-project-never-declared"
+            """);
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        // It still resolves — an unhonoured pin must not be a hard failure, or every addon would
+        // break the moment a consumer renamed a feed.
+        Assert.Equal("gitlab", Assert.Single(result.Dotnet).Locked.Source);
+
+        // ...and it got there unpinned, searching the declared order rather than one named feed.
+        Assert.All(factory.RequestedPins, pin => Assert.Null(pin));
+    }
+
+    // -- v0.8: the addon brings its own feed, so the consumer doesn't have to find it (SPEC.md §11.3)
+
+    private const string AddonDeclaredFeed = """
+        [nuget.sources.vbeami]
+        url = "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json"
+        packages = ["VBeami.*"]
+
+        [dotnet.VBeami.Core]
+        version = "1.0.0"
+        """;
+
+    /// <summary>The whole point of v0.8: botv2 declares no feed at all, only the addon.</summary>
+    private const string ProjectWithNoFeed = $"""
+        [addons.vbeami]
+        git = "{VbeamiUrl}"
+        version = "~1"
+        """;
+
+    [Fact]
+    public async Task Update_AddonDeclaresItsOwnFeed_TrustedHost_AdoptsWithoutAsking()
+    {
+        var approval = new ApproveAllSources();
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget]
+            trusted_hosts = ["gitlab.example.com"]
+
+            {ProjectWithNoFeed}
+            """,
+            AddonDeclaredFeed,
+            approval);
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        // Resolved from a feed the project never declared and the user never typed.
+        Assert.Equal("1.2.0", Assert.Single(result.Dotnet).Locked.Resolved);
+        Assert.Empty(approval.Seen);
+
+        // ...and it was written into the committed manifest, attributed, so it survives the next
+        // wholesale rewrite and shows up in review.
+        var manifest = fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml");
+        Assert.Contains("[nuget.sources.vbeami]", manifest, StringComparison.Ordinal);
+        Assert.Contains("declared_by = \"vbeami\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("packages = [\"VBeami.*\"]", manifest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_AddonDeclaresItsOwnFeed_UntrustedHost_AsksAndAdoptsOnYes()
+    {
+        var approval = new ApproveAllSources();
+        var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(ProjectWithNoFeed, AddonDeclaredFeed, approval);
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        Assert.Equal("1.2.0", Assert.Single(result.Dotnet).Locked.Resolved);
+
+        // The prompt names the stakes, not just a URL.
+        var asked = Assert.Single(approval.Seen);
+        Assert.Equal("vbeami", asked.AddonName);
+        Assert.Equal(["VBeami.Core"], asked.PackageIds);
+    }
+
+    [Fact]
+    public async Task Update_AddonDeclaresItsOwnFeed_Refused_ExplainsWhyThePackageIsMissing()
+    {
+        // DenyAllSourceApproval is the default, so this is also what CI and --json do.
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(ProjectWithNoFeed, AddonDeclaredFeed);
+
+        var exception = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        // Not a bare "no stable release on NuGet", which would read as "this package doesn't exist".
+        Assert.Contains("was not adopted", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("trusted_hosts", exception.Message, StringComparison.Ordinal);
+
+        // And nothing was written into the manifest on the way out.
+        Assert.DoesNotContain("nuget.sources", fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_AdoptionSurvivesALaterFailure_SoARetryDoesNotReAsk()
+    {
+        // Found by running it: adoption used to be persisted only after dotnet resolution, so a
+        // resolution failure discarded a decision the user had already made — and the next attempt
+        // asked again, forever.
+        var approval = new ApproveAllSources();
+        var (workflow, factory, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            ProjectWithNoFeed, AddonDeclaredFeed, approval);
+
+        // The adopted feed exists but has nothing on it, so resolution fails after adoption.
+        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami");
+
+        await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Single(approval.Seen);
+        Assert.Contains(
+            "[nuget.sources.vbeami]", fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Install_NeverAdopts_EvenFromATrustedHost()
+    {
+        var approval = new ApproveAllSources();
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget]
+            trusted_hosts = ["gitlab.example.com"]
+
+            {ProjectWithNoFeed}
+            """,
+            AddonDeclaredFeed,
+            approval);
+
+        await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+        var afterUpdate = fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml");
+
+        // Strip the adopted block back out, then install: replaying a lockfile must not re-acquire a
+        // feed the user just deleted (SPEC.md §5 — install resolves nothing).
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", ProjectWithNoFeed);
+        await workflow.InstallAsync(ProjectDir, force: false);
+
+        Assert.Contains("[nuget.sources.vbeami]", afterUpdate, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "[nuget.sources.vbeami]", fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Doctor_ReportsTrustWithoutMarkingTheProjectUnhealthy()
+    {
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget]
+            trusted_hosts = ["gitlab.example.com"]
+
+            {ProjectWithNoFeed}
+            """,
+            AddonDeclaredFeed);
+
+        await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+        var result = await workflow.DoctorAsync(ProjectDir);
+
+        // Visible...
+        Assert.Equal(["gitlab.example.com"], result.Trust.TrustedHosts);
+        var adopted = Assert.Single(result.Trust.AdoptedSources);
+        Assert.Equal("vbeami", adopted.DeclaredByAddon);
+
+        // ...but not a fault. Reporting trust as an issue would make every project using the feature
+        // permanently unhealthy and fail CI, which is how a checker teaches people to ignore it.
+        Assert.DoesNotContain(result.Issues, i => i.Kind == DoctorIssueKind.TrustedHostUnusable);
+    }
+
+    [Fact]
+    public async Task Doctor_WildcardTrustedHost_IsReportedAsUnusable()
+    {
+        var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget]
+            trusted_hosts = ["*.example.com"]
+
+            {ProjectWithNoFeed}
+            """,
+            AddonDeclaredFeed);
+
+        var result = await workflow.DoctorAsync(ProjectDir);
+
+        var issue = Assert.Single(result.Issues, i => i.Kind == DoctorIssueKind.TrustedHostUnusable);
+        Assert.Contains("trusts nothing", issue.Message, StringComparison.Ordinal);
+        Assert.False(result.IsHealthy);
+    }
+
+    [Fact]
+    public async Task Doctor_NoTrustConfigured_SaysNothingAboutIt()
+    {
+        var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(ProjectWithNoFeed, AddonDeclaredFeed);
+
+        var result = await workflow.DoctorAsync(ProjectDir);
+
+        // A project that never opted in gains no noise.
+        Assert.True(result.Trust.IsEmpty);
+    }
+
+    [Fact]
+    public async Task Update_AdoptedFeed_IsScopedByPackageSourceMapping()
+    {
+        var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
+            $"""
+            [nuget]
+            trusted_hosts = ["gitlab.example.com"]
+
+            {ProjectWithNoFeed}
+            """,
+            AddonDeclaredFeed);
+
+        await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        var config = fileSystem.ReadAllText($"{ProjectDir}/NuGet.Config");
+
+        // The owned pattern, so VBeami.Core's own private transitive dependencies resolve from the
+        // same feed instead of falling to the catch-all and being looked for on nuget.org.
+        Assert.Contains("pattern=\"VBeami.*\"", config, StringComparison.Ordinal);
+        Assert.Contains("pattern=\"*\"", config, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -538,12 +994,13 @@ public class DependencyWorkflowTests
         var privateClient = new FakeNuGetClient();
         privateClient.VersionsByPackageId["Acme.Internal"] = ["2.1.0"];
         var nuGetClientFactory = new FakeNuGetClientFactory(new FakeNuGetClient());
-        nuGetClientFactory.ClientsBySource[privateSource] = privateClient;
+        // Keyed by declared source name — a legacy [project] nuget_source is read as "default".
+        nuGetClientFactory.ClientsBySource[NuGetSourceSpec.LegacyName] = privateClient;
 
         var addonInstaller = new AddonInstaller(
             fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
         var runner = new FakeDotnetCliRunner();
-        var dotnetInstaller = new DotnetInstaller(fileSystem, runner);
+        var dotnetInstaller = new DotnetInstaller(fileSystem, runner, TestCredentials.None());
         var workflow = new DependencyWorkflow(fileSystem, gitClient, nuGetClientFactory, addonInstaller, dotnetInstaller);
 
         await workflow.AddDotnetAsync(ProjectDir, "Acme.Internal");
@@ -1242,7 +1699,7 @@ public class DependencyWorkflowTests
         var addonInstaller = new AddonInstaller(
             fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
         var runner = new FakeDotnetCliRunner();
-        var dotnetInstaller = new DotnetInstaller(fileSystem, runner);
+        var dotnetInstaller = new DotnetInstaller(fileSystem, runner, TestCredentials.None());
         var workflow = new DependencyWorkflow(fileSystem, gitClient, nuGetClientFactory, addonInstaller, dotnetInstaller);
 
         await workflow.AddAsync(ProjectDir, RepoUrl);

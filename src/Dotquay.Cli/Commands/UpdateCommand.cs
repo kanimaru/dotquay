@@ -35,7 +35,7 @@ internal static class UpdateCommand
             var name = parseResult.GetValue(nameArgument);
             var force = parseResult.GetValue(forceOption);
             var json = parseResult.GetValue(jsonOption);
-            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
+            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json, allowSourceAdoption: true);
 
             try
             {

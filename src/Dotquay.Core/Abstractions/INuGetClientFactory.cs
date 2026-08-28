@@ -1,15 +1,21 @@
+using Dotquay.Core.Dotnet;
+
 namespace Dotquay.Core.Abstractions;
 
 /// <summary>
-/// Builds an <see cref="INuGetClient"/> for a given NuGet source. A project can point at a private
-/// feed via <c>[project] nuget_source</c> in <c>dotquay.toml</c> (SPEC.md §11) instead of the public
-/// default, so the client to use isn't known until the manifest has been read — this is the seam
-/// that lets <see cref="Workflows.DependencyWorkflow"/> resolve the right one per call instead of
-/// baking a single source in at construction time.
+/// Builds the <see cref="INuGetClient"/> for a project's feeds, so <c>DependencyWorkflow</c> can be
+/// tested without HTTP.
 /// </summary>
 public interface INuGetClientFactory
 {
-    /// <summary>Returns a client for <paramref name="sourceUrl"/> (a V3 service-index URL).
-    /// Null/empty means "the public default" (nuget.org).</summary>
-    INuGetClient Create(string? sourceUrl);
+    /// <summary>
+    /// A client over <paramref name="sources"/>, narrowed to one feed when
+    /// <paramref name="pinnedSourceName"/> names it (SPEC.md §7.1's <c>source = "..."</c>).
+    /// </summary>
+    /// <remarks>
+    /// Takes the whole set rather than a single URL because ordered multi-feed search is the
+    /// behaviour, not a detail: handing the workflow one client per URL and letting it loop would
+    /// scatter the "first match wins, but a 401 stops the search" rule across every call site.
+    /// </remarks>
+    INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null);
 }

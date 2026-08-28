@@ -14,6 +14,10 @@ extends SceneTree
 const SUITES := [
 	preload("res://tests/test_dotquay_result.gd"),
 	preload("res://tests/test_dotquay_graph.gd"),
+	preload("res://tests/test_dotquay_preview.gd"),
+	# Hand-written .tscn files fail at load time, not compile time, so the only way to know they are
+	# valid is to load them.
+	preload("res://tests/test_scenes.gd"),
 	# Runs the real binary. Skips itself when DOTQUAY_TEST_CLI isn't set, so a checkout with nothing
 	# built still goes green — but CI sets it, because a fixture-only suite cannot catch the CLI
 	# changing its own wire format.

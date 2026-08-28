@@ -1,3 +1,4 @@
+using Dotquay.Core.Abstractions;
 using Dotquay.Core.Git;
 using Dotquay.Core.IO;
 using Dotquay.Core.Workflows;
@@ -9,8 +10,11 @@ namespace Dotquay.Cli.Commands;
 /// construct real (non-test-double) infrastructure, so every command wires it the same way.</summary>
 internal static class WorkflowFactory
 {
-    public static DependencyWorkflow Create() =>
-        new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root());
+    public static DependencyWorkflow Create(ISourceApproval? sourceApproval = null) =>
+        new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root())
+        {
+            SourceApproval = sourceApproval ?? DenyAllSourceApproval.Instance,
+        };
 
     /// <summary>
     /// A workflow that draws progress, plus the handle that stops it.
@@ -21,11 +25,40 @@ internal static class WorkflowFactory
     /// the <see cref="IDisposable"/> alongside the workflow makes that the caller's obvious
     /// responsibility rather than something to remember.
     /// </remarks>
-    public static (DependencyWorkflow Workflow, IDisposable Progress) CreateWithProgress(bool json)
+    /// <param name="allowSourceAdoption">Whether this command may adopt a NuGet feed an addon
+    /// declared (SPEC.md §11.3). True only for <c>add</c> and <c>update</c>, which are already
+    /// resolving and rewriting the manifest. <c>install</c> passes false on principle even though it
+    /// never walks the graph — a command whose contract is "replay the lockfile" should not be one
+    /// refactor away from acquiring a feed.</param>
+    /// <param name="preApprovedSourceUrls">Feed URLs the user already agreed to, from a prior
+    /// <c>add --preview</c>. These take precedence over the console prompt, which is what lets the
+    /// editor plugin — a caller that cannot answer a prompt — complete an adoption it asked about in
+    /// its own UI. Ignored entirely when <paramref name="allowSourceAdoption"/> is false, so
+    /// <c>install</c> cannot be talked into a feed by a flag.</param>
+    public static (DependencyWorkflow Workflow, IDisposable Progress) CreateWithProgress(
+        bool json, bool allowSourceAdoption = false, IReadOnlyList<string>? preApprovedSourceUrls = null)
     {
         var reporter = ConsoleProgressReporter.Create(json);
-        return (Create().WithProgress(reporter), reporter as IDisposable ?? NullDisposable.Instance);
+        var approval = allowSourceAdoption
+            ? SourceApprovalFor(json, preApprovedSourceUrls)
+            : DenyAllSourceApproval.Instance;
+
+        return (Create(approval).WithProgress(reporter), reporter as IDisposable ?? NullDisposable.Instance);
     }
+
+    /// <summary>
+    /// Pre-approved URLs win over the console prompt when there are any.
+    /// </summary>
+    /// <remarks>
+    /// Not layered — "the whitelist, then fall back to prompting" would re-ask about every feed the
+    /// user's preview showed but they declined, turning a considered "no" into a prompt loop. Naming
+    /// any URL is a statement that this run's approvals are already decided; feeds outside the list
+    /// are refused, and the resulting error explains exactly that.
+    /// </remarks>
+    private static ISourceApproval SourceApprovalFor(bool json, IReadOnlyList<string>? preApprovedSourceUrls) =>
+        preApprovedSourceUrls is { Count: > 0 }
+            ? new PreApprovedSourceApproval(preApprovedSourceUrls)
+            : ConsoleSourceApproval.For(json);
 
     private sealed class NullDisposable : IDisposable
     {

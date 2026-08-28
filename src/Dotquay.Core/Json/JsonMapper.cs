@@ -146,6 +146,13 @@ public static class JsonMapper
     {
         Issues = doctor.Issues.Select(i => new DoctorIssueJson(ToWire(i.Kind), i.Message)).ToList(),
         Healthy = doctor.Issues.Count == 0,
+        Trust = new DoctorTrustJson
+        {
+            TrustedHosts = doctor.Trust.TrustedHosts,
+            AdoptedSources = doctor.Trust.AdoptedSources
+                .Select(s => new DoctorAdoptedSourceJson(s.Name, s.Url, s.DeclaredByAddon))
+                .ToList(),
+        },
     };
 
     public static OperationJson ToJson(UpdateResult update, IReadOnlyList<string>? messages = null) => new()
@@ -198,6 +205,58 @@ public static class JsonMapper
         Messages = messages ?? [],
     };
 
+    /// <summary>
+    /// Maps <c>add --preview</c>'s resolve into its wire payload (SPEC.md §6, §11.3).
+    /// </summary>
+    /// <remarks>
+    /// The two convenience booleans are computed here rather than in the workflow for the same reason
+    /// <see cref="GraphJson.HasConflicts"/> is: they are statements about how to present the payload,
+    /// not facts the resolver discovered, and a UI that recomputed them could disagree with one that
+    /// read them.
+    /// </remarks>
+    public static AddPreviewJson ToJson(AddPreview preview) => new()
+    {
+        Name = preview.Name,
+        Git = preview.Git,
+        Addons = preview.Addons
+            .Select(a => new PreviewAddonJson
+            {
+                Name = a.Name,
+                Git = a.Git,
+                Version = a.Version,
+                Resolved = a.Resolved,
+                ShortSha = ShortSha(a.Resolved) ?? a.Resolved,
+                Folder = a.Folder,
+                IsNew = a.IsNew,
+                PreviousResolved = a.PreviousResolved,
+                RequiredBy = a.RequiredBy,
+            })
+            .ToList(),
+        Dotnet = preview.Dotnet
+            .Select(d => new PreviewDotnetJson
+            {
+                Name = d.Name,
+                Constraint = d.Constraint,
+                DeclaredByAddon = d.DeclaredByAddon,
+                IsNew = d.IsNew,
+            })
+            .ToList(),
+        SourcesToAdopt = preview.SourcesToAdopt.Select(ToJson).ToList(),
+        SourcesNeedingApproval = preview.SourcesNeedingApproval.Select(ToJson).ToList(),
+        NeedsApproval = preview.SourcesNeedingApproval.Count > 0,
+        IsNoOp = preview.Addons.All(a => !a.IsNew) && preview.Dotnet.All(d => !d.IsNew),
+    };
+
+    private static PreviewSourceJson ToJson(PreviewSource source) => new()
+    {
+        Name = source.Name,
+        Url = source.Url,
+        DeclaredByAddon = source.DeclaredByAddon,
+        IsTrustedHost = source.IsTrustedHost,
+        Packages = source.Packages,
+        PackageIds = source.PackageIds,
+    };
+
     public static string ToWire(AddonSourceKind kind) => kind switch
     {
         AddonSourceKind.Version => "version",
@@ -225,6 +284,9 @@ public static class JsonMapper
         DoctorIssueKind.PluginCfgVersionDrift => "plugin_cfg_version_drift",
         DoctorIssueKind.OrphanedAddonFolder => "orphaned_addon_folder",
         DoctorIssueKind.UnreadablePackageManifest => "unreadable_package_manifest",
+        DoctorIssueKind.CredentialFilePermissions => "credential_file_permissions",
+        DoctorIssueKind.SecretInManifest => "secret_in_manifest",
+        DoctorIssueKind.TrustedHostUnusable => "trusted_host_unusable",
         _ => "unknown",
     };
 

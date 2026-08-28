@@ -26,4 +26,19 @@ public sealed class PackageManifest
     public IReadOnlyDictionary<string, AddonSpec> Addons { get; init; } = new Dictionary<string, AddonSpec>();
 
     public IReadOnlyDictionary<string, DotnetSpec> Dotnet { get; init; } = new Dictionary<string, DotnetSpec>();
+
+    /// <summary>
+    /// NuGet feeds this addon's own <c>[dotnet]</c> dependencies come from (SPEC.md §11.3).
+    /// </summary>
+    /// <remarks>
+    /// <para>A <em>suggestion</em>, with no authority of its own. Without it, consuming an addon whose
+    /// package lives on a private feed means tracing that feed by hand — and again for everything the
+    /// addon pulls in transitively, which is exactly the work a package manager should absorb. With
+    /// it silently trusted, any third-party addon could add a source and shadow a public package name
+    /// for the whole project.</para>
+    /// <para>So the consuming project decides: a feed on a host in its <c>[nuget] trusted_hosts</c> is
+    /// adopted automatically, anything else needs approval, and whatever is adopted is written into
+    /// the project's own committed manifest where it shows up in review.</para>
+    /// </remarks>
+    public IReadOnlyList<NuGetSourceSpec> NuGetSources { get; init; } = [];
 }

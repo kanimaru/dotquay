@@ -9,6 +9,40 @@ namespace Dotquay.Core.Json;
 // (see DotquayJsonContext) — GDScript reads dictionary keys, and snake_case is what its own
 // conventions expect.
 
+/// <summary>
+/// Payload of <c>dotquay login --json</c>, <c>login --list --json</c>, and <c>logout --json</c>
+/// (SPEC.md §11.2).
+/// </summary>
+/// <remarks>
+/// There is deliberately no token field, and no truncated-token field either. A <c>glpat-</c> prefix
+/// plus a host is already useful to whoever gets hold of the output and useless to the person reading
+/// it — and this payload is the one most likely to be pasted into a bug report.
+/// </remarks>
+public sealed record LoginJson
+{
+    /// <summary>Entries touched or listed — scope and username only.</summary>
+    public IReadOnlyList<CredentialEntryJson> Credentials { get; init; } = [];
+
+    /// <summary>Where the credential file lives, so a UI can point at it without guessing the
+    /// platform's home directory.</summary>
+    public required string StorePath { get; init; }
+
+    /// <summary>Whether the credential was checked against the server before being stored.
+    /// False after <c>--no-verify</c>, so a consumer can distinguish "known good" from "accepted as
+    /// given".</summary>
+    public bool Verified { get; init; }
+
+    public IReadOnlyList<string> Messages { get; init; } = [];
+}
+
+public sealed record CredentialEntryJson
+{
+    /// <summary><c>host</c> or <c>host/path/prefix</c> — the key the credential is stored under.</summary>
+    public required string Scope { get; init; }
+
+    public required string Username { get; init; }
+}
+
 /// <summary>Payload of <c>dotquay graph --json</c>.</summary>
 public sealed record GraphJson
 {
@@ -188,9 +222,126 @@ public sealed record DoctorJson
     public IReadOnlyList<DoctorIssueJson> Issues { get; init; } = [];
 
     public bool Healthy { get; init; }
+
+    /// <summary>What the project trusts and which feeds that trust brought in (SPEC.md §11.3).
+    /// Additive and informational — it never affects <see cref="Healthy"/>, so a consumer that only
+    /// reads <c>issues</c> and <c>healthy</c> is unchanged.</summary>
+    public DoctorTrustJson Trust { get; init; } = new();
 }
 
+public sealed record DoctorTrustJson
+{
+    public IReadOnlyList<string> TrustedHosts { get; init; } = [];
+
+    public IReadOnlyList<DoctorAdoptedSourceJson> AdoptedSources { get; init; } = [];
+}
+
+/// <summary>A feed that came from an addon rather than the project, and which addon asked.</summary>
+public sealed record DoctorAdoptedSourceJson(string Name, string Url, string DeclaredBy);
+
 public sealed record DoctorIssueJson(string Kind, string Message);
+
+/// <summary>
+/// Payload of <c>dotquay add --preview --json</c> (SPEC.md §6, §11.3): what an add would do, before
+/// it does it.
+/// </summary>
+/// <remarks>
+/// Its own payload type rather than a reshaped <see cref="OperationJson"/>, because a consumer's
+/// response to it is the opposite of a mutating command's: an operation is reported so a UI can
+/// refresh, a preview is reported so a UI can ask. Sharing the shape would mean sharing the parser
+/// with code whose job is to react to changes that already happened.
+/// </remarks>
+public sealed record AddPreviewJson
+{
+    /// <summary>The name <c>add</c> would write into <c>[addons.*]</c>.</summary>
+    public required string Name { get; init; }
+
+    public required string Git { get; init; }
+
+    public IReadOnlyList<PreviewAddonJson> Addons { get; init; } = [];
+
+    public IReadOnlyList<PreviewDotnetJson> Dotnet { get; init; } = [];
+
+    /// <summary>Feeds that would be taken on without asking: already trusted by host, or named in
+    /// <c>--adopt-source</c>.</summary>
+    public IReadOnlyList<PreviewSourceJson> SourcesToAdopt { get; init; } = [];
+
+    /// <summary>Feeds needing an explicit yes. Pass their <c>url</c> values back as
+    /// <c>--adopt-source</c> to complete the add.</summary>
+    public IReadOnlyList<PreviewSourceJson> SourcesNeedingApproval { get; init; } = [];
+
+    /// <summary>Convenience mirrors, so a UI reads one boolean per banner instead of measuring two
+    /// arrays — the same reasoning as <see cref="GraphJson.HasConflicts"/>.</summary>
+    public bool NeedsApproval { get; init; }
+
+    /// <summary>True when nothing in the graph would move. An add can still be worth running (the
+    /// manifest gains its entry), but the confirmation can say so plainly.</summary>
+    public bool IsNoOp { get; init; }
+}
+
+/// <summary>One addon the graph resolves to.</summary>
+public sealed record PreviewAddonJson
+{
+    public required string Name { get; init; }
+
+    public required string Git { get; init; }
+
+    public string? Version { get; init; }
+
+    public required string Resolved { get; init; }
+
+    public required string ShortSha { get; init; }
+
+    /// <summary>The folder under <c>addons/</c> it would install into.</summary>
+    public required string Folder { get; init; }
+
+    /// <summary>False for an addon already locked at this exact commit — shown for context, but
+    /// nothing about it changes.</summary>
+    public bool IsNew { get; init; }
+
+    /// <summary>The commit currently locked, or null when this addon isn't locked at all. Non-null
+    /// alongside <see cref="IsNew"/> means the addon moves rather than arrives.</summary>
+    public string? PreviousResolved { get; init; }
+
+    /// <summary>Who requires it — <c>"&lt;project&gt;"</c> for the one the user asked for, addon names
+    /// for everything it drags in.</summary>
+    public IReadOnlyList<string> RequiredBy { get; init; } = [];
+}
+
+public sealed record PreviewDotnetJson
+{
+    public required string Name { get; init; }
+
+    public string? Constraint { get; init; }
+
+    /// <summary>The addon whose package manifest asked for it, or null when the project declares it
+    /// directly.</summary>
+    public string? DeclaredByAddon { get; init; }
+
+    public bool IsNew { get; init; }
+}
+
+/// <summary>A NuGet feed an addon in the graph declared (SPEC.md §11.3).</summary>
+public sealed record PreviewSourceJson
+{
+    public required string Name { get; init; }
+
+    public required string Url { get; init; }
+
+    public required string DeclaredByAddon { get; init; }
+
+    /// <summary>True when <c>[nuget] trusted_hosts</c> already covers this host — adoption is
+    /// automatic, and a UI should say so rather than present it as a choice.</summary>
+    public bool IsTrustedHost { get; init; }
+
+    /// <summary>The package ID patterns this feed would own: the concrete scope of what adopting it
+    /// grants.</summary>
+    public IReadOnlyList<string> Packages { get; init; } = [];
+
+    /// <summary>The declaring addon's <c>[dotnet]</c> package IDs — the packages that actually depend
+    /// on the answer.</summary>
+    public IReadOnlyList<string> PackageIds { get; init; } = [];
+}
 
 /// <summary>
 /// Payload of every <em>mutating</em> command's <c>--json</c> output — <c>add</c>, <c>remove</c>,

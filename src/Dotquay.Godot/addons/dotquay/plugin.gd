@@ -8,7 +8,7 @@ extends EditorPlugin
 ## pan-and-zoom view of the whole project, which is exactly what the main screen area is for and
 ## exactly what a 200px-tall dock cannot show.
 
-const PANEL_SCRIPT := preload("res://addons/dotquay/ui/dotquay_panel.gd")
+const PANEL_SCENE := preload("res://addons/dotquay/ui/dotquay_panel.tscn")
 const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
 
 var _panel: DotquayPanel
@@ -18,7 +18,7 @@ var _was_visible := false
 func _enter_tree() -> void:
 	SETTINGS.register(get_editor_interface().get_editor_settings())
 
-	_panel = PANEL_SCRIPT.new()
+	_panel = PANEL_SCENE.instantiate()
 	_panel.name = "Dotquay"
 	_panel.visible = false
 

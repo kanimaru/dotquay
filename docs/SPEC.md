@@ -68,7 +68,7 @@ Key consequence: commands split along the stage boundary.
 |---|---|---|
 | `dotquay init` | — | Scaffold `dotquay.toml` in the project root |
 | `dotquay init --package` | — | Scaffold a package manifest (with `[package]` header) inside an addon folder |
-| `dotquay add <git-url>[#ref] \| <nuget-id>` | resolve | Add dependency to manifest, resolve, lock, install. With no source named, picks the newest release tag; no tags found → pin default-branch tip as `rev` and print a hint. Options: `--version`/`--branch`/`--rev` to name the source outright, `--path` for the subtree (§7.1, OQ-2), `--install-as` for the install folder. `#ref` shorthand asks the remote whether the ref is a branch, tag, or commit (v0.6) |
+| `dotquay add <git-url>[#ref] \| <nuget-id>` | resolve | Add dependency to manifest, resolve, lock, install. With no source named, picks the newest release tag; no tags found → pin default-branch tip as `rev` and print a hint. Options: `--version`/`--branch`/`--rev` to name the source outright, `--path` for the subtree (§7.1, OQ-2), `--install-as` for the install folder. `#ref` shorthand asks the remote whether the ref is a branch, tag, or commit (v0.6). `--preview` reports what the add would do and writes nothing; `--adopt-source <url>` pre-approves an addon-declared feed (§6.3, v0.9) |
 | `dotquay remove <name>` | sync | Remove from manifest, lockfile, and disk |
 | `dotquay install` | sync | Make disk match lockfile exactly. Errors if lockfile missing entries from manifest |
 | `dotquay update [name]` | resolve | Re-resolve one or all dependencies, rewrite lockfile, install |
@@ -80,6 +80,8 @@ Key consequence: commands split along the stage boundary.
 | `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
 | `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
 | `dotquay link <name> <path>` | sync | Point an addon at a local folder for development (§7.4). `--remove` unlinks; no arguments lists them (v0.6) |
+| `dotquay login [<host\|url>]` | — | Store a username/token for a host in the shared credential file (§11.2). `--token-stdin` for scripts, no-echo prompt otherwise; `--list` shows hosts without tokens; verifies before saving unless `--no-verify` (v0.7) |
+| `dotquay logout <host>` | — | Remove that host's stored credential. Exact key only — never prefix-matched (v0.7) |
 
 Two options are global to every command (v0.5):
 
@@ -109,6 +111,46 @@ that do exist rather than just refusing.
 
 A named tag becomes an exact pin, not a widened range: typing one tag is a request for that tag, and
 broadening `v1.0.0` to `~1.0` would install something nobody wrote down.
+
+### 6.3 Previewing an `add` (v0.9)
+
+Two of an `add`'s consequences are invisible from the URL a user typed: the addons it pulls in
+transitively, and the NuGet feeds those addons declare (§11.3). At a terminal the second is a prompt.
+The editor plugin cannot answer a prompt — it drives dotquay through captured stdout — so before v0.9
+its only options were to refuse every feed or to adopt blindly.
+
+`dotquay add <git-url> --preview` closes that gap. It runs the real graph walk and reports:
+
+| Field | What it answers |
+|---|---|
+| `addons[]` | Every addon the graph resolves to, with `is_new`, `previous_resolved`, and `required_by` — so "you asked for this" is distinguishable from "this came along", and "arrives" from "moves" |
+| `dotnet[]` | The NuGet packages those addons declare, attributed to the addon that declared each |
+| `sources_to_adopt[]` | Feeds that would be taken on without asking: host in `trusted_hosts`, or named in `--adopt-source` |
+| `sources_needing_approval[]` | Feeds that need an explicit yes, with the ID patterns they would own and the packages that depend on them |
+
+It **writes nothing** — no manifest, no lockfile, nothing under `addons/`. That property is asserted
+directly rather than inferred, because a preview that mutates is worse than no preview: the user's
+"cancel" would already be too late.
+
+`--adopt-source <url>` (repeatable) carries the answer back into the real add. Deliberately a
+whitelist of exact URLs rather than a "yes to everything" flag: between the preview and the
+confirmation the upstream addon may have changed what it declares, and approving a URL the user never
+saw is the failure mode §11.3's seam exists to prevent. Approval is **per run** — it never widens
+`trusted_hosts`, so agreeing to one addon's feed does not pre-approve the next addon from the same
+host.
+
+Two contract details a consumer depends on:
+
+- The envelope's `command` is **`add-preview`**, not `add`. A preview emits `AddPreviewJson` where
+  `add` emits `OperationJson`, and reporting both as "add" would hand the wrong parser a payload it
+  would half-read rather than reject.
+- Exit code **2** means "resolved fine, and a feed needs approval". Zero would tell a script the add
+  is ready to run unattended when it isn't; one would say the preview failed, which it didn't — it
+  succeeded at discovering a question.
+
+`--preview` is git-only. A NuGet add resolves one version from feeds the project already declares:
+there is no graph and no adoption to preview, so it says that instead of emitting an empty payload the
+caller has to recognise as meaningless.
 
 ### 6.1 `outdated` / `status` / `doctor` implementation notes (v0.2)
 
@@ -192,9 +234,17 @@ issue above.
 ### 7.1 Project manifest — `dotquay.toml`
 
 ```toml
-# [project] is optional and only holds nuget_source. A `godot` key existed through v0.5; nothing ever
-# read it and the scaffold hardcoded "4.3" into every project regardless, so it was removed (v0.6).
-# The reader still ignores it if present.
+# [project] is optional and holds patches_dir plus the legacy single nuget_source. A `godot` key
+# existed through v0.5; nothing ever read it and the scaffold hardcoded "4.3" into every project
+# regardless, so it was removed (v0.6). The reader still ignores it if present.
+
+# NuGet feeds, in search order (v0.7). A legacy [project] nuget_source is read as a source named
+# "default". Credentials never appear here — see §11.2.
+[nuget.sources.core]
+url = "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json"
+
+[nuget.sources.tools]
+url = "https://gitlab.example.com/api/v4/projects/456/packages/nuget/index.json"
 
 [addons.dialogue_manager]
 git = "https://github.com/nathanhoad/godot_dialogue_manager"
@@ -217,6 +267,10 @@ rev = "9f2c1ab"                    # hard pin for untagged repos
 
 [dotnet.Newtonsoft.Json]
 version = "13.0.*"                 # delegated to NuGet/dotnet restore
+
+[dotnet.Kani.Core]
+version = "1.2.*"
+source = "core"                    # optional pin (v0.7); unpinned searches sources in order
 
 [overrides.shared_core]            # project always wins conflicts (§8)
 git = "https://github.com/kani/kani_core"
@@ -315,7 +369,16 @@ dependencies = ["kani_core"]       # graph edges — install never re-reads remo
 [[dotnet]]
 name = "Newtonsoft.Json"
 resolved = "13.0.3"
+
+[[dotnet]]
+name = "Kani.Core"
+resolved = "1.2.7"
+source = "core"                    # feed it resolved from; omitted for nuget.org (v0.7)
 ```
+
+`source` (v0.7) is what keeps multi-feed resolution reproducible: a package that resolved from a
+private feed on one machine cannot quietly come from a public one on the next `install`. Absent means
+nuget.org, so lockfiles written before v0.7 read unchanged.
 
 ### 7.4 Local links — `dotquay.local.toml` (v0.6)
 
@@ -461,48 +524,199 @@ Resolution, caching, and lockfiles on the NuGet side stay NuGet's job.
 
 ### 11.1 Private / authenticated NuGet feeds
 
-A project can declare a non-default source in `dotquay.toml`:
+A project declares its feeds in `dotquay.toml` as an **ordered, named set** (§7.1):
 
 ```toml
-[project]
-godot = "4.3"
-nuget_source = "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json"
+[nuget.sources.core]
+url = "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json"
 ```
 
-`nuget_source` is a V3 service index URL — same shape as `https://api.nuget.org/v3/index.json`,
-just a different host. It's committed to git (`init --nuget-source <url>` scaffolds it); credentials
-never are.
+Each `url` is a V3 service index — same shape as `https://api.nuget.org/v3/index.json`, just a
+different host. It's committed to git (`init --nuget-source <url>` scaffolds one); credentials never
+are.
 
-Credentials come from two environment variables, read by `NuGetCredentials` (the one place this
-project reads them) and never from `dotquay.toml`:
+There are several because there have to be: **GitLab publishes one NuGet feed per project**, so a
+Godot project consuming C# packages from more than one GitLab repository has more than one feed by
+construction. Through v0.6 dotquay held a single `[project] nuget_source` string, which is why v0.7
+replaced it. That key still parses, as a source named `default`.
 
-- `DOTQUAY_NUGET_USERNAME`
-- `DOTQUAY_NUGET_TOKEN`
+Three rules make a multi-feed setup deterministic rather than merely possible:
 
-They're read by two independent consumers that both need to authenticate against the same source:
+- **Unpinned packages resolve first-match in declared order**, not "highest version across all
+  feeds". Taking the highest version across feeds is a dependency-confusion substitution attack with
+  extra steps — a public package can outrank the private one it shadows. A package found on more
+  than one feed warns and suggests a `source =` pin.
+- **A feed that fails to answer stops the operation**, rather than being skipped. 404 on a *package*
+  means "not here, try the next"; 404 or any other failure on the *service index* means the feed is
+  misconfigured, unreachable, or invisible to the current credential, and is fatal. This distinction
+  is what makes the previous rule safe on GitLab, which returns **404 rather than 401/403** for a
+  project the caller may not see — so an unauthenticated 404 on a project-scoped feed is ambiguous
+  between "no such project" and "not logged in", and treating it as "try the next feed" would resolve
+  the package from nuget.org instead. Verified empirically (2026-08-28) against a self-hosted
+  instance: a project known to exist and a project name known not to exist returned identical 404s
+  when unauthenticated. dotquay's message offers both readings rather than asserting one, and says so
+  differently depending on whether a credential was actually sent — with a valid token, a 404 means
+  the URL is wrong, not that you need to log in.
+- **The winning feed is recorded in the lockfile** (§7.3 `source`), so `install` on another machine
+  cannot resolve the same name somewhere else.
+- **`dotnet restore` is bound to the same feed** via `<packageSourceMapping>` in `NuGet.Config`.
+  Without it, restore searches every configured source independently of whatever dotquay resolved,
+  and multi-feed support would be a report rather than a guarantee. Mapping is all-or-nothing per
+  config, so dotquay always writes a `*` catch-all (and an explicit `nuget.org` entry for it to point
+  at); `[nuget] source_mapping = false` opts out.
+
+**Addon-declared packages resolve against the feeds the project ends up with.** When an installed
+addon's own package manifest declares a `[dotnet.*]` dependency (§7.2, requirement P1-5), that package
+is resolved against the project's feeds — which, since v0.8, may include feeds the addon itself
+declared and the project adopted (§11.3).
+
+A `source = "..."` pin in an addon's package manifest is still ignored rather than honoured. A source
+name belongs to the consuming project's namespace — the same feed may be called something else
+downstream, or not exist at all — so a pin written by the addon author refers to a name they cannot
+know. An addon expresses feed ownership through `packages` patterns on a source it declares itself
+(§11.3), which is namespaced by URL rather than by a name it can't control.
+
+Two independent consumers authenticate against these feeds:
 
 1. **`NuGetV3ClientFactory`** — dotquay's own read-side queries (`add`, `outdated`, `list`), sent as
-   an HTTP Basic `Authorization` header. Only applied for a non-default source; nuget.org itself is
-   always anonymous.
+   an HTTP Basic `Authorization` header. Never applied to nuget.org, which is always anonymous.
+   A 401 from a feed **aborts** rather than falling through to the next one, for the same reason the
+   first rule above exists.
 2. **`DotnetInstaller`** — the actual `dotnet restore` step. This is a *separate process* with its
    own `NuGet.Config`, entirely unaware of dotquay's own HTTP client or its credentials — querying a
    version successfully via (1) does not make `dotnet restore` able to find the package. Closing that
    gap needs two things, both handled automatically by `DotnetInstaller` before restoring:
    - `NuGetConfigWriter` ensures the project's `NuGet.Config` (or `nuget.config`, whichever already
-     exists) declares the source under a fixed `"dotquay"` key — safe to commit, since it's only a
-     URL, no credentials.
-   - The restore child process is given a `NuGetPackageSourceCredentials_dotquay` environment
-     variable (`Username={u};Password={p}`) — NuGet's own documented convention
+     exists) declares each source under a `"dotquay-<name>"` key — safe to commit, since it's only a
+     URL, no credentials. It prunes `dotquay-*` keys it owns that are no longer declared, and leaves
+     every other entry alone. The legacy single source (`default`) keeps the bare `"dotquay"` key it
+     already has on disk, so upgrading rewrites nothing.
+   - The restore child process is given one `NuGetPackageSourceCredentials_dotquay-<name>`
+     environment variable per authenticated source (`Username={u};Password={p}`) — NuGet's own
+     documented convention
      (learn.microsoft.com/en-us/nuget/consume-packages/consuming-packages-authenticated-feeds) for
      supplying a named source's credentials via environment rather than config file. The credential
      never touches disk; it exists only in the child process's environment for the duration of the
      restore.
 
 Verified end to end against a real private GitLab package registry (Basic auth over HTTPS,
-2026-08-21): `init --nuget-source`, `add` (including the `dotnet restore` step — the fix for the
-earlier `NU1101: ... source(s): nuget.org` gap), `install` (fresh restore from a lockfile with no
-`obj/`/`bin/` cache), `list`, and `remove` all worked correctly, and `NuGet.Config`/`dotquay.toml`/
-`dotquay.lock` were confirmed to contain the source URL only — never the token.
+2026-08-21, single-feed form): `init --nuget-source`, `add` (including the `dotnet restore` step —
+the fix for the earlier `NU1101: ... source(s): nuget.org` gap), `install` (fresh restore from a
+lockfile with no `obj/`/`bin/` cache), `list`, and `remove` all worked correctly, and
+`NuGet.Config`/`dotquay.toml`/`dotquay.lock` were confirmed to contain the source URL only — never
+the token.
+
+### 11.2 Where credentials come from (v0.7)
+
+Credentials are keyed by **host, not by project**. One GitLab PAT covers every feed and every
+repository on that host, so making the user configure it per project — or per feed — would be asking
+the same question N times.
+
+`dotquay login <host>` stores a username/token pair in `~/.dotquay/credentials.toml` (beside the
+existing `~/.dotquay/cache`), `0600` on Unix, never inside a project, never committed. Keys are
+`host[:port]` with an optional path prefix and **longest prefix wins**, so a host-wide token is the
+normal case and one feed can be overridden without disturbing it. The file is plaintext — the same
+tradeoff `docker login` makes by default — behind an `ICredentialStore` interface so an OS-keychain
+backend can replace it without touching a caller. Tokens are never printed back, not even truncated.
+
+Resolution order, highest first:
+
+1. `DOTQUAY_NUGET_USERNAME_<SOURCE>` / `DOTQUAY_NUGET_TOKEN_<SOURCE>` — per-source override.
+2. `DOTQUAY_NUGET_USERNAME` / `DOTQUAY_NUGET_TOKEN` — the pre-v0.7 pair, unchanged, so no CI pipeline
+   has to be touched.
+3. `~/.dotquay/credentials.toml`, longest-prefix match.
+4. Anonymous.
+
+Environment beats the file because CI injects secrets as environment variables; `login` warns when an
+existing variable would shadow what it just stored, since otherwise the command appears to do nothing.
+A half-configured pair (username without token, or the reverse) is treated as "not configured" and
+falls through, not guessed at.
+
+**Git uses the same store.** Through v0.6 git authentication was delegated entirely to the system
+(§12) — which works when a credential manager is already configured and hangs the process when it
+isn't, because `ProcessGitClient` redirects stdout and stderr but not stdin, and nothing set
+`GIT_TERMINAL_PROMPT`. v0.7 sets `GIT_TERMINAL_PROMPT=0` on every git child (a hang becomes an
+`error.kind = "auth"`) and **appends** dotquay as a `credential.helper` via `GIT_CONFIG_KEY_*`.
+Appending is the point: git tries helpers in order, so an existing SSH agent or Git Credential
+Manager is still tried first and dotquay only fills the gap. The corollary is worth stating plainly:
+**on a host your credential manager already covers, `dotquay login` changes nothing about git** — the
+system helper answers first and dotquay's stored token is never consulted. That is the intended
+behaviour (a working setup must not break), but it means `login` is primarily how you authenticate
+**NuGet feeds**, where no credential manager is involved in either dotquay's own queries or
+`dotnet restore`. The hidden `dotquay credential-helper`
+command speaks git's key/value protocol on stdin/stdout, which is the only one of the three obvious
+approaches that never writes the token somewhere it can be read back — URL rewriting leaves it in
+the cache's `.git/config` and in error messages, and `-c http.<url>.extraheader=` puts it in a
+command line every user on the machine can see in `ps`.
+
+Full design, including migration and the AOT verification checklist: `docs/DESIGN-v0.7-AUTH.md`.
+
+### 11.3 Addon-declared feeds (v0.8)
+
+Through v0.7 only the consuming project could declare a feed. That is safe and, past a couple of
+addons, unworkable: adding one addon meant tracing its NuGet dependencies to their feeds by hand, and
+again for everything it pulled in transitively. An addon knows where its own packages live; the user
+should not have to rediscover it.
+
+So an addon's package manifest may declare feeds, as a **suggestion with no authority of its own**:
+
+```toml
+[package]
+name = "vbeami"
+
+[nuget.sources.vbeami]
+url = "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json"
+packages = ["VBeami.*"]        # IDs this feed owns; default: the IDs declared below
+
+[dotnet.VBeami.Core]
+version = "1.0.0"
+```
+
+The consuming project decides what happens to it:
+
+```toml
+[nuget]
+trusted_hosts = ["gitlab.example.com"]
+```
+
+- **A feed on a trusted host is adopted silently.** Trusting a host here is a smaller step than it
+  looks — the project already runs *code* from addons on that host, which is strictly more dangerous
+  than reading packages from its feed. Matching is exact host and port: no subdomain globbing, because
+  a `*.example.com` rule quietly matching an attacker-controlled `evil.example.com` is a trap that
+  reads as safe.
+- **Anything else is asked about**, once, naming the addon, the URL, and the packages at stake. A run
+  that cannot ask — `--json`, CI, the editor plugin — refuses rather than adopting on the user's
+  behalf.
+- **Whatever is adopted is written into the project's own committed `dotquay.toml`**, attributed with
+  `declared_by`, so it appears in review rather than living invisibly in a lockfile. Attribution is a
+  real key rather than only a comment: the manifest is rewritten wholesale on every mutating command,
+  so a comment would survive exactly one rewrite and then become an unexplained feed.
+- **`install` never adopts, prompts, or consults `trusted_hosts`.** It replays what is committed
+  (§5); a feed that isn't there yet fails the build rather than being acquired by a machine nobody is
+  watching.
+- **A refusal is not fatal by itself.** The package may be on nuget.org anyway, and failing an update
+  because a feed nobody needed was declined would be obnoxious. It becomes an error only if a package
+  from that addon then fails to resolve — and that error names the declined feed, instead of reporting
+  a mystifying "no stable release".
+
+`dotquay doctor` reports trust in two ways, deliberately distinct. A `trusted_hosts` entry that
+**cannot do what it reads as** is an issue (`trusted_host_unusable`): a wildcard or typo matches
+nothing, so feeds are never adopted and the user is prompted forever with no clue why; an entry
+carrying a path trusts the whole host regardless; a plain-HTTP host means cleartext. The **presence**
+of trust is not an issue — reporting it as one would mark every project using the feature permanently
+unhealthy and fail CI, which is how a checker teaches people to ignore it. Instead doctor prints the
+trusted hosts and every adopted feed with its declaring addon, in both human and `--json` output
+(`data.trust`), whether or not anything is wrong. Additive: a consumer reading only `issues` and
+`healthy` is unaffected.
+
+Adopted feeds are bound by `<packageSourceMapping>` to the IDs they own, so an adopted feed can never
+serve a package it didn't claim. An adopted feed that claims an ID the project already gets elsewhere
+is a hard error naming both claimants — that is an addon attempting to take over a well-known package,
+and picking a winner is not dotquay's call.
+
+Full design: `docs/DESIGN-v0.8-FEED-PROPAGATION.md`. Note that for an estate on a single GitLab, a
+**group-level** feed (`/api/v4/groups/<id>/-/packages/nuget/index.json`, GitLab 17.4+) aggregates
+every project's packages in that group and may remove the need for any of this.
 
 ## 12. Technology decisions
 
@@ -511,6 +725,8 @@ earlier `NU1101: ... source(s): nuget.org` gap), `install` (fresh restore from a
 | Language | C# / .NET 10 (LTS) | `NuGet.Protocol` is the official client library — NuGet integration becomes library calls. Single-file publish covers win/linux/mac |
 | Distribution | NativeAOT single-file executable; trimmed self-contained publish only as fallback | One fast native binary per OS, no runtime install. Staying native is the goal — every dependency choice is checked for AOT compatibility first (decided, was OQ-6) |
 | Git access | Shell out to `git` on PATH (required in v1); shallow fetch as baseline | Real git handles SSH keys, credential helpers, proxies for free; LibGit2Sharp auth is a known pain. Pure-library is a later refinement |
+| Git credentials | System helpers first; dotquay **appended** as a `credential.helper` via `GIT_CONFIG_KEY_*`, plus `GIT_TERMINAL_PROMPT=0` (v0.7, §11.2) | Delegating entirely was right until dotquay had a credential store of its own; it also hung on any prompt. Appending keeps every working setup working. The helper protocol is the only option that never persists the token — URL rewriting leaks it into `.git/config`, `http.extraheader` leaks it into `ps` |
+| Credential storage | Plaintext TOML at `~/.dotquay/credentials.toml`, `0600`, behind `ICredentialStore` (v0.7) | OS keychain needs P/Invoke or a per-platform subprocess, which fights the NativeAOT single-binary goal. Docker's default tradeoff, made explicitly and swappable |
 | Merging | `git merge-file` per file | True 3-way merge with conflict markers, zero merge code to write |
 | CLI framework | System.CommandLine 2.0 | Spectre.Console.Cli was tried first for its nicer UX; a real `dotnet publish -p:PublishAot=true` build-and-run proved it crashes on every command under NativeAOT (trimmer strips the reflection its command-settings binding needs), even though the build itself links cleanly. Swapped to the documented fallback (decided, was OQ-1; re-resolved 2026-08-21 — see docs/SPRINT-01.md) |
 | Config format | TOML (Tomlyn) | Human-friendly, comments, the de-facto manifest standard (Cargo, pip) |
@@ -540,10 +756,12 @@ earlier `NU1101: ... source(s): nuget.org` gap), `install` (fresh restore from a
 | P1-3 | `outdated` via `ls-remote` | Runs without cloning; flags branch-tracked addons whose tip moved past the locked SHA — **done (v0.2, 2026-08-22)**, also covers `version`-sourced addons and NuGet packages, not just branch-tracked ones |
 | P1-4 | `status` / `doctor` | `status` reports clean / patched / modified per addon; `doctor` flags `plugin.cfg` version drift and orphaned `addons/` folders — **done (v0.2, 2026-08-22)**, `status` also reports a fourth `missing` state and `doctor` also checks git-on-PATH and dangling lockfile entries |
 | P1-5 | Addon-declared `[dotnet]` deps unioned into `.csproj` | Given an addon declaring a NuGet dep, when installed, then the project's `.csproj` gains the reference — **done (v0.4, 2026-08-22)**, verified against a real repo declaring `[dotnet.Newtonsoft.Json]` in its own `dotquay.toml`: `add`ing the addon alone installed the reference into `.csproj` without writing a `[dotnet.*]` entry into the project's own manifest |
-
 | P1-6 | Machine-readable `--json` output on every command | Given any command with `--json`, when it runs, then stdout holds exactly one envelope (§17) whose `ok`/`error.kind` a consumer can branch on without parsing prose — **done (v0.5)** |
 | P1-7 | Conflicts reported as data, with candidates | Given an unresolvable name, when `graph --resolve` runs, then every conflict is reported at once with each requirer's constraint and the concrete versions that would settle it, annotated by which requirers each satisfies (§17) — **done (v0.5)** |
 | P1-8 | Godot editor plugin (§18) | Given the plugin enabled in a Godot 4.7 project, when the Dotquay tab is opened, then the dependency graph renders from the lockfile with no network access, conflicts can be resolved by picking a version, and add/update/remove/install run through the CLI — **done (v0.5)** |
+| P1-9 | Multiple named NuGet feeds (§11.1) | Given two private feeds and a package on each, when `add`/`install` runs, then each resolves from its declared feed, the lockfile records which, and `dotnet restore` fetches from the same one — **proposed (v0.7)**, `docs/DESIGN-v0.7-AUTH.md` |
+| P1-11 | Addon-declared NuGet feeds with project-side trust (§11.3) | Given an addon declaring a feed on a host in `trusted_hosts`, when `update` runs, then the package resolves from it and the feed is written into the committed manifest attributed to that addon; given an untrusted host and no way to ask, then nothing is adopted and the failure names the declined feed; given `install`, then nothing is ever adopted — **done (v0.8)** |
+| P1-10 | Shared credential store and `login`/`logout` (§11.2) | Given `dotquay login <host>`, when a later command hits any feed or git repo on that host, then it authenticates without an environment variable; given no credential, then it fails with `error.kind = "auth"` rather than hanging on a prompt; given a token configured, then it appears in no committed file — **proposed (v0.7)** |
 
 ### P2 — future considerations (design for, don't build)
 
@@ -636,8 +854,9 @@ Design decisions, and why:
 - **`tool` is asserted.** The single most likely misconfiguration is a CLI path pointing at some
   other executable; a plugin that checks this can say so instead of showing an empty panel.
 - **`error.kind` is a stable category, not free text** (`workflow`, `no_manifest`, `conflict`,
-  `git`, `unexpected`). A UI reacts to `no_manifest` with an "Initialise project" button — something
-  it cannot do with a message string.
+  `git`, `auth`, `unexpected`). A UI reacts to `no_manifest` with an "Initialise project" button —
+  something it cannot do with a message string. `auth` (v0.7) is what lets it offer a login prompt
+  instead of showing a 401 as a generic failure.
 - **Optional fields are emitted as `null`, never omitted.** Present-but-null distinguishes "dotquay
   says there is no version" from "this dotquay is too old to have that field".
 - **Enums map to explicit strings** (`JsonMapper`), not to a naming convention. Renaming a C# enum
@@ -703,6 +922,45 @@ one shared node, not a tangle); per-addon badges for conflict / modified / missi
 override / orphan; a conflict sidebar and a version picker that ranks candidates satisfying *every*
 requirer first; add (git URL or NuGet ID), update, remove, install, patch capture, outdated, and
 doctor; and a first-run banner offering exactly the one button that fixes the problem it is showing.
+
+### 18.1 Layout is scenes, not code (v0.9)
+
+Every control the plugin draws is a `.tscn` under `ui/`, with its script bound to it. Two reasons,
+and only the second is about taste:
+
+- **A panel built in `_ready` can only be changed by editing code**, which puts a spacing tweak and a
+  wire-format change in the same review. The scenes are editable in the editor the plugin ships
+  inside.
+- **Repeated rows become instantiable units.** A conflict card, a candidate row, a NuGet row, a
+  preview row, a feed card, and the badge/detail label are each one scene, instanced where needed —
+  so the scripts hold data binding and nothing else.
+
+Scripts still build what the *data* determines: a status row's badges depend on whether an addon is
+conflicted, patched, linked, or renamed, and no scene can hold a skeleton for every combination. The
+split is layout in the scene, contents in the script.
+
+Hand-written `.tscn` files fail at **load** time rather than compile time, so `tests/test_scenes.gd`
+loads and instantiates every one of them, and checks that each `%UniqueName` a script reaches for
+actually exists — the expected names are scanned out of the script's own source rather than listed,
+so adding a node cannot leave the test behind.
+
+### 18.2 The install preview dialog (v0.9)
+
+Pressing **Add…** on a git URL no longer installs. It runs `add --preview` (§6.3) and shows what
+would happen: every addon in the resolved graph marked `+` arriving / `~` moving / `=` unchanged and
+attributed to whoever requires it, the NuGet packages it brings in, and a card per feed the addon
+wants the project to trust — naming the addon that asked, the ID patterns the feed would own, and the
+packages that depend on the answer.
+
+A feed on a host already in `trusted_hosts` is shown as adopted automatically rather than as a
+choice, because presenting a checkbox that changes nothing is worse than saying so. Every other feed
+gets a checkbox, and **Install** stays disabled until each is ticked: a refused feed makes the add
+fail on the CLI side anyway, and letting the user press a button into a guaranteed failure teaches
+them the dialog is noise.
+
+Confirming runs `dotquay add --adopt-source <url>…` with exactly the feeds ticked, so an install
+agreed to here is byte-for-byte the install the same flags would have produced at a terminal — the
+same rule §18's "the CLI is the only writer" draws everywhere else.
 
 Tested by a dependency-free headless GDScript runner (`src/Dotquay.Godot/run_tests.ps1`) covering
 envelope parsing and graph layout, plus a live contract suite that runs the real binary and parses

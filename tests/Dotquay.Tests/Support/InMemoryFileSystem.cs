@@ -94,6 +94,23 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public void DeleteFile(string path) => _files.Remove(Normalize(path));
 
+    /// <summary>Paths that had <see cref="SetOwnerOnlyPermissions"/> called on them while they
+    /// existed. Modelled rather than stubbed, so "the credential file is written owner-only" is a
+    /// real assertion instead of a code review.</summary>
+    public HashSet<string> OwnerOnlyPaths { get; } = new(StringComparer.Ordinal);
+
+    public void SetOwnerOnlyPermissions(string path)
+    {
+        var key = Normalize(path);
+
+        // Matches the real implementation, which returns early for a missing file — so a store that
+        // set permissions before writing would fail this fake exactly as it fails on disk.
+        if (_files.ContainsKey(key))
+        {
+            OwnerOnlyPaths.Add(key);
+        }
+    }
+
     public void MoveDirectory(string source, string destination)
     {
         var sourceKey = Normalize(source);
@@ -117,6 +134,11 @@ public sealed class InMemoryFileSystem : IFileSystem
 
         CreateDirectory(ParentOf(destinationKey));
     }
+
+    /// <summary>Every file that exists, anywhere. Not part of <see cref="IFileSystem"/> — it backs
+    /// whole-filesystem assertions like <c>SecretLeakTests</c>'s "the token is in no file dotquay
+    /// wrote", which has to check files it doesn't know the names of.</summary>
+    public IEnumerable<string> AllFilePaths() => _files.Keys.ToList();
 
     public IEnumerable<string> EnumerateFiles(string path, bool recursive = true)
     {

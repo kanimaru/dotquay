@@ -121,6 +121,24 @@ public sealed class SystemFileSystem : IFileSystem
         }
     }
 
+    public void SetOwnerOnlyPermissions(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            // No-op by design. The equivalent would be rewriting the file's DACL, which needs
+            // Windows-only ACL APIs; the file already sits under %USERPROFILE%, whose default ACL is
+            // already owner-only. `dotquay doctor` verifies that rather than assuming it.
+            return;
+        }
+
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+    }
+
     public void MoveDirectory(string source, string destination)
     {
         // Same link guard as DeleteDirectory, for the same reason: the swap's destination is

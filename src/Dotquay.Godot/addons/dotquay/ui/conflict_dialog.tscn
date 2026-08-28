@@ -1,0 +1,86 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/conflict_dialog.gd" id="1_conflict_dialog"]
+
+[node name="ConflictDialog" type="ConfirmationDialog"]
+title = "Resolve dependency conflict"
+size = Vector2i(620, 520)
+min_size = Vector2i(620, 520)
+ok_button_text = "Apply override"
+script = ExtResource("1_conflict_dialog")
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Headline" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "conflict"
+autowrap_mode = 3
+
+[node name="Detail" type="RichTextLabel" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+fit_content = true
+selection_enabled = true
+
+[node name="RequirementsHeading" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Who needs it"
+
+[node name="Requirements" type="VBoxContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CandidatesHeading" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Pick a version to force"
+
+[node name="CandidateScroll" type="ScrollContainer" parent="Root"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Candidates" type="VBoxContainer" parent="Root/CandidateScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CustomRow" type="HBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CustomRadio" type="CheckBox" parent="Root/CustomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "For a version, branch, or commit that isn't offered above — including one that isn't tagged."
+text = "Something else:"
+
+[node name="CustomKind" type="OptionButton" parent="Root/CustomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 3
+popup/item_0/text = "version"
+popup/item_0/id = 0
+popup/item_1/text = "branch"
+popup/item_1/id = 1
+popup/item_2/text = "rev"
+popup/item_2/id = 2
+
+[node name="CustomValue" type="LineEdit" parent="Root/CustomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "~1.4, main, or a commit SHA"

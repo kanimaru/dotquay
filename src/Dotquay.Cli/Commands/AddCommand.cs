@@ -19,6 +19,17 @@ internal static class AddCommand
 {
     private const string CommandName = "add";
 
+    /// <summary>
+    /// The envelope's <c>command</c> for a preview run.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <c>"add"</c>. A consumer switches on this field to pick a parser, and
+    /// <c>--preview</c> emits <see cref="AddPreviewJson"/> where <c>add</c> emits
+    /// <see cref="OperationJson"/> — reporting both as "add" would hand the wrong parser a payload it
+    /// would half-read rather than reject.
+    /// </remarks>
+    private const string PreviewCommandName = "add-preview";
+
     public static Command Build()
     {
         var sourceArgument = new Argument<string>("source")
@@ -56,6 +67,21 @@ internal static class AddCommand
             Description = "Git sources only. Pin to an exact commit.",
         };
 
+        var previewOption = new Option<bool>("--preview")
+        {
+            Description = "Resolve what this add would do and report it without writing anything: the full "
+                + "transitive addon graph, the NuGet packages it brings in, and any feeds its addons "
+                + "would ask this project to trust. Git sources only.",
+        };
+
+        var adoptSourceOption = new Option<string[]>("--adopt-source")
+        {
+            Description = "Pre-approve an addon-declared NuGet feed by URL, as reported by --preview's "
+                + "sources_needing_approval. Repeatable. Approval applies to this run only and never "
+                + "widens [nuget] trusted_hosts.",
+            AllowMultipleArgumentsPerToken = false,
+        };
+
         var jsonOption = JsonOutput.CreateOption();
 
         var command = new Command(CommandName, "Add a dependency (git URL or NuGet package ID), resolve it, lock it, and install it.")
@@ -66,6 +92,8 @@ internal static class AddCommand
             versionOption,
             branchOption,
             revOption,
+            previewOption,
+            adoptSourceOption,
             jsonOption,
         };
 
@@ -73,8 +101,17 @@ internal static class AddCommand
         {
             var source = parseResult.GetValue(sourceArgument)!;
             var json = parseResult.GetValue(jsonOption);
+            var preview = parseResult.GetValue(previewOption);
+            var adoptSources = parseResult.GetValue(adoptSourceOption) ?? [];
             var projectDirectory = GlobalOptions.Resolve(parseResult);
-            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
+
+            // A preview must never adopt, so it gets no console prompt: the whole point is that it
+            // reports the question instead of asking it. The real run replays the answer the user
+            // already gave through --adopt-source, falling back to the console prompt when the flow
+            // is a human at a terminal rather than the editor plugin.
+            var (workflow, progress) = preview
+                ? WorkflowFactory.CreateWithProgress(json)
+                : WorkflowFactory.CreateWithProgress(json, allowSourceAdoption: true, preApprovedSourceUrls: adoptSources);
 
             var options = new AddonAddOptions
             {
@@ -89,6 +126,17 @@ internal static class AddCommand
             {
                 if (!LooksLikeGitUrl(source))
                 {
+                    if (preview)
+                    {
+                        // A NuGet add pulls in no addons and declares no feeds, so a preview of one
+                        // would be a dialog with nothing in it. Saying so beats emitting an empty
+                        // payload the caller has to recognise as meaningless.
+                        throw new WorkflowException(
+                            $"--preview applies to git addons, but '{source}' is a NuGet package. A NuGet add "
+                            + "resolves one version from feeds this project already declares — there is no "
+                            + "dependency graph or feed adoption to preview.");
+                    }
+
                     return await AddDotnetAsync(workflow, projectDirectory, source, options, json, progress, cancellationToken);
                 }
 
@@ -99,11 +147,16 @@ internal static class AddCommand
                     options = await workflow.ResolveShorthandAsync(gitUrl, reference, options, cancellationToken);
                 }
 
-                return await AddGitAsync(workflow, projectDirectory, gitUrl, options, json, progress, cancellationToken);
+                return preview
+                    ? await PreviewGitAsync(workflow, projectDirectory, gitUrl, options, adoptSources, json, progress, cancellationToken)
+                    : await AddGitAsync(workflow, projectDirectory, gitUrl, options, json, progress, cancellationToken);
             }
             catch (WorkflowException ex)
             {
-                return JsonOutput.Fail(json, CommandName, ex);
+                // Reported under the same name the success envelope would have used, so a consumer
+                // that routes results by command handles a preview's failure in the dialog that asked
+                // for it rather than in the panel's general log.
+                return JsonOutput.Fail(json, preview ? PreviewCommandName : CommandName, ex);
             }
             finally
             {
@@ -187,6 +240,137 @@ internal static class AddCommand
 
         return 0;
     }
+
+    /// <summary>
+    /// <c>add --preview</c>: resolves and reports, writes nothing.
+    /// </summary>
+    /// <remarks>
+    /// Exit code 2, not 0 or 1, when a feed needs approval. Zero would tell a script the add is ready
+    /// to run unattended when it isn't; one would say the preview failed, which it didn't — it
+    /// succeeded at discovering a question. A caller that only checks for success still behaves
+    /// correctly, because 2 is not 0.
+    /// </remarks>
+    private static async Task<int> PreviewGitAsync(
+        DependencyWorkflow workflow,
+        string projectDirectory,
+        string gitUrl,
+        AddonAddOptions options,
+        IReadOnlyList<string> adoptSources,
+        bool json,
+        IDisposable progress,
+        CancellationToken cancellationToken)
+    {
+        var preview = await workflow.PreviewAddAsync(projectDirectory, gitUrl, options, adoptSources, cancellationToken);
+        progress.Dispose();
+
+        var payload = JsonMapper.ToJson(preview);
+
+        if (json)
+        {
+            Console.WriteLine(DotquayJson.Write(
+                JsonEnvelope<AddPreviewJson>.Success(PreviewCommandName, payload, preview.Warnings)));
+
+            return payload.NeedsApproval ? 2 : 0;
+        }
+
+        PrintPreview(payload);
+
+        foreach (var warning in preview.Warnings)
+        {
+            ConsoleOutput.WriteLine(ConsoleColor.Yellow, warning);
+        }
+
+        return payload.NeedsApproval ? 2 : 0;
+    }
+
+    private static void PrintPreview(AddPreviewJson preview)
+    {
+        Console.WriteLine($"Adding '{preview.Name}' from {preview.Git} would resolve to:");
+        Console.WriteLine();
+
+        foreach (var addon in preview.Addons)
+        {
+            var version = addon.Version ?? addon.ShortSha;
+            var origin = addon.RequiredBy.Contains(ProjectRequirer)
+                ? ""
+                : $"  (required by {string.Join(", ", addon.RequiredBy)})";
+
+            var marker = addon switch
+            {
+                { IsNew: true, PreviousResolved: null } => "  +",
+                { IsNew: true } => "  ~",
+                _ => "   ",
+            };
+
+            var line = $"{marker} {addon.Name}  {version}{origin}";
+
+            if (addon.Folder != addon.Name)
+            {
+                line += $"  -> addons/{addon.Folder}";
+            }
+
+            ConsoleOutput.WriteLine(addon.IsNew ? ConsoleColor.Green : ConsoleColor.Gray, line);
+        }
+
+        foreach (var package in preview.Dotnet.Where(d => d.IsNew))
+        {
+            var origin = package.DeclaredByAddon is null ? "" : $"  (required by {package.DeclaredByAddon})";
+            ConsoleOutput.WriteLine(ConsoleColor.Green, $"  + {package.Name}  {package.Constraint ?? "latest"}  (NuGet){origin}");
+        }
+
+        PrintPreviewSources(
+            "Feeds this project would take on automatically:",
+            preview.SourcesToAdopt,
+            ConsoleColor.Gray,
+            explainWhy: true);
+
+        PrintPreviewSources(
+            "Feeds needing your approval before this add can complete:",
+            preview.SourcesNeedingApproval,
+            ConsoleColor.Yellow);
+
+        if (preview.NeedsApproval)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Re-run with --adopt-source <url> for each feed you accept, or add its host to "
+                + "[nuget] trusted_hosts in dotquay.toml.");
+        }
+    }
+
+    /// <param name="explainWhy">Only the automatic list needs a reason — for the other list, the
+    /// reason is the heading.</param>
+    private static void PrintPreviewSources(
+        string heading, IReadOnlyList<PreviewSourceJson> sources, ConsoleColor color, bool explainWhy = false)
+    {
+        if (sources.Count == 0)
+        {
+            return;
+        }
+
+        Console.WriteLine();
+        ConsoleOutput.WriteLine(color, heading);
+
+        foreach (var source in sources)
+        {
+            var reason = !explainWhy ? "" : source.IsTrustedHost ? " (trusted host)" : " (pre-approved)";
+            ConsoleOutput.WriteLine(color, $"  {source.Url}");
+            ConsoleOutput.WriteLine(color, $"    declared by addon '{source.DeclaredByAddon}'{reason}");
+
+            if (source.Packages.Count > 0)
+            {
+                ConsoleOutput.WriteLine(color, $"    would own: {string.Join(", ", source.Packages)}");
+            }
+
+            if (source.PackageIds.Count > 0)
+            {
+                ConsoleOutput.WriteLine(color, $"    needed for: {string.Join(", ", source.PackageIds)}");
+            }
+        }
+    }
+
+    /// <summary>The synthetic requirer that means "you asked for this yourself". Referenced from the
+    /// resolver's own constant rather than retyped, so the two can't drift apart.</summary>
+    private const string ProjectRequirer = Dotquay.Core.Resolve.GraphConflict.ProjectRequirerName;
 
     private static async Task<int> AddDotnetAsync(
         DependencyWorkflow workflow,

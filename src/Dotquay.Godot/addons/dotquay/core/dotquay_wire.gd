@@ -40,6 +40,15 @@ const GRAPH_SOURCE_RESOLVED := "resolved"
 ## The synthetic requirer name the resolver uses for the project's own [addons.*] entries.
 const PROJECT_NODE := "<project>"
 
+## Envelope `command` values the panel routes on. `add --preview` reports itself under its own name
+## rather than as "add", because it emits a different payload shape — handing an add's parser a
+## preview would half-read it instead of rejecting it.
+const COMMAND_ADD := "add"
+const COMMAND_ADD_PREVIEW := "add-preview"
+const COMMAND_GRAPH := "graph"
+const COMMAND_OUTDATED := "outdated"
+const COMMAND_DOCTOR := "doctor"
+
 
 ## JSON nulls arrive as `null`, and `String(null)` yields "<null>" rather than "". Every optional
 ## field goes through here, so a missing value renders as absent instead of as that literal text.

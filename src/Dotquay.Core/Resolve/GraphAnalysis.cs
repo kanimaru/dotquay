@@ -24,4 +24,13 @@ public sealed record GraphAnalysis(
     IReadOnlyList<DotnetSpec> AddonDeclaredDotnet,
     IReadOnlyList<GraphConflict> Conflicts,
     IReadOnlyDictionary<string, IReadOnlyList<GraphRequirement>> RequirementsByName,
-    IReadOnlyList<GraphWarning> Warnings);
+    IReadOnlyList<GraphWarning> Warnings)
+{
+    /// <summary>Feeds declared by addons in the graph (SPEC.md §11.3). Init-only with a default
+    /// rather than a positional parameter, so existing construction sites stay valid.</summary>
+    public IReadOnlyList<AddonDeclaredSource> AddonDeclaredSources { get; init; } = [];
+
+    /// <summary>Addon name to the <c>[dotnet.*]</c> package IDs it declared.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> DotnetPackagesByAddon { get; init; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+}

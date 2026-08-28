@@ -60,6 +60,13 @@ public static class LockfileWriter
             sb.AppendLine("[[dotnet]]");
             sb.AppendLine($"name = {Quote(dependency.Name)}");
             sb.AppendLine($"resolved = {Quote(dependency.Resolved)}");
+
+            // Omitted for nuget.org, so a public-only project's lockfile is byte-identical to what
+            // pre-v0.7 dotquay wrote and upgrading produces no diff.
+            if (dependency.Source is not null)
+            {
+                sb.AppendLine($"source = {Quote(dependency.Source)}");
+            }
         }
 
         return sb.ToString();

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.IO;
 
 namespace Dotquay.Core.Git;
 
@@ -8,14 +9,30 @@ namespace Dotquay.Core.Git;
 /// Shells out to <c>git</c> on PATH (SPEC.md §12: real git handles SSH keys, credential helpers,
 /// and proxies for free — LibGit2Sharp auth is a known pain, pure-library is a later refinement).
 /// </summary>
+/// <remarks>
+/// Every child process gets the environment <see cref="GitEnvironment"/> builds: prompts disabled,
+/// and dotquay appended as a credential helper *after* whatever the machine already has, so an
+/// existing SSH agent or Git Credential Manager still answers first and dotquay only fills the gap
+/// (SPEC.md §11.2).
+/// </remarks>
 public sealed class ProcessGitClient : IGitClient
 {
+    private readonly IReadOnlyDictionary<string, string> _childEnvironment;
+
+    /// <param name="childEnvironment">Extra variables for every git child process. Null builds the
+    /// real one from <see cref="Environment.ProcessPath"/> — the AOT-safe way to find dotquay's own
+    /// binary, since <c>Assembly.Location</c> is empty in a published NativeAOT image.</param>
+    public ProcessGitClient(IReadOnlyDictionary<string, string>? childEnvironment = null)
+    {
+        _childEnvironment = childEnvironment ?? GitEnvironment.Build(Environment.ProcessPath, new SystemEnvironmentReader());
+    }
+
     public async Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default)
     {
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--tags", "--heads", repositoryUrl], cancellationToken);
         if (result.ExitCode != 0)
         {
-            throw new GitCommandException($"git ls-remote failed for {repositoryUrl}: {result.StdErr.Trim()}");
+            throw Failure($"git ls-remote failed for {repositoryUrl}: {result.StdErr.Trim()}", result.StdErr);
         }
 
         return ParseRefs(result.StdOut);
@@ -26,7 +43,7 @@ public sealed class ProcessGitClient : IGitClient
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--heads", repositoryUrl, branch], cancellationToken);
         if (result.ExitCode != 0)
         {
-            throw new GitCommandException($"git ls-remote failed for {repositoryUrl} branch '{branch}': {result.StdErr.Trim()}");
+            throw Failure($"git ls-remote failed for {repositoryUrl} branch '{branch}': {result.StdErr.Trim()}", result.StdErr);
         }
 
         var refs = ParseRefs(result.StdOut);
@@ -44,7 +61,7 @@ public sealed class ProcessGitClient : IGitClient
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--symref", repositoryUrl, "HEAD"], cancellationToken);
         if (result.ExitCode != 0)
         {
-            throw new GitCommandException($"git ls-remote --symref failed for {repositoryUrl}: {result.StdErr.Trim()}");
+            throw Failure($"git ls-remote --symref failed for {repositoryUrl}: {result.StdErr.Trim()}", result.StdErr);
         }
 
         // Expected first line: "ref: refs/heads/main\tHEAD"
@@ -82,9 +99,10 @@ public sealed class ProcessGitClient : IGitClient
             var full = await RunGitAsync(destinationPath, ["fetch", "--quiet", "origin"], cancellationToken);
             if (full.ExitCode != 0)
             {
-                throw new GitCommandException(
+                throw Failure(
                     $"Failed to fetch {commitSha} from {repositoryUrl}. "
-                    + $"Shallow fetch: {shallow.StdErr.Trim()}. Full fetch: {full.StdErr.Trim()}");
+                    + $"Shallow fetch: {shallow.StdErr.Trim()}. Full fetch: {full.StdErr.Trim()}",
+                    full.StdErr + shallow.StdErr);
             }
         }
 
@@ -167,17 +185,22 @@ public sealed class ProcessGitClient : IGitClient
         return byName.Select(kv => new GitRef(kv.Key, kv.Value.Sha, kv.Value.Kind)).ToList();
     }
 
-    private static async Task RunGitOrThrowAsync(
+    /// <summary>Builds a <see cref="GitCommandException"/> that already knows whether git was
+    /// complaining about credentials, so the CLI doesn't have to re-read the prose (SPEC.md §17).</summary>
+    private static GitCommandException Failure(string message, string stderr) =>
+        new(message, GitErrorClassifier.LooksLikeAuthenticationFailure(stderr));
+
+    private async Task RunGitOrThrowAsync(
         string? workingDirectory, string[] args, CancellationToken cancellationToken, string description)
     {
         var result = await RunGitAsync(workingDirectory, args, cancellationToken);
         if (result.ExitCode != 0)
         {
-            throw new GitCommandException($"{description} failed: {result.StdErr.Trim()}");
+            throw Failure($"{description} failed: {result.StdErr.Trim()}", result.StdErr);
         }
     }
 
-    private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
+    private async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
         string? workingDirectory, string[] args, CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo("git")
@@ -191,6 +214,14 @@ public sealed class ProcessGitClient : IGitClient
         foreach (var arg in args)
         {
             startInfo.ArgumentList.Add(arg);
+        }
+
+        // Set on the child only. dotquay's own process environment is never mutated — several git
+        // invocations can be in flight at once, and process-global state shared between them is the
+        // bug class IEnvironmentReader exists to avoid.
+        foreach (var (name, value) in _childEnvironment)
+        {
+            startInfo.Environment[name] = value;
         }
 
         if (workingDirectory is not null)

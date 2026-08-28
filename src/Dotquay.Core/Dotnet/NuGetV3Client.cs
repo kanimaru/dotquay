@@ -41,6 +41,8 @@ public sealed class NuGetV3Client : INuGetClient
 
     private readonly HttpClient _httpClient;
     private readonly string _serviceIndexUrl;
+    private readonly string _sourceName;
+    private readonly bool _isPublicDefault;
     private readonly AuthenticationHeaderValue? _authHeader;
     private string? _packageBaseAddress;
 
@@ -55,10 +57,20 @@ public sealed class NuGetV3Client : INuGetClient
     /// per-request, never as the shared client's <c>DefaultRequestHeaders</c>, so that's safe).
     /// Otherwise this creates its own and — deliberately, matching the process-lifetime CLI tools
     /// this ships as — never disposes it.</param>
-    public NuGetV3Client(string serviceIndexUrl = DefaultServiceIndexUrl, string? username = null, string? password = null, HttpClient? httpClient = null)
+    /// <param name="sourceName">The declared <c>[nuget.sources.*]</c> name, carried so a version
+    /// query can say which feed answered (for the lockfile) and an auth failure can name the feed to
+    /// log in to (rather than making the user match a URL by eye).</param>
+    public NuGetV3Client(
+        string serviceIndexUrl = DefaultServiceIndexUrl,
+        string? username = null,
+        string? password = null,
+        HttpClient? httpClient = null,
+        string? sourceName = null)
     {
         _serviceIndexUrl = serviceIndexUrl;
         _httpClient = httpClient ?? new HttpClient();
+        _isPublicDefault = string.Equals(serviceIndexUrl, DefaultServiceIndexUrl, StringComparison.OrdinalIgnoreCase);
+        _sourceName = sourceName ?? (_isPublicDefault ? Manifest.NuGetSourceSpec.PublicName : serviceIndexUrl);
 
         if (username is not null && password is not null)
         {
@@ -69,7 +81,7 @@ public sealed class NuGetV3Client : INuGetClient
 
     /// <summary>Whatever order the feed returns — callers that care about ordering, like
     /// <see cref="NuGetVersionSelector"/>, sort explicitly rather than trusting the feed's order.</summary>
-    public async Task<IReadOnlyList<string>> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default)
+    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default)
     {
         var baseAddress = await GetPackageBaseAddressAsync(cancellationToken);
 
@@ -79,18 +91,23 @@ public sealed class NuGetV3Client : INuGetClient
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return [];
+            return new NuGetVersionQuery([], ReportedSourceName);
         }
 
-        response.EnsureSuccessStatusCode();
+        ThrowIfUnauthorized(response, $"looking up '{packageId}'");
+        ThrowIfUnsuccessful(response, $"looking up '{packageId}'");
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var payload = await JsonSerializer.DeserializeAsync(stream, NuGetV3JsonContext.Default.FlatContainerIndex, cancellationToken);
-        return payload?.Versions ?? [];
+        return new NuGetVersionQuery(payload?.Versions ?? [], ReportedSourceName);
     }
 
     public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>
-        (await GetVersionsAsync(packageId, cancellationToken)).Count > 0;
+        (await GetVersionsAsync(packageId, cancellationToken)).Found;
+
+    /// <summary>Null for nuget.org, matching the lockfile's convention of omitting the key for the
+    /// public feed — so a public-only project's lockfile stays byte-identical to pre-v0.7.</summary>
+    private string? ReportedSourceName => _isPublicDefault ? null : _sourceName;
 
     private async Task<string> GetPackageBaseAddressAsync(CancellationToken cancellationToken)
     {
@@ -100,18 +117,116 @@ public sealed class NuGetV3Client : INuGetClient
         }
 
         using var response = await SendAsync(_serviceIndexUrl, cancellationToken);
-        response.EnsureSuccessStatusCode();
+
+        // Checked here as well as on the package query, and this is the one that usually fires: on a
+        // private feed a bad or missing credential is rejected at the service index, before any
+        // package lookup happens at all.
+        ThrowIfUnauthorized(response, "fetching the service index");
+        ThrowIfUnsuccessful(response, "fetching the service index");
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var index = await JsonSerializer.DeserializeAsync(stream, NuGetV3JsonContext.Default.ServiceIndex, cancellationToken);
+
+        ServiceIndex? index;
+        try
+        {
+            index = await JsonSerializer.DeserializeAsync(stream, NuGetV3JsonContext.Default.ServiceIndex, cancellationToken);
+        }
+        catch (JsonException ex)
+        {
+            // A sign-in page, an HTML error, a proxy's interstitial — anything that answered 200 with
+            // something that isn't a service index. Typed, because an unhandled JsonException would
+            // reach the user as a stack trace and, under --json, as no envelope at all.
+            throw new NuGetSourceException(
+                _sourceName, _serviceIndexUrl,
+                $"NuGet source '{_sourceName}' ({_serviceIndexUrl}) did not return a valid V3 service index. "
+                + "Check the URL — a page that requires sign-in will often answer 200 with HTML.", ex);
+        }
 
         var resource = index?.Resources.FirstOrDefault(r => r.Type == PackageBaseAddressResourceType)
-            ?? throw new InvalidOperationException(
-                $"NuGet source '{_serviceIndexUrl}' does not advertise a {PackageBaseAddressResourceType} resource "
-                + "(not a V3-compliant feed, or the service index is unreachable/misconfigured).");
+            ?? throw new NuGetSourceException(
+                _sourceName,
+                _serviceIndexUrl,
+                $"NuGet source '{_sourceName}' ({_serviceIndexUrl}) does not advertise a "
+                + $"{PackageBaseAddressResourceType} resource, so it isn't a usable V3 feed. Check the URL: a GitLab "
+                + "NuGet feed is /api/v4/projects/<id>/packages/nuget/index.json, or "
+                + "/api/v4/groups/<id>/-/packages/nuget/index.json for a group (GitLab 17.4+).");
 
         _packageBaseAddress = resource.Id.EndsWith('/') ? resource.Id : resource.Id + "/";
         return _packageBaseAddress;
+    }
+
+    /// <summary>
+    /// Turns a 401/403 into a typed <see cref="NuGetAuthenticationException"/>.
+    /// </summary>
+    /// <remarks>
+    /// Not merely a nicer message. <see cref="MultiSourceNuGetClient"/> has to tell "not on this
+    /// feed, try the next" (404) from "this feed won't say" (401), because falling through on a 401
+    /// to a public feed is how a private package gets substituted by a same-named public one
+    /// (SPEC.md §11.1). <see cref="HttpRequestException"/> carries the status code, but branching on
+    /// it from the aggregator would mean reaching into this class's HTTP details from outside.
+    /// </remarks>
+    private void ThrowIfUnauthorized(HttpResponseMessage response, string what)
+    {
+        if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+        {
+            return;
+        }
+
+        var hint = _authHeader is null
+            ? $"No credentials were sent. Run 'dotquay login {_serviceIndexUrl}'."
+            : "The credentials sent were rejected. Check them with 'dotquay login --list', or log in again.";
+
+        throw new NuGetAuthenticationException(
+            _sourceName,
+            _serviceIndexUrl,
+            $"NuGet source '{_sourceName}' answered {(int)response.StatusCode} {response.StatusCode} while {what}. {hint}");
+    }
+
+    /// <summary>
+    /// Turns any other unsuccessful status into a typed <see cref="NuGetSourceException"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>Replaces <c>EnsureSuccessStatusCode()</c>, whose <see cref="HttpRequestException"/>
+    /// nothing caught — it escaped as an unhandled exception, printing a stack trace and, under
+    /// <c>--json</c>, producing no envelope at all.</para>
+    /// <para>A 404 is genuinely ambiguous on GitLab, which returns it both for a project that does
+    /// not exist and for one the caller may not see — confirmed empirically against a self-hosted
+    /// instance, where a project known to exist and a name known not to exist were byte-identical
+    /// 404s when unauthenticated, and matching GitLab's documented practice of denying with a
+    /// generic 404 rather than disclosing existence. The hint therefore branches on whether a
+    /// credential was actually sent, because that is what decides which reading is plausible:
+    /// unauthenticated, "log in" is worth trying; authenticated, the credential was accepted this
+    /// far and the URL is the likelier fault.</para>
+    /// </remarks>
+    private void ThrowIfUnsuccessful(HttpResponseMessage response, string what)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var hint = response.StatusCode switch
+        {
+            HttpStatusCode.NotFound when _authHeader is null =>
+                "GitLab returns 404 both for a project that doesn't exist and for one you aren't allowed to see, "
+                + $"so this could be either. Check the URL, then try 'dotquay login {_serviceIndexUrl}'.",
+
+            HttpStatusCode.NotFound =>
+                "A credential was sent and accepted this far, so the URL is the likelier fault: a GitLab NuGet feed "
+                + "needs the project's numeric ID (/api/v4/projects/<id>/packages/nuget/index.json), not its path. "
+                + "Failing that, the token may lack the read_package_registry scope.",
+
+            HttpStatusCode.BadRequest =>
+                "Check the URL shape: a GitLab NuGet feed needs the project's numeric ID "
+                + "(/api/v4/projects/<id>/packages/nuget/index.json), and rejects a URL-encoded project path.",
+
+            _ => "The feed may be down or misconfigured.",
+        };
+
+        throw new NuGetSourceException(
+            _sourceName,
+            _serviceIndexUrl,
+            $"NuGet source '{_sourceName}' answered {(int)response.StatusCode} {response.StatusCode} while {what}. {hint}");
     }
 
     private async Task<HttpResponseMessage> SendAsync(string url, CancellationToken cancellationToken)
@@ -122,7 +237,18 @@ public sealed class NuGetV3Client : INuGetClient
             request.Headers.Authorization = _authHeader;
         }
 
-        return await _httpClient.SendAsync(request, cancellationToken);
+        try
+        {
+            return await _httpClient.SendAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            // DNS failure, refused connection, TLS problem. Same reasoning as the status check: a
+            // transport error must not reach the user as an unhandled exception.
+            throw new NuGetSourceException(
+                _sourceName, _serviceIndexUrl,
+                $"NuGet source '{_sourceName}' ({_serviceIndexUrl}) could not be reached: {ex.Message}", ex);
+        }
     }
 }
 

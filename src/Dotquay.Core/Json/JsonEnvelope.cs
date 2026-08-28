@@ -59,8 +59,14 @@ public static class JsonErrorKind
     /// carries the details; this is the flag that says "don't treat the graph as installable".</summary>
     public const string Conflict = "conflict";
 
-    /// <summary>A git invocation failed (network, auth, missing binary).</summary>
+    /// <summary>A git invocation failed (network, missing binary). Credential failures report
+    /// <see cref="Auth"/> instead.</summary>
     public const string Git = "git";
+
+    /// <summary>A remote refused dotquay's credentials, or wanted some and had none (SPEC.md §11.2).
+    /// Distinct from <see cref="Git"/> so a UI can offer a login prompt instead of showing a
+    /// network error, and so a script can tell "fix your token" from "the server is down".</summary>
+    public const string Auth = "auth";
 
     /// <summary>Anything unanticipated. A consumer should show the message and stop, not retry.</summary>
     public const string Unexpected = "unexpected";

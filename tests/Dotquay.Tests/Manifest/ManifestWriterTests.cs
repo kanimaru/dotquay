@@ -57,28 +57,82 @@ public class ManifestWriterTests
         var toml = ManifestWriter.ScaffoldProjectToml();
         var manifest = ManifestReader.ReadProject(toml);
 
-        Assert.Null(manifest.NuGetSource);
+        Assert.Empty(manifest.NuGetSources);
         Assert.Empty(manifest.Addons);
     }
 
     [Fact]
-    public void ScaffoldProjectToml_WithNuGetSource_RecordsIt()
+    public void ScaffoldProjectToml_WithNuGetSource_WritesTheNamedSourceForm()
     {
         var toml = ManifestWriter.ScaffoldProjectToml(nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
         var manifest = ManifestReader.ReadProject(toml);
 
-        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", manifest.NuGetSource);
+        var source = Assert.Single(manifest.NuGetSources);
+        Assert.Equal(NuGetSourceSpec.LegacyName, source.Name);
+        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", source.Url);
+
+        // Reading the legacy key stays supported forever; writing it stops here, so nothing created
+        // from v0.7 onwards has to be migrated twice.
+        Assert.DoesNotContain("nuget_source", toml);
     }
 
     [Fact]
-    public void Serialize_ThenRead_RoundTripsNuGetSource()
+    public void Serialize_ThenRead_RoundTripsEveryDeclaredSourceInOrder()
     {
-        var manifest = new ProjectManifest { NuGetSource = "https://private.example.com/index.json" };
+        // The guard against ProjectFileStore.WriteManifest's wholesale rewrite silently deleting a
+        // hand-written multi-feed configuration on the next unrelated `add`.
+        var manifest = new ProjectManifest
+        {
+            NuGetSources =
+            [
+                new NuGetSourceSpec("core", "https://private.example.com/core/index.json"),
+                new NuGetSourceSpec("tools", "https://private.example.com/tools/index.json"),
+            ],
+        };
+
+        var roundTripped = ManifestReader.ReadProject(ManifestWriter.Serialize(manifest));
+
+        Assert.Equal(["core", "tools"], roundTripped.NuGetSources.Select(source => source.Name));
+        Assert.Equal(
+            ["https://private.example.com/core/index.json", "https://private.example.com/tools/index.json"],
+            roundTripped.NuGetSources.Select(source => source.Url));
+    }
+
+    [Fact]
+    public void Serialize_ThenRead_RoundTripsAPerPackageSourcePin()
+    {
+        var manifest = new ProjectManifest
+        {
+            NuGetSources = [new NuGetSourceSpec("core", "https://private.example.com/core/index.json")],
+            Dotnet = new Dictionary<string, DotnetSpec>
+            {
+                ["Acme.Internal"] = new DotnetSpec { Name = "Acme.Internal", Version = "1.0.0", Source = "core" },
+            },
+        };
+
+        var roundTripped = ManifestReader.ReadProject(ManifestWriter.Serialize(manifest));
+
+        Assert.Equal("core", roundTripped.Dotnet["Acme.Internal"].Source);
+    }
+
+    [Fact]
+    public void Serialize_SourceMappingDisabled_EmitsBareNuGetKeysBeforeAnySubTable()
+    {
+        // Ordering is load-bearing: writing [nuget.sources.core] first implicitly defines [nuget],
+        // and a later explicit [nuget] header is a redefinition TOML rejects. Asserted by round-trip,
+        // which is exactly the operation that would fail.
+        var manifest = new ProjectManifest
+        {
+            NuGetSourceMapping = false,
+            NuGetSources = [new NuGetSourceSpec("core", "https://private.example.com/core/index.json")],
+        };
 
         var toml = ManifestWriter.Serialize(manifest);
         var roundTripped = ManifestReader.ReadProject(toml);
 
-        Assert.Equal("https://private.example.com/index.json", roundTripped.NuGetSource);
+        Assert.False(roundTripped.NuGetSourceMapping);
+        Assert.Single(roundTripped.NuGetSources);
+        Assert.True(toml.IndexOf("[nuget]", StringComparison.Ordinal) < toml.IndexOf("[nuget.sources", StringComparison.Ordinal));
     }
 
     [Fact]

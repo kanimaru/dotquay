@@ -1,0 +1,18 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/dotnet_row.gd" id="1_dotnet_row"]
+
+[node name="DotnetRow" type="HBoxContainer"]
+script = ExtResource("1_dotnet_row")
+
+[node name="PackageLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "package"
+
+[node name="RemoveButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Remove this package from dotquay.toml, the lockfile, and the .csproj."
+text = "Remove"

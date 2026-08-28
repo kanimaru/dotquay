@@ -70,7 +70,11 @@ public sealed class DependencyGraphResolver
             throw new AddonResolutionException(analysis.Conflicts[0].Message);
         }
 
-        return new GraphResolutionResult(analysis.Addons, analysis.AddonDeclaredDotnet, analysis.Warnings);
+        return new GraphResolutionResult(analysis.Addons, analysis.AddonDeclaredDotnet, analysis.Warnings)
+        {
+            AddonDeclaredSources = analysis.AddonDeclaredSources,
+            DotnetPackagesByAddon = analysis.DotnetPackagesByAddon,
+        };
     }
 
     /// <summary>
@@ -118,14 +122,24 @@ public sealed class DependencyGraphResolver
                 kv => kv.Key,
                 kv => (IReadOnlyList<GraphRequirement>)kv.Value.Select(r => r.ToGraphRequirement()).ToList(),
                 StringComparer.Ordinal),
-            walk.Warnings);
+            walk.Warnings)
+        {
+            AddonDeclaredSources = walk.AddonDeclaredSources,
+            DotnetPackagesByAddon = walk.DotnetPackagesByAddon,
+        };
     }
 
     private sealed record WalkResult(
         IReadOnlyDictionary<string, List<AddonRequirement>> RequirementsByName,
         IReadOnlyDictionary<string, List<string>> DependencyNamesByAddon,
         IReadOnlyList<DotnetSpec> AddonDeclaredDotnet,
-        IReadOnlyList<GraphWarning> Warnings);
+        IReadOnlyList<GraphWarning> Warnings)
+    {
+        public IReadOnlyList<AddonDeclaredSource> AddonDeclaredSources { get; init; } = [];
+
+        public IReadOnlyDictionary<string, IReadOnlyList<string>> DotnetPackagesByAddon { get; init; } =
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+    }
 
     /// <summary>The breadth-first discovery half, shared by both entry points: expands each addon
     /// name's own package manifest exactly once and records who required what. Never unifies —
@@ -140,6 +154,8 @@ public sealed class DependencyGraphResolver
         var dependencyNamesByAddon = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var discoveredNames = new HashSet<string>(StringComparer.Ordinal);
         var addonDeclaredDotnet = new Dictionary<string, DotnetSpec>(StringComparer.Ordinal);
+        var addonDeclaredSources = new List<AddonDeclaredSource>();
+        var dotnetPackagesByAddon = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
         var warnings = new List<GraphWarning>();
         var queue = new Queue<AddonRequirement>();
 
@@ -194,6 +210,19 @@ public sealed class DependencyGraphResolver
                     // [dotnet.*] entries always win over anything discovered here.
                     addonDeclaredDotnet.TryAdd(dotnetSpec.Name, dotnetSpec);
                 }
+
+                if (packageManifest.Dotnet.Count > 0)
+                {
+                    dotnetPackagesByAddon[name] = packageManifest.Dotnet.Values.Select(d => d.Name).ToList();
+                }
+
+                // Collected, never applied here. Whether any of these feeds is actually used is the
+                // consuming project's decision (SourceAdopter, SPEC.md §11.3) — the walk's job is
+                // only to surface what the addons asked for.
+                foreach (var declaredSource in packageManifest.NuGetSources)
+                {
+                    addonDeclaredSources.Add(new AddonDeclaredSource(name, declaredSource));
+                }
             }
         }
         finally
@@ -201,7 +230,11 @@ public sealed class DependencyGraphResolver
             _fileSystem.DeleteDirectory(_discoveryStagingRoot);
         }
 
-        return new WalkResult(requirementsByName, dependencyNamesByAddon, addonDeclaredDotnet.Values.ToList(), warnings);
+        return new WalkResult(requirementsByName, dependencyNamesByAddon, addonDeclaredDotnet.Values.ToList(), warnings)
+        {
+            AddonDeclaredSources = addonDeclaredSources,
+            DotnetPackagesByAddon = dotnetPackagesByAddon,
+        };
     }
 
     private async Task<PackageManifest?> TryReadPackageManifestAsync(

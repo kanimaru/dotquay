@@ -36,6 +36,24 @@ set it by hand at *Editor → Editor Settings → Dotquay → CLI Path*.
 | `override` | Forced by an `[overrides]` entry in `dotquay.toml`. |
 | `orphan` | Locked but nothing requires it any more — the drift `doctor` flags. |
 
+## Adding an addon shows you what you're agreeing to
+
+**Add…** on a git URL doesn't install. It runs `dotquay add --preview`, which resolves the real graph
+without writing anything, and shows you:
+
+- **Every addon that would land**, marked `+` arriving, `~` moving to a new commit, `=` unchanged —
+  each one saying who wants it, so "the four things it drags in" is visible before the folders are.
+- **The NuGet packages** those addons declare, attributed to the addon that declared each.
+- **Any NuGet feed an addon wants your project to trust** (SPEC.md §11.3), naming the addon asking,
+  the package IDs the feed would be allowed to serve, and what breaks if you decline.
+
+A feed on a host already in your `trusted_hosts` is shown as adopted automatically rather than as a
+choice. Every other one needs a tick, and **Install** stays disabled until they all have one —
+declining would make the add fail on the CLI side anyway, so offering the button would be a lie.
+
+Ticking a box approves that feed **for this install only**. It never adds the host to
+`trusted_hosts`, so the next addon from the same host still asks.
+
 ## Two graph modes
 
 **Refresh** rebuilds the graph from `dotquay.lock` — instant, offline, and true to what is actually
@@ -46,6 +64,26 @@ exists once conflicts were already settled.
 that your manifest currently has no solution, and the only one that can offer candidate versions to
 settle it. Nothing is installed and no lockfile is written — resolving here is a question, not a
 commitment.
+
+## Layout
+
+Every control is a scene under `ui/`, with its script bound to it — the panel, each dialog, the graph
+node, and one scene per repeated row (`ui/items/`). The scripts hold data binding; the scenes hold
+layout, so a spacing tweak is an editor change rather than a code review.
+
+Scripts still build what the *data* decides. A graph node's status row depends on whether the addon
+is conflicted, patched, linked, or renamed, and no scene can hold a skeleton for every combination.
+
+| Path | What it is |
+|---|---|
+| `ui/dotquay_panel.tscn` | The main-screen tab: toolbar, graph, log, sidebar, and the dialogs |
+| `ui/dependency_graph_view.tscn` | The `GraphEdit` the graph is drawn into |
+| `ui/dependency_node.tscn` | One addon as a `GraphNode` |
+| `ui/add_dependency_dialog.tscn` | The add form |
+| `ui/install_preview_dialog.tscn` | The confirmation step, with the feed approvals |
+| `ui/conflict_dialog.tscn` | The version picker |
+| `ui/items/*.tscn` | Rows and cards instanced by the above |
+| `core/dotquay_palette.gd` | The five status colours, in one place |
 
 ## Development
 

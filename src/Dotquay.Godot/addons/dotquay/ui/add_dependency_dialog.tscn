@@ -1,0 +1,73 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/add_dependency_dialog.gd" id="1_add_dialog"]
+
+[node name="AddDependencyDialog" type="ConfirmationDialog"]
+title = "Add a dependency"
+size = Vector2i(560, 260)
+min_size = Vector2i(560, 260)
+ok_button_text = "Add"
+script = ExtResource("1_add_dialog")
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="KindRow" type="HBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="KindLabel" type="Label" parent="Root/KindRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "Source"
+
+[node name="Kind" type="OptionButton" parent="Root/KindRow"]
+unique_name_in_owner = true
+layout_mode = 2
+item_count = 2
+popup/item_0/text = "Git repository (GDScript addon)"
+popup/item_0/id = 0
+popup/item_1/text = "NuGet package (C#)"
+popup/item_1/id = 1
+
+[node name="SourceRow" type="HBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SourceLabel" type="Label" parent="Root/SourceRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "URL / ID"
+
+[node name="Source" type="LineEdit" parent="Root/SourceRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PathRow" type="HBoxContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PathLabel" type="Label" parent="Root/PathRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "Subtree"
+
+[node name="Path" type="LineEdit" parent="Root/PathRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "optional — defaults to addons/<repo name>; use \".\" if the addon is the repo root"
+
+[node name="Hint" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "hint"
+autowrap_mode = 3

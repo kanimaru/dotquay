@@ -102,10 +102,11 @@ public class ManifestReaderTests
     {
         var manifest = ManifestReader.ReadProject("");
 
-        Assert.Null(manifest.NuGetSource);
+        Assert.Empty(manifest.NuGetSources);
         Assert.Empty(manifest.Addons);
         Assert.Empty(manifest.Dotnet);
         Assert.Empty(manifest.Overrides);
+        Assert.True(manifest.NuGetSourceMapping);
     }
 
     [Fact]
@@ -120,7 +121,127 @@ public class ManifestReaderTests
             nuget_source = "https://private.example.com/index.json"
             """);
 
-        Assert.Equal("https://private.example.com/index.json", manifest.NuGetSource);
+        var source = Assert.Single(manifest.NuGetSources);
+        Assert.Equal(NuGetSourceSpec.LegacyName, source.Name);
+        Assert.Equal("https://private.example.com/index.json", source.Url);
+    }
+
+    [Fact]
+    public void ReadProject_NamedSources_KeepDeclarationOrder()
+    {
+        // Order is the resolution rule (SPEC.md §11.1), so it is read out of the file rather than
+        // out of a dictionary whose enumeration order is unspecified.
+        var manifest = ManifestReader.ReadProject("""
+            [nuget.sources.tools]
+            url = "https://private.example.com/tools/index.json"
+
+            [nuget.sources.core]
+            url = "https://private.example.com/core/index.json"
+            """);
+
+        Assert.Equal(["tools", "core"], manifest.NuGetSources.Select(source => source.Name));
+    }
+
+    [Fact]
+    public void ReadProject_LegacyKeyPlusExplicitDefault_IsAnErrorRatherThanASilentPrecedenceRule()
+    {
+        var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
+            [project]
+            nuget_source = "https://a.example.com/index.json"
+
+            [nuget.sources.default]
+            url = "https://b.example.com/index.json"
+            """));
+
+        Assert.Contains("Keep one", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadProject_InvalidSourceName_IsRejectedAtParseTime()
+    {
+        // The name becomes part of an environment variable name and a NuGet.Config key, so it can't
+        // be arbitrary.
+        Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
+            [nuget.sources."has space"]
+            url = "https://private.example.com/index.json"
+            """));
+    }
+
+    [Fact]
+    public void ReadProject_SourceMissingUrl_SaysWhichKeyIsMissing()
+    {
+        var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
+            [nuget.sources.core]
+            """));
+
+        Assert.Contains("'url'", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadProject_SourceMapping_DefaultsTrueAndCanBeTurnedOff()
+    {
+        Assert.False(ManifestReader.ReadProject("""
+            [nuget]
+            source_mapping = false
+            """).NuGetSourceMapping);
+    }
+
+    [Fact]
+    public void ReadProject_DotnetSourcePin_IsReadAsAPin()
+    {
+        var manifest = ManifestReader.ReadProject("""
+            [nuget.sources.core]
+            url = "https://private.example.com/core/index.json"
+
+            [dotnet.Acme.Internal]
+            version = "1.0.0"
+            source = "core"
+            """);
+
+        Assert.Equal("core", manifest.Dotnet["Acme.Internal"].Source);
+    }
+
+    [Fact]
+    public void ReadProject_DotnetSourceAsATable_IsAPackageIdSegmentNotAPin()
+    {
+        // Told apart by TOML type: a string 'source' is a feed pin, a *table* named 'source' is part
+        // of a dotted package ID. A key can't be both in TOML, so the two never collide.
+        var manifest = ManifestReader.ReadProject("""
+            [dotnet.Foo.source]
+            version = "2.0.0"
+            """);
+
+        Assert.Equal("2.0.0", manifest.Dotnet["Foo.source"].Version);
+        Assert.Null(manifest.Dotnet["Foo.source"].Source);
+    }
+
+    [Fact]
+    public void ReadProject_PinNamingAnUndeclaredSource_ListsTheOnesThatExist()
+    {
+        var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
+            [nuget.sources.core]
+            url = "https://private.example.com/core/index.json"
+
+            [dotnet.Acme.Internal]
+            version = "1.0.0"
+            source = "typo"
+            """));
+
+        Assert.Contains("'core'", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadProject_PinNamingNuGetOrg_IsAllowedWithoutDeclaringIt()
+    {
+        // nuget.org is appended to every source set implicitly, so pinning to it must not require
+        // writing it out first.
+        var manifest = ManifestReader.ReadProject("""
+            [dotnet.Newtonsoft.Json]
+            version = "13.0.3"
+            source = "nuget.org"
+            """);
+
+        Assert.Equal("nuget.org", manifest.Dotnet["Newtonsoft.Json"].Source);
     }
 
     [Fact]

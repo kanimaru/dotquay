@@ -1,0 +1,172 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/dotquay_panel.gd" id="1_panel"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/dependency_graph_view.tscn" id="2_graph_view"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/conflict_dialog.tscn" id="3_conflict_dialog"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/add_dependency_dialog.tscn" id="4_add_dialog"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/install_preview_dialog.tscn" id="5_preview_dialog"]
+
+[node name="DotquayPanel" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_panel")
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Toolbar" type="HBoxContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AddButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Add a git addon or a NuGet package."
+text = "Add..."
+
+[node name="InstallButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Make addons/ and .csproj match the lockfile exactly."
+text = "Install"
+
+[node name="UpdateAllButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Re-resolve every dependency and reinstall."
+text = "Update all"
+
+[node name="OutdatedButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Ask each upstream what's newer, without cloning."
+text = "Check for updates"
+
+[node name="ToolbarSeparator" type="VSeparator" parent="Root/Toolbar"]
+layout_mode = 2
+
+[node name="ResolveButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Re-walk the live dependency graph and report conflicts."
+text = "Re-resolve"
+
+[node name="RefreshButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Reload the graph from the lockfile."
+text = "Refresh"
+
+[node name="DoctorButton" type="Button" parent="Root/Toolbar"]
+layout_mode = 2
+tooltip_text = "Run dotquay's sanity checks."
+text = "Doctor"
+
+[node name="Summary" type="Label" parent="Root/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Loading..."
+
+[node name="Busy" type="Label" parent="Root/Toolbar"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "working..."
+
+[node name="SetupBanner" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="BannerRow" type="HBoxContainer" parent="Root/SetupBanner"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SetupMessage" type="Label" parent="Root/SetupBanner/BannerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "setup"
+autowrap_mode = 3
+
+[node name="LocateButton" type="Button" parent="Root/SetupBanner/BannerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Ask the OS where dotquay is and save it to Editor Settings."
+text = "Find dotquay on PATH"
+
+[node name="InitButton" type="Button" parent="Root/SetupBanner/BannerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Scaffold a manifest in this Godot project, the same as running `dotquay init`."
+text = "Create dotquay.toml"
+
+[node name="Split" type="HSplitContainer" parent="Root"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = -360
+
+[node name="LeftSplit" type="VSplitContainer" parent="Root/Split"]
+layout_mode = 2
+size_flags_horizontal = 3
+split_offset = -140
+
+[node name="GraphView" parent="Root/Split/LeftSplit" instance=ExtResource("2_graph_view")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Log" type="RichTextLabel" parent="Root/Split/LeftSplit"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+bbcode_enabled = true
+scroll_following = true
+selection_enabled = true
+
+[node name="SidebarTabs" type="TabContainer" parent="Root/Split"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+
+[node name="Conflicts" type="ScrollContainer" parent="Root/Split/SidebarTabs"]
+layout_mode = 2
+
+[node name="ConflictList" type="VBoxContainer" parent="Root/Split/SidebarTabs/Conflicts"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NuGet" type="ScrollContainer" parent="Root/Split/SidebarTabs"]
+visible = false
+layout_mode = 2
+
+[node name="DotnetList" type="VBoxContainer" parent="Root/Split/SidebarTabs/NuGet"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+; Dialogs are children of the panel so they inherit its lifetime — the editor can disable the plugin
+; mid-prompt, and a dialog parented anywhere else would outlive the panel that answers it. Explicitly
+; hidden: a Window in a scene is visible by default, and the panel is instantiated before it is shown.
+
+[node name="ConflictDialog" parent="." instance=ExtResource("3_conflict_dialog")]
+unique_name_in_owner = true
+visible = false
+
+[node name="AddDialog" parent="." instance=ExtResource("4_add_dialog")]
+unique_name_in_owner = true
+visible = false
+
+[node name="PreviewDialog" parent="." instance=ExtResource("5_preview_dialog")]
+unique_name_in_owner = true
+visible = false
+
+[node name="ConfirmRemove" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+visible = false
+title = "Remove dependency"
+ok_button_text = "Remove"

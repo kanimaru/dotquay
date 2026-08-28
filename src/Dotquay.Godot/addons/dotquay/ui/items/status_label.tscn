@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/status_label.gd" id="1_status_label"]
+
+[node name="StatusLabel" type="Label"]
+theme_override_font_sizes/font_size = 11
+text = "status"
+script = ExtResource("1_status_label")

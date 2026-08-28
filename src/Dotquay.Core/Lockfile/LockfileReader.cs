@@ -126,7 +126,10 @@ public static partial class LockfileReader
     {
         var name = GetString(entry, "name") ?? throw Missing(sourcePath, "dotnet", "name");
         var resolved = GetString(entry, "resolved") ?? throw Missing(sourcePath, "dotnet", "resolved");
-        return new LockedDotnet { Name = name, Resolved = resolved };
+
+        // Absent 'source' means nuget.org, which is exactly what every pre-v0.7 lockfile means too —
+        // so old lockfiles read correctly rather than needing a migration.
+        return new LockedDotnet { Name = name, Resolved = resolved, Source = GetString(entry, "source") };
     }
 
     private static bool LooksLikeFullSha(string value) => value.Length == 40 && value.All(Uri.IsHexDigit);

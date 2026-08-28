@@ -1,0 +1,28 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/preview_source_card.gd" id="1_preview_source_card"]
+
+[node name="PreviewSourceCard" type="VBoxContainer"]
+theme_override_constants/separation = 4
+script = ExtResource("1_preview_source_card")
+
+[node name="Approve" type="CheckBox" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Trust this feed for this install"
+
+[node name="Url" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+mouse_filter = 0
+theme_override_font_sizes/font_size = 11
+text = "https://"
+autowrap_mode = 3
+
+[node name="Detail" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Separator" type="HSeparator" parent="."]
+layout_mode = 2

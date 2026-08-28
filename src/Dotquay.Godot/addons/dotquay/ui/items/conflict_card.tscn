@@ -1,0 +1,37 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/conflict_card.gd" id="1_conflict_card"]
+
+[node name="ConflictCard" type="VBoxContainer"]
+offset_right = 300.0
+theme_override_constants/separation = 4
+script = ExtResource("1_conflict_card")
+
+[node name="Headline" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+text = "conflict"
+autowrap_mode = 2
+
+[node name="Requirements" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="ResolveButton" type="Button" parent="Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Pick a version to force, writing an [overrides] entry that wins over every other constraint."
+text = "Resolve..."
+
+[node name="FocusButton" type="Button" parent="Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Centre the dependency graph on this addon."
+text = "Show in graph"
+
+[node name="Separator" type="HSeparator" parent="."]
+layout_mode = 2

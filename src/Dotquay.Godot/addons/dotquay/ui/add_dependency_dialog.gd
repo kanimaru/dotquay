@@ -8,75 +8,33 @@ extends ConfirmationDialog
 ## NuGet package ID through the same `add`, and splitting them into two dialogs would make a user
 ## choose a menu item before they've decided what they're adding.
 
-signal add_requested(source: String, path_override: String)
+## The form is complete. For a git source the panel previews it first; a NuGet package has no graph
+## to preview, so it goes straight to `add`.
+signal add_requested(source: String, path_override: String, is_git: bool)
 
 enum SourceKind { GIT, NUGET }
 
-var _kind: OptionButton
-var _source: LineEdit
-var _path_row: HBoxContainer
-var _path: LineEdit
-var _hint: Label
+@onready var _kind: OptionButton = %Kind
+@onready var _source: LineEdit = %Source
+@onready var _path_row: HBoxContainer = %PathRow
+@onready var _path: LineEdit = %Path
+@onready var _hint: Label = %Hint
 
 
-func _init() -> void:
-	title = "Add a dependency"
-	ok_button_text = "Add"
-	min_size = Vector2i(560, 260)
-	_build()
-
-
-func _build() -> void:
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 10)
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(root)
-
-	var kind_row := HBoxContainer.new()
-	kind_row.add_theme_constant_override("separation", 8)
-	kind_row.add_child(_label("Source"))
-
-	_kind = OptionButton.new()
-	_kind.add_item("Git repository (GDScript addon)", SourceKind.GIT)
-	_kind.add_item("NuGet package (C#)", SourceKind.NUGET)
+func _ready() -> void:
 	_kind.item_selected.connect(_on_kind_selected)
-	kind_row.add_child(_kind)
-	root.add_child(kind_row)
-
-	var source_row := HBoxContainer.new()
-	source_row.add_theme_constant_override("separation", 8)
-	source_row.add_child(_label("URL / ID"))
-
-	_source = LineEdit.new()
-	_source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_source.text_changed.connect(_on_source_changed)
-	source_row.add_child(_source)
-	root.add_child(source_row)
-
-	_path_row = HBoxContainer.new()
-	_path_row.add_theme_constant_override("separation", 8)
-	_path_row.add_child(_label("Subtree"))
-
-	_path = LineEdit.new()
-	_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_path.placeholder_text = "optional — defaults to addons/<repo name>; use \".\" if the addon is the repo root"
-	_path_row.add_child(_path)
-	root.add_child(_path_row)
-
-	_hint = Label.new()
-	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hint.add_theme_font_size_override("font_size", 11)
-	_hint.add_theme_color_override("font_color", DotquayDependencyNode.COLOR_MUTED)
-	root.add_child(_hint)
-
 	confirmed.connect(_on_confirmed)
+
+	_hint.add_theme_color_override("font_color", DotquayPalette.MUTED)
 	_on_kind_selected(SourceKind.GIT)
 
 
 func open() -> void:
 	_source.text = ""
 	_path.text = ""
-	_on_kind_selected(_kind.selected)
+	_kind.select(SourceKind.GIT)
+	_on_kind_selected(SourceKind.GIT)
 	popup_centered()
 	_source.grab_focus()
 
@@ -92,7 +50,7 @@ func _on_kind_selected(index: int) -> void:
 		"https://github.com/nathanhoad/godot_dialogue_manager" if is_git else "Newtonsoft.Json")
 
 	_hint.text = (
-		"dotquay picks the latest release tag and pins it in dotquay.lock. A repository with no tags is pinned to its current default-branch commit instead."
+		"dotquay resolves the graph and shows you what it would install before anything is written."
 		if is_git else
 		"The latest stable release is written into your .csproj as a PackageReference and restored with dotnet.")
 
@@ -110,17 +68,11 @@ func _on_confirmed() -> void:
 	if source.is_empty():
 		return
 
-	add_requested.emit(source, _path.text.strip_edges() if _path_row.visible else "")
+	var is_git := _kind.selected == SourceKind.GIT
+	add_requested.emit(source, _path.text.strip_edges() if is_git else "", is_git)
 
 
 ## Mirrors AddCommand.LooksLikeGitUrl on the C# side: package IDs contain neither "://" nor an
 ## SSH-style "git@" prefix.
 static func _looks_like_git_url(source: String) -> bool:
 	return source.contains("://") or source.begins_with("git@")
-
-
-func _label(text: String) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.custom_minimum_size = Vector2(70, 0)
-	return label

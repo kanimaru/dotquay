@@ -8,37 +8,50 @@ extends Control
 ## the last graph it was handed — after any mutating command it re-runs `graph` rather than patching
 ## its state, so what's on screen is always something dotquay actually said, never something the UI
 ## inferred.
+##
+## The layout is [code]dotquay_panel.tscn[/code]; this script binds data to it. Nothing here builds a
+## container or sets an anchor, which is what keeps a change to the panel's shape out of the code that
+## talks to the CLI.
 
 const CLI_SCRIPT := preload("res://addons/dotquay/core/dotquay_cli.gd")
 const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
 const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
-const GRAPH_VIEW_SCRIPT := preload("res://addons/dotquay/ui/dependency_graph_view.gd")
-const NODE_SCRIPT := preload("res://addons/dotquay/ui/dependency_node.gd")
-const CONFLICT_DIALOG_SCRIPT := preload("res://addons/dotquay/ui/conflict_dialog.gd")
-const ADD_DIALOG_SCRIPT := preload("res://addons/dotquay/ui/add_dependency_dialog.gd")
+
+const CONFLICT_CARD := preload("res://addons/dotquay/ui/items/conflict_card.tscn")
+const DOTNET_ROW := preload("res://addons/dotquay/ui/items/dotnet_row.tscn")
+const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
 const MAX_LOG_LINES := 200
+
+## Sidebar labels wrap to the tab container's minimum width, minus its own padding.
+const SIDEBAR_WRAP := 300.0
+
+@onready var _graph_view: DotquayDependencyGraphView = %GraphView
+@onready var _summary: Label = %Summary
+@onready var _log: RichTextLabel = %Log
+@onready var _conflict_list: VBoxContainer = %ConflictList
+@onready var _dotnet_list: VBoxContainer = %DotnetList
+@onready var _busy: Label = %Busy
+@onready var _toolbar: HBoxContainer = %Toolbar
+
+@onready var _setup_banner: PanelContainer = %SetupBanner
+@onready var _setup_message: Label = %SetupMessage
+@onready var _locate_button: Button = %LocateButton
+@onready var _init_button: Button = %InitButton
+
+@onready var _conflict_dialog: DotquayConflictDialog = %ConflictDialog
+@onready var _add_dialog: DotquayAddDependencyDialog = %AddDialog
+@onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
+@onready var _confirm_remove: ConfirmationDialog = %ConfirmRemove
 
 var _cli: DotquayCli
 var _graph: DotquayGraph
 
-var _graph_view: DotquayDependencyGraphView
-var _summary: Label
-var _log: RichTextLabel
-var _conflict_list: VBoxContainer
-var _dotnet_list: VBoxContainer
-var _sidebar_tabs: TabContainer
-var _setup_banner: PanelContainer
-var _setup_message: Label
-var _locate_button: Button
-var _init_button: Button
-var _busy: Control
-var _toolbar_buttons: Array[Button] = []
-
-var _conflict_dialog: DotquayConflictDialog
-var _add_dialog: DotquayAddDependencyDialog
-var _confirm_remove: ConfirmationDialog
 var _pending_removal := ""
+
+## Git URL to the `--path` subtree the user typed alongside it, held only until that URL's preview
+## comes back. See [method _show_preview].
+var _pending_path_overrides: Dictionary = {}
 
 ## Set while a mutating command is in flight, so its completion triggers exactly one refresh instead
 ## of every command handler remembering to ask for one.
@@ -46,179 +59,55 @@ var _refresh_after_current := false
 
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
 	_cli = CLI_SCRIPT.new()
 	_cli.name = "DotquayCli"
 	_cli.finished.connect(_on_cli_finished)
 	_cli.busy_changed.connect(_on_busy_changed)
 	add_child(_cli)
 
-	_build_ui()
+	_wire_toolbar()
+
+	_graph_view.node_action_requested.connect(_on_node_action)
+	_add_dialog.add_requested.connect(_on_add_requested)
+	_preview_dialog.install_confirmed.connect(_on_install_confirmed)
+	_conflict_dialog.override_chosen.connect(_on_override_chosen)
+	_confirm_remove.confirmed.connect(_on_remove_confirmed)
+	_locate_button.pressed.connect(_on_locate_pressed)
+	_init_button.pressed.connect(_on_init_pressed)
+
+	_busy.add_theme_color_override("font_color", DotquayPalette.WARN)
+	_setup_message.add_theme_color_override("font_color", DotquayPalette.WARN)
+
 	refresh()
+
+
+## The toolbar's buttons live in the scene, so the binding is by node name rather than by a builder
+## that would have to duplicate the scene's ordering to stay readable.
+func _wire_toolbar() -> void:
+	var handlers := {
+		"AddButton": _on_add_pressed,
+		"InstallButton": _on_install_pressed,
+		"UpdateAllButton": _on_update_all_pressed,
+		"OutdatedButton": _on_outdated_pressed,
+		"ResolveButton": resolve,
+		"RefreshButton": refresh,
+		"DoctorButton": _on_doctor_pressed,
+	}
+
+	for node_name in handlers:
+		(_toolbar.get_node(node_name) as Button).pressed.connect(handlers[node_name])
 
 
 ## Reloads the graph from the lockfile — fast, offline, and safe to call on every panel focus.
 func refresh() -> void:
-	_run("graph", PackedStringArray(["graph"]))
+	_run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph"]))
 
 
 ## Re-walks live git refs. The only mode that can discover a conflict (SPEC.md §8), and the only one
 ## that costs network time — so it is always an explicit action, never automatic.
 func resolve() -> void:
 	_log_line("Re-resolving against live git refs — this can take a moment.")
-	_run("graph", PackedStringArray(["graph", "--resolve"]))
-
-
-# ---------------------------------------------------------------------------------------------
-# UI construction
-# ---------------------------------------------------------------------------------------------
-
-func _build_ui() -> void:
-	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 0)
-	add_child(root)
-
-	root.add_child(_build_toolbar())
-	root.add_child(_build_setup_banner())
-
-	var split := HSplitContainer.new()
-	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.split_offset = -360
-	root.add_child(split)
-
-	var left := VSplitContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.split_offset = -140
-	split.add_child(left)
-
-	_graph_view = GRAPH_VIEW_SCRIPT.new()
-	_graph_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_graph_view.node_action_requested.connect(_on_node_action)
-	left.add_child(_graph_view)
-
-	left.add_child(_build_log())
-	split.add_child(_build_sidebar())
-
-	_build_dialogs()
-
-
-func _build_toolbar() -> Control:
-	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 4)
-
-	_summary = Label.new()
-	_summary.text = "Loading..."
-	_summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	_add_toolbar_button(bar, "Add...", "Add a git addon or a NuGet package.", _on_add_pressed)
-	_add_toolbar_button(bar, "Install", "Make addons/ and .csproj match the lockfile exactly.", _on_install_pressed)
-	_add_toolbar_button(bar, "Update all", "Re-resolve every dependency and reinstall.", _on_update_all_pressed)
-	_add_toolbar_button(bar, "Check for updates", "Ask each upstream what's newer, without cloning.", _on_outdated_pressed)
-	bar.add_child(VSeparator.new())
-	_add_toolbar_button(bar, "Re-resolve", "Re-walk the live dependency graph and report conflicts.", resolve)
-	_add_toolbar_button(bar, "Refresh", "Reload the graph from the lockfile.", refresh)
-	_add_toolbar_button(bar, "Doctor", "Run dotquay's sanity checks.", _on_doctor_pressed)
-
-	bar.add_child(_summary)
-
-	_busy = _build_spinner()
-	bar.add_child(_busy)
-
-	return bar
-
-
-func _add_toolbar_button(bar: HBoxContainer, text: String, tooltip: String, handler: Callable) -> void:
-	var button := Button.new()
-	button.text = text
-	button.tooltip_text = tooltip
-	button.pressed.connect(handler)
-	bar.add_child(button)
-	_toolbar_buttons.append(button)
-
-
-func _build_spinner() -> Control:
-	var label := Label.new()
-	label.text = "working..."
-	label.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_WARN)
-	label.visible = false
-	return label
-
-
-func _build_setup_banner() -> Control:
-	_setup_banner = PanelContainer.new()
-	_setup_banner.visible = false
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	_setup_banner.add_child(row)
-
-	_setup_message = Label.new()
-	_setup_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_setup_message.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_setup_message.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_WARN)
-	row.add_child(_setup_message)
-
-	_locate_button = Button.new()
-	_locate_button.text = "Find dotquay on PATH"
-	_locate_button.tooltip_text = "Ask the OS where dotquay is and save it to Editor Settings."
-	_locate_button.pressed.connect(_on_locate_pressed)
-	row.add_child(_locate_button)
-
-	_init_button = Button.new()
-	_init_button.text = "Create dotquay.toml"
-	_init_button.tooltip_text = "Scaffold a manifest in this Godot project, the same as running `dotquay init`."
-	_init_button.pressed.connect(_on_init_pressed)
-	row.add_child(_init_button)
-
-	return _setup_banner
-
-
-func _build_log() -> Control:
-	_log = RichTextLabel.new()
-	_log.custom_minimum_size = Vector2(0, 120)
-	_log.scroll_following = true
-	_log.selection_enabled = true
-	_log.bbcode_enabled = true
-	return _log
-
-
-func _build_sidebar() -> Control:
-	_sidebar_tabs = TabContainer.new()
-	_sidebar_tabs.custom_minimum_size = Vector2(320, 0)
-
-	var conflicts_scroll := ScrollContainer.new()
-	conflicts_scroll.name = "Conflicts"
-	_conflict_list = VBoxContainer.new()
-	_conflict_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	conflicts_scroll.add_child(_conflict_list)
-	_sidebar_tabs.add_child(conflicts_scroll)
-
-	var dotnet_scroll := ScrollContainer.new()
-	dotnet_scroll.name = "NuGet"
-	_dotnet_list = VBoxContainer.new()
-	_dotnet_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dotnet_scroll.add_child(_dotnet_list)
-	_sidebar_tabs.add_child(dotnet_scroll)
-
-	return _sidebar_tabs
-
-
-func _build_dialogs() -> void:
-	_conflict_dialog = CONFLICT_DIALOG_SCRIPT.new()
-	_conflict_dialog.override_chosen.connect(_on_override_chosen)
-	add_child(_conflict_dialog)
-
-	_add_dialog = ADD_DIALOG_SCRIPT.new()
-	_add_dialog.add_requested.connect(_on_add_requested)
-	add_child(_add_dialog)
-
-	_confirm_remove = ConfirmationDialog.new()
-	_confirm_remove.title = "Remove dependency"
-	_confirm_remove.ok_button_text = "Remove"
-	_confirm_remove.confirmed.connect(_on_remove_confirmed)
-	add_child(_confirm_remove)
+	_run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph", "--resolve"]))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -234,14 +123,41 @@ func _on_add_pressed() -> void:
 	_add_dialog.open()
 
 
-func _on_add_requested(source: String, path_override: String) -> void:
+## A git source is previewed first; a NuGet package has no dependency graph and declares no feeds, so
+## there would be nothing in the dialog to read.
+func _on_add_requested(source: String, path_override: String, is_git: bool) -> void:
+	if not is_git:
+		_log_line("Adding %s..." % source)
+		_run(DotquayWire.COMMAND_ADD, PackedStringArray(["add", source]), true)
+		return
+
+	_log_line("Resolving what adding %s would install..." % source)
+	_pending_path_overrides[source] = path_override
+
+	var args := PackedStringArray(["add", source, "--preview"])
+	args.append_array(_path_args(path_override))
+	_run(DotquayWire.COMMAND_ADD_PREVIEW, args)
+
+
+## Runs the add the preview described, carrying the user's feed approvals as `--adopt-source`.
+func _on_install_confirmed(source: String, path_override: String, adopt_source_urls: PackedStringArray) -> void:
 	var args := PackedStringArray(["add", source])
-	if not path_override.is_empty():
-		args.append("--path")
-		args.append(path_override)
+	args.append_array(_path_args(path_override))
+
+	for url in adopt_source_urls:
+		args.append("--adopt-source")
+		args.append(url)
 
 	_log_line("Adding %s..." % source)
-	_run("add", args, true)
+
+	for url in adopt_source_urls:
+		_log_line("  adopting NuGet feed %s" % url)
+
+	_run(DotquayWire.COMMAND_ADD, args, true)
+
+
+static func _path_args(path_override: String) -> PackedStringArray:
+	return PackedStringArray() if path_override.is_empty() else PackedStringArray(["--path", path_override])
 
 
 func _on_install_pressed() -> void:
@@ -255,38 +171,38 @@ func _on_update_all_pressed() -> void:
 
 
 func _on_outdated_pressed() -> void:
-	_run("outdated", PackedStringArray(["outdated"]))
+	_run(DotquayWire.COMMAND_OUTDATED, PackedStringArray(["outdated"]))
 
 
 func _on_doctor_pressed() -> void:
-	_run("doctor", PackedStringArray(["doctor"]))
+	_run(DotquayWire.COMMAND_DOCTOR, PackedStringArray(["doctor"]))
 
 
 func _on_node_action(action: String, addon_name: String) -> void:
 	match action:
-		NODE_SCRIPT.ACTION_UPDATE:
+		DotquayDependencyNode.ACTION_UPDATE:
 			_log_line("Updating %s..." % addon_name)
 			_run("update", PackedStringArray(["update", addon_name]), true)
 
-		NODE_SCRIPT.ACTION_REMOVE:
+		DotquayDependencyNode.ACTION_REMOVE:
 			_pending_removal = addon_name
 			_confirm_remove.dialog_text = (
 				"Remove '%s' from dotquay.toml, the lockfile, and addons/?\n\nAnything only it required is removed too."
 				% addon_name)
 			_confirm_remove.popup_centered()
 
-		NODE_SCRIPT.ACTION_RESOLVE, NODE_SCRIPT.ACTION_OVERRIDE:
+		DotquayDependencyNode.ACTION_RESOLVE, DotquayDependencyNode.ACTION_OVERRIDE:
 			_open_conflict_dialog(addon_name)
 
-		NODE_SCRIPT.ACTION_CLEAR_OVERRIDE:
+		DotquayDependencyNode.ACTION_CLEAR_OVERRIDE:
 			_log_line("Clearing the override on %s..." % addon_name)
 			_run("override", PackedStringArray(["override", addon_name, "--clear"]), true)
 
-		NODE_SCRIPT.ACTION_CAPTURE_PATCH:
+		DotquayDependencyNode.ACTION_CAPTURE_PATCH:
 			_log_line("Capturing edits to %s as a patch..." % addon_name)
 			_run("patch", PackedStringArray(["patch", addon_name]), true)
 
-		NODE_SCRIPT.ACTION_OPEN_REPO:
+		DotquayDependencyNode.ACTION_OPEN_REPO:
 			var node := _graph.find(addon_name) if _graph != null else null
 			if node != null and not node.git.is_empty():
 				OS.shell_open(node.git)
@@ -384,8 +300,10 @@ func _update_setup_banner(result: DotquayResult) -> void:
 
 func _on_busy_changed(is_busy: bool) -> void:
 	_busy.visible = is_busy
-	for button in _toolbar_buttons:
-		button.disabled = is_busy
+
+	for button in _toolbar.get_children():
+		if button is Button:
+			button.disabled = is_busy
 
 
 func _on_cli_finished(result: DotquayResult) -> void:
@@ -399,18 +317,20 @@ func _on_cli_finished(result: DotquayResult) -> void:
 
 		# A conflict is still a full graph payload — the whole point is to show it rather than stop
 		# at the error line.
-		if result.command == "graph" and not result.data.is_empty():
+		if result.command == DotquayWire.COMMAND_GRAPH and not result.data.is_empty():
 			_apply_graph(result.data)
 
 		_finish_refresh_cycle()
 		return
 
 	match result.command:
-		"graph":
+		DotquayWire.COMMAND_GRAPH:
 			_apply_graph(result.data)
-		"outdated":
+		DotquayWire.COMMAND_ADD_PREVIEW:
+			_show_preview(result.data)
+		DotquayWire.COMMAND_OUTDATED:
 			_report_outdated(result.data)
-		"doctor":
+		DotquayWire.COMMAND_DOCTOR:
 			_report_doctor(result.data)
 		_:
 			_report_operation(result.data)
@@ -429,6 +349,19 @@ func _finish_refresh_cycle() -> void:
 	refresh()
 
 
+## The git URL comes back in the payload, so the confirmed add uses the URL dotquay itself echoed
+## rather than one the panel remembered. The subtree override doesn't survive the round-trip — the
+## CLI has no reason to report an argument back — so it is stashed per URL rather than in a single
+## "last thing typed" field, which would hand the wrong subtree to a preview that finished out of
+## order.
+func _show_preview(payload: Dictionary) -> void:
+	var preview := DotquayPreview.from_payload(payload)
+	var path_override := String(_pending_path_overrides.get(preview.git, ""))
+	_pending_path_overrides.erase(preview.git)
+
+	_preview_dialog.show_preview(preview, preview.git, path_override)
+
+
 func _apply_graph(payload: Dictionary) -> void:
 	_graph = DotquayGraph.from_payload(payload)
 	_graph_view.render(_graph)
@@ -444,7 +377,7 @@ func _update_summary() -> void:
 
 	if _graph.is_empty():
 		_summary.text = "No dependencies yet — use Add."
-		_summary.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_MUTED)
+		_summary.add_theme_color_override("font_color", DotquayPalette.MUTED)
 		return
 
 	var counts := _graph.counts()
@@ -475,95 +408,43 @@ func _update_summary() -> void:
 	_summary.text = "  " + " · ".join(parts) + suffix
 	_summary.add_theme_color_override(
 		"font_color",
-		NODE_SCRIPT.COLOR_ERROR if counts["conflicts"] > 0 or counts["modified"] > 0 else NODE_SCRIPT.COLOR_MUTED)
+		DotquayPalette.ERROR if counts["conflicts"] > 0 or counts["modified"] > 0 else DotquayPalette.MUTED)
 
 
 func _render_conflicts() -> void:
-	for child in _conflict_list.get_children():
-		child.queue_free()
+	_clear(_conflict_list)
 
 	if _graph == null or _graph.conflicts.is_empty():
-		var empty := Label.new()
-		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		empty.custom_minimum_size = Vector2(300, 0)
-		empty.text = (
-			"No conflicts." if _graph != null and _graph.source == DotquayWire.GRAPH_SOURCE_RESOLVED
-			else "Conflicts are only detected by a live re-resolve. Press Re-resolve to check.")
-		empty.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_MUTED)
+		var empty: DotquayStatusLabel = STATUS_LABEL.instantiate()
 		_conflict_list.add_child(empty)
+		empty.setup(
+			"No conflicts." if _graph != null and _graph.source == DotquayWire.GRAPH_SOURCE_RESOLVED
+			else "Conflicts are only detected by a live re-resolve. Press Re-resolve to check.",
+			DotquayPalette.MUTED, "", SIDEBAR_WRAP)
 		return
 
 	for conflict in _graph.conflicts:
-		_conflict_list.add_child(_conflict_card(conflict))
-
-
-func _conflict_card(conflict: DotquayGraph.Conflict) -> Control:
-	var card := VBoxContainer.new()
-	card.add_theme_constant_override("separation", 4)
-
-	var headline := Label.new()
-	headline.text = conflict.headline()
-	headline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	headline.custom_minimum_size = Vector2(300, 0)
-	headline.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_ERROR)
-	card.add_child(headline)
-
-	for requirement in conflict.requirements:
-		var line := Label.new()
-		line.text = "  • " + requirement.describe()
-		line.add_theme_font_size_override("font_size", 11)
-		line.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_MUTED)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.custom_minimum_size = Vector2(300, 0)
-		card.add_child(line)
-
-	var buttons := HBoxContainer.new()
-
-	var resolve_button := Button.new()
-	resolve_button.text = "Resolve..."
-	resolve_button.pressed.connect(_open_conflict_dialog.bind(conflict.name))
-	buttons.add_child(resolve_button)
-
-	var focus_button := Button.new()
-	focus_button.text = "Show in graph"
-	focus_button.pressed.connect(_graph_view.focus_addon.bind(conflict.name))
-	buttons.add_child(focus_button)
-
-	card.add_child(buttons)
-	card.add_child(HSeparator.new())
-	return card
+		var card: DotquayConflictCard = CONFLICT_CARD.instantiate()
+		_conflict_list.add_child(card)
+		card.setup(conflict)
+		card.resolve_requested.connect(_open_conflict_dialog)
+		card.focus_requested.connect(_graph_view.focus_addon)
 
 
 func _render_dotnet() -> void:
-	for child in _dotnet_list.get_children():
-		child.queue_free()
+	_clear(_dotnet_list)
 
 	if _graph == null or _graph.dotnet.is_empty():
-		var empty := Label.new()
-		empty.text = "No NuGet packages."
-		empty.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_MUTED)
+		var empty: DotquayStatusLabel = STATUS_LABEL.instantiate()
 		_dotnet_list.add_child(empty)
+		empty.setup("No NuGet packages.", DotquayPalette.MUTED)
 		return
 
 	for entry in _graph.dotnet:
-		var row := HBoxContainer.new()
-
-		var label := Label.new()
-		label.text = "%s  %s" % [entry.name, entry.display_version()]
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if not entry.declared_by_project:
-			label.add_theme_color_override("font_color", NODE_SCRIPT.COLOR_MUTED)
-			label.tooltip_text = "Required by an addon, not declared in this project's manifest (SPEC.md P1-5)."
-			label.mouse_filter = Control.MOUSE_FILTER_STOP
-		row.add_child(label)
-
-		if entry.declared_by_project:
-			var remove := Button.new()
-			remove.text = "Remove"
-			remove.pressed.connect(_on_node_action.bind(NODE_SCRIPT.ACTION_REMOVE, entry.name))
-			row.add_child(remove)
-
+		var row: DotquayDotnetRow = DOTNET_ROW.instantiate()
 		_dotnet_list.add_child(row)
+		row.setup(entry)
+		row.remove_requested.connect(_on_node_action.bind(DotquayDependencyNode.ACTION_REMOVE))
 
 
 func _report_outdated(payload: Dictionary) -> void:
@@ -616,11 +497,11 @@ func _log_line(text: String) -> void:
 
 
 func _log_warning(text: String) -> void:
-	_append("[color=#eab53d]%s[/color]" % text)
+	_append(DotquayPalette.bbcode(DotquayPalette.WARN, text))
 
 
 func _log_error(text: String) -> void:
-	_append("[color=#e05252]%s[/color]" % text)
+	_append(DotquayPalette.bbcode(DotquayPalette.ERROR, text))
 
 
 func _append(bbcode: String) -> void:
@@ -630,4 +511,10 @@ func _append(bbcode: String) -> void:
 	# panel nobody ever closes.
 	if _log.get_line_count() > MAX_LOG_LINES:
 		_log.text = ""
-		_log.append_text("[color=#95999f](earlier output trimmed)[/color]\n")
+		_log.append_text(DotquayPalette.bbcode(DotquayPalette.MUTED, "(earlier output trimmed)") + "\n")
+
+
+func _clear(container: Node) -> void:
+	for child in container.get_children():
+		container.remove_child(child)
+		child.queue_free()

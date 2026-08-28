@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/preview_addon_row.gd" id="1_preview_addon_row"]
+
+[node name="PreviewAddonRow" type="HBoxContainer"]
+mouse_filter = 0
+theme_override_constants/separation = 8
+script = ExtResource("1_preview_addon_row")
+
+[node name="Marker" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "+"
+
+[node name="AddonName" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+text = "addon"
+
+[node name="Version" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "version"
+
+[node name="Origin" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "origin"
+
+[node name="Folder" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "folder"
