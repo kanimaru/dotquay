@@ -25,6 +25,7 @@ stages:
   - test
   - build
   - release
+  - version-bump
 
 variables:
   DOTNET_NOLOGO: "1"
@@ -137,3 +138,48 @@ release:
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64"
         - name: "dotquay-windows-x64.exe"
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"
+
+# --- Auto version bump: firing a tag (e.g. `v0.4.5`) should immediately push a follow-up commit to
+# `main` bumping Dotquay.Cli.csproj's patch version (e.g. to 0.4.6), so any work landing after the
+# tag is already developed under the next version number.
+#
+# `needs: []` deliberately detaches this job from the pipeline's stage ordering: it starts as soon
+# as the tag pipeline starts and does NOT wait on test/build/release. Per the request, the version
+# must move forward even if the build is broken.
+#
+# Requires a CI/CD variable `VERSION_BUMP_TOKEN` (Settings > CI/CD > Variables, masked + protected):
+# a Project Access Token (or Personal/Group Access Token) with `write_repository` scope, whose role
+# is at least Maintainer if `main` is a protected branch. CI_JOB_TOKEN is not used because pushing
+# to a protected branch generally requires an explicit access token, not the job token.
+bump-version:
+  stage: version-bump
+  image: alpine/git:2.47.2
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs: []
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: 0
+  script:
+    - git config user.email "ci@kemomi.de"
+    - git config user.name "dotquay-ci"
+    - git fetch origin main
+    - git checkout -B main origin/main
+    - |
+      CSPROJ="src/Dotquay.Cli/Dotquay.Cli.csproj"
+      CURRENT=$(grep -oE '<Version>[0-9]+\.[0-9]+\.[0-9]+</Version>' "$CSPROJ" | sed -E 's#</?Version>##g')
+      if [ -z "$CURRENT" ]; then
+        echo "Could not find <Version> in $CSPROJ" >&2
+        exit 1
+      fi
+      MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+      MINOR=$(echo "$CURRENT" | cut -d. -f2)
+      PATCH=$(echo "$CURRENT" | cut -d. -f3)
+      NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+      echo "Tag $CI_COMMIT_TAG triggered version bump: $CURRENT -> $NEXT"
+      sed -i "s#<Version>$CURRENT</Version>#<Version>$NEXT</Version>#" "$CSPROJ"
+      echo "NEXT=$NEXT" >> bump.env
+    - . ./bump.env && rm bump.env
+    - git add src/Dotquay.Cli/Dotquay.Cli.csproj
+    - git commit -m "chore: bump version to $NEXT [skip ci]"
+    - git push "https://project-access-token:${VERSION_BUMP_TOKEN}@gitlab.kemomi.de/wild-alliance/dotquay.git" HEAD:main

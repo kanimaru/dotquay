@@ -172,3 +172,9 @@ git push origin v0.5.0
 ```
 
 Released binaries then show up under **Deployments → Releases**.
+
+Tagging also triggers `bump-version`, which pushes a follow-up commit to `main` bumping
+`Dotquay.Cli.csproj`'s patch version (e.g. `0.5.0` → `0.5.1`) so subsequent work is already
+developed under the next version. This job runs independently of test/build/release — it moves
+the version forward even if the build breaks — and needs a `VERSION_BUMP_TOKEN` CI/CD variable
+(a Maintainer-scoped access token with `write_repository`) to push to the protected branch.
