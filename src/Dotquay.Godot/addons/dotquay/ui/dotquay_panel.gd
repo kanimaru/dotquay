@@ -23,9 +23,6 @@ const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
 const MAX_LOG_LINES := 200
 
-## Sidebar labels wrap to the tab container's minimum width, minus its own padding.
-const SIDEBAR_WRAP := 300.0
-
 @onready var _graph_view: DotquayDependencyGraphView = %GraphView
 @onready var _summary: Label = %Summary
 @onready var _log: RichTextLabel = %Log
@@ -49,9 +46,10 @@ var _graph: DotquayGraph
 
 var _pending_removal := ""
 
-## Git URL to the `--path` subtree the user typed alongside it, held only until that URL's preview
-## comes back. See [method _show_preview].
-var _pending_path_overrides: Dictionary = {}
+## Git URL to the [DotquayAddRequest] awaiting that URL's preview. Keyed rather than kept in a single
+## "last thing typed" field because several commands can be in flight, and a preview that finished
+## out of order would otherwise be confirmed with someone else's arguments.
+var _pending_requests: Dictionary = {}
 
 ## Set while a mutating command is in flight, so its completion triggers exactly one refresh instead
 ## of every command handler remembering to ask for one.
@@ -125,39 +123,34 @@ func _on_add_pressed() -> void:
 
 ## A git source is previewed first; a NuGet package has no dependency graph and declares no feeds, so
 ## there would be nothing in the dialog to read.
-func _on_add_requested(source: String, path_override: String, is_git: bool) -> void:
-	if not is_git:
-		_log_line("Adding %s..." % source)
-		_run(DotquayWire.COMMAND_ADD, PackedStringArray(["add", source]), true)
+func _on_add_requested(request: DotquayAddRequest) -> void:
+	if not request.is_git:
+		_log_line("Adding %s..." % request.describe())
+		_run(DotquayWire.COMMAND_ADD, request.to_args(), true)
 		return
 
-	_log_line("Resolving what adding %s would install..." % source)
-	_pending_path_overrides[source] = path_override
+	_log_line("Resolving what adding %s would install..." % request.describe())
+	_pending_requests[request.git_url()] = request
 
-	var args := PackedStringArray(["add", source, "--preview"])
-	args.append_array(_path_args(path_override))
+	var args := request.to_args()
+	args.append("--preview")
 	_run(DotquayWire.COMMAND_ADD_PREVIEW, args)
 
 
 ## Runs the add the preview described, carrying the user's feed approvals as `--adopt-source`.
-func _on_install_confirmed(source: String, path_override: String, adopt_source_urls: PackedStringArray) -> void:
-	var args := PackedStringArray(["add", source])
-	args.append_array(_path_args(path_override))
+func _on_install_confirmed(request: DotquayAddRequest, adopt_source_urls: PackedStringArray) -> void:
+	var args := request.to_args()
 
 	for url in adopt_source_urls:
 		args.append("--adopt-source")
 		args.append(url)
 
-	_log_line("Adding %s..." % source)
+	_log_line("Adding %s..." % request.describe())
 
 	for url in adopt_source_urls:
 		_log_line("  adopting NuGet feed %s" % url)
 
 	_run(DotquayWire.COMMAND_ADD, args, true)
-
-
-static func _path_args(path_override: String) -> PackedStringArray:
-	return PackedStringArray() if path_override.is_empty() else PackedStringArray(["--path", path_override])
 
 
 func _on_install_pressed() -> void:
@@ -349,17 +342,19 @@ func _finish_refresh_cycle() -> void:
 	refresh()
 
 
-## The git URL comes back in the payload, so the confirmed add uses the URL dotquay itself echoed
-## rather than one the panel remembered. The subtree override doesn't survive the round-trip — the
-## CLI has no reason to report an argument back — so it is stashed per URL rather than in a single
-## "last thing typed" field, which would hand the wrong subtree to a preview that finished out of
-## order.
+## Matched back to its request by the git URL, which the payload echoes with any `#ref` fragment
+## already stripped — the same form [method DotquayAddRequest.git_url] produces, which is why that is
+## the key the request was stashed under.
 func _show_preview(payload: Dictionary) -> void:
 	var preview := DotquayPreview.from_payload(payload)
-	var path_override := String(_pending_path_overrides.get(preview.git, ""))
-	_pending_path_overrides.erase(preview.git)
 
-	_preview_dialog.show_preview(preview, preview.git, path_override)
+	# A preview whose request is gone (a reloaded plugin, a duplicate reply) still deserves its
+	# dialog: the graph is the part worth reading, and the arguments it can't recover are the two
+	# optional ones.
+	var request: DotquayAddRequest = _pending_requests.get(preview.git, DotquayAddRequest.for_git(preview.git))
+	_pending_requests.erase(preview.git)
+
+	_preview_dialog.show_preview(preview, request)
 
 
 func _apply_graph(payload: Dictionary) -> void:
@@ -420,7 +415,7 @@ func _render_conflicts() -> void:
 		empty.setup(
 			"No conflicts." if _graph != null and _graph.source == DotquayWire.GRAPH_SOURCE_RESOLVED
 			else "Conflicts are only detected by a live re-resolve. Press Re-resolve to check.",
-			DotquayPalette.MUTED, "", SIDEBAR_WRAP)
+			DotquayPalette.MUTED, "", true)
 		return
 
 	for conflict in _graph.conflicts:

@@ -1,73 +1,91 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://b687jenmtp25a"]
 
-[ext_resource type="Script" path="res://addons/dotquay/ui/conflict_dialog.gd" id="1_conflict_dialog"]
+[ext_resource type="Script" uid="uid://c25nsqeh7wio1" path="res://addons/dotquay/ui/conflict_dialog.gd" id="1_conflict_dialog"]
 
-[node name="ConflictDialog" type="ConfirmationDialog"]
+[node name="ConflictDialog" type="ConfirmationDialog" unique_id=1845007464]
+oversampling_override = 1.0
 title = "Resolve dependency conflict"
+position = Vector2i(0, 36)
 size = Vector2i(620, 520)
-min_size = Vector2i(620, 520)
+visible = true
+wrap_controls = false
 ok_button_text = "Apply override"
 script = ExtResource("1_conflict_dialog")
 
-[node name="Root" type="VBoxContainer" parent="."]
+[node name="Root" type="VBoxContainer" parent="." unique_id=499417499]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -49.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
 
-[node name="Headline" type="Label" parent="Root"]
+[node name="Headline" type="Label" parent="Root" unique_id=109841720]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "conflict"
 autowrap_mode = 3
 
-[node name="Detail" type="RichTextLabel" parent="Root"]
+; fit_content is deliberately off. It makes the label's minimum height the height of all its text,
+; and this one holds the CLI's full conflict message — which is as long as the conflict is
+; complicated. An AcceptDialog grows to its contents' minimum, so fit_content here means the dialog's
+; height is dictated by the worst error it ever shows. It scrolls instead.
+
+[node name="Detail" type="RichTextLabel" parent="Root" unique_id=1294688076]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 60)
+custom_minimum_size = Vector2(240, 60)
 layout_mode = 2
-fit_content = true
+focus_mode = 2
 selection_enabled = true
 
-[node name="RequirementsHeading" type="Label" parent="Root"]
+[node name="RequirementsHeading" type="Label" parent="Root" unique_id=108833283]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
 theme_override_font_sizes/font_size = 12
 text = "Who needs it"
 
-[node name="Requirements" type="VBoxContainer" parent="Root"]
+[node name="Requirements" type="VBoxContainer" parent="Root" unique_id=1910669147]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 
-[node name="CandidatesHeading" type="Label" parent="Root"]
+[node name="CandidatesHeading" type="Label" parent="Root" unique_id=511387968]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
 theme_override_font_sizes/font_size = 12
 text = "Pick a version to force"
 
-[node name="CandidateScroll" type="ScrollContainer" parent="Root"]
-custom_minimum_size = Vector2(0, 200)
+[node name="CandidateScroll" type="ScrollContainer" parent="Root" unique_id=1222791547]
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Candidates" type="VBoxContainer" parent="Root/CandidateScroll"]
+[node name="Candidates" type="VBoxContainer" parent="Root/CandidateScroll" unique_id=92718427]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 
-[node name="CustomRow" type="HBoxContainer" parent="Root"]
+[node name="CustomRow" type="HBoxContainer" parent="Root" unique_id=666992346]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="CustomRadio" type="CheckBox" parent="Root/CustomRow"]
+[node name="CustomRadio" type="CheckBox" parent="Root/CustomRow" unique_id=2111360770]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "For a version, branch, or commit that isn't offered above — including one that isn't tagged."
 text = "Something else:"
+metadata/candidate_index = -1
 
-[node name="CustomKind" type="OptionButton" parent="Root/CustomRow"]
+[node name="CustomKind" type="OptionButton" parent="Root/CustomRow" unique_id=1141361760]
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
@@ -79,7 +97,7 @@ popup/item_1/id = 1
 popup/item_2/text = "rev"
 popup/item_2/id = 2
 
-[node name="CustomValue" type="LineEdit" parent="Root/CustomRow"]
+[node name="CustomValue" type="LineEdit" parent="Root/CustomRow" unique_id=430464816]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3

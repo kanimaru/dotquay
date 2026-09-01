@@ -13,15 +13,18 @@ custom_minimum_size = Vector2(14, 0)
 layout_mode = 2
 text = "+"
 
+; The two fixed columns are what let the rows read as a table rather than as ragged text. Kept
+; deliberately narrow: every pixel here is a pixel the dialog can never be resized below.
+
 [node name="AddonName" type="Label" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 0)
+custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 text = "addon"
 
 [node name="Version" type="Label" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(110, 0)
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 text = "version"
 

@@ -15,6 +15,7 @@ const SUITES := [
 	preload("res://tests/test_dotquay_result.gd"),
 	preload("res://tests/test_dotquay_graph.gd"),
 	preload("res://tests/test_dotquay_preview.gd"),
+	preload("res://tests/test_dotquay_add_request.gd"),
 	# Hand-written .tscn files fail at load time, not compile time, so the only way to know they are
 	# valid is to load them.
 	preload("res://tests/test_scenes.gd"),

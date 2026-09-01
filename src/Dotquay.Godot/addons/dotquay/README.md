@@ -36,7 +36,26 @@ set it by hand at *Editor → Editor Settings → Dotquay → CLI Path*.
 | `override` | Forced by an `[overrides]` entry in `dotquay.toml`. |
 | `orphan` | Locked but nothing requires it any more — the drift `doctor` flags. |
 
-## Adding an addon shows you what you're agreeing to
+## Adding an addon
+
+The **Add…** form covers everything `dotquay add` accepts:
+
+| Field | What it sets |
+|---|---|
+| Source | Git repository or NuGet package — dotquay routes both through the same `add` |
+| URL / ID | The repository or the package ID. A `#ref` suffix (`…/repo#main`) asks the remote whether that's a branch, a tag, or a commit |
+| Pin to | **Latest release** (the default: newest tag, or the default branch's tip if there are none), **Version** (a range like `~2.5`, or one exact tag), **Branch**, or **Commit** |
+| Subtree | Git only. The folder inside the repo to extract, when the addon isn't at `addons/<repo name>` |
+| Install as | Git only. The folder under `addons/` to install into, when it shouldn't be the addon's own name — some addons are preloaded by an exact path |
+
+Branch and Commit don't appear for a NuGet package, which has neither, and the subtree and install
+folder are hidden too. If the URL already carries a `#ref`, **Pin to** locks and says why: naming the
+source twice is a combination `add` refuses outright.
+
+Tracking a branch still pins the resolved commit in `dotquay.lock`, so a teammate's `install` gets
+exactly what you tested. **Update** is what moves it forward.
+
+## …and shows you what you're agreeing to
 
 **Add…** on a git URL doesn't install. It runs `dotquay add --preview`, which resolves the real graph
 without writing anything, and shows you:

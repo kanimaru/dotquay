@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://addons/dotquay/ui/items/preview_source_card.gd" id="1_preview_source_card"]
 
 [node name="PreviewSourceCard" type="VBoxContainer"]
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 script = ExtResource("1_preview_source_card")
 
@@ -13,8 +14,9 @@ text = "Trust this feed for this install"
 
 [node name="Url" type="Label" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(520, 0)
+custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 0
 theme_override_font_sizes/font_size = 11
 text = "https://"

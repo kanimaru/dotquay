@@ -9,9 +9,6 @@ signal focus_requested(addon_name: String)
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-## Wide enough to read a sentence, narrow enough to fit the sidebar at its default width.
-const WRAP_WIDTH := 300.0
-
 @onready var _headline: Label = %Headline
 @onready var _requirements: VBoxContainer = %Requirements
 @onready var _resolve_button: Button = %ResolveButton
@@ -37,4 +34,4 @@ func setup(conflict: DotquayGraph.Conflict) -> void:
 	for requirement in conflict.requirements:
 		var line: DotquayStatusLabel = STATUS_LABEL.instantiate()
 		_requirements.add_child(line)
-		line.setup("  • " + requirement.describe(), DotquayPalette.MUTED, requirement.git, WRAP_WIDTH)
+		line.setup("  • " + requirement.describe(), DotquayPalette.MUTED, requirement.git, true)

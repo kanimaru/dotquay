@@ -3,14 +3,15 @@
 [ext_resource type="Script" path="res://addons/dotquay/ui/items/conflict_card.gd" id="1_conflict_card"]
 
 [node name="ConflictCard" type="VBoxContainer"]
-offset_right = 300.0
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 script = ExtResource("1_conflict_card")
 
 [node name="Headline" type="Label" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 0)
+custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "conflict"
 autowrap_mode = 2
 

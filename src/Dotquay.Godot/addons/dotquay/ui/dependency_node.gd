@@ -23,9 +23,6 @@ const ACTION_CAPTURE_PATCH := "capture_patch"
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-## Detail lines wrap inside the node's 240px width, minus the frame's own padding.
-const DETAIL_WRAP := 220.0
-
 var addon_name: String = ""
 
 @onready var _status_row: HBoxContainer = %StatusRow
@@ -183,4 +180,4 @@ func _badge(text: String, color: Color, tooltip: String) -> DotquayStatusLabel:
 func _detail(text: String, tooltip: String) -> void:
 	var label: DotquayStatusLabel = STATUS_LABEL.instantiate()
 	_details.add_child(label)
-	label.setup(text, DotquayPalette.MUTED, tooltip, DETAIL_WRAP)
+	label.setup(text, DotquayPalette.MUTED, tooltip, true)

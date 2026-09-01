@@ -13,14 +13,13 @@ extends ConfirmationDialog
 ## panel runs `dotquay add --adopt-source ...` — so an install agreed to here is byte-for-byte the
 ## install the same flags would have produced at a terminal.
 
+## [param request] is the same request the preview was resolved from, carried through untouched.
 ## [param adopt_source_urls] are the feeds the user approved, passed through as `--adopt-source`.
-signal install_confirmed(source: String, path_override: String, adopt_source_urls: PackedStringArray)
+signal install_confirmed(request: DotquayAddRequest, adopt_source_urls: PackedStringArray)
 
 const ADDON_ROW := preload("res://addons/dotquay/ui/items/preview_addon_row.tscn")
 const SOURCE_CARD := preload("res://addons/dotquay/ui/items/preview_source_card.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
-
-const WRAP_WIDTH := 560.0
 
 @onready var _summary: Label = %Summary
 @onready var _addon_list: VBoxContainer = %AddonList
@@ -31,8 +30,7 @@ const WRAP_WIDTH := 560.0
 @onready var _blocker: Label = %Blocker
 
 var _preview: DotquayPreview
-var _source := ""
-var _path_override := ""
+var _request: DotquayAddRequest
 
 ## The cards the user can still say no to. Kept as a list rather than re-walked from the container so
 ## the enable/disable check reads as one question — "is every feed approved?" — instead of a scan.
@@ -48,13 +46,13 @@ func _ready() -> void:
 		(heading as Label).add_theme_color_override("font_color", DotquayPalette.MUTED)
 
 
-## [param source] and [param path_override] are carried through untouched so the confirmed add uses
-## exactly the arguments the preview was resolved from — re-deriving them from the payload would be a
-## second chance to get them wrong.
-func show_preview(preview: DotquayPreview, source: String, path_override: String) -> void:
+## [param request] is carried through untouched so the confirmed add uses exactly the arguments the
+## preview was resolved from — re-deriving them from the payload would be a second chance to get them
+## wrong, and the payload does not carry every argument anyway (`--path` and `--install-as` are inputs
+## the CLI has no reason to echo back).
+func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
 	_preview = preview
-	_source = source
-	_path_override = path_override
+	_request = request
 	_pending_cards.clear()
 
 	title = "Install '%s'?" % preview.name
@@ -93,7 +91,7 @@ func _render_dotnet() -> void:
 			"+ %s  %s  (%s)" % [package.name, package.constraint, package.describe_origin()],
 			DotquayPalette.OK,
 			"Written into your .csproj as a PackageReference and restored with dotnet.",
-			WRAP_WIDTH)
+			true)
 
 
 func _render_sources() -> void:
@@ -146,7 +144,7 @@ func _on_confirmed() -> void:
 		if not url.is_empty():
 			urls.append(url)
 
-	install_confirmed.emit(_source, _path_override, urls)
+	install_confirmed.emit(_request, urls)
 
 
 func _clear(container: Node) -> void:

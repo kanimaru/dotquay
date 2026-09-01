@@ -90,6 +90,127 @@ func test_panel_toolbar_buttons_exist_under_the_names_the_panel_binds() -> void:
 	panel.free()
 
 
+## Scene roots that are always instanced into a container, and therefore live or die by their size
+## flags rather than their anchors.
+const CONTAINER_HOSTED_ROOTS := [
+	# The editor's main screen is a VBoxContainer (EditorInterface.get_editor_main_screen()).
+	"res://addons/dotquay/ui/dotquay_panel.tscn",
+	# Instanced into the panel's VSplitContainer.
+	"res://addons/dotquay/ui/dependency_graph_view.tscn",
+]
+
+
+## A container recomputes its children's anchors every layout pass, so `anchors_preset = 15` on a
+## container-hosted root is decoration — the size *flags* are what decide whether it gets the whole
+## area or only its minimum size. Missing EXPAND_FILL on the panel hands it a ~180px strip.
+func test_container_hosted_roots_expand_to_fill() -> void:
+	for path in CONTAINER_HOSTED_ROOTS:
+		var instance: Control = load(path).instantiate()
+
+		runner.check(
+			(instance.size_flags_horizontal & Control.SIZE_EXPAND_FILL) == Control.SIZE_EXPAND_FILL,
+			"%s is laid out by a container and must set size_flags_horizontal to EXPAND_FILL" % path)
+		runner.check(
+			(instance.size_flags_vertical & Control.SIZE_EXPAND_FILL) == Control.SIZE_EXPAND_FILL,
+			"%s is laid out by a container and must set size_flags_vertical to EXPAND_FILL" % path)
+
+		instance.free()
+
+
+## GROW_DIRECTION_BOTH means a control whose minimum size exceeds its assigned rect expands in both
+## directions — so an undersized panel grows *upward*, over the editor's own tab bars.
+##
+## Worth asserting rather than fixing once, because the editor writes it back: it is part of the
+## "Full Rect" anchor preset, so merely opening and saving one of these scenes reintroduces it. The
+## standing fix is to give a container-hosted root no anchors at all, and this test is what notices
+## when that erodes.
+func test_container_hosted_roots_do_not_grow_over_their_host() -> void:
+	for path in CONTAINER_HOSTED_ROOTS:
+		var instance: Control = load(path).instantiate()
+
+		runner.check(
+			instance.grow_vertical != Control.GROW_DIRECTION_BOTH,
+			"%s must not grow vertically in both directions — overflow would cover the editor chrome above it" % path)
+
+		instance.free()
+
+
+const DIALOGS := [
+	"res://addons/dotquay/ui/add_dependency_dialog.tscn",
+	"res://addons/dotquay/ui/conflict_dialog.tscn",
+	"res://addons/dotquay/ui/install_preview_dialog.tscn",
+]
+
+
+## `min_size` is a hard floor the user cannot drag past. Setting it equal to the dialog's default
+## `size` — which reads as "open at this size" but means "and never get smaller" — makes every resize
+## attempt snap straight back.
+func test_dialogs_can_be_resized_smaller_than_they_open() -> void:
+	for path in DIALOGS:
+		var dialog: Window = load(path).instantiate()
+
+		runner.check(
+			dialog.min_size.x < dialog.size.x and dialog.min_size.y < dialog.size.y,
+			"%s pins min_size (%s) to its opening size (%s), so it cannot be resized smaller"
+				% [path, dialog.min_size, dialog.size])
+
+		dialog.free()
+
+
+## The floor a wrapping label must declare, and the ceiling on how much it may ask for.
+##
+## An autowrapping [Label] reports its minimum width as its longest word and its minimum height as the
+## text wrapped to *that* width — so with no declared width it claims to need eighty pixels and
+## several hundred lines. [AcceptDialog] grows to its contents' minimum, which turns that into a
+## 1600px-tall dialog. Declaring too much is the opposite failure: the number becomes a width no
+## dialog containing the label can be resized below.
+const WRAP_MIN := 1.0
+const WRAP_MAX := 320.0
+
+
+## Both failure modes are the same assertion from opposite sides, so they are one test: a wrapping
+## label must name a width, and it must be a modest one.
+func test_wrapping_labels_declare_a_modest_width() -> void:
+	for path in SCENES:
+		var instance: Node = load(path).instantiate()
+		_check_wrapping_labels(instance, instance, path)
+		instance.free()
+
+
+func _check_wrapping_labels(node: Node, root: Node, path: String) -> void:
+	if node is Label and node.autowrap_mode != TextServer.AUTOWRAP_OFF:
+		var declared: float = node.custom_minimum_size.x
+
+		runner.check(
+			declared >= WRAP_MIN,
+			"%s: %s wraps but declares no minimum width, so its minimum *height* becomes the text "
+				% [path, root.get_path_to(node)]
+				+ "wrapped to its longest word — hundreds of pixels the dialog then grows to fit.")
+
+		runner.check(
+			declared <= WRAP_MAX,
+			"%s: %s declares custom_minimum_size.x = %d, which is a width the containing dialog can "
+				% [path, root.get_path_to(node), int(declared)]
+				+ "never be resized below. Keep it modest and let EXPAND_FILL do the widening.")
+
+	for child in node.get_children():
+		_check_wrapping_labels(child, root, path)
+
+
+## `AcceptDialog` sets `wrap_controls = true`, which makes the window continuously resize itself to
+## its contents' minimum — the "it jumps back the moment I let go" behaviour. These dialogs scroll
+## their contents instead, so the size the user picks is the size that sticks.
+func test_dialogs_do_not_resize_themselves_to_their_contents() -> void:
+	for path in DIALOGS:
+		var dialog: Window = load(path).instantiate()
+
+		runner.check(
+			not dialog.wrap_controls,
+			"%s leaves wrap_controls on, so it will grow to whatever its contents claim to need" % path)
+
+		dialog.free()
+
+
 ## Pulls `%Name` tokens out of GDScript source.
 ##
 ## Requires an uppercase first letter, which is what separates a unique node name from a format

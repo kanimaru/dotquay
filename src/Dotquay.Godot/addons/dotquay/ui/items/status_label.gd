@@ -16,15 +16,28 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
-## [param wrap_width] > 0 turns the label into a wrapping paragraph of that width; 0 keeps it on one
-## line, which is what a badge needs.
-func setup(text_value: String, color: Color, tooltip: String = "", wrap_width: float = 0.0) -> DotquayStatusLabel:
+## The width a wrapping label declares as its floor.
+##
+## It cannot be zero. An autowrapping [Label] reports its minimum *width* as its longest word, and its
+## minimum *height* as the text wrapped to that width — so a paragraph with no declared width claims
+## to need about eighty pixels and several hundred lines. Since [AcceptDialog] grows to its contents'
+## minimum, that is a dialog 1600px tall.
+##
+## It also cannot be large: whatever is declared here is a width no dialog containing one of these can
+## be resized below. Small enough to shrink, wide enough that the height it implies is a sentence
+## rather than a column.
+const WRAP_MIN_WIDTH := 240.0
+
+## [param wrap] turns the label into a paragraph. It still expands to fill, so it uses whatever width
+## the container actually has — [constant WRAP_MIN_WIDTH] only bounds the minimum.
+func setup(text_value: String, color: Color, tooltip: String = "", wrap: bool = false) -> DotquayStatusLabel:
 	text = text_value
 	tooltip_text = tooltip
 	add_theme_color_override("font_color", color)
 
-	if wrap_width > 0.0:
+	if wrap:
 		autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		custom_minimum_size = Vector2(wrap_width, 0)
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		custom_minimum_size = Vector2(WRAP_MIN_WIDTH, 0)
 
 	return self

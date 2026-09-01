@@ -12,8 +12,6 @@ signal approval_changed()
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-const WRAP_WIDTH := 520.0
-
 @onready var _approve: CheckBox = %Approve
 @onready var _url: Label = %Url
 @onready var _detail: VBoxContainer = %Detail
@@ -78,4 +76,4 @@ func approved_url() -> String:
 func _add_detail(text: String, color: Color) -> void:
 	var label: DotquayStatusLabel = STATUS_LABEL.instantiate()
 	_detail.add_child(label)
-	label.setup(text, color, "", WRAP_WIDTH)
+	label.setup(text, color, "", true)
