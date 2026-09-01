@@ -160,30 +160,44 @@ bump-version:
   variables:
     GIT_STRATEGY: clone
     GIT_DEPTH: 0
+  # One literal block for the whole script. Everything inside it is raw text as far as YAML is
+  # concerned, so a ": " in a commit message cannot be read as a key/value separator — which is what
+  # turned a list item into a mapping and failed the job with "script config should be a string or a
+  # nested array of strings".
+  #
+  # `set -eu` is load-bearing in this shape rather than decoration: a block scalar is a single
+  # command to GitLab, so only its *last* line would otherwise decide the job's exit status. Without
+  # it a failed fetch or commit reports a green pipeline that bumped nothing. Each entry in the old
+  # list form was checked individually, so this preserves that behaviour rather than changing it.
+  #
+  # The shell also stays alive across the whole block, which is why NEXT no longer has to be handed
+  # between steps through a bump.env file.
   script:
-    - git config user.email "ci@kemomi.de"
-    - git config user.name "dotquay-ci"
-    - git fetch origin main
-    - git checkout -B main origin/main
     - |
+      set -eu
+
+      git config user.email "ci@kemomi.de"
+      git config user.name "dotquay-ci"
+
+      git fetch origin main
+      git checkout -B main origin/main
+
       CSPROJ="src/Dotquay.Cli/Dotquay.Cli.csproj"
       CURRENT=$(grep -oE '<Version>[0-9]+\.[0-9]+\.[0-9]+</Version>' "$CSPROJ" | sed -E 's#</?Version>##g')
+
       if [ -z "$CURRENT" ]; then
         echo "Could not find <Version> in $CSPROJ" >&2
         exit 1
       fi
+
       MAJOR=$(echo "$CURRENT" | cut -d. -f1)
       MINOR=$(echo "$CURRENT" | cut -d. -f2)
       PATCH=$(echo "$CURRENT" | cut -d. -f3)
       NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+
       echo "Tag $CI_COMMIT_TAG triggered version bump: $CURRENT -> $NEXT"
       sed -i "s#<Version>$CURRENT</Version>#<Version>$NEXT</Version>#" "$CSPROJ"
-      echo "NEXT=$NEXT" >> bump.env
-    - . ./bump.env && rm bump.env
-    - git add src/Dotquay.Cli/Dotquay.Cli.csproj
-    # Single-quoted because the message contains ": ", which YAML would otherwise read as a
-    # key/value separator — turning this list item into a mapping and failing the whole job with
-    # "script config should be a string or a nested array of strings". The inner double quotes are
-    # the shell's, not YAML's, so they do not protect it.
-    - 'git commit -m "chore: bump version to $NEXT [skip ci]"'
-    - git push "https://project-access-token:${VERSION_BUMP_TOKEN}@gitlab.kemomi.de/wild-alliance/dotquay.git" HEAD:main
+
+      git add "$CSPROJ"
+      git commit -m "chore: bump version to $NEXT [skip ci]"
+      git push "https://project-access-token:${VERSION_BUMP_TOKEN}@gitlab.kemomi.de/wild-alliance/dotquay.git" HEAD:main
