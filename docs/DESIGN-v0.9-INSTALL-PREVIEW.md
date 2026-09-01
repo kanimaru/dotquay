@@ -125,9 +125,19 @@ It loads and instantiates every scene, then checks that each `%UniqueName` a scr
 automatically becomes a checked requirement instead of leaving the test behind. The regex requires an
 uppercase first letter, which is what separates a node name from a `%s` format specifier.
 
-One trap found while writing it: `Node.is_node_ready()` is false for anything added to the tree from
-`SceneTree._initialize`, because `_ready` has not been reached yet. Asserting on it looked like eleven
-broken scenes and was eleven broken assertions.
+Two traps found the hard way, both now asserted:
+
+- **`Node.is_node_ready()` is false** for anything added to the tree from `SceneTree._initialize`,
+  because `_ready` has not been reached yet. Asserting on it looked like eleven broken scenes and was
+  eleven broken assertions.
+- **The panel's root Control needs `size_flags_vertical = EXPAND_FILL`, and must not use
+  `GROW_DIRECTION_BOTH`.** `EditorInterface.get_editor_main_screen()` is a `VBoxContainer`, so it lays
+  the panel out by size flags and recomputes its anchors every frame — without EXPAND_FILL the panel
+  is handed only its minimum height. `GROW_DIRECTION_BOTH` (which Godot's "Full Rect" preset sets,
+  and which a hand-written `.tscn` copies without thinking) then makes the undersized panel expand
+  *upward*, drawing over the editor's own tab bars. The old code avoided both by accident: a bare
+  `Control.new()` keeps the default `GROW_DIRECTION_END`, so overflow went downward where nobody saw
+  it. `test_scenes.gd` now checks both properties on every scene root that lives in a container.
 
 ## Risks
 

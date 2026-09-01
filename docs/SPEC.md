@@ -76,7 +76,7 @@ Key consequence: commands split along the stage boundary.
 | `dotquay outdated` | — | `git ls-remote` per repo + NuGet metadata check; compares against lockfile without cloning |
 | `dotquay status` | — | Diff disk against lockfile hashes: `clean` / `patched as expected` / `modified` |
 | `dotquay patch <name>` | — | Diff installed addon against pristine cache copy, write `<patches_dir>/<name>.patch` (§10.1). `--resolve` finishes a conflicted update; `--abandon` drops the patch (v0.6) |
-| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, and (v0.5) installed addons shipping an unreadable package manifest |
+| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, (v0.5) installed addons shipping an unreadable package manifest, and (v0.9) project code loading an addon resource by a bare `uid://` (§7.3.1) plus addons installed under a wrongly-cased folder (§7.1.1) |
 | `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
 | `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
 | `dotquay link <name> <path>` | sync | Point an addon at a local folder for development (§7.4). `--remove` unlinks; no arguments lists them (v0.6) |
@@ -229,6 +229,70 @@ before the `update` was attempted, lockfile untouched. This surfaced and fixed t
 tests (fakes only) didn't catch: the `--directory` path issue above, and the `content_hash` staleness
 issue above.
 
+### 7.1.1 The addon's repository decides its folder's casing (v0.9)
+
+A Godot addon refers to its own files by absolute `res://addons/<folder>/` paths, and those are
+case-sensitive strings even where the filesystem is not. So the folder an addon must live in is a
+fact its repository states; `addons/<name>` derived from the URL is only a guess at it.
+
+Gut is the worked example. The repository is `bitwes/Gut`, so the guess was `addons/Gut` — but its
+subtree is `addons/gut`, and 219 references across its own files say `res://addons/gut/`. On Windows
+that installs and appears to work, because the filesystem is case-insensitive. Godot then repairs
+every one of those references to the real casing and re-saves the scenes and resources involved, so
+the addon reports as hand-modified forever and floods the editor with errors on each open. On a
+case-sensitive filesystem the same install simply fails.
+
+`AddonInstaller` therefore resolves the configured subtree against the fetched repository's actual
+casing (`SubtreeExtractor.ResolveSubtreePath`) and, when nothing said otherwise, installs under that
+real name.
+
+Deliberately narrow: it corrects **capitalisation, never identity**. A segment with no
+case-insensitive match is left exactly as configured, so the existing "path does not exist in the
+fetched repository" error still fires and dotquay still never infers a layout it wasn't told (§7.1,
+OQ-2). An explicit `install_as` always wins. For a project already installed at the wrong case this
+reads as a rename, which the existing rename guard handles — so it repairs itself on the next update.
+
+`doctor` reports the condition independently (`addon_folder_case_mismatch`), because a project can
+reach it before this correction existed, and because the symptom points nowhere near the cause:
+finding it by hand meant diffing an installed addon against a fresh clone of its own locked commit,
+while the evidence sat in the addon's own files the whole time.
+
+### 7.3.1 The editor writes into the folders dotquay manages (v0.9)
+
+Godot generates files *inside* `addons/<name>/`, which puts it in direct conflict with P0-6's "the
+installed tree must match what we locked". Opening a project writes a `<script>.gd.uid` beside every
+script (4.4+) and rewrites an `<asset>.import` beside every imported asset. A freshly installed addon
+therefore read as hand-modified the first time the editor saw it, before anyone touched anything.
+
+That is not cosmetic. `install` and `update` refuse to overwrite a modified addon, so the fix people
+find is `--force` — and a guard that fires on every project teaches everyone to bypass it, at which
+point it protects nothing.
+
+`content_hash` therefore excludes editor-generated paths: `*.uid`, `*.import`, and anything under
+`.godot/` or `.import/` (`GodotArtifacts`). A fixed list, not configuration — these are facts about
+Godot, and making them a setting means every user must discover and get them right before install
+works.
+
+Three consequences, each load-bearing:
+
+- **The swap carries over generated artifacts the incoming version doesn't ship.** A wholesale replace
+  would delete them, Godot would generate *new* UIDs, and every `uid://` reference into the addon
+  would point at something gone. An artifact the addon **ships** wins instead — it's versioned
+  content, and the author's UID is what the addon's own scenes reference.
+- **A hash that reconciles with nothing, over a pristine tree, is not dirty.** A lockfile hash
+  describes the tree at install time. For an addon that ships its own `.uid` files *and* whose
+  `.import` files the editor has since rewritten, neither the current nor a legacy all-files hash can
+  match — on content byte-identical to upstream. Comparing numbers cannot resolve that; comparing
+  trees can, so the swap acquits a destination identical to what would replace it and the fresh hash
+  re-baselines the lockfile. This cannot mask a hand-edit: it excuses only a tree with nothing to
+  lose. Existing projects self-heal on their next `install`.
+- **Only one reference shape genuinely breaks**, and `doctor` reports it rather than fixing it.
+  Scenes and resources record a `path` beside every `uid`, so a stale UID falls back to the path and
+  is repaired on the next save. A bare `uid://…` handed to `load()` has no fallback —
+  `fragile_uid_reference`. Rewriting those means dotquay editing the project's own scripts, which is
+  a boundary it otherwise never crosses (§18); the risk of a non-atomic, project-wide rewrite is not
+  worth a failure Godot mostly repairs itself.
+
 ## 7. File formats
 
 ### 7.1 Project manifest — `dotquay.toml`
@@ -361,7 +425,7 @@ resolved = "e4f7a21c..."           # always a full commit SHA
 version = "2.46.1"                 # display only; pseudo-version if untagged
 path = "addons/dialogue_manager"   # source subtree in the addon's repo
 folder = "Godot-MToon-Shader"      # install destination; omitted when it equals name (v0.5)
-content_hash = "sha256:..."        # hash of installed tree, for dirty detection
+content_hash = "sha256:..."        # hash of installed tree, for dirty detection (§7.3.1)
 patch_hash = "sha256:..."          # present only if patched
 patch_base_sha = "e4f7a21c..."     # SHA the patch was captured against; present only if patched
 dependencies = ["kani_core"]       # graph edges — install never re-reads remote manifests
@@ -944,7 +1008,28 @@ loads and instantiates every one of them, and checks that each `%UniqueName` a s
 actually exists — the expected names are scanned out of the script's own source rather than listed,
 so adding a node cannot leave the test behind.
 
-### 18.2 The install preview dialog (v0.9)
+### 18.2 The add form (v0.9)
+
+The form reaches every option `add` accepts: the source kind, the URL or package ID, a **Pin to**
+selector (latest release / version / branch / commit), the `--path` subtree, and the `--install-as`
+install folder.
+
+Its job is to make only combinations `add` accepts *reachable*, because every rejected one is a
+`WorkflowException` raised after the dialog has already closed:
+
+- Branch and Commit are absent from the pin selector for a NuGet package, and the subtree and install
+  folder rows are hidden — `add` refuses those flags with an explanation rather than ignoring them.
+- A URL carrying a `#ref` locks the pin selector and says why: the ref *is* the source, and stating
+  it twice is refused outright (§6.2).
+- A pin with no value typed emits no flag at all, rather than a bare `--branch`.
+
+Those arguments are built once, in `DotquayAddRequest`, and used twice — for `add --preview` and for
+the `add` the user confirms. Building them separately is how a preview ends up describing an install
+that differs from the one that runs, which is the whole failure the preview exists to prevent. The
+request travels through the preview dialog untouched, keyed back to its payload by the git URL with
+any fragment stripped, because `--path` and `--install-as` are inputs the CLI has no reason to echo.
+
+### 18.3 The install preview dialog (v0.9)
 
 Pressing **Add…** on a git URL no longer installs. It runs `add --preview` (§6.3) and shows what
 would happen: every addon in the resolved graph marked `+` arriving / `~` moving / `=` unchanged and

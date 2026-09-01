@@ -64,4 +64,36 @@ public enum DoctorIssueKind
     /// <see cref="DoctorResult.Trust"/>.
     /// </remarks>
     TrustedHostUnusable,
+
+    /// <summary>
+    /// Project code loads something inside <c>addons/</c> by a bare <c>uid://</c> — the one reference
+    /// shape that breaks when an addon's UIDs change.
+    /// </summary>
+    /// <remarks>
+    /// Godot's scene format records a <c>uid</c> and a <c>path</c> together, so a scene whose uid stops
+    /// resolving silently falls back to the path and repairs itself on the next save. A <c>uid://</c>
+    /// string handed to <c>load()</c> has no such fallback: if the addon's uid changes, that call
+    /// simply fails at runtime.
+    /// <para>
+    /// dotquay already avoids causing this — <see cref="Dotquay.Core.Sync.SyncEngine"/> carries
+    /// generated <c>.uid</c> files across an update. But an addon that <em>starts</em> shipping its own
+    /// uids replaces the local ones legitimately, and then only this reference shape breaks. Reported
+    /// rather than rewritten: rewriting means dotquay editing the project's own scenes and scripts,
+    /// which is a boundary the CLI otherwise never crosses (SPEC.md §18).
+    /// </para>
+    /// </remarks>
+    FragileUidReference,
+
+    /// <summary>
+    /// An addon is installed in a folder whose casing its own <c>res://addons/…</c> references
+    /// disagree with.
+    /// </summary>
+    /// <remarks>
+    /// Broken in a way that looks like it works. The filesystem finds the files on Windows, so the
+    /// addon loads; but Godot's <c>res://</c> paths are case-sensitive strings, so it repairs every
+    /// reference to the real casing and re-saves the scenes and resources involved — leaving the
+    /// addon permanently "modified" and the editor full of errors on each open. On a case-sensitive
+    /// filesystem the same install simply fails.
+    /// </remarks>
+    AddonFolderCaseMismatch,
 }

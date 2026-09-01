@@ -950,12 +950,71 @@ public sealed partial class DependencyWorkflow
         {
             CheckPluginCfgDrift(projectDirectory, locked, issues);
             CheckPackageManifestReadable(projectDirectory, locked, issues);
+            CheckAddonFolderCase(projectDirectory, locked, issues);
         }
 
         CheckOrphanedAddonFolders(projectDirectory, lockfile, issues);
         CheckCredentialFilePermissions(issues);
+        CheckFragileUidReferences(projectDirectory, issues);
 
         return new DoctorResult(issues) { Trust = SummarizeTrust(manifest) };
+    }
+
+    /// <summary>
+    /// Reports an addon installed under a folder its own files disagree with, by case.
+    /// </summary>
+    /// <remarks>
+    /// The symptom points nowhere near the cause: the addon reports as permanently hand-modified and
+    /// the editor fills with errors, because Godot keeps repairing case-sensitive
+    /// <c>res://addons/…</c> references to match the real folder and re-saving the files it touched.
+    /// Finding it by hand meant diffing the installed addon against a fresh clone of its own locked
+    /// commit — while the evidence sat in the addon's own files the whole time. The fix is
+    /// <c>install_as</c>, which the message names.
+    /// </remarks>
+    private void CheckAddonFolderCase(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
+    {
+        var addonPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
+        var mismatch = AddonFolderCaseChecker.Check(_fileSystem, addonPath, locked.EffectiveFolder);
+
+        if (mismatch is null)
+        {
+            return;
+        }
+
+        issues.Add(new DoctorIssue(
+            DoctorIssueKind.AddonFolderCaseMismatch,
+            $"'{locked.Name}' is installed at addons/{mismatch.Folder}, but {mismatch.ReferenceCount} of its own "
+            + $"files refer to res://addons/{mismatch.Expected}/. Godot's res:// paths are case-sensitive, so it "
+            + $"rewrites those references on every open — which is why this addon never reads as clean. Set "
+            + $"install_as = \"{mismatch.Expected}\" under [addons.{locked.Name}] and run 'dotquay update {locked.Name}'."));
+    }
+
+    /// <summary>
+    /// Reports project code that loads an addon resource by a bare <c>uid://</c> — the one reference
+    /// shape that breaks when an addon's UIDs change.
+    /// </summary>
+    /// <remarks>
+    /// dotquay works hard not to cause this: <see cref="SyncEngine"/> carries generated <c>.uid</c>
+    /// files across an update precisely so uids stay stable. But an addon that starts shipping its own
+    /// uids legitimately replaces the local ones, and then only this pattern breaks — scenes and
+    /// resources carry a path beside each uid and repair themselves.
+    /// <para>
+    /// Reported, never rewritten. Fixing it means editing the project's own scripts, and the CLI's
+    /// contract is that it writes the manifest, the lockfile, and <c>addons/</c> — nothing else.
+    /// </para>
+    /// </remarks>
+    private void CheckFragileUidReferences(string projectDirectory, List<DoctorIssue> issues)
+    {
+        var addonsDirectory = _fileSystem.CombinePath(projectDirectory, "addons");
+
+        foreach (var finding in UidReferenceScanner.Scan(_fileSystem, projectDirectory, addonsDirectory))
+        {
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.FragileUidReference,
+                $"{finding.File} loads addons/{finding.Target} by {finding.Uid}. A uid:// literal has no "
+                + "path to fall back on, so it breaks if that addon's uid ever changes — load it by its "
+                + "res:// path instead."));
+        }
     }
 
     /// <summary>Reports <c>trusted_hosts</c> entries that can't do what they read as (SPEC.md §11.3).

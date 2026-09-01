@@ -287,6 +287,8 @@ public static class JsonMapper
         DoctorIssueKind.CredentialFilePermissions => "credential_file_permissions",
         DoctorIssueKind.SecretInManifest => "secret_in_manifest",
         DoctorIssueKind.TrustedHostUnusable => "trusted_host_unusable",
+        DoctorIssueKind.FragileUidReference => "fragile_uid_reference",
+        DoctorIssueKind.AddonFolderCaseMismatch => "addon_folder_case_mismatch",
         _ => "unknown",
     };
 

@@ -30,6 +30,55 @@ public sealed class AddonInstaller
     }
 
     /// <summary>
+    /// Points the addon at the subtree's real casing, and — when nothing said otherwise — installs it
+    /// under that real name rather than the one derived from the repository's URL.
+    /// </summary>
+    /// <remarks>
+    /// A Godot addon refers to its own files by absolute <c>res://addons/&lt;folder&gt;/</c> paths, and
+    /// those are case-sensitive strings even where the filesystem is not. So the folder an addon must
+    /// live in is a fact its own repository states, and the URL is only a guess at it. Gut states
+    /// <c>addons/gut</c>; the repository is named <c>Gut</c>; installing to <c>addons/Gut</c> left 88
+    /// files pointing at a path that, to Godot, did not exist.
+    /// <para>
+    /// Deliberately narrow. This only ever fires when the guess and the repository agree
+    /// case-insensitively and disagree otherwise — a correction of capitalisation, never of identity.
+    /// A genuinely different folder name still has to be given as <c>--path</c>/<c>--install-as</c>,
+    /// so dotquay continues not to infer layout (SPEC.md §7.1, OQ-2). An explicit
+    /// <see cref="ResolvedAddon.InstallAs"/> always wins; nobody's stated choice is second-guessed.
+    /// </para>
+    /// <para>
+    /// For a project already installed at the wrong case this reads as a rename, which
+    /// <see cref="GuardOldFolderBeforeRename"/> already handles — so an existing project repairs
+    /// itself on its next update instead of needing the fix by hand.
+    /// </para>
+    /// </remarks>
+    private ResolvedAddon CorrectFolderCase(ResolvedAddon resolved, string cachedRepoPath)
+    {
+        var actualPath = SubtreeExtractor.ResolveSubtreePath(_fileSystem, cachedRepoPath, resolved.Path);
+
+        if (string.Equals(actualPath, resolved.Path, StringComparison.Ordinal))
+        {
+            return resolved;
+        }
+
+        var corrected = resolved with { Path = actualPath };
+
+        if (resolved.InstallAs is not null)
+        {
+            return corrected;
+        }
+
+        var actualFolder = actualPath[(actualPath.LastIndexOf('/') + 1)..];
+
+        // Only a capitalisation fix. If the subtree's real name is a different name, the folder stays
+        // whatever it already was — that is a layout decision, and dotquay does not make those.
+        return string.Equals(actualFolder, resolved.EffectiveFolder, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(actualFolder, resolved.EffectiveFolder, StringComparison.Ordinal)
+                ? corrected with { InstallAs = actualFolder }
+                : corrected;
+    }
+
+    /// <summary>
     /// Fetches, extracts, (re-)patches, and swaps <paramref name="resolved"/> into
     /// <c>&lt;projectDirectory&gt;/addons/&lt;name&gt;</c>, returning the <see cref="LockedAddon"/>
     /// to write back to the lockfile. <paramref name="previous"/> is the lockfile's prior record for
@@ -55,6 +104,8 @@ public sealed class AddonInstaller
         }
 
         var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
+
+        resolved = CorrectFolderCase(resolved, cachedRepoPath);
 
         var stagingPath = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging", resolved.Name);
         SubtreeExtractor.Extract(_fileSystem, cachedRepoPath, resolved.Path, stagingPath);
