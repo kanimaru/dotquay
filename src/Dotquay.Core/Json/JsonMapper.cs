@@ -299,6 +299,8 @@ public static class JsonMapper
         DoctorIssueKind.FragileUidReference => "fragile_uid_reference",
         DoctorIssueKind.AddonFolderCaseMismatch => "addon_folder_case_mismatch",
         DoctorIssueKind.PackageAssetMetadataDrift => "package_asset_metadata_drift",
+        DoctorIssueKind.LinkedProjectMissing => "linked_project_missing",
+        DoctorIssueKind.LocalOverlayNotImported => "local_overlay_not_imported",
         _ => "unknown",
     };
 

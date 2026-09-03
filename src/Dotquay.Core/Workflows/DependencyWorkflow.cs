@@ -385,6 +385,10 @@ public sealed partial class DependencyWorkflow
                 dependency.Source, cancellationToken, dependency.Assets, dependency.Assets));
         }
 
+        // Before the restore, not after: restore evaluates the project, and the overlay is what
+        // decides whether a linked package resolves from NuGet or from the local project.
+        SyncLocalTargets(projectDirectory);
+
         if (installedDotnet.Count > 0)
         {
             await RestoreDotnetOrThrowAsync(projectDirectory, manifest, cancellationToken, installedDotnet);
@@ -917,6 +921,66 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
+    /// The two ways a local .NET link (v0.11) stops working without saying so: its target project is
+    /// gone, or the overlay is no longer imported.
+    /// </summary>
+    /// <remarks>
+    /// Both fail in ways that never mention dotquay — the first as an MSBuild error about a project
+    /// path, the second not at all. The second is the more dangerous: the build simply keeps using the
+    /// published package, which is the exact silence the overlay design was chosen to avoid.
+    /// </remarks>
+    private void CheckDotnetLinks(string projectDirectory, List<DoctorIssue> issues)
+    {
+        IReadOnlyDictionary<string, DotnetLink> links;
+        try
+        {
+            links = _localLinks.ReadDotnet(projectDirectory);
+        }
+        catch (LocalLinkException ex)
+        {
+            issues.Add(new DoctorIssue(DoctorIssueKind.LinkedProjectMissing, ex.Message));
+            return;
+        }
+
+        foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal))
+        {
+            if (!_fileSystem.FileExists(link.ProjectPath))
+            {
+                issues.Add(new DoctorIssue(
+                    DoctorIssueKind.LinkedProjectMissing,
+                    $"'{link.PackageId}' is linked to {link.ProjectPath}, which no longer exists. Run "
+                    + $"'dotquay link {link.PackageId} --remove' to go back to the published package."));
+            }
+        }
+
+        if (links.Count == 0)
+        {
+            return;
+        }
+
+        // The overlay only does anything if the .csproj imports it, and the import lives in a
+        // committed file where a merge can lose it.
+        string csprojPath;
+        try
+        {
+            csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
+        }
+        catch (DotnetSyncException)
+        {
+            return;
+        }
+
+        if (!LocalTargetsWriter.HasHook(_fileSystem, csprojPath))
+        {
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.LocalOverlayNotImported,
+                $"{csprojPath} does not import {LocalTargetsWriter.FileName}, so this machine's .NET "
+                + "links do nothing and the build is quietly using the published packages. Run "
+                + "'dotquay install' to restore the import."));
+        }
+    }
+
+    /// <summary>
     /// Asset metadata in the <c>.csproj</c> that disagrees with what is declared for the package
     /// (v0.10). Purely local — it compares two files already on disk.
     /// </summary>
@@ -1030,6 +1094,7 @@ public sealed partial class DependencyWorkflow
         CheckOrphanedAddonFolders(projectDirectory, lockfile, issues);
         CheckCredentialFilePermissions(issues);
         CheckFragileUidReferences(projectDirectory, issues);
+        CheckDotnetLinks(projectDirectory, issues);
 
         return new DoctorResult(issues) { Trust = SummarizeTrust(manifest) };
     }
@@ -1534,6 +1599,23 @@ public sealed partial class DependencyWorkflow
             + "project's package registry, and that the token has the read_package_registry scope.";
     }
 
+    /// <summary>
+    /// Regenerates <c>dotquay.local.targets</c> from this machine's links (v0.11). Derived state, so
+    /// it is rebuilt from the link file rather than edited — and a no-op, with no file left behind,
+    /// for the overwhelmingly common case of a project with no dotnet links.
+    /// </summary>
+    private void SyncLocalTargets(string projectDirectory)
+    {
+        try
+        {
+            LocalTargetsWriter.Sync(_fileSystem, projectDirectory, _localLinks.ReadDotnet(projectDirectory));
+        }
+        catch (LocalLinkException ex)
+        {
+            throw new WorkflowException(ex.Message, ex);
+        }
+    }
+
     private async Task<LockedDotnet> InstallDotnetOrThrowAsync(
         string projectDirectory,
         string packageId,
@@ -1875,6 +1957,7 @@ public sealed partial class DependencyWorkflow
         var sources = manifest.SourceSet();
         var addonDeclaredByName = addonDeclared?.ToDictionary(s => s.Name, StringComparer.Ordinal);
         var previousByName = previousDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
+        var dotnetLinks = _localLinks.ReadDotnet(projectDirectory);
         var resultByName = new Dictionary<string, LockedDotnet>(StringComparer.Ordinal);
         var anyChanged = false;
 
@@ -1887,12 +1970,23 @@ public sealed partial class DependencyWorkflow
             var pin = manifest.Dotnet.TryGetValue(targetName, out var spec) ? spec.Source : null;
             var nuGetClient = _nuGetClientFactory.Create(sources, pin);
 
+            // A linked package is never resolved remotely (SPEC.md §7.4, v0.11). The point of linking
+            // is to work on a library before it is published, so demanding that a published version
+            // exist would refuse exactly the case the feature is for. The lockfile keeps saying
+            // whatever it already said — or, on a first link, the version the manifest declares — so
+            // unlinking still puts this machine back on something real.
+            var linkedVersion = dotnetLinks.ContainsKey(targetName)
+                ? previous?.Resolved ?? spec?.Version
+                : null;
+
             string version;
             string? resolvedSource;
             try
             {
-                (version, resolvedSource) = await ResolveDotnetVersionOrThrowAsync(
-                    nuGetClient, targetName, versionOverride: null, cancellationToken);
+                (version, resolvedSource) = linkedVersion is not null
+                    ? (linkedVersion, previous?.Source)
+                    : await ResolveDotnetVersionOrThrowAsync(
+                        nuGetClient, targetName, versionOverride: null, cancellationToken);
             }
             catch (WorkflowException ex) when (refusalHints?.TryGetValue(targetName, out var hint) == true)
             {
@@ -1953,6 +2047,10 @@ public sealed partial class DependencyWorkflow
                 }
             }
         }
+
+        // Before the restore for the same reason as in InstallAsync: the overlay decides where a
+        // linked package's assemblies come from, and restore is what acts on that.
+        SyncLocalTargets(projectDirectory);
 
         if (anyChanged)
         {

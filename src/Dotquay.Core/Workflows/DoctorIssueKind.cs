@@ -109,4 +109,24 @@ public enum DoctorIssueKind
     /// reconciled, because the <c>.csproj</c> is a file the user also owns.
     /// </remarks>
     PackageAssetMetadataDrift,
+
+    /// <summary>
+    /// A <c>[link.dotnet.*]</c> entry points at a <c>.csproj</c> that is no longer there (v0.11).
+    /// </summary>
+    /// <remarks>
+    /// The overlay still names it, so every build fails with an MSBuild error about a missing project
+    /// rather than anything mentioning dotquay. Usually the linked checkout was moved or deleted and
+    /// the link outlived it.
+    /// </remarks>
+    LinkedProjectMissing,
+
+    /// <summary>
+    /// <c>dotquay.local.targets</c> exists but the <c>.csproj</c> does not import it (v0.11).
+    /// </summary>
+    /// <remarks>
+    /// A link that silently does nothing: the build quietly keeps using the published package, which
+    /// is the exact failure the overlay design exists to prevent. Happens if the
+    /// <c>&lt;Import&gt;</c> line is removed by hand or lost in a merge.
+    /// </remarks>
+    LocalOverlayNotImported,
 }
