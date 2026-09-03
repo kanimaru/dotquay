@@ -128,8 +128,33 @@ public static partial class LockfileReader
         var resolved = GetString(entry, "resolved") ?? throw Missing(sourcePath, "dotnet", "resolved");
 
         // Absent 'source' means nuget.org, which is exactly what every pre-v0.7 lockfile means too —
-        // so old lockfiles read correctly rather than needing a migration.
-        return new LockedDotnet { Name = name, Resolved = resolved, Source = GetString(entry, "source") };
+        // so old lockfiles read correctly rather than needing a migration. The asset keys behave the
+        // same way for pre-v0.10 lockfiles: absent means dotquay wrote no asset metadata, which is
+        // what was true.
+        return new LockedDotnet
+        {
+            Name = name,
+            Resolved = resolved,
+            Source = GetString(entry, "source"),
+            Assets = new Manifest.PackageAssets
+            {
+                Include = ReadAssetTags(entry, "include_assets"),
+                Exclude = ReadAssetTags(entry, "exclude_assets"),
+                Private = ReadAssetTags(entry, "private_assets"),
+            },
+        };
+    }
+
+    /// <summary>Null when the key is absent — "dotquay wrote nothing", which is different from
+    /// "dotquay wrote an empty list" and is what drives removal on the next sync.</summary>
+    private static IReadOnlyList<string>? ReadAssetTags(TomlTable entry, string key)
+    {
+        if (!entry.TryGetValue(key, out var raw) || raw is not TomlArray array)
+        {
+            return null;
+        }
+
+        return Manifest.PackageAssets.Normalize(array.OfType<string>().ToList());
     }
 
     private static bool LooksLikeFullSha(string value) => value.Length == 40 && value.All(Uri.IsHexDigit);

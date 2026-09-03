@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Manifest;
 
 namespace Dotquay.Core.Dotnet;
 
@@ -12,12 +13,39 @@ namespace Dotquay.Core.Dotnet;
 /// parsed tree rather than preserving the original file byte-for-byte, so incidental whitespace can
 /// shift; actual content (other items, properties, comments) survives.
 /// </summary>
+/// <remarks>
+/// Asset metadata (v0.10) follows a strict ownership rule, because the <c>.csproj</c> is a file the
+/// user edits too: a list the manifest declares is dotquay's to write and replace; a list the
+/// manifest is silent about is left exactly as found, <em>unless</em> dotquay is the one that wrote
+/// it (which the lockfile records), in which case it is removed. Anything else on the element —
+/// <c>Condition</c>, <c>NoWarn</c>, unrelated children — is never touched.
+/// </remarks>
 public static class CsprojPackageReferenceWriter
 {
+    /// <summary>The three MSBuild metadata names, paired with their slot on
+    /// <see cref="PackageAssets"/>. One table so a new slot cannot be added to the model and
+    /// forgotten here.</summary>
+    private static readonly (string Element, Func<PackageAssets, IReadOnlyList<string>?> Get)[] AssetSlots =
+    [
+        ("IncludeAssets", assets => assets.Include),
+        ("ExcludeAssets", assets => assets.Exclude),
+        ("PrivateAssets", assets => assets.Private),
+    ];
+
     /// <summary>Adds a new <c>PackageReference</c>, or updates the <c>Version</c> attribute of an
     /// existing one (matched case-insensitively on <c>Include</c>, since NuGet package IDs are
     /// themselves case-insensitive).</summary>
-    public static void AddOrUpdate(IFileSystem fileSystem, string csprojPath, string packageId, string version)
+    /// <param name="declared">Asset metadata the manifest declares. Null lists mean "not declared".</param>
+    /// <param name="previouslyWritten">Asset metadata dotquay wrote last time, from the lockfile. A
+    /// list present here but absent from <paramref name="declared"/> is removed — that is the only way
+    /// to tell a withdrawn declaration from a user's hand-edit.</param>
+    public static void AddOrUpdate(
+        IFileSystem fileSystem,
+        string csprojPath,
+        string packageId,
+        string version,
+        PackageAssets? declared = null,
+        PackageAssets? previouslyWritten = null)
     {
         var (document, project) = Load(fileSystem, csprojPath);
 
@@ -35,8 +63,11 @@ public static class CsprojPackageReferenceWriter
                 project.Add(itemGroup);
             }
 
-            itemGroup.Add(new XElement("PackageReference", new XAttribute("Include", packageId), new XAttribute("Version", version)));
+            existing = new XElement("PackageReference", new XAttribute("Include", packageId), new XAttribute("Version", version));
+            itemGroup.Add(existing);
         }
+
+        SyncAssets(existing, declared ?? PackageAssets.None, previouslyWritten ?? PackageAssets.None);
 
         Save(fileSystem, csprojPath, document);
     }
@@ -56,6 +87,100 @@ public static class CsprojPackageReferenceWriter
         existing.Remove();
         Save(fileSystem, csprojPath, document);
         return true;
+    }
+
+    /// <summary>
+    /// The asset metadata currently on a package's reference, or null when the package has no
+    /// reference at all. Used by <c>doctor</c> to compare the file against the manifest.
+    /// </summary>
+    public static PackageAssets? ReadAssets(IFileSystem fileSystem, string csprojPath, string packageId)
+    {
+        var (_, project) = Load(fileSystem, csprojPath);
+        var existing = FindReference(project, packageId);
+
+        return existing is null ? null : ReadAssets(existing);
+    }
+
+    private static PackageAssets ReadAssets(XElement reference) => new()
+    {
+        Include = ReadSlot(reference, "IncludeAssets"),
+        Exclude = ReadSlot(reference, "ExcludeAssets"),
+        Private = ReadSlot(reference, "PrivateAssets"),
+    };
+
+    /// <summary>
+    /// Reads one metadata slot in either of MSBuild's two equivalent spellings.
+    /// </summary>
+    /// <remarks>
+    /// <c>PrivateAssets="none"</c> and <c>&lt;PrivateAssets&gt;none&lt;/PrivateAssets&gt;</c> mean the
+    /// same thing to MSBuild. dotquay writes the child-element form, but a hand-edited file may well
+    /// use the attribute — and matching only one form would leave the writer adding a child element
+    /// beside an existing attribute, so the same reference would carry the metadata twice with
+    /// MSBuild's precedence, not dotquay, deciding the winner.
+    /// </remarks>
+    private static IReadOnlyList<string>? ReadSlot(XElement reference, string name)
+    {
+        var attribute = reference.Attribute(name);
+        if (attribute is not null)
+        {
+            return PackageAssets.Parse(attribute.Value);
+        }
+
+        var child = reference.Element(name);
+        return child is null ? null : PackageAssets.Parse(child.Value);
+    }
+
+    private static void SyncAssets(XElement reference, PackageAssets declared, PackageAssets previouslyWritten)
+    {
+        foreach (var (element, get) in AssetSlots)
+        {
+            var wanted = get(declared);
+
+            if (wanted is not null)
+            {
+                WriteSlot(reference, element, wanted);
+                continue;
+            }
+
+            // Not declared. Only ours to remove if we are the ones who put it there.
+            if (get(previouslyWritten) is not null)
+            {
+                ClearSlot(reference, element);
+            }
+        }
+    }
+
+    /// <summary>Writes a slot, preserving whichever spelling the file already uses so dotquay does not
+    /// rewrite a hand-authored file's style out from under its author.</summary>
+    private static void WriteSlot(XElement reference, string name, IReadOnlyList<string> tags)
+    {
+        var value = PackageAssets.Format(tags);
+
+        var attribute = reference.Attribute(name);
+        if (attribute is not null)
+        {
+            attribute.Value = value;
+
+            // A file carrying both spellings is already ambiguous; collapse it rather than leave two
+            // sources of truth behind.
+            reference.Element(name)?.Remove();
+            return;
+        }
+
+        var child = reference.Element(name);
+        if (child is not null)
+        {
+            child.Value = value;
+            return;
+        }
+
+        reference.Add(new XElement(name, value));
+    }
+
+    private static void ClearSlot(XElement reference, string name)
+    {
+        reference.Attribute(name)?.Remove();
+        reference.Element(name)?.Remove();
     }
 
     private static XElement? FindReference(XElement project, string packageId) =>

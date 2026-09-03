@@ -322,18 +322,82 @@ public static class ManifestReader
                         ? pin
                         : null;
 
-                    result[childPath] = new DotnetSpec { Name = childPath, Version = version, Source = pinned };
+                    result[childPath] = new DotnetSpec
+                    {
+                        Name = childPath,
+                        Version = version,
+                        Source = pinned,
+                        Assets = ReadAssets(childTable, sectionKey, childPath, sourcePath),
+                    };
                 }
 
                 CollectDotnetSpecs(childTable, childPath, sectionKey, sourcePath, result);
             }
-            else if (key is not ("version" or "source"))
+            else if (key is not ("version" or "source" or AssetKeys.Include or AssetKeys.Exclude or AssetKeys.Private))
             {
                 throw new ManifestParseException(
                     $"{sourcePath}: [{sectionKey}] entry '{childPath}' is not a table — dotnet dependencies "
                     + "must be declared as [dotnet.<PackageId>] with a 'version' key.");
             }
         }
+    }
+
+    /// <summary>The TOML key names for asset metadata, shared with <see cref="ManifestWriter"/> and
+    /// with the whitelist in <see cref="CollectDotnetSpecs"/> — three spellings of each would be three
+    /// chances to disagree.</summary>
+    internal static class AssetKeys
+    {
+        public const string Include = "include_assets";
+        public const string Exclude = "exclude_assets";
+        public const string Private = "private_assets";
+    }
+
+    /// <summary>
+    /// Reads the <c>include_assets</c>/<c>exclude_assets</c>/<c>private_assets</c> arrays off one
+    /// <c>[dotnet.&lt;PackageId&gt;]</c> table (v0.10).
+    /// </summary>
+    /// <remarks>
+    /// Structural problems throw — a non-array, a non-string element, an empty list, or <c>all</c>/
+    /// <c>none</c> mixed with other tags. An unrecognised <em>tag</em> does not: MSBuild may add tags
+    /// after this code was written, and refusing one would make dotquay the reason a valid manifest
+    /// cannot be used. Those are surfaced as warnings at install time instead
+    /// (<see cref="PackageAssets.UnknownTags"/>).
+    /// </remarks>
+    private static PackageAssets ReadAssets(TomlTable table, string sectionKey, string packageId, string sourcePath) =>
+        new()
+        {
+            Include = ReadAssetTags(table, AssetKeys.Include, sectionKey, packageId, sourcePath),
+            Exclude = ReadAssetTags(table, AssetKeys.Exclude, sectionKey, packageId, sourcePath),
+            Private = ReadAssetTags(table, AssetKeys.Private, sectionKey, packageId, sourcePath),
+        };
+
+    private static IReadOnlyList<string>? ReadAssetTags(
+        TomlTable table, string key, string sectionKey, string packageId, string sourcePath)
+    {
+        if (!table.TryGetValue(key, out var value))
+        {
+            return null;
+        }
+
+        var what = $"[{sectionKey}.{packageId}] {key}";
+        var tags = PackageAssets.Normalize(ReadStringArray(value, sourcePath, what));
+
+        if (tags.Count == 0)
+        {
+            throw new ManifestParseException(
+                $"{sourcePath}: {what} is empty. Remove the key to leave the .csproj alone, or use "
+                + "[\"none\"] to say no assets.");
+        }
+
+        var misuse = PackageAssets.FindMisuseOfAllOrNone(tags);
+        if (misuse is not null)
+        {
+            throw new ManifestParseException(
+                $"{sourcePath}: {what} lists '{misuse}' alongside other values — '{misuse}' must "
+                + "appear on its own.");
+        }
+
+        return tags;
     }
 
     /// <summary>

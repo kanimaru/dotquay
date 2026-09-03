@@ -22,4 +22,17 @@ public sealed class DotnetSpec
     /// a package genuinely named <c>Foo.source</c> can't be pinned.
     /// </remarks>
     public string? Source { get; init; }
+
+    /// <summary>
+    /// Declared <c>IncludeAssets</c>/<c>ExcludeAssets</c>/<c>PrivateAssets</c> for this package
+    /// (v0.10). <see cref="PackageAssets.None"/> — the default — means the manifest declared none,
+    /// and dotquay therefore leaves the <c>.csproj</c>'s asset elements alone.
+    /// </summary>
+    /// <remarks>
+    /// Told apart from a dotted package ID the same way <see cref="Source"/> is, but by a different
+    /// TOML type: these keys are <em>arrays</em>, while <c>[dotnet.Foo.include_assets]</c> would be a
+    /// <em>table</em> naming a package called <c>Foo.include_assets</c>. One key cannot be both, so
+    /// the two readings never collide.
+    /// </remarks>
+    public PackageAssets Assets { get; init; } = PackageAssets.None;
 }

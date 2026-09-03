@@ -62,6 +62,69 @@ public class GraphWarningTests
         return new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "godot/addons/leaf" };
     }
 
+    private const string AlphaUrl = "https://example.com/alpha.git";
+    private const string BetaUrl = "https://example.com/beta.git";
+
+    /// <summary>Two addons that both declare the same analyzer package, with the asset metadata each
+    /// one's author chose.</summary>
+    private static AddonSpec[] SetUpTwoAddonsDeclaring(
+        FakeGitClient gitClient, string alphaPrivateAssets, string betaPrivateAssets)
+    {
+        foreach (var (name, url, privateAssets) in
+            new[] { ("alpha", AlphaUrl, alphaPrivateAssets), ("beta", BetaUrl, betaPrivateAssets) })
+        {
+            SetTags(gitClient, url, "v1.0.0");
+            gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string>
+            {
+                [$"addons/{name}/plugin.cfg"] = "cfg",
+                [$"addons/{name}/dotquay.toml"] = $"""
+                    [package]
+                    name = "{name}"
+
+                    [dotnet."Shared.Analyzer"]
+                    version = "1.0.0"
+                    private_assets = [{privateAssets}]
+                    """,
+            };
+        }
+
+        return
+        [
+            new AddonSpec { Name = "alpha", Git = AlphaUrl, Version = "~1.0", Path = "addons/alpha" },
+            new AddonSpec { Name = "beta", Git = BetaUrl, Version = "~1.0", Path = "addons/beta" },
+        ];
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_AddonsDisagreeingOnAssetMetadata_Warns()
+    {
+        var (resolver, gitClient) = Build();
+        var specs = SetUpTwoAddonsDeclaring(gitClient, "\"all\"", "\"none\"");
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(specs), NoOverrides());
+
+        // First-discovered wins, as it already does for the version — but unlike a version range,
+        // one of these two addons is now getting wiring its author did not ask for, so it is said
+        // out loud. The message names both sides because "something else disagrees" is unactionable.
+        var warning = Assert.Single(analysis.Warnings, w => w.Kind == GraphWarningKind.DotnetAssetMetadataConflict);
+        Assert.Contains("Shared.Analyzer", warning.Message);
+        Assert.Contains("alpha", warning.Message);
+        Assert.Contains("beta", warning.Message);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_AddonsAgreeingOnAssetMetadata_IsSilent()
+    {
+        var (resolver, gitClient) = Build();
+        var specs = SetUpTwoAddonsDeclaring(gitClient, "\"none\"", "\"none\"");
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(specs), NoOverrides());
+
+        // Two addons wanting the same wiring is the normal case, and warning about it would be noise
+        // arriving exactly when things go right.
+        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.DotnetAssetMetadataConflict);
+    }
+
     [Fact]
     public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_Warns()
     {

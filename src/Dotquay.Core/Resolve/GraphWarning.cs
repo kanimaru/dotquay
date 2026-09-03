@@ -11,6 +11,12 @@ public enum GraphWarningKind
     /// addon's repository. Almost always a layout mistake: the manifest was put at the repo root or
     /// in the surrounding Godot project instead of inside the addon folder.</summary>
     PackageManifestOutsideSubtree,
+
+    /// <summary>Two addons declare the same NuGet package with different asset metadata (v0.10).
+    /// First-discovered wins, as it already does for the version — but unlike a version, disagreeing
+    /// metadata usually means one of the two addons will not get the behaviour it asked for, so it is
+    /// worth saying. Declaring the package in the project's own manifest resolves it (SPEC.md §8).</summary>
+    DotnetAssetMetadataConflict,
 }
 
 /// <summary>

@@ -67,9 +67,27 @@ public static class LockfileWriter
             {
                 sb.AppendLine($"source = {Quote(dependency.Source)}");
             }
+
+            // What dotquay actually wrote into the .csproj, not what the manifest asked for — the
+            // record that lets a later sync tell "the manifest stopped declaring this" from "the user
+            // hand-added it". Omitted when nothing was written, so pre-v0.10 lockfiles round-trip
+            // byte-identically.
+            AppendAssetTags(sb, "include_assets", dependency.Assets.Include);
+            AppendAssetTags(sb, "exclude_assets", dependency.Assets.Exclude);
+            AppendAssetTags(sb, "private_assets", dependency.Assets.Private);
         }
 
         return sb.ToString();
+    }
+
+    private static void AppendAssetTags(StringBuilder sb, string key, IReadOnlyList<string>? tags)
+    {
+        if (tags is null)
+        {
+            return;
+        }
+
+        sb.AppendLine($"{key} = [{string.Join(", ", tags.Select(Quote))}]");
     }
 
     private static void StartBlock(StringBuilder sb)

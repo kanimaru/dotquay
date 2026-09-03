@@ -96,4 +96,17 @@ public enum DoctorIssueKind
     /// filesystem the same install simply fails.
     /// </remarks>
     AddonFolderCaseMismatch,
+
+    /// <summary>
+    /// A package's <c>.csproj</c> reference does not carry the asset metadata declared for it
+    /// (v0.10 — <c>IncludeAssets</c>/<c>ExcludeAssets</c>/<c>PrivateAssets</c>).
+    /// </summary>
+    /// <remarks>
+    /// This check is what makes "the manifest owns these elements where it declares them" a claim
+    /// rather than a hope. It catches the two ways they drift apart: a hand-edit to the
+    /// <c>.csproj</c>, and a manifest edit picked up by nothing because <c>install</c> deliberately
+    /// replays the lockfile instead of re-reading the manifest. Reported rather than silently
+    /// reconciled, because the <c>.csproj</c> is a file the user also owns.
+    /// </remarks>
+    PackageAssetMetadataDrift,
 }

@@ -48,10 +48,13 @@ public sealed class DotnetInstaller
         string? resolvedSourceName = null,
         IReadOnlyDictionary<string, string>? pinnedPackages = null,
         bool writeSourceMapping = true,
+        Manifest.PackageAssets? assets = null,
+        Manifest.PackageAssets? previouslyWritten = null,
         CancellationToken cancellationToken = default)
     {
         var csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
-        CsprojPackageReferenceWriter.AddOrUpdate(_fileSystem, csprojPath, packageId, version);
+        CsprojPackageReferenceWriter.AddOrUpdate(
+            _fileSystem, csprojPath, packageId, version, assets, previouslyWritten);
 
         var effectiveSources = sources ?? NuGetSourceSet.PublicOnly;
 
@@ -66,7 +69,16 @@ public sealed class DotnetInstaller
             await _cliRunner.RestoreAsync(csprojPath, BuildCredentialEnvironment(effectiveSources), cancellationToken);
         }
 
-        return new LockedDotnet { Name = packageId, Resolved = version, Source = resolvedSourceName };
+        // Records what was written, not what was asked for — they are the same here, but the lockfile's
+        // job is to be the record of the action, so the next sync can remove metadata a manifest has
+        // since withdrawn.
+        return new LockedDotnet
+        {
+            Name = packageId,
+            Resolved = version,
+            Source = resolvedSourceName,
+            Assets = assets ?? Manifest.PackageAssets.None,
+        };
     }
 
     /// <summary>Removes the PackageReference if present. Does not restore — an obj/ cache one

@@ -19,4 +19,18 @@ public sealed class LockedDotnet
     /// temporarily unreachable.
     /// </remarks>
     public string? Source { get; init; }
+
+    /// <summary>
+    /// The asset metadata dotquay itself wrote into the <c>.csproj</c> for this package (v0.10).
+    /// Omitted from the file when nothing was written, so lockfiles from before v0.10 read unchanged.
+    /// </summary>
+    /// <remarks>
+    /// This is not a duplicate of the manifest's declaration — it is the record of what dotquay
+    /// <em>did</em>, and the two differing is exactly what makes removal possible. Without it,
+    /// "the manifest stopped declaring private_assets" and "the user hand-added &lt;PrivateAssets&gt;"
+    /// are the same observation, and dotquay would have to either strip hand-edits or leave stale
+    /// metadata the manifest disclaims. It also keeps an addon-declared analyzer reproducible: the
+    /// consuming project's own manifest never mentions that package.
+    /// </remarks>
+    public Manifest.PackageAssets Assets { get; init; } = Manifest.PackageAssets.None;
 }

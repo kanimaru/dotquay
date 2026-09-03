@@ -286,7 +286,7 @@ public sealed partial class DependencyWorkflow
             .ToHashSet(StringComparer.Ordinal);
         var syncedDotnet = await SyncDotnetAsync(
             projectDirectory, updatedManifest, lockfile.Dotnet, newDotnetNames, pruneUnreachable: false, cancellationToken,
-            refusalHints);
+            refusalHints, addonDeclaredDotnet);
 
         WriteLockfile(lockfilePath, lockfile with { Addons = syncedAddons, Dotnet = syncedDotnet });
 
@@ -376,9 +376,13 @@ public sealed partial class DependencyWorkflow
             // dependency.Source is replayed, not re-resolved: install reproduces the lockfile
             // exactly (SPEC.md §5), and a package that resolved from a private feed must not come
             // from a public one here just because the search order would allow it.
+            // Asset metadata is replayed from the lockfile too, not re-read from the manifest: a
+            // manifest edit is picked up by 'update', and letting 'install' act on one would break
+            // the "install reproduces the lockfile exactly" guarantee for the same reason re-resolving
+            // the version would. 'doctor' reports the resulting drift so the edit isn't silent.
             installedDotnet.Add(await InstallDotnetOrThrowAsync(
                 projectDirectory, dependency.Name, dependency.Resolved, manifest, restore: false,
-                dependency.Source, cancellationToken));
+                dependency.Source, cancellationToken, dependency.Assets, dependency.Assets));
         }
 
         if (installedDotnet.Count > 0)
@@ -518,7 +522,7 @@ public sealed partial class DependencyWorkflow
         var previousDotnetByName = lockfile.Dotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var syncedDotnet = await SyncDotnetAsync(
             projectDirectory, manifest, lockfile.Dotnet, dotnetTargetNames, pruneUnreachable: !resync && name is null, cancellationToken,
-            refusalHints);
+            refusalHints, addonDeclaredDotnet);
 
 
         var syncedDotnetByName = syncedDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
@@ -913,6 +917,75 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
+    /// Asset metadata in the <c>.csproj</c> that disagrees with what is declared for the package
+    /// (v0.10). Purely local — it compares two files already on disk.
+    /// </summary>
+    /// <remarks>
+    /// Only declared slots are compared. A slot the manifest says nothing about is not dotquay's to
+    /// have an opinion on, so a hand-added <c>&lt;ExcludeAssets&gt;</c> beside a declared
+    /// <c>&lt;PrivateAssets&gt;</c> is left alone here exactly as the writer leaves it alone.
+    /// </remarks>
+    private void CheckPackageAssetDrift(
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    {
+        string csprojPath;
+        try
+        {
+            csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
+        }
+        catch (DotnetSyncException)
+        {
+            // No .csproj, or more than one. A GDScript-only project is perfectly healthy, and the
+            // ambiguous case is already reported by anything that actually tries to write.
+            return;
+        }
+
+        foreach (var locked in lockfile.Dotnet)
+        {
+            // The project's own declaration wins, exactly as it does at install time. For an
+            // addon-declared package the lockfile is the only record of what was asked for.
+            var expected = manifest.Dotnet.TryGetValue(locked.Name, out var spec) ? spec.Assets : locked.Assets;
+            if (expected.IsEmpty)
+            {
+                continue;
+            }
+
+            PackageAssets? actual;
+            try
+            {
+                actual = CsprojPackageReferenceWriter.ReadAssets(_fileSystem, csprojPath, locked.Name);
+            }
+            catch (DotnetSyncException)
+            {
+                return;
+            }
+
+            if (actual is null)
+            {
+                issues.Add(new DoctorIssue(
+                    DoctorIssueKind.PackageAssetMetadataDrift,
+                    $"'{locked.Name}' is locked with asset metadata but has no PackageReference in "
+                    + $"{csprojPath}. Run 'dotquay install' to write it."));
+                continue;
+            }
+
+            if (!DeclaredSlotsMatch(expected, actual))
+            {
+                issues.Add(new DoctorIssue(
+                    DoctorIssueKind.PackageAssetMetadataDrift,
+                    $"'{locked.Name}': the asset metadata in {csprojPath} differs from what is declared "
+                    + "for it. Run 'dotquay update' to rewrite the reference, or bring the manifest into "
+                    + "line with the .csproj."));
+            }
+        }
+    }
+
+    private static bool DeclaredSlotsMatch(PackageAssets expected, PackageAssets actual) =>
+        (expected.Include is null || PackageAssets.SameTags(expected.Include, actual.Include))
+        && (expected.Exclude is null || PackageAssets.SameTags(expected.Exclude, actual.Exclude))
+        && (expected.Private is null || PackageAssets.SameTags(expected.Private, actual.Private));
+
+    /// <summary>
     /// Runs the four sanity checks SPEC.md §6 lists for <c>dotquay doctor</c> (requirement P1-4): git
     /// on PATH, lockfile entries no longer declared in the manifest, installed addons whose own
     /// <c>plugin.cfg</c> disagrees with what's locked, and folders under <c>addons/</c> no locked
@@ -944,6 +1017,7 @@ public sealed partial class DependencyWorkflow
             CheckDanglingLockfileEntries(projectDirectory, manifest, lockfile, issues);
             CheckManifestForSecrets(manifestPath, issues);
             CheckTrustedHosts(manifest, manifestPath, issues);
+            CheckPackageAssetDrift(projectDirectory, manifest, lockfile, issues);
         }
 
         foreach (var locked in lockfile.Addons)
@@ -1467,7 +1541,9 @@ public sealed partial class DependencyWorkflow
         ProjectManifest manifest,
         bool restore,
         string? resolvedSourceName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        PackageAssets? assets = null,
+        PackageAssets? previouslyWritten = null)
     {
         try
         {
@@ -1480,6 +1556,8 @@ public sealed partial class DependencyWorkflow
                 resolvedSourceName,
                 manifest.PinnedPackages(),
                 manifest.NuGetSourceMapping,
+                assets,
+                previouslyWritten,
                 cancellationToken);
         }
         catch (DotnetSyncException ex)
@@ -1791,9 +1869,11 @@ public sealed partial class DependencyWorkflow
         IReadOnlySet<string> targetNames,
         bool pruneUnreachable,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, string>? refusalHints = null)
+        IReadOnlyDictionary<string, string>? refusalHints = null,
+        IReadOnlyList<DotnetSpec>? addonDeclared = null)
     {
         var sources = manifest.SourceSet();
+        var addonDeclaredByName = addonDeclared?.ToDictionary(s => s.Name, StringComparer.Ordinal);
         var previousByName = previousDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var resultByName = new Dictionary<string, LockedDotnet>(StringComparer.Ordinal);
         var anyChanged = false;
@@ -1822,11 +1902,26 @@ public sealed partial class DependencyWorkflow
                 throw new WorkflowException($"{ex.Message} {hint}", ex);
             }
 
-            var changed = previous?.Resolved != version || previous?.Source != resolvedSource;
+            // A project declaration wins over any addon's, including when it declares no metadata at
+            // all (SPEC.md §8) — an addon must not be able to attach asset metadata to a package the
+            // project has spoken for. An addon-declared package appears in no manifest the project
+            // owns, so its metadata reaches this point only through the graph.
+            var assets = spec?.Assets
+                ?? (addonDeclaredByName is not null && addonDeclaredByName.TryGetValue(targetName, out var addonSpec)
+                    ? addonSpec.Assets
+                    : PackageAssets.None);
+
+            // Asset metadata belongs in the change check for the same reason install_as does: a
+            // manifest that changes only its metadata moves no version and switches no feed, so a
+            // check on those two alone would call it unchanged and never write the .csproj.
+            var changed = previous?.Resolved != version
+                || previous?.Source != resolvedSource
+                || !(previous?.Assets ?? PackageAssets.None).SameAs(assets);
 
             resultByName[targetName] = changed
                 ? await InstallDotnetOrThrowAsync(
-                    projectDirectory, targetName, version, manifest, restore: false, resolvedSource, cancellationToken)
+                    projectDirectory, targetName, version, manifest, restore: false, resolvedSource, cancellationToken,
+                    assets, previous?.Assets)
                 : previous!;
 
             anyChanged |= changed;

@@ -209,7 +209,23 @@ public static class ManifestWriter
             {
                 sb.AppendLine($"source = {Quote(dependency.Source)}");
             }
+
+            // Fixed order regardless of how they were declared, so a read/write round-trip is
+            // byte-stable and a manifest doesn't churn in git just for being rewritten.
+            AppendAssetTags(sb, ManifestReader.AssetKeys.Include, dependency.Assets.Include);
+            AppendAssetTags(sb, ManifestReader.AssetKeys.Exclude, dependency.Assets.Exclude);
+            AppendAssetTags(sb, ManifestReader.AssetKeys.Private, dependency.Assets.Private);
         }
+    }
+
+    private static void AppendAssetTags(StringBuilder sb, string key, IReadOnlyList<string>? tags)
+    {
+        if (tags is null)
+        {
+            return;
+        }
+
+        sb.AppendLine($"{key} = [{string.Join(", ", tags.Select(Quote))}]");
     }
 
     private static void StartBlock(StringBuilder sb)

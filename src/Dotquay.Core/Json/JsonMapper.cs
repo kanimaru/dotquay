@@ -112,7 +112,16 @@ public static class JsonMapper
             .ToList(),
         Dotnet = dotnet
             .OrderBy(d => d.Name, StringComparer.Ordinal)
-            .Select(d => new DotnetJson { Name = d.Name, Constraint = null, Resolved = d.Resolved, DeclaredByProject = true })
+            .Select(d => new DotnetJson
+            {
+                Name = d.Name,
+                Constraint = null,
+                Resolved = d.Resolved,
+                DeclaredByProject = true,
+                IncludeAssets = d.Assets.Include,
+                ExcludeAssets = d.Assets.Exclude,
+                PrivateAssets = d.Assets.Private,
+            })
             .ToList(),
     };
 
@@ -289,6 +298,7 @@ public static class JsonMapper
         DoctorIssueKind.TrustedHostUnusable => "trusted_host_unusable",
         DoctorIssueKind.FragileUidReference => "fragile_uid_reference",
         DoctorIssueKind.AddonFolderCaseMismatch => "addon_folder_case_mismatch",
+        DoctorIssueKind.PackageAssetMetadataDrift => "package_asset_metadata_drift",
         _ => "unknown",
     };
 

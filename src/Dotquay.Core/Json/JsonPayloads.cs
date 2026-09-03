@@ -167,6 +167,21 @@ public sealed record DotnetJson
     /// <summary>False for a package unioned in by an addon's own manifest (requirement P1-5) — the
     /// project manifest has no entry to remove, so a UI must not offer to remove it.</summary>
     public bool DeclaredByProject { get; init; }
+
+    /// <summary>
+    /// The asset metadata actually wired into the <c>.csproj</c> (v0.10), or null where it is not
+    /// known.
+    /// </summary>
+    /// <remarks>
+    /// Populated from the lockfile by <c>list</c>, which reports what is installed. The graph view
+    /// reports what was <em>declared</em> and resolves no lockfile, so it leaves these null rather
+    /// than implying it checked.
+    /// </remarks>
+    public IReadOnlyList<string>? IncludeAssets { get; init; }
+
+    public IReadOnlyList<string>? ExcludeAssets { get; init; }
+
+    public IReadOnlyList<string>? PrivateAssets { get; init; }
 }
 
 /// <summary>Payload of <c>dotquay list --json</c>.</summary>

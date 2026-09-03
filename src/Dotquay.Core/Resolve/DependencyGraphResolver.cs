@@ -154,6 +154,10 @@ public sealed class DependencyGraphResolver
         var dependencyNamesByAddon = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var discoveredNames = new HashSet<string>(StringComparer.Ordinal);
         var addonDeclaredDotnet = new Dictionary<string, DotnetSpec>(StringComparer.Ordinal);
+
+        // Only for warning messages — which addon won a package, so a conflict can name both sides
+        // instead of saying "something else declared this differently".
+        var dotnetDeclaredBy = new Dictionary<string, string>(StringComparer.Ordinal);
         var addonDeclaredSources = new List<AddonDeclaredSource>();
         var dotnetPackagesByAddon = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
         var warnings = new List<GraphWarning>();
@@ -208,7 +212,26 @@ public sealed class DependencyGraphResolver
                     // "list every version and intersect" primitive dotquay already has for NuGet).
                     // The caller (DependencyWorkflow) additionally lets the *project's own*
                     // [dotnet.*] entries always win over anything discovered here.
-                    addonDeclaredDotnet.TryAdd(dotnetSpec.Name, dotnetSpec);
+                    if (addonDeclaredDotnet.TryAdd(dotnetSpec.Name, dotnetSpec))
+                    {
+                        dotnetDeclaredBy[dotnetSpec.Name] = name;
+                        continue;
+                    }
+
+                    // Losing on version is expected and silent (see above). Losing on asset metadata
+                    // is worth reporting: it is not a range to be narrowed but a statement about how
+                    // the package must be wired up, and the loser silently gets the winner's wiring.
+                    var winner = addonDeclaredDotnet[dotnetSpec.Name];
+                    if (!winner.Assets.SameAs(dotnetSpec.Assets))
+                    {
+                        warnings.Add(new GraphWarning(
+                            name,
+                            GraphWarningKind.DotnetAssetMetadataConflict,
+                            $"'{name}' and '{dotnetDeclaredBy.GetValueOrDefault(dotnetSpec.Name, "another addon")}' "
+                            + $"declare different asset metadata for the NuGet package '{dotnetSpec.Name}'. Using "
+                            + $"'{dotnetDeclaredBy.GetValueOrDefault(dotnetSpec.Name, "the first")}'’s. Declare "
+                            + $"[dotnet.\"{dotnetSpec.Name}\"] in your own dotquay.toml to settle it."));
+                    }
                 }
 
                 if (packageManifest.Dotnet.Count > 0)
