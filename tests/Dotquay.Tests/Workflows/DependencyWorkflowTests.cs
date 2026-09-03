@@ -1202,6 +1202,57 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
+    public async Task OutdatedAsync_OverriddenAddon_ChecksOverrideSpecNotBaseSpec_ReportsNotOutdated()
+    {
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v0.0.5", "v0.7.5");
+
+        fileSystem.WriteAllText(
+            $"{ProjectDir}/dotquay.toml",
+            $"[addons.dep]\ngit = \"{RepoUrl}\"\nversion = \"~0.0\"\n\n[overrides.dep]\ngit = \"{RepoUrl}\"\nversion = \"~0.7\"\n");
+
+        var overrideSha = new string('a', 39) + "1"; // SetTags' second tag, v0.7.5
+        fileSystem.WriteAllText(
+            $"{ProjectDir}/dotquay.lock",
+            $"[[addon]]\nname = \"dep\"\ngit = \"{RepoUrl}\"\nresolved = \"{overrideSha}\"\nversion = \"v0.7.5\"\npath = \"addons/dep\"\n");
+
+        var result = await workflow.OutdatedAsync(ProjectDir);
+
+        // Locked at v0.7.5, the highest tag matching the [overrides.dep] "~0.7" constraint that
+        // actually governs resolution (DependencyGraphResolver: an override wins unconditionally).
+        // The base [addons.dep] "~0.0" constraint is satisfied by the unrelated, older-looking
+        // v0.0.5 tag — checking that instead would misreport "v0.7.5 -> v0.0.5" as if a downgrade
+        // were a newer release.
+        var addon = Assert.Single(result.Addons);
+        Assert.False(addon.IsOutdated);
+        Assert.Null(addon.LatestDisplay);
+    }
+
+    [Fact]
+    public async Task OutdatedAsync_OverriddenAddonWithNewerTagUnderOverrideConstraint_ReportsOutdated()
+    {
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v0.0.5", "v0.7.5", "v0.7.6"); // v0.7.6 appears upstream after locking
+
+        fileSystem.WriteAllText(
+            $"{ProjectDir}/dotquay.toml",
+            $"[addons.dep]\ngit = \"{RepoUrl}\"\nversion = \"~0.0\"\n\n[overrides.dep]\ngit = \"{RepoUrl}\"\nversion = \"~0.7\"\n");
+
+        var lockedSha = new string('a', 39) + "1"; // v0.7.5, locked before v0.7.6 existed
+        fileSystem.WriteAllText(
+            $"{ProjectDir}/dotquay.lock",
+            $"[[addon]]\nname = \"dep\"\ngit = \"{RepoUrl}\"\nresolved = \"{lockedSha}\"\nversion = \"v0.7.5\"\npath = \"addons/dep\"\n");
+
+        var result = await workflow.OutdatedAsync(ProjectDir);
+
+        // Real outdated-ness under the override's own constraint must still be detected — this
+        // isn't just "never trust overrides", it's "trust the override's range, not the base one".
+        var addon = Assert.Single(result.Addons);
+        Assert.True(addon.IsOutdated);
+        Assert.Equal("v0.7.6", addon.LatestDisplay);
+    }
+
+    [Fact]
     public async Task OutdatedAsync_BranchSourcedAddonTipMoved_ReportsOutdated()
     {
         var fileSystem = new InMemoryFileSystem();

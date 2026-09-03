@@ -1415,6 +1415,13 @@ public sealed partial class DependencyWorkflow
     /// skipped entirely: a hard pin has nothing to be "outdated" against. An entry locked but no
     /// longer declared in the manifest is also skipped here — that drift is <c>doctor</c>'s job to
     /// flag (<see cref="DoctorAsync"/>), not <c>outdated</c>'s.
+    ///
+    /// An addon named in <c>[overrides]</c> is checked against the override's spec, not the base
+    /// <c>[addons]</c> spec — same "override wins unconditionally" rule
+    /// <see cref="DependencyGraphResolver"/> applies during real resolution (SPEC.md §8). Checking
+    /// the un-overridden spec instead would compare the locked commit against a constraint nothing
+    /// actually resolves against, which can surface an unrelated, older-looking tag as if it were
+    /// "newer" simply because it satisfies a different range.
     /// </summary>
     public async Task<OutdatedResult> OutdatedAsync(string projectDirectory, CancellationToken cancellationToken = default)
     {
@@ -1425,7 +1432,8 @@ public sealed partial class DependencyWorkflow
         var checkedCount = 0;
         foreach (var locked in lockfile.Addons)
         {
-            if (!manifest.Addons.TryGetValue(locked.Name, out var spec))
+            if (!manifest.Overrides.TryGetValue(locked.Name, out var spec) &&
+                !manifest.Addons.TryGetValue(locked.Name, out spec))
             {
                 continue;
             }
