@@ -153,7 +153,13 @@ release:
 # to a protected branch generally requires an explicit access token, not the job token.
 bump-version:
   stage: version-bump
-  image: alpine/git:2.47.2
+  # alpine/git sets `ENTRYPOINT ["git"]`, so without overriding it the runner's shell invocation
+  # becomes `git sh -c "..."` — git tries to run "sh" as a subcommand and fails with "'sh' is not a
+  # git command." (confirmed from a real failed run 2026-09-04). The empty entrypoint hands control
+  # back to the runner so it can exec the job's own shell script normally.
+  image:
+    name: alpine/git:2.47.2
+    entrypoint: [""]
   rules:
     - if: $CI_COMMIT_TAG
   needs: []
