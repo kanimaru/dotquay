@@ -1838,11 +1838,17 @@ public sealed partial class DependencyWorkflow
                 && string.Equals(previous.EffectiveFolder, entry.Resolved.EffectiveFolder, StringComparison.Ordinal)
                 && string.Equals(previous.Path, entry.Resolved.Path, StringComparison.Ordinal);
 
-            resultByName[addonName] = unchanged
-                ? previous!
-                : WithDependencies(
-                    await InstallAddonOrThrowAsync(entry.Resolved, projectDirectory, previous, force, cancellationToken),
-                    entry.DependencyNames);
+            // WithDependencies wraps *both* branches on purpose. The walk just read this addon's own
+            // package manifest, so its edges are the authoritative ones; reusing `previous` wholesale
+            // on the unchanged path meant a lockfile whose edges had been damaged (by an older
+            // dotquay, or a hand-edit) kept its damage forever, because the addon whose edges were
+            // wrong is exactly the addon that never moves. Rewriting them makes every walk
+            // self-healing, and costs nothing when they already agree.
+            resultByName[addonName] = WithDependencies(
+                unchanged
+                    ? previous!
+                    : await InstallAddonOrThrowAsync(entry.Resolved, projectDirectory, previous, force, cancellationToken),
+                entry.DependencyNames);
         }
 
         foreach (var orphan in previousAddonsByName.Values.Where(a => !resultByName.ContainsKey(a.Name)))

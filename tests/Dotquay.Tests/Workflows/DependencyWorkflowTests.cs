@@ -1766,6 +1766,122 @@ public class DependencyWorkflowTests
         Assert.Equal(["core"], a.Dependencies);
     }
 
+    private const string MidUrl = "https://example.com/mid.git";
+
+    /// <summary>A three-level chain — project → a → mid → core — so there is a locked addon that is
+    /// neither a root nor a leaf. Only such an addon takes <c>SyncAddonGraphAsync</c>'s "unchanged"
+    /// path during a full update while still having edges of its own to get wrong.</summary>
+    private static void SetUpChain(FakeGitClient gitClient)
+    {
+        gitClient.RemoteRefsByUrl[CoreUrl] = [new GitRef("v1.0.0", new string('c', 40), GitRefKind.Tag)];
+        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
+
+        gitClient.RemoteRefsByUrl[MidUrl] = [new GitRef("v1.0.0", new string('d', 40), GitRefKind.Tag)];
+        gitClient.FetchedFilesByUrl[MidUrl] = new Dictionary<string, string>
+        {
+            ["addons/mid/plugin.cfg"] = "mid",
+            ["addons/mid/dotquay.toml"] = $"""
+                [package]
+                name = "mid"
+                version = "1.0.0"
+
+                [addons.core]
+                git = "{CoreUrl}"
+                version = "~1"
+                """,
+        };
+
+        gitClient.RemoteRefsByUrl[AUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
+        {
+            ["addons/a/plugin.cfg"] = "a",
+            ["addons/a/dotquay.toml"] = $"""
+                [package]
+                name = "a"
+                version = "1.0.0"
+
+                [addons.mid]
+                git = "{MidUrl}"
+                version = "~1"
+                """,
+        };
+    }
+
+    /// <summary>Produces the lockfile an older dotquay left behind: entries intact, graph edges gone.</summary>
+    private static string StripDependencyLines(string lockfileText) =>
+        string.Join(
+            '\n',
+            lockfileText.Split('\n').Where(line => !line.TrimStart().StartsWith("dependencies", StringComparison.Ordinal)));
+
+    [Fact]
+    public async Task UpdateAsync_RewritesDependencyEdgesOfAnAddonThatDidNotMove()
+    {
+        // A full update re-resolves every root, so 'a' is rebuilt from the walk either way. 'mid' is
+        // transitive and its commit doesn't move, so it takes the unchanged path — which used to hand
+        // back the previous lockfile entry wholesale, damage and all. An addon whose edges are wrong
+        // is precisely the addon that never moves, so the damage was permanent.
+        var (workflow, fileSystem, gitClient) = Build();
+        SetUpChain(gitClient);
+        await workflow.AddAsync(ProjectDir, AUrl);
+
+        var lockPath = $"{ProjectDir}/dotquay.lock";
+        fileSystem.WriteAllText(lockPath, StripDependencyLines(fileSystem.ReadAllText(lockPath)));
+
+        await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        var lockfile = LockfileReader.Read(fileSystem.ReadAllText(lockPath));
+        Assert.Equal(["mid"], lockfile.Addons.Single(a => a.Name == "a").Dependencies);
+        Assert.Equal(["core"], lockfile.Addons.Single(a => a.Name == "mid").Dependencies);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SingleNamedAddon_KeepsTheEdgesOfEverythingItDidNotTouch()
+    {
+        // `update a` freezes nothing else, but it still walks the whole graph — so the entries it
+        // leaves alone must come back out with their edges, not with an empty list that makes their
+        // own children unreachable.
+        var (workflow, fileSystem, gitClient) = Build();
+        SetUpChain(gitClient);
+        await workflow.AddAsync(ProjectDir, AUrl);
+
+        await workflow.UpdateAsync(ProjectDir, "a", force: false);
+
+        var lockfile = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
+        Assert.Equal(3, lockfile.Addons.Count);
+        Assert.Equal(["core"], lockfile.Addons.Single(a => a.Name == "mid").Dependencies);
+    }
+
+    [Fact]
+    public async Task InstallAsync_ReplaysRecordedDependencyEdges()
+    {
+        // `install` never re-resolves, so it has no way to recompute the graph edges — it has to
+        // replay them, exactly like `folder`. Dropping them made every transitive addon unreachable
+        // from any root, which is what `remove` prunes by and `doctor` reports dangling entries by.
+        var (workflow, fileSystem, gitClient) = Build();
+        SetUpDiamond(gitClient, aCoreConstraint: "~1", bCoreConstraint: "~1.4");
+        await workflow.AddAsync(ProjectDir, AUrl);
+
+        await workflow.InstallAsync(ProjectDir, force: false);
+
+        var lockfile = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
+        Assert.Equal(["core"], lockfile.Addons.Single(a => a.Name == "a").Dependencies);
+    }
+
+    [Fact]
+    public async Task DoctorAsync_AfterInstall_DoesNotReportTransitiveAddonAsDangling()
+    {
+        // The user-visible half of the same bug: with the edges gone, 'core' is reachable from
+        // nothing, so doctor calls a perfectly healthy transitive dependency an orphan.
+        var (workflow, _, gitClient) = Build();
+        SetUpDiamond(gitClient, aCoreConstraint: "~1", bCoreConstraint: "~1.4");
+        await workflow.AddAsync(ProjectDir, AUrl);
+
+        await workflow.InstallAsync(ProjectDir, force: false);
+
+        var doctor = await workflow.DoctorAsync(ProjectDir);
+        Assert.DoesNotContain(doctor.Issues, i => i.Message.Contains("core", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task AddAsync_DisjointVersionRangesOnSharedDependency_ThrowsWorkflowException()
     {

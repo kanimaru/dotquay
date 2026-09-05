@@ -158,7 +158,16 @@ public sealed class AddonInstaller
             ContentHash = contentHash,
             PatchHash = previous?.PatchHash,
             PatchBaseSha = previous?.PatchBaseSha,
-            Dependencies = [],
+
+            // Carried over, never reset. The installer resolves and swaps one addon; it never walks
+            // the graph, so it has no basis for claiming this addon requires nothing. `update` does
+            // walk, and overwrites this with what the walk found (DependencyWorkflow's
+            // SyncAddonGraphAsync) — but `install` deliberately never re-resolves, so whatever it
+            // gets back from here is what lands in the lockfile. Emitting an empty list there erased
+            // every graph edge on every install, which is how healthy transitive addons ended up
+            // unreachable from any root: reported as orphans by `doctor` and by the editor plugin's
+            // graph, and pruned for real by the next `remove`.
+            Dependencies = previous?.Dependencies ?? [],
         };
     }
 
