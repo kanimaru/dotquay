@@ -23,7 +23,6 @@ set it by hand at *Editor → Editor Settings → Dotquay → CLI Path*.
 |---|---|---|
 | `dotquay/general/cli_path` | *(auto-discovered)* | Path to the dotquay executable. Empty means "look on PATH". An editor setting rather than a project setting on purpose: the CLI is installed on *this machine*, and committing an absolute path into `project.godot` would break every teammate on a different OS. |
 | `dotquay/general/refresh_on_focus` | `true` | Reload the graph when you switch back to the tab. Cheap — it reads the lockfile, not the network. |
-| `dotquay/general/resolve_timeout_seconds` | `120` | Budget for the network-bound `Re-resolve`. |
 
 ## What the badges mean
 
@@ -83,6 +82,16 @@ exists once conflicts were already settled.
 that your manifest currently has no solution, and the only one that can offer candidate versions to
 settle it. Nothing is installed and no lockfile is written — resolving here is a question, not a
 commitment.
+
+## Re-importing after a command
+
+The CLI writes to `addons/` as a child process, and Godot's file watcher does not notice out-of-band
+writes until the editor window regains OS focus — which is why an install used to look like it did
+nothing until you clicked into another window and back.
+
+So any command that reports an actual change asks `EditorFileSystem` to rescan, once, as soon as the
+editor is free. A command that reports only `unchanged` doesn't: `update` lists every addon it looked
+at, and a full project scan per no-op press is its own kind of annoying.
 
 ## Layout
 

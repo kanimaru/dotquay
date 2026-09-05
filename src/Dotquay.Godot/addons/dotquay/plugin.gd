@@ -14,6 +14,10 @@ const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
 var _panel: DotquayPanel
 var _was_visible := false
 
+## The first show always loads the graph, whatever `refresh_on_focus` says — that setting is about
+## re-reading on every return to the tab, not about whether the panel ever shows anything.
+var _shown_once := false
+
 
 func _enter_tree() -> void:
 	SETTINGS.register(get_editor_interface().get_editor_settings())
@@ -55,7 +59,9 @@ func _make_visible(visible: bool) -> void:
 
 	# Refresh on the transition into view, not on every call: switching tabs back and forth is
 	# common, and re-reading the lockfile each time is cheap but re-rendering the graph is not.
-	if visible and not _was_visible and SETTINGS.refresh_on_focus(get_editor_interface().get_editor_settings()):
-		_panel.refresh()
+	if visible and not _was_visible:
+		if not _shown_once or SETTINGS.refresh_on_focus(get_editor_interface().get_editor_settings()):
+			_panel.refresh()
+		_shown_once = true
 
 	_was_visible = visible

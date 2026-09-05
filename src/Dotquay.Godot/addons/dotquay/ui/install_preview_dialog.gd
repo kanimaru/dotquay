@@ -148,6 +148,4 @@ func _on_confirmed() -> void:
 
 
 func _clear(container: Node) -> void:
-	for child in container.get_children():
-		container.remove_child(child)
-		child.queue_free()
+	DotquayNodes.clear_children(container)

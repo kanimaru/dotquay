@@ -36,10 +36,10 @@ func _ready() -> void:
 func render(graph: DotquayGraph) -> void:
 	clear_connections()
 
+	# Only GraphNodes: GraphEdit owns internal children (the connection layer, the minimap) that must
+	# stay. Removed as well as freed — see [method DotquayNodes.clear_children] for why.
 	for child in get_children():
 		if child is GraphNode:
-			# Removed as well as freed: queue_free defers, and the connect_node calls below run this
-			# frame, so a stale node would still be found by name and take a new edge with it.
 			remove_child(child)
 			child.queue_free()
 

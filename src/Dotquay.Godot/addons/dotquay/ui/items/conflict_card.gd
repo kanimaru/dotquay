@@ -28,8 +28,7 @@ func setup(conflict: DotquayGraph.Conflict) -> void:
 	_headline.text = conflict.headline()
 	_headline.add_theme_color_override("font_color", DotquayPalette.ERROR)
 
-	for child in _requirements.get_children():
-		child.queue_free()
+	DotquayNodes.clear_children(_requirements)
 
 	for requirement in conflict.requirements:
 		var line: DotquayStatusLabel = STATUS_LABEL.instantiate()

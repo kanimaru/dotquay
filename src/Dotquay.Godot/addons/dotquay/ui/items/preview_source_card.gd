@@ -40,8 +40,7 @@ func setup(source: DotquayPreview.Source, needs_approval: bool) -> void:
 		% source.declared_by_addon
 		+ "host is not added to trusted_hosts, so the next addon that declares a feed will ask again.")
 
-	for child in _detail.get_children():
-		child.queue_free()
+	DotquayNodes.clear_children(_detail)
 
 	if not needs_approval:
 		_add_detail(

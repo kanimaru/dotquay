@@ -40,6 +40,40 @@ static func for_git(git_url: String) -> DotquayAddRequest:
 	return request
 
 
+## Whether [param text] is shaped like a git source rather than a NuGet package ID, mirroring the
+## CLI's own routing-by-shape. Three shapes count: a URL with a scheme (`https://`, `ssh://`,
+## `git://`, `file://`), an scp-style remote (`git@github.com:owner/repo`), and anything ending in
+## `.git`. A NuGet ID is dotted identifiers with none of those, so a false positive is unlikely; the
+## form uses this to flip its kind picker, and a false negative there is a needless hard error from
+## `add` rather than a wrong install.
+static func looks_like_git(text: String) -> bool:
+	var candidate := for_git(text.strip_edges()).git_url()
+
+	if candidate.contains("://"):
+		return true
+
+	if candidate.ends_with(".git"):
+		return true
+
+	# user@host:path — the `@` before the first `:` and no `://` is the scp form and nothing else.
+	var at := candidate.find("@")
+	var colon := candidate.find(":")
+	return at > 0 and colon > at
+
+
+## True when the form's fields describe a runnable `add`: a source, and — when a pin mode is
+## selected — something to pin to, unless the URL already names the ref itself. The dialog disables
+## its OK button on the inverse, so "Add" can never close the form having done nothing.
+func is_complete() -> bool:
+	if source.strip_edges().is_empty():
+		return false
+
+	if source_mode == Source.LATEST:
+		return true
+
+	return names_a_source() or has_inline_ref()
+
+
 ## The URL with any `#ref` fragment removed — the form the CLI echoes back in a preview payload, and
 ## therefore the key a pending request must be stored under.
 func git_url() -> String:

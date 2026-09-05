@@ -21,7 +21,7 @@ const CONFLICT_CARD := preload("res://addons/dotquay/ui/items/conflict_card.tscn
 const DOTNET_ROW := preload("res://addons/dotquay/ui/items/dotnet_row.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-const MAX_LOG_LINES := 200
+const MAX_LOG_ENTRIES := 200
 
 @onready var _graph_view: DotquayDependencyGraphView = %GraphView
 @onready var _summary: Label = %Summary
@@ -44,16 +44,25 @@ const MAX_LOG_LINES := 200
 var _cli: DotquayCli
 var _graph: DotquayGraph
 
+## Re-imports what the CLI wrote. Owned here rather than by [DotquayCli] because it reacts to what a
+## command *reported*, not to a process exiting — an `install` that changed nothing should not make
+## the editor walk the project.
+var _rescan: DotquayRescan
+
 var _pending_removal := ""
 
-## Git URL to the [DotquayAddRequest] awaiting that URL's preview. Keyed rather than kept in a single
-## "last thing typed" field because several commands can be in flight, and a preview that finished
-## out of order would otherwise be confirmed with someone else's arguments.
+## CLI ticket to the [DotquayAddRequest] whose preview that run is producing. Keyed on the ticket, not
+## the URL: several previews can be in flight, a failed one must not leave its request behind to be
+## picked up by the next preview of the same URL (with the old `--path`/`--install-as`), and the
+## ticket is the one thing a result carries that names exactly the call it answers.
 var _pending_requests: Dictionary = {}
 
-## Set while a mutating command is in flight, so its completion triggers exactly one refresh instead
-## of every command handler remembering to ask for one.
-var _refresh_after_current := false
+## Which in-flight runs must be followed by a graph refresh. A tracker rather than a flag, because a
+## flag is consumed by whichever command finishes first — see [DotquayRefreshTracker].
+var _refresh_tracker := DotquayRefreshTracker.new()
+
+## The log's contents, in message units. The [RichTextLabel] is a view of this, rebuilt on change.
+var _log_buffer := DotquayLogBuffer.new(MAX_LOG_ENTRIES)
 
 
 func _ready() -> void:
@@ -62,6 +71,8 @@ func _ready() -> void:
 	_cli.finished.connect(_on_cli_finished)
 	_cli.busy_changed.connect(_on_busy_changed)
 	add_child(_cli)
+
+	_log_buffer.changed.connect(_render_log)
 
 	_wire_toolbar()
 
@@ -76,7 +87,18 @@ func _ready() -> void:
 	_busy.add_theme_color_override("font_color", DotquayPalette.WARN)
 	_setup_message.add_theme_color_override("font_color", DotquayPalette.WARN)
 
-	refresh()
+	_rescan = DotquayRescan.new(EditorInterface.get_resource_filesystem())
+	# Polling only while a scan is owed. Defining `_process` at all turns processing on, and this
+	# panel is idle almost all of the time it is open.
+	set_process(false)
+
+	# No refresh here: the plugin adds this panel hidden and refreshes it on first show, so a refresh
+	# in _ready would only ever run the CLI twice for one tab click.
+
+
+## Only ever running while [member _rescan] is waiting for the editor to finish a scan of its own.
+func _process(_delta: float) -> void:
+	set_process(_rescan.pump())
 
 
 ## The toolbar's buttons live in the scene, so the binding is by node name rather than by a builder
@@ -112,9 +134,12 @@ func resolve() -> void:
 # Commands
 # ---------------------------------------------------------------------------------------------
 
-func _run(command_name: String, args: PackedStringArray, refresh_after: bool = false) -> void:
-	_refresh_after_current = _refresh_after_current or refresh_after
-	_cli.run(command_name, args)
+## Returns the run's ticket so a caller can key state on it (see [member _pending_requests]).
+func _run(command_name: String, args: PackedStringArray, refresh_after: bool = false) -> int:
+	var ticket := _cli.run(command_name, args)
+	if refresh_after:
+		_refresh_tracker.arm(ticket)
+	return ticket
 
 
 func _on_add_pressed() -> void:
@@ -130,11 +155,11 @@ func _on_add_requested(request: DotquayAddRequest) -> void:
 		return
 
 	_log_line("Resolving what adding %s would install..." % request.describe())
-	_pending_requests[request.git_url()] = request
 
 	var args := request.to_args()
 	args.append("--preview")
-	_run(DotquayWire.COMMAND_ADD_PREVIEW, args)
+	var ticket := _run(DotquayWire.COMMAND_ADD_PREVIEW, args)
+	_pending_requests[ticket] = request
 
 
 ## Runs the add the preview described, carrying the user's feed approvals as `--adopt-source`.
@@ -179,8 +204,10 @@ func _on_node_action(action: String, addon_name: String) -> void:
 
 		DotquayDependencyNode.ACTION_REMOVE:
 			_pending_removal = addon_name
+			# Shared by addons and NuGet packages, so it names what `remove` does for both rather than
+			# promising a NuGet package will disappear from addons/.
 			_confirm_remove.dialog_text = (
-				"Remove '%s' from dotquay.toml, the lockfile, and addons/?\n\nAnything only it required is removed too."
+				"Remove '%s' from dotquay.toml and the lockfile?\n\nWhat it installed is removed too, along with anything only it required."
 				% addon_name)
 			_confirm_remove.popup_centered()
 
@@ -197,8 +224,16 @@ func _on_node_action(action: String, addon_name: String) -> void:
 
 		DotquayDependencyNode.ACTION_OPEN_REPO:
 			var node := _graph.find(addon_name) if _graph != null else null
-			if node != null and not node.git.is_empty():
+			if node == null or node.git.is_empty():
+				return
+
+			# `shell_open` needs something a browser understands. An scp-style `git@host:repo` or a
+			# local path is a valid git source and an invalid URL, so it's reported rather than fed to
+			# the OS to fail silently.
+			if _is_web_url(node.git):
 				OS.shell_open(node.git)
+			else:
+				_log_warning("'%s' is not a web URL, so it can't be opened in a browser: %s" % [addon_name, node.git])
 
 
 func _on_remove_confirmed() -> void:
@@ -308,51 +343,65 @@ func _on_cli_finished(result: DotquayResult) -> void:
 	if not result.ok:
 		_log_error(result.error_message)
 
+		# Whatever this run was waiting for, it isn't coming; a stale request must not be picked up
+		# by a later preview.
+		_pending_requests.erase(result.ticket)
+
 		# A conflict is still a full graph payload — the whole point is to show it rather than stop
 		# at the error line.
 		if result.command == DotquayWire.COMMAND_GRAPH and not result.data.is_empty():
 			_apply_graph(result.data)
 
-		_finish_refresh_cycle()
+		_finish_refresh_cycle(result.ticket)
 		return
 
 	match result.command:
 		DotquayWire.COMMAND_GRAPH:
 			_apply_graph(result.data)
 		DotquayWire.COMMAND_ADD_PREVIEW:
-			_show_preview(result.data)
+			_show_preview(result)
 		DotquayWire.COMMAND_OUTDATED:
 			_report_outdated(result.data)
 		DotquayWire.COMMAND_DOCTOR:
 			_report_doctor(result.data)
 		_:
 			_report_operation(result.data)
+			_request_rescan(result.data)
 
-	_finish_refresh_cycle()
+	_finish_refresh_cycle(result.ticket)
+
+
+## The CLI wrote to `addons/` as a child process, which Godot's file watcher does not see until the
+## editor window regains OS focus. Asking for the scan here is what makes an install appear in the
+## FileSystem dock without alt-tabbing away from Godot and back.
+##
+## Guarded on the payload rather than on "a mutating command finished": `install` reports every addon
+## it checked, most runs change nothing, and a full project scan per no-op button press is its own
+## kind of annoying.
+func _request_rescan(payload: Dictionary) -> void:
+	if not DotquayRescan.payload_touched_disk(payload):
+		return
+
+	_rescan.request()
+	set_process(_rescan.is_pending())
 
 
 ## A mutating command changed the project, so the graph on screen is stale. Re-reading it (rather
 ## than editing the UI in place) is what keeps the panel from ever showing a state dotquay itself
 ## would disagree with.
-func _finish_refresh_cycle() -> void:
-	if not _refresh_after_current:
-		return
-
-	_refresh_after_current = false
-	refresh()
+func _finish_refresh_cycle(ticket: int) -> void:
+	if _refresh_tracker.settle(ticket):
+		refresh()
 
 
-## Matched back to its request by the git URL, which the payload echoes with any `#ref` fragment
-## already stripped — the same form [method DotquayAddRequest.git_url] produces, which is why that is
-## the key the request was stashed under.
-func _show_preview(payload: Dictionary) -> void:
-	var preview := DotquayPreview.from_payload(payload)
+## Matched back to its request by the ticket of the run that produced it.
+func _show_preview(result: DotquayResult) -> void:
+	var preview := DotquayPreview.from_payload(result.data)
 
-	# A preview whose request is gone (a reloaded plugin, a duplicate reply) still deserves its
-	# dialog: the graph is the part worth reading, and the arguments it can't recover are the two
-	# optional ones.
-	var request: DotquayAddRequest = _pending_requests.get(preview.git, DotquayAddRequest.for_git(preview.git))
-	_pending_requests.erase(preview.git)
+	# A preview whose request is gone (a reloaded plugin) still deserves its dialog: the graph is the
+	# part worth reading, and the arguments it can't recover are the two optional ones.
+	var request: DotquayAddRequest = _pending_requests.get(result.ticket, DotquayAddRequest.for_git(preview.git))
+	_pending_requests.erase(result.ticket)
 
 	_preview_dialog.show_preview(preview, request)
 
@@ -439,7 +488,12 @@ func _render_dotnet() -> void:
 		var row: DotquayDotnetRow = DOTNET_ROW.instantiate()
 		_dotnet_list.add_child(row)
 		row.setup(entry)
-		row.remove_requested.connect(_on_node_action.bind(DotquayDependencyNode.ACTION_REMOVE))
+		# Not `_on_node_action.bind(ACTION_REMOVE)`: bind *appends*, so the handler would receive
+		# (package_name, "remove") — action and name swapped — and the match would fall through
+		# silently. The lambda puts the arguments where the handler expects them.
+		row.remove_requested.connect(
+			func(package_name: String) -> void:
+				_on_node_action(DotquayDependencyNode.ACTION_REMOVE, package_name))
 
 
 func _report_outdated(payload: Dictionary) -> void:
@@ -451,7 +505,7 @@ func _report_outdated(payload: Dictionary) -> void:
 	_log_warning("%d dependency/dependencies have newer versions:" % count)
 
 	for group in ["addons", "dotnet"]:
-		for entry in payload.get(group, []):
+		for entry in _dictionaries_in(payload, group):
 			if bool(entry.get("is_outdated", false)):
 				_log_line("  %s  %s -> %s" % [
 					entry.get("name", "?"),
@@ -464,7 +518,7 @@ func _report_doctor(payload: Dictionary) -> void:
 		_log_line("Doctor found no issues.")
 		return
 
-	for issue in payload.get("issues", []):
+	for issue in _dictionaries_in(payload, "issues"):
 		_log_warning("  " + String(issue.get("message", "")))
 
 
@@ -472,9 +526,9 @@ func _report_operation(payload: Dictionary) -> void:
 	for message in payload.get("messages", []):
 		_log_line(String(message))
 
-	for change in payload.get("changes", []):
+	for change in _dictionaries_in(payload, "changes"):
 		var action := String(change.get("action", ""))
-		if action == "unchanged":
+		if action == DotquayWire.ACTION_UNCHANGED:
 			continue
 
 		_log_line("  %s: %s %s" % [
@@ -500,16 +554,36 @@ func _log_error(text: String) -> void:
 
 
 func _append(bbcode: String) -> void:
-	_log.append_text(bbcode + "\n")
+	# The buffer bounds the log (an editor session can run hundreds of commands) and re-renders the
+	# label through `changed`; see [DotquayLogBuffer] for why the label itself is not the store.
+	_log_buffer.append(bbcode)
 
-	# An editor session can run hundreds of commands; an unbounded log is a slow memory leak in a
-	# panel nobody ever closes.
-	if _log.get_line_count() > MAX_LOG_LINES:
-		_log.text = ""
-		_log.append_text(DotquayPalette.bbcode(DotquayPalette.MUTED, "(earlier output trimmed)") + "\n")
+
+func _render_log() -> void:
+	_log.clear()
+	_log.append_text(_log_buffer.render(
+		DotquayPalette.bbcode(DotquayPalette.MUTED, DotquayLogBuffer.TRIMMED_MARKER)))
+	_log.scroll_to_line(max(0, _log.get_line_count() - 1))
+
+
+# ---------------------------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------------------------
+
+## The dictionary entries of the array at [param key], skipping anything else. Every `from_payload`
+## guards its arrays this way; the ad-hoc reports here read raw payloads and need the same guard, or
+## a single malformed entry is a script error in the middle of a log line.
+static func _dictionaries_in(payload: Dictionary, key: String) -> Array:
+	var entries: Variant = payload.get(key, [])
+	if not (entries is Array):
+		return []
+
+	return (entries as Array).filter(func(entry: Variant) -> bool: return entry is Dictionary)
+
+
+static func _is_web_url(url: String) -> bool:
+	return url.begins_with("https://") or url.begins_with("http://")
 
 
 func _clear(container: Node) -> void:
-	for child in container.get_children():
-		container.remove_child(child)
-		child.queue_free()
+	DotquayNodes.clear_children(container)

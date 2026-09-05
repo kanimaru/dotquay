@@ -33,6 +33,16 @@ const CONFLICT_NO_COMMON_VERSION := "no_common_version"
 const CONFLICT_INVALID_CONSTRAINT := "invalid_constraint"
 const CONFLICT_DISAGREEING_INSTALL_FOLDERS := "disagreeing_install_folders"
 
+## `changes[].action` on every mutating command's payload (`JsonMapper.ChangeAction`). "unchanged" is
+## the only one of these the panel treats as "nothing reached disk", which is why the set is spelled
+## out here rather than that one literal being tested for in isolation — a new action added on the C#
+## side has to be added here too, and the compiler-less wire contract gives no other warning.
+const ACTION_ADDED := "added"
+const ACTION_UPDATED := "updated"
+const ACTION_REMOVED := "removed"
+const ACTION_INSTALLED := "installed"
+const ACTION_UNCHANGED := "unchanged"
+
 ## `graph.source`
 const GRAPH_SOURCE_LOCKFILE := "lockfile"
 const GRAPH_SOURCE_RESOLVED := "resolved"

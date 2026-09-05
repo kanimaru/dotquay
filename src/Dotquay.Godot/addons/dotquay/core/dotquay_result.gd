@@ -41,6 +41,10 @@ var raw_output: String = ""
 
 var exit_code: int = 0
 
+## The [method DotquayCli.run] call this result answers, or 0 when it was parsed outside the runner
+## (tests, the contract suite). Callers keyed per-call state on it; see [DotquayRefreshTracker].
+var ticket: int = 0
+
 
 static func failure(kind: String, message: String, for_command: String = "") -> DotquayResult:
 	var result := DotquayResult.new()
@@ -49,6 +53,21 @@ static func failure(kind: String, message: String, for_command: String = "") -> 
 	result.error_kind = kind
 	result.error_message = message
 	return result
+
+
+## Cuts a captured buffer down to the outermost `{ ... }` it contains.
+##
+## The runner captures stderr into the same buffer as stdout (a launch failure only ever writes
+## there), so the envelope can be wrapped in noise on *both* sides: a shell profile's banner before
+## it, a .NET runtime or git warning after it. Trimming to the first `{` and the last `}` is a cheap
+## recovery for both, and the JSON parser still gets the final say on whether what's left is valid.
+## Anything without a brace pair is returned untouched so the caller reports the real bytes.
+static func extract_json_object(buffer: String) -> String:
+	var open := buffer.find("{")
+	var close := buffer.rfind("}")
+	if open < 0 or close < open:
+		return buffer
+	return buffer.substr(open, close - open + 1)
 
 
 ## Parses a captured stdout buffer. Never throws: a caller that got here already has a problem and
@@ -67,9 +86,7 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 	# The CLI writes exactly one JSON document on stdout under --json, but a wrapper script or a
 	# shell profile can prepend noise. Recovering from the first '{' is cheap and turns an
 	# unexplained failure into a working session.
-	var brace := trimmed.find("{")
-	if brace > 0:
-		trimmed = trimmed.substr(brace)
+	trimmed = extract_json_object(trimmed)
 
 	# An instance, not the static JSON.parse_string: the static helper pushes a hard error into the
 	# editor log on malformed input, and malformed input is an expected outcome here (a wrong CLI

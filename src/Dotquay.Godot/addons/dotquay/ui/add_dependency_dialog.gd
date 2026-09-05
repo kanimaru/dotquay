@@ -34,6 +34,9 @@ func _ready() -> void:
 	_kind.item_selected.connect(func(_index: int) -> void: _refresh())
 	_mode.item_selected.connect(func(_index: int) -> void: _refresh())
 	_source.text_changed.connect(_on_source_changed)
+	# The pin value decides whether OK is allowed at all (a "Version" with nothing typed is not a
+	# request), so the OK state has to follow it keystroke by keystroke.
+	_value.text_changed.connect(func(_text: String) -> void: _refresh())
 	confirmed.connect(_on_confirmed)
 
 	_rebuild_modes(true)
@@ -99,7 +102,7 @@ func _selected_mode() -> DotquayAddRequest.Source:
 func _on_source_changed(text: String) -> void:
 	# Pasting a git URL while "NuGet" is selected is a near-certain mis-click, and dotquay would
 	# route it by shape anyway — switching the dropdown keeps the form honest about what will happen.
-	if DotquayAddRequest.for_git(text).git_url().contains("://") and not _is_git():
+	if DotquayAddRequest.looks_like_git(text) and not _is_git():
 		_kind.select(SourceKind.GIT)
 
 	_refresh()
@@ -135,7 +138,9 @@ func _refresh() -> void:
 
 	_hint.text = _hint_text(is_git, inline_ref)
 
-	get_ok_button().disabled = _source.text.strip_edges().is_empty()
+	# Disabled, not silently ignored on confirm: a ConfirmationDialog hides itself before `confirmed`
+	# fires, so a handler that bails out leaves the user looking at a closed dialog that did nothing.
+	get_ok_button().disabled = not request.is_complete()
 
 
 func _value_placeholder() -> String:
@@ -188,12 +193,10 @@ func _build_request() -> DotquayAddRequest:
 
 func _on_confirmed() -> void:
 	var request := _build_request()
-	if request.source.is_empty():
-		return
 
-	# A named pin with nothing typed into it is an unfinished thought, not a request for the default.
-	if request.source_mode != DotquayAddRequest.Source.LATEST and not request.names_a_source():
-		if not request.has_inline_ref():
-			return
+	# The OK button is disabled for an incomplete form; this is the belt to that braces (Enter in a
+	# LineEdit can confirm a dialog regardless of the button's state).
+	if not request.is_complete():
+		return
 
 	add_requested.emit(request)

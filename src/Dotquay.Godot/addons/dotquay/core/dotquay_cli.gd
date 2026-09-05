@@ -25,6 +25,12 @@ const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
 var _threads: Array[Thread] = []
 var _running := 0
 
+## Handed out by [method run], one per call, and echoed back on the result as
+## [member DotquayResult.ticket]. It is the only reliable way to match a result to the call that
+## produced it: the envelope's `command` is the CLI's name for what ran ("override" for both a pin and
+## a `--clear`), and several calls can be in flight at once.
+var _next_ticket := 1
+
 
 func _exit_tree() -> void:
 	# Joining rather than abandoning: a half-finished `dotquay update` is writing to addons/ and the
@@ -45,7 +51,13 @@ func is_busy() -> bool:
 ##
 ## [param command_name] is only used to label a failure that never reached the CLI (it can't report
 ## its own command name if it didn't run).
-func run(command_name: String, args: PackedStringArray) -> void:
+##
+## Returns the ticket the eventual [signal finished] result will carry, so a caller can stash
+## per-call state (a pending request, a "refresh afterwards" flag) against exactly this run.
+func run(command_name: String, args: PackedStringArray) -> int:
+	var ticket := _next_ticket
+	_next_ticket += 1
+
 	var editor_settings := EditorInterface.get_editor_settings()
 	var executable := SETTINGS.cli_path(editor_settings)
 
@@ -53,15 +65,15 @@ func run(command_name: String, args: PackedStringArray) -> void:
 		_emit_deferred(RESULT.failure(
 			RESULT.KIND_NOT_CONFIGURED,
 			"No dotquay executable configured or found on PATH. Set Editor Settings -> Dotquay -> CLI Path.",
-			command_name))
-		return
+			command_name), ticket)
+		return ticket
 
 	if not FileAccess.file_exists(executable):
 		_emit_deferred(RESULT.failure(
 			RESULT.KIND_NOT_CONFIGURED,
 			"The configured dotquay path does not exist: %s" % executable,
-			command_name))
-		return
+			command_name), ticket)
+		return ticket
 
 	var full_args := PackedStringArray(args)
 	full_args.append("--json")
@@ -74,7 +86,8 @@ func run(command_name: String, args: PackedStringArray) -> void:
 
 	var thread := Thread.new()
 	_threads.append(thread)
-	thread.start(_run_blocking.bind(executable, full_args, command_name, thread))
+	thread.start(_run_blocking.bind(executable, full_args, command_name, ticket, thread))
+	return ticket
 
 
 ## The Godot project's directory on the real filesystem. The CLI has no idea what `res://` means,
@@ -84,7 +97,7 @@ func project_directory() -> String:
 	return ProjectSettings.globalize_path("res://").rstrip("/")
 
 
-func _run_blocking(executable: String, args: PackedStringArray, command_name: String, thread: Thread) -> void:
+func _run_blocking(executable: String, args: PackedStringArray, command_name: String, ticket: int, thread: Thread) -> void:
 	var output: Array = []
 	# read_stderr: true. dotquay's own errors arrive as a JSON envelope on stdout, but a *launch*
 	# failure (missing .NET runtime, a wrong architecture) only ever writes to stderr — folding both
@@ -104,6 +117,7 @@ func _run_blocking(executable: String, args: PackedStringArray, command_name: St
 	else:
 		result = RESULT.parse(joined, code, command_name)
 
+	result.ticket = ticket
 	_finish.bind(result, thread).call_deferred()
 
 
@@ -121,7 +135,9 @@ func _finish(result: DotquayResult, thread: Thread) -> void:
 		busy_changed.emit(false)
 
 
-func _emit_deferred(result: DotquayResult) -> void:
+func _emit_deferred(result: DotquayResult, ticket: int) -> void:
 	# Deferred even on the "didn't run at all" path, so a caller's signal handling is identical for
-	# every outcome — a synchronous emit here would fire before the caller had finished wiring up.
+	# every outcome — a synchronous emit here would fire before the caller had finished wiring up
+	# (and before it has the ticket this call returns).
+	result.ticket = ticket
 	finished.emit.bind(result).call_deferred()

@@ -1,4 +1,4 @@
-# Runs the Dotquay plugin's GDScript test suite headlessly.
+﻿# Runs the Dotquay plugin's GDScript test suite headlessly.
 #
 # The import pass is not optional: `class_name` globals live in .godot/global_script_class_cache.cfg,
 # which only exists after Godot has scanned the project. Skipping it makes every typed reference in
@@ -6,6 +6,10 @@
 # worth spending one extra engine start to avoid, in CI and locally alike.
 #
 #   ./run_tests.ps1 -Godot "E:\Godot\current\godot.exe"
+#
+# Saved UTF-8 *with* a BOM on purpose: Windows PowerShell 5.1 reads a BOM-less file as ANSI, which
+# turns the em-dashes in the strings below into mojibake and the script into a parse error. pwsh 7
+# doesn't care either way, so the BOM is the version that works everywhere.
 
 param(
     [string]$Godot = "godot",
@@ -23,6 +27,12 @@ function Invoke-Godot {
 
     $process = Start-Process -FilePath $Godot -ArgumentList $GodotArgs -NoNewWindow -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+    # Reading .Handle is not a no-op: without -Wait, Start-Process hands back a Process object that
+    # never caches the process handle, and .ExitCode then reads as $null forever — no matter how long
+    # you wait. `$null -ne 0` is true, so every fully passing run reported failure. Touching .Handle
+    # here is what makes the object hold on to the handle long enough to read an exit code from it.
+    $null = $process.Handle
 
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
         $process.Kill()

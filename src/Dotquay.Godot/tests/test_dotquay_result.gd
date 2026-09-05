@@ -65,6 +65,34 @@ func test_recovers_from_leading_noise() -> void:
 	runner.check(result.ok, "leading non-JSON noise should be skipped, not fatal")
 
 
+func test_recovers_from_trailing_noise() -> void:
+	# The runner folds stderr into the same buffer as stdout, so a .NET runtime or git warning can land
+	# *after* the envelope. That used to fail the parse outright.
+	var result: DotquayResult = RESULT.parse(
+		_envelope() + "\nwarning: redirecting to https://github.com/x/y.git/\n", 0, "graph")
+
+	runner.check(result.ok, "trailing non-JSON noise should be skipped, not fatal")
+	runner.equal(result.data.get("source"), "lockfile", "the payload should survive the trim intact")
+
+
+func test_recovers_from_noise_on_both_sides() -> void:
+	var result: DotquayResult = RESULT.parse("banner\n" + _envelope() + "\ntrailer", 0, "graph")
+
+	runner.check(result.ok, "noise before and after the envelope should both be skipped")
+
+
+func test_extract_json_object_leaves_braceless_input_alone() -> void:
+	runner.equal(RESULT.extract_json_object("no json here"), "no json here",
+		"a buffer with no object should be returned untouched so the caller can show the real bytes")
+	runner.equal(RESULT.extract_json_object("} {"), "} {",
+		"a closing brace before the opening one is not an object and must not be cut into one")
+
+
+func test_ticket_defaults_to_zero_outside_the_runner() -> void:
+	var result: DotquayResult = RESULT.parse(_envelope(), 0, "graph")
+	runner.equal(result.ticket, 0, "a result parsed outside DotquayCli has no ticket")
+
+
 func test_rejects_non_json_output() -> void:
 	var result: DotquayResult = RESULT.parse("bash: dotquay: command not found", 127, "graph")
 

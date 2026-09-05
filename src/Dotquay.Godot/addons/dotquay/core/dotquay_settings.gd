@@ -11,7 +11,11 @@ extends RefCounted
 
 const CLI_PATH_SETTING := "dotquay/general/cli_path"
 const AUTO_REFRESH_SETTING := "dotquay/general/refresh_on_focus"
-const RESOLVE_TIMEOUT_SETTING := "dotquay/general/resolve_timeout_seconds"
+
+## Registered by earlier versions but never read — `OS.execute` has no timeout to give it to. Kept
+## only so [method register] can erase it from an editor config that still carries it; a setting the
+## user can change and that changes nothing is worse than no setting.
+const RETIRED_SETTINGS := ["dotquay/general/resolve_timeout_seconds"]
 
 ## Names to look for on PATH when no explicit path is configured, so the common case (dotquay
 ## installed normally) needs no setup at all.
@@ -33,12 +37,9 @@ static func register(editor_settings: EditorSettings) -> void:
 		"type": TYPE_BOOL,
 	})
 
-	_register_one(editor_settings, RESOLVE_TIMEOUT_SETTING, 120, {
-		"name": RESOLVE_TIMEOUT_SETTING,
-		"type": TYPE_INT,
-		"hint": PROPERTY_HINT_RANGE,
-		"hint_string": "5,900,5",
-	})
+	for retired in RETIRED_SETTINGS:
+		if editor_settings.has_setting(retired):
+			editor_settings.erase(retired)
 
 
 static func _register_one(editor_settings: EditorSettings, key: String, default_value: Variant, info: Dictionary) -> void:
@@ -87,9 +88,3 @@ static func refresh_on_focus(editor_settings: EditorSettings) -> bool:
 	if not editor_settings.has_setting(AUTO_REFRESH_SETTING):
 		return true
 	return bool(editor_settings.get_setting(AUTO_REFRESH_SETTING))
-
-
-static func resolve_timeout_seconds(editor_settings: EditorSettings) -> int:
-	if not editor_settings.has_setting(RESOLVE_TIMEOUT_SETTING):
-		return 120
-	return int(editor_settings.get_setting(RESOLVE_TIMEOUT_SETTING))

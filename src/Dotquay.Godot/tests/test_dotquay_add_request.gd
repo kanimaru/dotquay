@@ -158,3 +158,52 @@ func test_describe_says_the_same_thing_the_arguments_do() -> void:
 
 func test_describe_of_a_plain_add_is_just_the_source() -> void:
 	runner.equal(_git().describe(), URL, "with nothing named, there is nothing to add in brackets")
+
+
+# -- is the form complete? -------------------------------------------------------------------
+
+func test_a_blank_source_is_incomplete() -> void:
+	var request: DotquayAddRequest = REQUEST.new()
+	request.source = "   "
+	runner.check(not request.is_complete(), "nothing to add means nothing to run")
+
+
+func test_latest_needs_only_a_source() -> void:
+	runner.check(_git().is_complete(), "latest release needs no pin value")
+
+
+func test_a_pin_mode_with_no_value_is_incomplete() -> void:
+	runner.check(not _git(REQUEST.Source.VERSION, "").is_complete(),
+		"a chosen pin mode with an empty field is an unfinished form, not a request")
+	runner.check(not _git(REQUEST.Source.BRANCH, "  ").is_complete(), "whitespace is still empty")
+
+
+func test_a_pin_mode_with_a_value_is_complete() -> void:
+	runner.check(_git(REQUEST.Source.REV, "abc123").is_complete(), "a pin with a value can run")
+
+
+func test_an_inline_ref_completes_a_pin_mode_on_its_own() -> void:
+	var request := _git(REQUEST.Source.BRANCH, "")
+	request.source = URL + "#main"
+	runner.check(request.is_complete(), "the URL names the ref, so the empty field is not a gap")
+
+
+# -- does it look like git? ------------------------------------------------------------------
+
+func test_scheme_urls_look_like_git() -> void:
+	for source in [URL, "ssh://git@host/repo", "git://host/repo", "file:///c/repos/x", URL + "#main"]:
+		runner.check(REQUEST.looks_like_git(source), "%s should be recognised as git" % source)
+
+
+func test_scp_style_remotes_look_like_git() -> void:
+	runner.check(REQUEST.looks_like_git("git@github.com:owner/repo.git"), "scp form with .git")
+	runner.check(REQUEST.looks_like_git("git@gitlab.kemomi.de:group/sub/repo"), "scp form without .git")
+
+
+func test_a_dot_git_suffix_looks_like_git() -> void:
+	runner.check(REQUEST.looks_like_git("C:/repos/addon.git"), "a bare .git path is a git source")
+
+
+func test_nuget_ids_do_not_look_like_git() -> void:
+	for source in ["Newtonsoft.Json", "Microsoft.Extensions.Logging", "System.Text.Json", "VBeami.Core", ""]:
+		runner.check(not REQUEST.looks_like_git(source), "%s is a package ID, not a repository" % source)

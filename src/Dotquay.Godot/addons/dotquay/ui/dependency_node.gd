@@ -68,8 +68,7 @@ func _render() -> void:
 
 
 func _render_status_row() -> void:
-	for child in _status_row.get_children():
-		child.queue_free()
+	DotquayNodes.clear_children(_status_row)
 
 	var version := _badge(_model.display_version(),
 		Color.WHITE,
@@ -105,8 +104,7 @@ func _render_status_row() -> void:
 
 
 func _render_details() -> void:
-	for child in _details.get_children():
-		child.queue_free()
+	DotquayNodes.clear_children(_details)
 
 	if not _model.constraint.is_empty():
 		_detail("%s %s" % [_model.source_kind, _model.constraint], "The constraint declared in dotquay.toml.")

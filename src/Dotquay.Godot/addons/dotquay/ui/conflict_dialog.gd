@@ -15,6 +15,15 @@ signal override_chosen(addon_name: String, kind: String, value: String, git: Str
 
 const CUSTOM_ID := -1
 
+## Item id in the CustomKind [OptionButton] to the wire literal `override` expects. The scene's item
+## *captions* happen to be the same words today, but a caption is something the editor invites you to
+## retitle; a flag is not. The ids are what the scene must keep stable.
+const CUSTOM_KIND_BY_ID := {
+	0: DotquayWire.SOURCE_VERSION,
+	1: DotquayWire.SOURCE_BRANCH,
+	2: DotquayWire.SOURCE_REV,
+}
+
 const CANDIDATE_ROW := preload("res://addons/dotquay/ui/items/candidate_row.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
@@ -33,7 +42,9 @@ var _candidate_group: ButtonGroup
 func _ready() -> void:
 	# Typing into the free-text field is itself a choice; making the user also click the radio is a
 	# step that only ever produces a wrong-looking dialog.
-	_custom_value.text_changed.connect(func(_text: String) -> void: _custom_radio.button_pressed = true)
+	_custom_value.text_changed.connect(func(_text: String) -> void:
+		_custom_radio.button_pressed = true
+		_update_ok_state())
 	_custom_radio.set_meta("candidate_index", CUSTOM_ID)
 
 	for label in [%RequirementsHeading, %CandidatesHeading]:
@@ -48,6 +59,7 @@ func show_conflict(conflict: DotquayGraph.Conflict) -> void:
 	# A fresh group per showing: reusing one would keep every radio from the previous conflict
 	# registered, so `get_pressed_button` could hand back a candidate that is no longer on screen.
 	_candidate_group = ButtonGroup.new()
+	_candidate_group.pressed.connect(func(_button: BaseButton) -> void: _update_ok_state())
 	_custom_radio.button_group = _candidate_group
 	_custom_radio.button_pressed = false
 	_custom_value.text = ""
@@ -55,17 +67,14 @@ func show_conflict(conflict: DotquayGraph.Conflict) -> void:
 	_headline.text = conflict.headline()
 	_detail.text = conflict.message
 
-	for child in _requirement_list.get_children():
-		child.queue_free()
+	DotquayNodes.clear_children(_requirement_list)
 
 	for requirement in conflict.requirements:
 		var label: DotquayStatusLabel = STATUS_LABEL.instantiate()
 		_requirement_list.add_child(label)
 		label.setup("  • " + requirement.describe(), DotquayPalette.MUTED, requirement.git)
 
-	for child in _candidate_list.get_children():
-		_candidate_list.remove_child(child)
-		child.queue_free()
+	DotquayNodes.clear_children(_candidate_list)
 
 	var ranked := conflict.ranked_candidates()
 
@@ -84,28 +93,48 @@ func show_conflict(conflict: DotquayGraph.Conflict) -> void:
 		if ranked[0].satisfies_all:
 			(_candidate_list.get_child(0) as DotquayCandidateRow).radio.button_pressed = true
 
+	_update_ok_state()
 	popup_centered()
 
 
-func _on_confirmed() -> void:
-	if _conflict == null or _candidate_group == null:
-		return
+## Whether confirming right now would actually emit a choice: a candidate is selected, or the custom
+## radio is and its field has text.
+func _has_choice() -> bool:
+	if _candidate_group == null:
+		return false
 
 	var pressed := _candidate_group.get_pressed_button()
 	if pressed == null:
+		return false
+
+	if int(pressed.get_meta("candidate_index", CUSTOM_ID)) == CUSTOM_ID:
+		return not _custom_value.text.strip_edges().is_empty()
+
+	return true
+
+
+## Disabled rather than ignored on confirm — the dialog has already closed by the time `confirmed`
+## fires, so bailing out there reads as "the button did nothing".
+func _update_ok_state() -> void:
+	get_ok_button().disabled = not _has_choice()
+
+
+func _custom_kind_wire() -> String:
+	return String(CUSTOM_KIND_BY_ID.get(_custom_kind.get_selected_id(), DotquayWire.SOURCE_VERSION))
+
+
+func _on_confirmed() -> void:
+	if _conflict == null or not _has_choice():
 		return
 
+	var pressed := _candidate_group.get_pressed_button()
 	var index: int = int(pressed.get_meta("candidate_index", CUSTOM_ID))
 
 	if index == CUSTOM_ID:
-		var value := _custom_value.text.strip_edges()
-		if value.is_empty():
-			return
-
 		# The custom path has no candidate to inherit a repository from, so it relies on the CLI
 		# filling `git` in from the manifest or lockfile — the common case, since a version conflict
 		# is a disagreement about which release, not about which repo.
-		override_chosen.emit(_conflict.name, _custom_kind.get_item_text(_custom_kind.selected), value, "", "")
+		override_chosen.emit(_conflict.name, _custom_kind_wire(), _custom_value.text.strip_edges(), "", "")
 		return
 
 	var ranked := _conflict.ranked_candidates()
