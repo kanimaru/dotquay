@@ -43,6 +43,29 @@ const ACTION_REMOVED := "removed"
 const ACTION_INSTALLED := "installed"
 const ACTION_UNCHANGED := "unchanged"
 
+## `addons[].explanation.verdict` on `status --explain` — the answer to "would forcing cost me
+## anything?" (docs/DESIGN-v0.12-MODIFIED-REASON.md). "unavailable" is not an error: it means the
+## locked commit could not be fetched to compare against, which is what being offline looks like.
+const VERDICT_SAFE_TO_FORCE := "safe_to_force"
+const VERDICT_REVIEW_NEEDED := "review_needed"
+const VERDICT_UNAVAILABLE := "unavailable"
+
+## `addons[].explanation.changes[].kind`, from the installed tree's point of view.
+##
+## Spelled separately from [constant ACTION_ADDED] and friends despite sharing two literals: those
+## describe what a command did to a dependency, these describe how one file differs from its locked
+## commit. Collapsing them would make a rename on either side look safe.
+const CHANGE_KIND_ADDED := "added"
+const CHANGE_KIND_REMOVED := "removed"
+const CHANGE_KIND_CHANGED := "changed"
+
+## `addons[].explanation.changes[].class`. Only [constant CHANGE_CLASS_CONTENT] is a reason not to
+## force — the rest is churn the editor regenerates on its own.
+const CHANGE_CLASS_CONTENT := "content"
+const CHANGE_CLASS_UID_ONLY := "uid_only"
+const CHANGE_CLASS_LINE_ENDINGS_ONLY := "line_endings_only"
+const CHANGE_CLASS_EDITOR_ARTIFACT := "editor_artifact"
+
 ## `graph.source`
 const GRAPH_SOURCE_LOCKFILE := "lockfile"
 const GRAPH_SOURCE_RESOLVED := "resolved"
@@ -58,6 +81,7 @@ const COMMAND_ADD_PREVIEW := "add-preview"
 const COMMAND_GRAPH := "graph"
 const COMMAND_OUTDATED := "outdated"
 const COMMAND_DOCTOR := "doctor"
+const COMMAND_STATUS := "status"
 
 
 ## JSON nulls arrive as `null`, and `String(null)` yields "<null>" rather than "". Every optional

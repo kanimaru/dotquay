@@ -15,6 +15,7 @@ const SUITES := [
 	preload("res://tests/test_dotquay_result.gd"),
 	preload("res://tests/test_dotquay_graph.gd"),
 	preload("res://tests/test_dotquay_preview.gd"),
+	preload("res://tests/test_dotquay_explain.gd"),
 	preload("res://tests/test_dotquay_add_request.gd"),
 	preload("res://tests/test_dotquay_rescan.gd"),
 	preload("res://tests/test_dotquay_log_buffer.gd"),

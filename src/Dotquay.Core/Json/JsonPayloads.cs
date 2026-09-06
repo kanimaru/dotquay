@@ -217,7 +217,58 @@ public sealed record StatusJson
     public bool AllClean { get; init; }
 }
 
-public sealed record StatusEntryJson(string Name, string Status);
+/// <param name="Explanation">Why a <c>modified</c> addon is modified — present only when
+/// <c>--explain</c> asked, null otherwise (docs/DESIGN-v0.12-MODIFIED-REASON.md). Additive: no
+/// existing field changed and no <c>status</c> value was added, so a consumer reading only
+/// <c>name</c>/<c>status</c> — the editor plugin's <c>core/dotquay_wire.gd</c> included — is
+/// unaffected.</param>
+public sealed record StatusEntryJson(string Name, string Status, StatusExplanationJson? Explanation = null);
+
+/// <summary>Why one addon reads as <c>modified</c>, and whether forcing would cost anything.</summary>
+public sealed record StatusExplanationJson
+{
+    /// <summary><c>safe_to_force</c> | <c>review_needed</c> | <c>unavailable</c>.</summary>
+    public required string Verdict { get; init; }
+
+    /// <summary>Exact totals per class, unaffected by the cap on <see cref="Changes"/>.</summary>
+    public required StatusChangeCountsJson Counts { get; init; }
+
+    /// <summary>Most significant first, capped at
+    /// <see cref="Dotquay.Core.Workflows.AddonExplanation.MaxReportedChanges"/> — compare
+    /// <c>counts.total</c> to this list's length to detect truncation.</summary>
+    public IReadOnlyList<StatusChangeJson> Changes { get; init; } = [];
+
+    /// <summary>Set only when <see cref="Verdict"/> is <c>unavailable</c>.</summary>
+    public string? UnavailableReason { get; init; }
+
+    /// <summary>Whether the compared baseline had the addon's captured patch re-applied. False for an
+    /// unpatched addon, which is the ordinary case — see
+    /// <see cref="PatchCouldNotBeApplied"/> for the one that means something.</summary>
+    public bool BaselineIncludesPatch { get; init; }
+
+    /// <summary>A patch was declared and could not be reconstructed, so <see cref="Changes"/>
+    /// includes the patch's own edits and the comparison is incomplete.</summary>
+    public bool PatchCouldNotBeApplied { get; init; }
+}
+
+public sealed record StatusChangeCountsJson
+{
+    public int Content { get; init; }
+
+    public int UidOnly { get; init; }
+
+    public int LineEndingsOnly { get; init; }
+
+    public int EditorArtifact { get; init; }
+
+    public int Total { get; init; }
+}
+
+/// <param name="Kind"><c>added</c> | <c>removed</c> | <c>changed</c>, from the installed tree's point
+/// of view.</param>
+/// <param name="Class"><c>content</c> | <c>uid_only</c> | <c>line_endings_only</c> |
+/// <c>editor_artifact</c>. Only <c>content</c> is a reason not to force.</param>
+public sealed record StatusChangeJson(string Path, string Kind, string Class);
 
 /// <summary>Payload of <c>dotquay outdated --json</c>.</summary>
 public sealed record OutdatedJson

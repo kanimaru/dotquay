@@ -1,0 +1,36 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/explain_change_row.gd" id="1_explain_change_row"]
+
+[node name="ExplainChangeRow" type="HBoxContainer"]
+mouse_filter = 0
+theme_override_constants/separation = 8
+script = ExtResource("1_explain_change_row")
+
+[node name="Marker" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "~"
+
+; Fixed columns are what let the rows read as a table rather than as ragged text. Deliberately narrow:
+; every pixel here is a pixel the dialog can never be resized below.
+
+[node name="ChangeKind" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "changed"
+
+[node name="ChangePath" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "path"
+
+[node name="ChangeClass" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "class"

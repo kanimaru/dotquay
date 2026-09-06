@@ -21,12 +21,14 @@ const SCENES := [
 	"res://addons/dotquay/ui/add_dependency_dialog.tscn",
 	"res://addons/dotquay/ui/conflict_dialog.tscn",
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
+	"res://addons/dotquay/ui/explain_dialog.tscn",
 	"res://addons/dotquay/ui/items/status_label.tscn",
 	"res://addons/dotquay/ui/items/conflict_card.tscn",
 	"res://addons/dotquay/ui/items/candidate_row.tscn",
 	"res://addons/dotquay/ui/items/dotnet_row.tscn",
 	"res://addons/dotquay/ui/items/preview_addon_row.tscn",
 	"res://addons/dotquay/ui/items/preview_source_card.tscn",
+	"res://addons/dotquay/ui/items/explain_change_row.tscn",
 ]
 
 ## Node names the panel reaches by plain path rather than by `%`, because they are looked up through
@@ -139,6 +141,7 @@ const DIALOGS := [
 	"res://addons/dotquay/ui/add_dependency_dialog.tscn",
 	"res://addons/dotquay/ui/conflict_dialog.tscn",
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
+	"res://addons/dotquay/ui/explain_dialog.tscn",
 ]
 
 
@@ -209,6 +212,45 @@ func test_dialogs_do_not_resize_themselves_to_their_contents() -> void:
 			"%s leaves wrap_controls on, so it will grow to whatever its contents claim to need" % path)
 
 		dialog.free()
+
+
+## The explain dialog, actually rendering something.
+##
+## Every other test here proves the scene loads and its `%Name`s resolve. This one proves the script
+## and the scene agree once data arrives — the `@onready` bindings are only assigned on entering the
+## tree, so a renamed node passes every static check and then nulls out on the first real use.
+##
+## The assertion that earns the setup cost is the OK button: it says "Force update", and it must be
+## disabled for anything the CLI did not call safe. A disabled-state bug here destroys work.
+func test_explain_dialog_renders_and_gates_its_force_button() -> void:
+	var safe := _explanation_payload(DotquayWire.VERDICT_SAFE_TO_FORCE, "uid_only", 1)
+	var unsafe := _explanation_payload(DotquayWire.VERDICT_REVIEW_NEEDED, "content", 1)
+
+	# Detached on purpose. A node added during `SceneTree._initialize` never reaches `_ready`, so an
+	# `@onready`-bound dialog would null out here — which is exactly why this one binds lazily.
+	var dialog: Window = load("res://addons/dotquay/ui/explain_dialog.tscn").instantiate()
+
+	dialog.show_explanation("gut", safe)
+	runner.equal(dialog.get_node("%ChangeList").get_child_count(), 1, "one change should render one row")
+	runner.check(not dialog.get_ok_button().disabled, "a safe_to_force verdict should enable Force update")
+	runner.check(not dialog.get_node("%Blocker").visible, "and should show no blocker")
+
+	# Reused rather than re-instantiated: the dialog is a long-lived child of the panel, so "shown a
+	# second time with different data" is the normal case and the one a stale row would survive into.
+	dialog.show_explanation("gut", unsafe)
+	runner.equal(dialog.get_node("%ChangeList").get_child_count(), 1, "reopening must not accumulate rows")
+	runner.check(dialog.get_ok_button().disabled, "a real content change must disable Force update")
+	runner.check(dialog.get_node("%Blocker").visible, "and must say why")
+
+	dialog.free()
+
+
+static func _explanation_payload(verdict: String, change_class: String, count: int) -> DotquayExplain.Explanation:
+	return DotquayExplain.Explanation.from_payload({
+		"verdict": verdict,
+		"counts": {change_class: count, "total": count},
+		"changes": [{"path": "a.gd", "kind": "changed", "class": change_class}],
+	})
 
 
 ## Pulls `%Name` tokens out of GDScript source.

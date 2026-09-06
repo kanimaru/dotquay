@@ -60,6 +60,19 @@ internal static class WorkflowFactory
             ? new PreApprovedSourceApproval(preApprovedSourceUrls)
             : ConsoleSourceApproval.For(json);
 
+    /// <summary>
+    /// The same shape as <see cref="CreateWithProgress"/>, with nothing to report and nothing to
+    /// dispose.
+    /// </summary>
+    /// <remarks>
+    /// For a command that only sometimes does slow work — <c>status</c> is instant until
+    /// <c>--explain</c> asks it to fetch. Its own parameter rather than passing <c>json: true</c> to
+    /// suppress the spinner: that argument also selects how NuGet source approval behaves, and
+    /// borrowing it to mean "quiet" is how the second meaning eventually gets used by accident.
+    /// </remarks>
+    public static (DependencyWorkflow Workflow, IDisposable Progress) CreateQuiet() =>
+        (Create(), NullDisposable.Instance);
+
     private sealed class NullDisposable : IDisposable
     {
         public static readonly NullDisposable Instance = new();

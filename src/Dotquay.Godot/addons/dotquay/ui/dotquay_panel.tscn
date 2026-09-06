@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://b687jenmtp25a" path="res://addons/dotquay/ui/conflict_dialog.tscn" id="3_conflict_dialog"]
 [ext_resource type="PackedScene" uid="uid://pe8o3qdtfv8i" path="res://addons/dotquay/ui/add_dependency_dialog.tscn" id="4_add_dialog"]
 [ext_resource type="PackedScene" uid="uid://bb8pb0afhvlsv" path="res://addons/dotquay/ui/install_preview_dialog.tscn" id="5_preview_dialog"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/explain_dialog.tscn" id="6_explain_dialog"]
 
 [node name="DotquayPanel" type="Control" unique_id=861563337]
 layout_mode = 3
@@ -170,6 +171,10 @@ initial_position = 1
 visible = false
 
 [node name="PreviewDialog" parent="." unique_id=1513949963 instance=ExtResource("5_preview_dialog")]
+unique_name_in_owner = true
+visible = false
+
+[node name="ExplainDialog" parent="." instance=ExtResource("6_explain_dialog")]
 unique_name_in_owner = true
 visible = false
 

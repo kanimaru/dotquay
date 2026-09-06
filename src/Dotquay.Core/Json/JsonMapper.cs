@@ -2,6 +2,7 @@ using Dotquay.Core.Graph;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Resolve;
+using Dotquay.Core.Sync;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Core.Json;
@@ -127,7 +128,7 @@ public static class JsonMapper
 
     public static StatusJson ToJson(StatusResult status) => new()
     {
-        Addons = status.Addons.Select(a => new StatusEntryJson(a.Name, ToWire(a.Kind))).ToList(),
+        Addons = status.Addons.Select(a => new StatusEntryJson(a.Name, ToWire(a.Kind), ToJson(a.Explanation))).ToList(),
         // A linked addon counts as clean: it is exactly where its owner put it, and nothing about it
         // needs fixing (SPEC.md §7.4).
         AllClean = status.Addons.All(
@@ -271,6 +272,57 @@ public static class JsonMapper
         AddonSourceKind.Version => "version",
         AddonSourceKind.Branch => "branch",
         AddonSourceKind.Rev => "rev",
+        _ => "unknown",
+    };
+
+    /// <summary>Null in, null out — an addon that was not explained carries no explanation, rather
+    /// than an empty one a consumer would have to distinguish from "explained, nothing found".</summary>
+    public static StatusExplanationJson? ToJson(AddonExplanation? explanation) => explanation is null
+        ? null
+        : new StatusExplanationJson
+        {
+            Verdict = ToWire(explanation.Verdict),
+            Counts = new StatusChangeCountsJson
+            {
+                Content = explanation.Counts.Content,
+                UidOnly = explanation.Counts.UidOnly,
+                LineEndingsOnly = explanation.Counts.LineEndingsOnly,
+                EditorArtifact = explanation.Counts.EditorArtifact,
+                Total = explanation.Counts.Total,
+            },
+            Changes = explanation.Changes
+                .Select(change => new StatusChangeJson(change.Path, ToWire(change.Kind), ToWire(change.Class)))
+                .ToList(),
+            UnavailableReason = explanation.UnavailableReason,
+            BaselineIncludesPatch = explanation.BaselineIncludesPatch,
+            PatchCouldNotBeApplied = explanation.PatchCouldNotBeApplied,
+        };
+
+    public static string ToWire(ExplainVerdict verdict) => verdict switch
+    {
+        ExplainVerdict.SafeToForce => "safe_to_force",
+        ExplainVerdict.ReviewNeeded => "review_needed",
+        ExplainVerdict.Unavailable => "unavailable",
+        _ => "unknown",
+    };
+
+    /// <summary>Fully qualified: this type already nests a <c>ChangeKind</c> holding the wire
+    /// constants for <see cref="ChangeJson"/>, which is a different thing entirely and wins name
+    /// resolution here.</summary>
+    public static string ToWire(Sync.ChangeKind kind) => kind switch
+    {
+        Sync.ChangeKind.Added => "added",
+        Sync.ChangeKind.Removed => "removed",
+        Sync.ChangeKind.Changed => "changed",
+        _ => "unknown",
+    };
+
+    public static string ToWire(Sync.ChangeClass @class) => @class switch
+    {
+        Sync.ChangeClass.EditorArtifact => "editor_artifact",
+        Sync.ChangeClass.LineEndingsOnly => "line_endings_only",
+        Sync.ChangeClass.UidOnly => "uid_only",
+        Sync.ChangeClass.Content => "content",
         _ => "unknown",
     };
 

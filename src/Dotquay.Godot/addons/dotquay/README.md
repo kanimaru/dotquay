@@ -29,7 +29,7 @@ set it by hand at *Editor → Editor Settings → Dotquay → CLI Path*.
 | Badge | Meaning |
 |---|---|
 | `conflict` | Two requirers disagree and no single version satisfies both (SPEC.md §8). Click **Resolve…**. |
-| `modified` | Hand-edited without a captured patch. `install`/`update` will refuse to overwrite it (P0-6). Use **Capture edits as a patch**. |
+| `modified` | Differs from its locked commit, with no captured patch. `install`/`update` refuse to overwrite it (P0-6). Start with **Why is this modified?** — an addon Godot merely rewrote a `uid://` in looks identical to one you edited, and only the first is safe to discard. Then **Capture edits as a patch**, or force the update from that dialog. |
 | `patched` | A captured patch is re-applied on every update (SPEC.md §10). Expected, not a problem. |
 | `missing` | Locked, but the folder isn't on disk. Run **Install**. |
 | `override` | Forced by an `[overrides]` entry in `dotquay.toml`. |

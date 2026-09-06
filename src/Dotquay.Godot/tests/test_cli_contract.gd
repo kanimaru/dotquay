@@ -13,6 +13,7 @@ extends RefCounted
 const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
 const GRAPH := preload("res://addons/dotquay/core/dotquay_graph.gd")
 const PREVIEW := preload("res://addons/dotquay/core/dotquay_preview.gd")
+const EXPLAIN := preload("res://addons/dotquay/core/dotquay_explain.gd")
 
 var runner: Object
 
@@ -109,6 +110,37 @@ func test_real_cli_emits_a_preview_this_addon_can_parse() -> void:
 	# The point of the whole feature: nothing was written, so the graph is still empty afterwards.
 	var after := _run(cli, PackedStringArray(["graph", "--project", project, "--json"]), "graph")
 	runner.check(GRAPH.from_payload(after.data).is_empty(), "a preview must not install anything")
+
+
+## `status --explain` is the panel's only user of the `status` envelope, and the flag is what decides
+## whether the payload carries an `explanation` object at all. A fixture suite cannot notice the CLI
+## rejecting the flag, renaming the command, or dropping the field — this can.
+##
+## Deliberately run against a project with nothing installed: the assertion is that the *envelope and
+## payload shape* survive the round trip. Producing a genuinely modified addon here would mean a
+## network fetch and a hand-edit, which is what the C# suite and the by-hand verification already do.
+func test_real_cli_accepts_explain_and_emits_a_status_this_addon_can_parse() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var project := _make_project()
+	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "status")
+
+	var result := _run(
+		cli, PackedStringArray(["status", "--explain", "--project", project, "--json"]), "status")
+
+	runner.check(result.ok, "`status --explain` should succeed on an initialised project")
+	runner.equal(result.command, DotquayWire.COMMAND_STATUS,
+		"the status envelope must report the command name the panel routes on")
+	runner.equal(result.schema, RESULT.SCHEMA_SUPPORTED, "the status payload schema should match this addon's")
+
+	var status: DotquayExplain = EXPLAIN.from_payload(result.data)
+
+	runner.check(status.addons.is_empty(), "a project with nothing installed has no status rows")
+	runner.check(status.all_clean, "and nothing installed is trivially all clean")
+	runner.check(status.explanation_for("anything") == null,
+		"asking about an addon that isn't there is null, not a crash")
 
 
 func test_real_cli_reports_a_missing_manifest_as_data() -> void:

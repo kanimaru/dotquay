@@ -20,6 +20,7 @@ const ACTION_OVERRIDE := "override"
 const ACTION_CLEAR_OVERRIDE := "clear_override"
 const ACTION_OPEN_REPO := "open_repo"
 const ACTION_CAPTURE_PATCH := "capture_patch"
+const ACTION_EXPLAIN := "explain"
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
@@ -79,7 +80,9 @@ func _render_status_row() -> void:
 		_badge("conflict", DotquayPalette.ERROR, _conflict.headline())
 	elif _model.status == DotquayWire.STATUS_MODIFIED:
 		_badge("modified", DotquayPalette.ERROR,
-			"Hand-edited without a captured patch. Install and update will refuse to overwrite it (SPEC.md P0-6).")
+			"Hand-edited without a captured patch. Install and update will refuse to overwrite it "
+			+ "(SPEC.md P0-6).\nPick 'Why is this modified?' from this node's menu to see what actually "
+			+ "differs — an addon Godot only rewrote a uid in reads the same as one you edited.")
 	elif _model.status == DotquayWire.STATUS_MISSING:
 		_badge("missing", DotquayPalette.WARN, "Locked, but the folder isn't on disk. Run Install.")
 	elif _model.is_linked():
@@ -138,7 +141,11 @@ func _render_menu() -> void:
 	if _model.is_overridden:
 		_add_menu_item(popup, "Clear override", ACTION_CLEAR_OVERRIDE)
 
+	# Listed above "capture" on purpose: the honest order is find out what changed, then decide what to
+	# do about it. A user who already knows loses one menu position; a user who does not is handed the
+	# answer before the option that acts on it.
 	if _model.status == DotquayWire.STATUS_MODIFIED:
+		_add_menu_item(popup, "Why is this modified?", ACTION_EXPLAIN)
 		_add_menu_item(popup, "Capture edits as a patch", ACTION_CAPTURE_PATCH)
 
 	popup.add_separator()

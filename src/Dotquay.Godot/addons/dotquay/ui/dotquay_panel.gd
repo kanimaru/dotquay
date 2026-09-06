@@ -39,6 +39,7 @@ const MAX_LOG_ENTRIES := 200
 @onready var _conflict_dialog: DotquayConflictDialog = %ConflictDialog
 @onready var _add_dialog: DotquayAddDependencyDialog = %AddDialog
 @onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
+@onready var _explain_dialog: DotquayExplainDialog = %ExplainDialog
 @onready var _confirm_remove: ConfirmationDialog = %ConfirmRemove
 
 var _cli: DotquayCli
@@ -56,6 +57,11 @@ var _pending_removal := ""
 ## picked up by the next preview of the same URL (with the old `--path`/`--install-as`), and the
 ## ticket is the one thing a result carries that names exactly the call it answers.
 var _pending_requests: Dictionary = {}
+
+## CLI ticket to the addon name that run's `status --explain` was opened about. Keyed on the ticket
+## for the same reason as [member _pending_requests]: `status` reports every addon, so the reply alone
+## does not say which one the user asked about.
+var _pending_explains: Dictionary = {}
 
 ## Which in-flight runs must be followed by a graph refresh. A tracker rather than a flag, because a
 ## flag is consumed by whichever command finishes first — see [DotquayRefreshTracker].
@@ -79,6 +85,7 @@ func _ready() -> void:
 	_graph_view.node_action_requested.connect(_on_node_action)
 	_add_dialog.add_requested.connect(_on_add_requested)
 	_preview_dialog.install_confirmed.connect(_on_install_confirmed)
+	_explain_dialog.force_update_requested.connect(_on_force_update_requested)
 	_conflict_dialog.override_chosen.connect(_on_override_chosen)
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
 	_locate_button.pressed.connect(_on_locate_pressed)
@@ -222,6 +229,13 @@ func _on_node_action(action: String, addon_name: String) -> void:
 			_log_line("Capturing edits to %s as a patch..." % addon_name)
 			_run("patch", PackedStringArray(["patch", addon_name]), true)
 
+		DotquayDependencyNode.ACTION_EXPLAIN:
+			# `--explain` compares against the locked commit, which can mean a fetch — so it is said
+			# out loud rather than leaving the panel silently busy.
+			_log_line("Comparing %s against its locked commit..." % addon_name)
+			var ticket := _run(DotquayWire.COMMAND_STATUS, PackedStringArray(["status", "--explain"]))
+			_pending_explains[ticket] = addon_name
+
 		DotquayDependencyNode.ACTION_OPEN_REPO:
 			var node := _graph.find(addon_name) if _graph != null else null
 			if node == null or node.git.is_empty():
@@ -346,6 +360,7 @@ func _on_cli_finished(result: DotquayResult) -> void:
 		# Whatever this run was waiting for, it isn't coming; a stale request must not be picked up
 		# by a later preview.
 		_pending_requests.erase(result.ticket)
+		_pending_explains.erase(result.ticket)
 
 		# A conflict is still a full graph payload — the whole point is to show it rather than stop
 		# at the error line.
@@ -360,6 +375,8 @@ func _on_cli_finished(result: DotquayResult) -> void:
 			_apply_graph(result.data)
 		DotquayWire.COMMAND_ADD_PREVIEW:
 			_show_preview(result)
+		DotquayWire.COMMAND_STATUS:
+			_show_explanation(result)
 		DotquayWire.COMMAND_OUTDATED:
 			_report_outdated(result.data)
 		DotquayWire.COMMAND_DOCTOR:
@@ -404,6 +421,39 @@ func _show_preview(result: DotquayResult) -> void:
 	_pending_requests.erase(result.ticket)
 
 	_preview_dialog.show_preview(preview, request)
+
+
+## `status --explain` reports every addon; the ticket is what says which one the user asked about.
+##
+## A reply whose ticket is gone (the plugin reloaded mid-run) is dropped rather than guessed at: this
+## dialog can end in a forced update, and opening it against an addon nobody named is not a mistake
+## worth making to save a click.
+func _show_explanation(result: DotquayResult) -> void:
+	var addon_name: String = _pending_explains.get(result.ticket, "")
+	_pending_explains.erase(result.ticket)
+
+	if addon_name.is_empty():
+		return
+
+	var explanation := DotquayExplain.from_payload(result.data).explanation_for(addon_name)
+
+	# Modified when the menu was opened, not modified now — an install or update finished in between,
+	# or the user reverted the file themselves. Reporting that beats an empty dialog.
+	if explanation == null:
+		_log_line("'%s' is no longer modified — nothing to explain." % addon_name)
+		refresh()
+		return
+
+	_log_line("%s" % explanation.summarize(addon_name))
+	_explain_dialog.show_explanation(addon_name, explanation)
+
+
+## Only ever reached from the explain dialog, and only when it judged the change benign — so the log
+## line says what was discarded rather than just naming the flag.
+func _on_force_update_requested(addon_name: String) -> void:
+	_log_warning("Force-updating %s, discarding the editor-generated changes listed in the dialog."
+		% addon_name)
+	_run("update", PackedStringArray(["update", addon_name, "--force"]), true)
 
 
 func _apply_graph(payload: Dictionary) -> void:
