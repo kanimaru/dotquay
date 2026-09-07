@@ -53,6 +53,10 @@ public class LocalLinkTests
 
     private static ResolvedAddon Resolved() => new("my-addon", RepoUrl, Sha, DisplayVersion: null, Path: ".");
 
+    /// <summary>The same addon asking to be installed under a different folder (SPEC.md §7.1).</summary>
+    private static ResolvedAddon Renamed(string installAs) =>
+        new("my-addon", RepoUrl, Sha, DisplayVersion: null, Path: ".", InstallAs: installAs);
+
     private static string InstalledPath(IFileSystem fileSystem) =>
         fileSystem.CombinePath(ProjectDirectory, "addons", "my-addon");
 
@@ -250,6 +254,76 @@ public class LocalLinkTests
 
         Assert.False(fileSystem.FileExists("real/nested/deep.txt"));
         Assert.False(fileSystem.DirectoryExists("real"));
+    }
+
+    [Fact]
+    public async Task InstallAsync_RenamingALinkedAddon_RemovesTheOldLink()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var link = new LocalLink("my-addon", SourceDirectory);
+        var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, link);
+
+        await installer.InstallAsync(Renamed("My-Addon-Folder"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false, link);
+
+        Assert.True(fileSystem.IsDirectoryLink(fileSystem.CombinePath(ProjectDirectory, "addons", "My-Addon-Folder")));
+        // Leaving it behind is not merely untidy: a second live link into the same checkout means Godot
+        // loads the addon twice under two names, and the folder the rename was meant to vacate keeps
+        // satisfying every res:// path it was meant to redirect.
+        Assert.False(fileSystem.DirectoryExists(InstalledPath(fileSystem)));
+    }
+
+    [Fact]
+    public async Task InstallAsync_RenamingALinkedAddon_LeavesTheSourceUntouched()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var link = new LocalLink("my-addon", SourceDirectory);
+        var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, link);
+
+        await installer.InstallAsync(Renamed("My-Addon-Folder"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false, link);
+
+        // The rename retires a link, and retiring a link must never reach through it. This is the same
+        // invariant orphan pruning and `remove` depend on, on the one path that used to skip it.
+        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
+        Assert.True(fileSystem.FileExists(fileSystem.CombinePath(SourceDirectory, "plugin.cfg")));
+    }
+
+    [Fact]
+    public async Task InstallAsync_RenamingALinkedAddon_DoesNotCallTheCheckoutHandEdits()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var link = new LocalLink("my-addon", SourceDirectory);
+        var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, link);
+
+        // Uncommitted work in the developer's checkout — the normal state of a linked addon.
+        fileSystem.WriteAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd"), "# half-finished");
+
+        // The rename guard hashes the folder it is about to delete. Through a link that folder is the
+        // developer's working copy, so hashing it refuses the rename over "hand-edits" to files dotquay
+        // never installed — and tells them to capture their own source as a patch.
+        await installer.InstallAsync(Renamed("My-Addon-Folder"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false, link);
+
+        Assert.Equal("# half-finished", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
+    }
+
+    [Fact]
+    public async Task InstallAsync_UnlinkingAndRenamingAtOnce_RemovesTheOldLink()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
+
+        await installer.InstallAsync(Renamed("My-Addon-Folder"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false);
+
+        // Dropping the link and changing install_as in one go: the new folder is a real installed copy,
+        // and the old link goes away without the checkout going with it.
+        Assert.False(fileSystem.DirectoryExists(InstalledPath(fileSystem)));
+        Assert.Equal(
+            "# committed version",
+            fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "My-Addon-Folder", "thing.gd")));
+        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
     }
 
     [Fact]

@@ -111,6 +111,19 @@ public enum DoctorIssueKind
     PackageAssetMetadataDrift,
 
     /// <summary>
+    /// An addon is installed in a folder other than the one the manifest declaring it asks for —
+    /// an <c>install_as</c> added, changed, or removed since the lockfile was written.
+    /// </summary>
+    /// <remarks>
+    /// Not corruption but a normal consequence of the pipeline: <c>install</c> replays the lockfile and
+    /// never re-reads the manifest (SPEC.md §5), so the manifest can say one folder while the addon
+    /// sits in another until an <c>update</c> re-resolves. Worth its own check because every symptom
+    /// appears somewhere else — unresolved <c>preload("res://addons/…")</c> paths, an addon that looks
+    /// installed twice, or an orphan report for the folder that is actually live.
+    /// </remarks>
+    InstallFolderDrift,
+
+    /// <summary>
     /// A <c>[link.dotnet.*]</c> entry points at a <c>.csproj</c> that is no longer there (v0.11).
     /// </summary>
     /// <remarks>

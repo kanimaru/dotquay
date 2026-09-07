@@ -76,7 +76,7 @@ Key consequence: commands split along the stage boundary.
 | `dotquay outdated` | — | `git ls-remote` per repo + NuGet metadata check; compares against lockfile without cloning |
 | `dotquay status` | — | Diff disk against lockfile hashes: `clean` / `patched as expected` / `modified` |
 | `dotquay patch <name>` | — | Diff installed addon against pristine cache copy, write `<patches_dir>/<name>.patch` (§10.1). `--resolve` finishes a conflicted update; `--abandon` drops the patch (v0.6) |
-| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, (v0.5) installed addons shipping an unreadable package manifest, and (v0.9) project code loading an addon resource by a bare `uid://` (§7.3.1) plus addons installed under a wrongly-cased folder (§7.1.1) |
+| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, (v0.5) installed addons shipping an unreadable package manifest, and (v0.9) project code loading an addon resource by a bare `uid://` (§7.3.1) plus addons installed under a wrongly-cased folder (§7.1.1), and (v0.13) an addon installed somewhere other than where the manifest declaring it asks for (§7.1.2) |
 | `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
 | `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
 | `dotquay link <name> <path>` | sync | Point an addon at a local folder for development (§7.4). `--remove` unlinks; no arguments lists them (v0.6) |
@@ -256,6 +256,34 @@ reads as a rename, which the existing rename guard handles — so it repairs its
 reach it before this correction existed, and because the symptom points nowhere near the cause:
 finding it by hand meant diffing an installed addon against a fresh clone of its own locked commit,
 while the evidence sat in the addon's own files the whole time.
+
+### 7.1.2 The manifest's `install_as` and the lockfile's folder can disagree (v0.13)
+
+`install` replays the lockfile and deliberately never re-reads the manifest (§5). So adding, changing,
+or removing `install_as` changes nothing on disk until an `update` re-resolves — and in between, the
+committed manifest asks for one folder while the addon sits in another.
+
+That is not corruption, and it is not something `install` should silently repair: re-reading the
+manifest there would cost reproducibility, which is the point of the split. But it is invisible, and
+every symptom of it appears somewhere else entirely — a `preload("res://addons/…")` that no longer
+resolves, an addon that looks installed twice, an orphan report naming the folder that is in fact the
+live one.
+
+`doctor` reports it as `install_folder_drift` (`Doctor/InstallFolderDriftChecker.cs`), comparing two
+files already on disk with no network involved, in the same spirit as `package_asset_metadata_drift`.
+Three things it deliberately does not do:
+
+- **A case-only difference where no `install_as` was stated is not drift.** That is §7.1.1's folder-case
+  correction working: the addon's repository, not the manifest key, is the authority on its folder's
+  casing. Reporting it would fire on every addon that correction has ever repaired, and the advice
+  would be to undo the fix. Where an `install_as` *is* stated, the casing is stated too, and the
+  comparison is ordinal.
+- **Precedence mirrors resolution rather than inventing its own**: `[overrides.*]` first (§8), then the
+  project's own `[addons.*]`, then what a dependent addon's package manifest asks for. Transitive
+  addons are covered because that is where this goes wrong most quietly — a parent that starts
+  declaring `install_as` for a shared dependency changes nothing about that dependency's commit.
+- **Two parents asking for different folders is silent here.** That is a resolution conflict with its
+  own reporting (§8); doctor picking a winner would contradict whatever resolution decides.
 
 ### 7.3.1 The editor writes into the folders dotquay manages (v0.9)
 
@@ -476,6 +504,13 @@ checkout, so an edit is live on Godot's next reload with no dotquay command at a
   orphan pruning, `remove`, and the `install_as` rename; when it's a link, that folder is somebody's
   source checkout. Recursing through one is the only way dotquay could destroy work git cannot bring
   back, so `IFileSystem.DeleteDirectory` is required not to follow links.
+- **A linked addon renames like any other** (v0.13). Changing `install_as` moves the link and retires
+  the old folder, on the same path an installed copy takes. Skipping that left the previous
+  `addons/<folder>` in place as a second live link into the same checkout, so Godot loaded the addon
+  twice under two names and the folder the rename was meant to vacate kept satisfying every `res://`
+  path it was meant to redirect. The rename's dirty check is skipped when the folder it is retiring is
+  itself a link: a link holds no content of its own, and hashing it would read the developer's
+  in-progress edits as hand-edits to the addon and refuse the rename over them.
 
 Implemented as a junction on Windows and a symlink elsewhere. Windows only permits unprivileged
 symlink creation with Developer Mode enabled, which is off by default; junctions have no such

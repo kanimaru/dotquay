@@ -115,8 +115,7 @@ public sealed class AddonInstaller
             await ReapplyPatchOrThrowAsync(previous, resolved, layout, stagingPath, cancellationToken);
         }
 
-        var isRename = previous is not null
-            && !string.Equals(previous.EffectiveFolder, resolved.EffectiveFolder, StringComparison.Ordinal);
+        var isRename = IsRename(previous, resolved);
 
         // Checked before anything is written, so a refusal leaves the project exactly as it was.
         if (isRename)
@@ -138,13 +137,9 @@ public sealed class AddonInstaller
         var expectedContentHash = isRename || wasLinked ? null : previous?.ContentHash;
         var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, expectedContentHash, force);
 
-        // A changed install_as leaves the previous folder behind, still full of the addon's files.
-        // That is worse than untidy: Godot loads whatever is under addons/, and a stale copy keeps
-        // satisfying the `preload` paths this feature exists to redirect — so the rename looks like it
-        // worked while the old code is what actually runs.
         if (isRename)
         {
-            _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, previous!));
+            RetirePreviousFolder(previous!, projectDirectory);
         }
 
         return new LockedAddon
@@ -187,6 +182,13 @@ public sealed class AddonInstaller
     /// hashing a link means hashing the developer's in-progress edits, which would then be recorded as
     /// the expected content of an upstream release.
     /// </para>
+    /// <para>
+    /// A link is renameable for exactly the same reasons an installed copy is, and gets the same
+    /// treatment: guard the old folder, then retire it. Skipping that left the previous
+    /// <c>addons/&lt;folder&gt;</c> in place as a second live link into the same checkout — so the
+    /// project loaded the addon twice, under two names, and the folder the rename was supposed to
+    /// vacate kept satisfying every path it was meant to redirect.
+    /// </para>
     /// </remarks>
     private LockedAddon InstallAsLink(
         ResolvedAddon resolved, string projectDirectory, LockedAddon? previous, bool force, LocalLink link)
@@ -198,6 +200,15 @@ public sealed class AddonInstaller
             throw new SyncException(
                 $"'{resolved.Name}' is linked to '{link.Path}', which does not exist. Fix the path in "
                 + $"{Local.LocalLinks.FileName} or remove the link.");
+        }
+
+        var isRename = IsRename(previous, resolved);
+
+        // Before anything is written, as on the installed-copy path: a refusal here has to leave the
+        // project exactly as it was.
+        if (isRename)
+        {
+            GuardOldFolderBeforeRename(previous!, projectDirectory, force);
         }
 
         // A real installed folder is about to be replaced by a link, so the usual protection applies:
@@ -215,6 +226,11 @@ public sealed class AddonInstaller
 
         _fileSystem.CreateDirectoryLink(destinationPath, link.Path);
 
+        if (isRename)
+        {
+            RetirePreviousFolder(previous!, projectDirectory);
+        }
+
         return new LockedAddon
         {
             Name = resolved.Name,
@@ -229,6 +245,25 @@ public sealed class AddonInstaller
             Dependencies = previous?.Dependencies ?? [],
         };
     }
+
+    /// <summary>Whether this install lands the addon somewhere other than where the lockfile records
+    /// it — a changed <c>install_as</c>, or the casing correction above. Ordinal on purpose: to Godot,
+    /// <c>addons/Gut</c> and <c>addons/gut</c> are two different <c>res://</c> paths, so a case-only
+    /// change is a real move and has to be handled as one.</summary>
+    private static bool IsRename(LockedAddon? previous, ResolvedAddon resolved) =>
+        previous is not null
+        && !string.Equals(previous.EffectiveFolder, resolved.EffectiveFolder, StringComparison.Ordinal);
+
+    /// <summary>Removes the folder a rename has just moved the addon out of.</summary>
+    /// <remarks>
+    /// Leaving it is worse than untidy: Godot loads whatever is under <c>addons/</c>, and a stale copy
+    /// keeps satisfying the <c>preload</c> paths this feature exists to redirect — so the rename looks
+    /// like it worked while the old code is what actually runs. When the old folder is a link, this
+    /// removes the link and nothing else; <see cref="IFileSystem.DeleteDirectory"/> never follows one
+    /// (SPEC.md §7.4).
+    /// </remarks>
+    private void RetirePreviousFolder(LockedAddon previous, string projectDirectory) =>
+        _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, previous));
 
     /// <summary>
     /// Applies the dirty check (requirement P0-6) to the folder a rename is about to delete.
@@ -248,6 +283,15 @@ public sealed class AddonInstaller
         }
 
         var oldPath = InstallPaths.For(_fileSystem, projectDirectory, previous);
+
+        // A link has no content of its own to protect: what it points at is the developer's own
+        // checkout, and retiring it only removes the link. Hashing it would hash their working copy —
+        // in-progress edits and all — and then refuse the rename over "hand-edits" to files dotquay
+        // never installed, telling them to capture their own source as a patch.
+        if (_fileSystem.IsDirectoryLink(oldPath))
+        {
+            return;
+        }
 
         // A patched addon legitimately differs from its recorded pristine hash; PatchAsync records
         // the patched tree as the new baseline, so ContentHash is still the right comparison.

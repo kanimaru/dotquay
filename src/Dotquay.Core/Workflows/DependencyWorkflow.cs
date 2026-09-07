@@ -1091,6 +1091,7 @@ public sealed partial class DependencyWorkflow
             CheckAddonFolderCase(projectDirectory, locked, issues);
         }
 
+        CheckInstallFolderDrift(projectDirectory, manifest, lockfile, issues);
         CheckOrphanedAddonFolders(projectDirectory, lockfile, issues);
         CheckCredentialFilePermissions(issues);
         CheckFragileUidReferences(projectDirectory, issues);
@@ -1301,23 +1302,145 @@ public sealed partial class DependencyWorkflow
     /// Empty for an addon that ships none, isn't installed, or ships one that doesn't parse —
     /// the unreadable case is <see cref="CheckPackageManifestReadable"/>'s to report, and reporting it
     /// twice would be worse than reporting it once.</summary>
-    private IReadOnlyList<string> ReadInstalledPackageDotnetNames(string projectDirectory, string folder)
+    private IReadOnlyList<string> ReadInstalledPackageDotnetNames(string projectDirectory, string folder) =>
+        TryReadInstalledPackageManifest(projectDirectory, folder)?.Dotnet.Keys.ToList() ?? [];
+
+    /// <summary>
+    /// The package manifest an installed addon ships, or null if it ships none or ships one that
+    /// doesn't parse.
+    /// </summary>
+    /// <remarks>
+    /// The installed folder <em>is</em> the extracted subtree (SPEC.md §7.2), so this is exactly the
+    /// document the resolver reads — answerable off disk, with no network. Parse failures are
+    /// swallowed here on purpose: <see cref="CheckPackageManifestReadable"/> already reports them, once.
+    /// </remarks>
+    private PackageManifest? TryReadInstalledPackageManifest(string projectDirectory, string folder)
     {
         var manifestPath = _fileSystem.CombinePath(
             InstallPaths.ForFolder(_fileSystem, projectDirectory, folder), ManifestFileName);
         if (!_fileSystem.FileExists(manifestPath))
         {
-            return [];
+            return null;
         }
 
         try
         {
-            return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath).Dotnet.Keys.ToList();
+            return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
         }
         catch (ManifestParseException)
         {
-            return [];
+            return null;
         }
+    }
+
+    /// <summary>
+    /// Reports an addon installed somewhere other than where the manifest declaring it asks for.
+    /// </summary>
+    /// <remarks>
+    /// The drift is invisible by construction: <c>install</c> replays the lockfile and never re-reads
+    /// the manifest (SPEC.md §5), so editing <c>install_as</c> moves nothing until an <c>update</c>
+    /// re-resolves — and until then the manifest and disk quietly describe two different projects.
+    /// </remarks>
+    private void CheckInstallFolderDrift(
+        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    {
+        var declarations = CollectFolderDeclarations(projectDirectory, manifest, lockfile);
+
+        foreach (var locked in lockfile.Addons)
+        {
+            if (!declarations.TryGetValue(locked.Name, out var declaration))
+            {
+                continue;
+            }
+
+            var drift = InstallFolderDriftChecker.Check(locked, declaration);
+            if (drift is null)
+            {
+                continue;
+            }
+
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.InstallFolderDrift,
+                $"'{drift.Name}' is installed at addons/{drift.Actual}, but {drift.Source} asks for "
+                + $"addons/{drift.Expected}. 'dotquay install' replays the lockfile and never re-reads the "
+                + $"manifest, so nothing will move until you run 'dotquay update {drift.Name}' — or declare "
+                + $"install_as = \"{drift.Actual}\" for it in your own {ManifestFileName} if the folder on disk "
+                + "is the one you meant."));
+        }
+    }
+
+    /// <summary>
+    /// Gathers, per addon name, the one declaration that decides its install folder.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Precedence mirrors resolution rather than inventing its own: a project-level
+    /// <c>[overrides.*]</c> wins (SPEC.md §8), then the project's own <c>[addons.*]</c>, and only then
+    /// what a dependent addon's package manifest asks for. Anything the project itself declares is
+    /// therefore never second-guessed by an addon.
+    /// </para>
+    /// <para>
+    /// Transitive addons are covered because that is where this goes wrong most quietly — a parent
+    /// that starts declaring <c>install_as</c> for a dependency it shares changes nothing about that
+    /// dependency's commit, so nothing else notices it needs to move. Two parents asking for different
+    /// folders is deliberately silent here: that is a resolution conflict
+    /// (<see cref="Resolve.GraphConflictKind.DisagreeingInstallFolders"/>) with its own reporting, and
+    /// doctor guessing a winner would contradict it.
+    /// </para>
+    /// </remarks>
+    private Dictionary<string, InstallFolderDriftChecker.FolderDeclaration> CollectFolderDeclarations(
+        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile)
+    {
+        var declarations = new Dictionary<string, InstallFolderDriftChecker.FolderDeclaration>(StringComparer.Ordinal);
+        var disputed = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var locked in lockfile.Addons)
+        {
+            var package = TryReadInstalledPackageManifest(projectDirectory, locked.EffectiveFolder);
+            if (package is null)
+            {
+                continue;
+            }
+
+            foreach (var (name, spec) in package.Addons)
+            {
+                var declaration = Declare(spec, $"addons/{locked.EffectiveFolder}/{ManifestFileName}");
+
+                if (declarations.TryGetValue(name, out var existing)
+                    && !string.Equals(existing.Folder, declaration.Folder, StringComparison.Ordinal))
+                {
+                    disputed.Add(name);
+                    continue;
+                }
+
+                declarations[name] = declaration;
+            }
+        }
+
+        foreach (var name in disputed)
+        {
+            declarations.Remove(name);
+        }
+
+        if (manifest is null)
+        {
+            return declarations;
+        }
+
+        foreach (var (name, spec) in manifest.Addons)
+        {
+            declarations[name] = Declare(spec, $"[addons.{name}] in {ManifestFileName}");
+        }
+
+        foreach (var (name, spec) in manifest.Overrides)
+        {
+            declarations[name] = Declare(spec, $"[overrides.{name}] in {ManifestFileName}");
+        }
+
+        return declarations;
+
+        static InstallFolderDriftChecker.FolderDeclaration Declare(AddonSpec spec, string source) =>
+            new(spec.EffectiveFolder, spec.InstallAs is not null, source);
     }
 
     private void CheckPluginCfgDrift(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
