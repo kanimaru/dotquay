@@ -11,7 +11,7 @@ public enum AddonSourceKind
 
 /// <summary>One <c>[addons.&lt;name&gt;]</c> or <c>[overrides.&lt;name&gt;]</c> entry from a
 /// <c>dotquay.toml</c> (SPEC.md §7.1).</summary>
-public sealed class AddonSpec
+public sealed record AddonSpec
 {
     public required string Name { get; init; }
 

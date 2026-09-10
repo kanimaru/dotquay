@@ -17,6 +17,12 @@ public enum GraphWarningKind
     /// metadata usually means one of the two addons will not get the behaviour it asked for, so it is
     /// worth saying. Declaring the package in the project's own manifest resolves it (SPEC.md §8).</summary>
     DotnetAssetMetadataConflict,
+
+    /// <summary>A transitively-discovered addon URL was re-expressed over the transport this project
+    /// uses for that host (v0.15). Resolution is unaffected -- it is the same repository -- but the
+    /// lockfile will name a URL no manifest literally contains, and that should never be a
+    /// surprise.</summary>
+    GitTransportRewritten,
 }
 
 /// <summary>

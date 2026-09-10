@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Git;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Sync;
 
@@ -163,6 +164,12 @@ public sealed class DependencyGraphResolver
         var warnings = new List<GraphWarning>();
         var queue = new Queue<AddonRequirement>();
 
+        // Inferred once, from the project's own declarations only. Transitively-discovered URLs are
+        // what this gets applied to, so letting them feed back into the inference would let one
+        // addon author's house style redirect a host the project never described that way.
+        var transport = GitTransportPreference.FromProjectUrls(
+            rootAddons.Values.Concat(overrides.Values).Select(spec => spec.Git));
+
         foreach (var spec in rootAddons.Values)
         {
             queue.Enqueue(new AddonRequirement(GraphConflict.ProjectRequirerName, spec));
@@ -197,8 +204,9 @@ public sealed class DependencyGraphResolver
                 }
 
                 var childNames = new List<string>();
-                foreach (var childSpec in packageManifest.Addons.Values)
+                foreach (var declaredChildSpec in packageManifest.Addons.Values)
                 {
+                    var childSpec = ApplyTransportPreference(transport, name, declaredChildSpec, warnings);
                     childNames.Add(childSpec.Name);
                     queue.Enqueue(new AddonRequirement(name, childSpec));
                 }
@@ -260,6 +268,36 @@ public sealed class DependencyGraphResolver
         };
     }
 
+    /// <summary>
+    /// Re-expresses a discovered dependency's URL over the transport this project uses for that
+    /// host, recording a warning when that changes anything.
+    /// </summary>
+    /// <remarks>
+    /// <para>Only the URL moves. Name, pin, subtree path and install folder are the addon author's
+    /// statements about their own addon and are copied through untouched -- this is a routing
+    /// decision, not a redefinition of the dependency, and <see cref="GitUrl"/> guarantees the
+    /// rewritten URL names the same repository.</para>
+    /// <para>Warned about rather than done quietly: the lockfile ends up naming a URL that appears in
+    /// no manifest anywhere, and somebody reading it later deserves to find out here rather than by
+    /// diffing it against the addon's own dotquay.toml.</para>
+    /// </remarks>
+    private static AddonSpec ApplyTransportPreference(
+        GitTransportPreference transport, string requirerName, AddonSpec declared, List<GraphWarning> warnings)
+    {
+        if (!transport.TryRewrite(declared.Git, out var rewritten))
+        {
+            return declared;
+        }
+
+        warnings.Add(new GraphWarning(
+            declared.Name,
+            GraphWarningKind.GitTransportRewritten,
+            $"'{requirerName}' declares '{declared.Name}' as {declared.Git}, but this project reaches that "
+            + $"host over a different transport. Fetching {rewritten} instead -- it is the same repository. "
+            + $"Add an [overrides.{declared.Name}] entry to pin the URL yourself."));
+
+        return declared with { Git = rewritten };
+    }
     private async Task<PackageManifest?> TryReadPackageManifestAsync(
         AddonSpec specForDiscovery, List<GraphWarning> warnings, CancellationToken cancellationToken)
     {
