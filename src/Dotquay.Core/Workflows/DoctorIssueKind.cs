@@ -142,4 +142,24 @@ public enum DoctorIssueKind
     /// <c>&lt;Import&gt;</c> line is removed by hand or lost in a merge.
     /// </remarks>
     LocalOverlayNotImported,
+
+    /// <summary>
+    /// A locked addon is fetched over ssh from a host this machine has no trusted host key for --
+    /// or whose key known_hosts marks as revoked (v0.15).
+    /// </summary>
+    /// <remarks>
+    /// The check is offline: it reads known_hosts rather than connecting, so it costs nothing and
+    /// works without a network. It exists because the failure it predicts is one of the worst this
+    /// tool can hand somebody. On a machine that has never talked to the host, the fetch fails deep
+    /// inside git with "Host key verification failed" followed by git's generic "make sure you have
+    /// the correct access rights", which sends people to look for a credential problem that is not
+    /// there. Nothing in the project is wrong, so nothing in the project can be edited to fix it --
+    /// and the person hitting it is, by definition, the one least equipped to know that.
+    /// <para>
+    /// Revocation shares this kind rather than getting its own: it is rare enough that a second wire
+    /// value, which the editor plugin and every other JSON consumer would have to learn, costs more
+    /// than saying so in the message.
+    /// </para>
+    /// </remarks>
+    SshHostNotTrusted,
 }

@@ -60,6 +60,19 @@ public sealed partial class DependencyWorkflow
     /// </remarks>
     public ISourceApproval SourceApproval { get; init; } = DenyAllSourceApproval.Instance;
 
+    /// <summary>
+    /// How this workflow reads the process environment. Defaults to the real one; overridden in
+    /// tests, which must not depend on the machine they run on having (or not having) a known_hosts
+    /// file. Named for its type rather than the shorter "Environment", which would shadow
+    /// <see cref="System.Environment"/> inside this class and quietly break the next use of it.
+    /// </summary>
+    /// <remarks>
+    /// An init property rather than a constructor parameter, matching <see cref="SourceApproval"/>:
+    /// four constructor overloads already chain through each other, and every call site in the CLI
+    /// and the test suite passes positionally.
+    /// </remarks>
+    public IEnvironmentReader EnvironmentReader { get; init; } = new SystemEnvironmentReader();
+
     public DependencyWorkflow(IFileSystem fileSystem, IGitClient gitClient, string cacheRoot)
         : this(fileSystem, gitClient, new NuGetV3ClientFactory(DefaultCredentialResolver(fileSystem)), cacheRoot)
     {
@@ -1094,6 +1107,7 @@ public sealed partial class DependencyWorkflow
         CheckInstallFolderDrift(projectDirectory, manifest, lockfile, issues);
         CheckOrphanedAddonFolders(projectDirectory, lockfile, issues);
         CheckCredentialFilePermissions(issues);
+        CheckSshHostTrust(lockfile, issues);
         CheckFragileUidReferences(projectDirectory, issues);
         CheckDotnetLinks(projectDirectory, issues);
 
@@ -1157,6 +1171,61 @@ public sealed partial class DependencyWorkflow
         }
     }
 
+    /// <summary>
+    /// Reports an ssh host in the lockfile that this machine has no trusted host key for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Purely local and offline: it reads known_hosts rather than connecting, so it stays as cheap as
+    /// every other doctor check and works on a plane. What it buys is a failure moved earlier -- from
+    /// a stranger's first `dotquay install`, which fails deep inside a fetch with git's generic
+    /// "correct access rights" wording, to a check they can run before starting.
+    /// </para>
+    /// <para>
+    /// Reported per host rather than per addon: the entry is per host, so ten addons on one GitLab
+    /// need one fix, and ten identical issues would bury the nine other things doctor found.
+    /// </para>
+    /// <para>
+    /// A revoked key shares this issue kind rather than getting its own. It is rare enough that a
+    /// second wire value -- which the editor plugin would have to learn, and every other consumer of
+    /// the JSON with it -- costs more than the message saying so plainly.
+    /// </para>
+    /// </remarks>
+    private void CheckSshHostTrust(DotquayLockfile lockfile, List<DoctorIssue> issues)
+    {
+        var paths = KnownHostsReader.DefaultPaths(EnvironmentReader, _fileSystem);
+
+        var sshHosts = lockfile.Addons
+            .Select(addon => (addon.Name, Url: GitUrl.TryParse(addon.Git, out var url) ? url : null))
+            .Where(entry => entry.Url is { Transport: GitTransport.Ssh })
+            .GroupBy(entry => (entry.Url!.Host, entry.Url!.Port));
+
+        foreach (var host in sshHosts)
+        {
+            var status = KnownHostsReader.Lookup(_fileSystem, paths, host.Key.Host, host.Key.Port);
+            if (status == KnownHostStatus.Trusted)
+            {
+                continue;
+            }
+
+            var names = host.Select(entry => $"'{entry.Name}'").Order(StringComparer.Ordinal).ToList();
+            var subject = names.Count <= 3
+                ? string.Join(", ", names)
+                : $"{string.Join(", ", names.Take(3))} and {names.Count - 3} more";
+
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.SshHostNotTrusted,
+                status == KnownHostStatus.Revoked
+                    ? $"known_hosts marks the host key for {host.Key.Host} as revoked, and {subject} "
+                      + "fetch from it over ssh. ssh will refuse to connect until that entry is removed or "
+                      + "replaced -- confirm with whoever runs the server that the key really did change before "
+                      + "trusting a new one."
+                    : $"{subject} fetch over ssh from {host.Key.Host}, but no known_hosts entry on this machine "
+                      + $"matches it, so the first fetch will fail with 'Host key verification failed'. Get the "
+                      + $"fingerprint from whoever runs {host.Key.Host}, check it against 'ssh-keyscan "
+                      + $"{host.Key.Host}', then add the key. Checked {string.Join(", ", paths)}."));
+        }
+    }
     /// <summary>Reports <c>trusted_hosts</c> entries that can't do what they read as (SPEC.md §11.3).
     /// The presence of trust is not a fault and is reported through
     /// <see cref="DoctorResult.Trust"/> instead.</summary>

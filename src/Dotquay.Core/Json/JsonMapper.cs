@@ -354,6 +354,7 @@ public static class JsonMapper
         DoctorIssueKind.InstallFolderDrift => "install_folder_drift",
         DoctorIssueKind.LinkedProjectMissing => "linked_project_missing",
         DoctorIssueKind.LocalOverlayNotImported => "local_overlay_not_imported",
+        DoctorIssueKind.SshHostNotTrusted => "ssh_host_not_trusted",
         _ => "unknown",
     };
 

@@ -116,8 +116,27 @@ public class JsonContractTests
     [InlineData(DoctorIssueKind.PluginCfgVersionDrift, "plugin_cfg_version_drift")]
     [InlineData(DoctorIssueKind.OrphanedAddonFolder, "orphaned_addon_folder")]
     [InlineData(DoctorIssueKind.UnreadablePackageManifest, "unreadable_package_manifest")]
+    [InlineData(DoctorIssueKind.SshHostNotTrusted, "ssh_host_not_trusted")]
     public void DoctorIssueKind_MapsToASnakeCaseName(DoctorIssueKind kind, string expected) =>
         Assert.Equal(expected, JsonMapper.ToWire(kind));
+
+    /// <summary>
+    /// Every <see cref="DoctorIssueKind"/> maps to a real wire name.
+    /// </summary>
+    /// <remarks>
+    /// The mapping ends in a <c>_ => "unknown"</c> arm, so a member added without a case compiles,
+    /// runs, and ships -- silently reporting a kind no consumer can act on. The theory above only
+    /// covers members somebody remembered to list, which is the same thing being forgotten twice.
+    /// </remarks>
+    [Fact]
+    public void EveryDoctorIssueKind_HasAWireName()
+    {
+        var unmapped = Enum.GetValues<DoctorIssueKind>()
+            .Where(kind => JsonMapper.ToWire(kind) == "unknown")
+            .ToList();
+
+        Assert.Empty(unmapped);
+    }
 
     [Theory]
     [InlineData(GraphConflictKind.DifferentGitUrls, "different_git_urls")]
