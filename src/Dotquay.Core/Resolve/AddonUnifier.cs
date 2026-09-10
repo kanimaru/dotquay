@@ -48,8 +48,16 @@ public sealed class AddonUnifier
             return await ResolveSingleAsync(name, requirements[0], requirements, cancellationToken);
         }
 
-        var distinctGitUrls = requirements.Select(r => r.Spec.Git).Distinct(StringComparer.Ordinal).ToList();
-        if (distinctGitUrls.Count > 1)
+        // Compared as repositories rather than as strings (v0.15). The same repo written https:// by
+        // one requirer and git@ by another is not a conflict, and reporting it as one is the worst
+        // kind of error: unactionable, because neither requirer is wrong. GitTransportPreference
+        // normally makes the two agree before resolution reaches here; this covers what it declines
+        // to rewrite -- an unknown host, or one the project itself describes two ways.
+        var distinctRepositories = requirements
+            .Select(r => Git.GitUrl.TryParse(r.Spec.Git, out var url) && url is not null ? url.Identity : r.Spec.Git)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (distinctRepositories.Count > 1)
         {
             return UnificationOutcome.Failure(await BuildDifferentGitUrlsConflictAsync(name, requirements, cancellationToken));
         }
