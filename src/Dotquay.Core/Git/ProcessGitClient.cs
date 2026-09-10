@@ -100,8 +100,7 @@ public sealed class ProcessGitClient : IGitClient
             if (full.ExitCode != 0)
             {
                 throw Failure(
-                    $"Failed to fetch {commitSha} from {repositoryUrl}. "
-                    + $"Shallow fetch: {shallow.StdErr.Trim()}. Full fetch: {full.StdErr.Trim()}",
+                    GitErrorClassifier.DescribeFetchFailure(repositoryUrl, commitSha, shallow.StdErr, full.StdErr),
                     full.StdErr + shallow.StdErr);
             }
         }
