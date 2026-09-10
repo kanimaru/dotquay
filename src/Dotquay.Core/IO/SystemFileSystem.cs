@@ -56,7 +56,50 @@ public sealed class SystemFileSystem : IFileSystem
             return;
         }
 
-        Directory.Delete(path, recursive: true);
+        DeleteTree(new DirectoryInfo(path));
+    }
+
+    /// <summary>
+    /// Recursive delete that handles the two things <c>Directory.Delete(path, recursive: true)</c>
+    /// cannot, both of which bit real users:
+    /// <list type="bullet">
+    /// <item><b>Read-only files.</b> The framework refuses them (UnauthorizedAccessException on
+    /// Windows), and git marks every pack file it writes read-only. A cache entry left behind by a
+    /// failed fetch could therefore never be cleared on retry: RepoCache threw on
+    /// <c>.git/objects/pack/*.idx</c> on every later <c>update</c> of that addon until the user
+    /// deleted <c>~/.dotquay/cache</c> by hand. Every tree dotquay deletes is content it owns
+    /// (cache entries, staging, the addon folder it installed), so stripping the attribute is
+    /// always the right call.</item>
+    /// <item><b>Nested directory links.</b> The framework's recursion throws "access denied" on a
+    /// junction inside the tree (measured on .NET 10 / Windows 11). A link is removed as an entry
+    /// of its own and never entered, so the folder it points at is left untouched — the same
+    /// invariant <see cref="DeleteDirectory"/> keeps for the root.</item>
+    /// </list>
+    /// </summary>
+    private static void DeleteTree(DirectoryInfo directory)
+    {
+        foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", SearchOption.TopDirectoryOnly))
+        {
+            if ((entry.Attributes & FileAttributes.ReadOnly) != 0)
+            {
+                entry.Attributes &= ~FileAttributes.ReadOnly;
+            }
+
+            switch (entry)
+            {
+                case DirectoryInfo link when (link.Attributes & FileAttributes.ReparsePoint) != 0:
+                    link.Delete(recursive: false); // the link only; its target is not ours
+                    break;
+                case DirectoryInfo child:
+                    DeleteTree(child);
+                    break;
+                default:
+                    entry.Delete();
+                    break;
+            }
+        }
+
+        directory.Delete(recursive: false);
     }
 
     public bool IsDirectoryLink(string path) =>
