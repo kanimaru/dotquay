@@ -14,6 +14,22 @@ public interface INuGetClient
     Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default);
 
     Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reaches the source's V3 service index and throws if it isn't a usable feed.
+    /// </summary>
+    /// <remarks>
+    /// <para>Its own operation rather than "look up a package nobody has published and see whether it
+    /// throws", because the two failures being distinguished are different: a package lookup answers
+    /// 404 for a package that simply isn't there, which is a perfectly healthy feed. Only the service
+    /// index can say whether the URL is a feed at all.</para>
+    /// <para>Exists for <c>source add</c>, which verifies before writing to the manifest (SPEC.md
+    /// §11.1 already makes an unanswerable service index fatal at resolve time — this applies the same
+    /// rule at declaration time). Throws <see cref="Dotnet.NuGetSourceException"/> or
+    /// <see cref="Dotnet.NuGetAuthenticationException"/>; returning a bool would collapse "wrong URL",
+    /// "bad token" and "no token" into one answer that can't be acted on.</para>
+    /// </remarks>
+    Task VerifySourceAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>

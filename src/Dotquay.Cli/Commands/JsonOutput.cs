@@ -100,4 +100,9 @@ internal static class JsonOutput
     /// <see cref="OperationJson"/>.</summary>
     public static void WriteOperation(string command, OperationJson payload, IReadOnlyList<string>? warnings = null) =>
         Console.WriteLine(DotquayJson.Write(JsonEnvelope<OperationJson>.Success(command, payload, warnings)));
+
+    /// <summary>Success path for <c>source list</c> (v0.14), whose payload has no before/after and so
+    /// does not fit <see cref="OperationJson"/>'s change shape.</summary>
+    public static void WriteSourceList(string command, SourceListJson payload) =>
+        Console.WriteLine(DotquayJson.Write(JsonEnvelope<SourceListJson>.Success(command, payload)));
 }

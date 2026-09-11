@@ -440,3 +440,44 @@ public sealed record ChangeJson
 
     public string? To { get; init; }
 }
+
+/// <summary>
+/// <c>source list --json</c> (v0.14): the project's declared NuGet feeds, in the order they are
+/// searched.
+/// </summary>
+/// <remarks>
+/// Its own payload rather than a reuse of <see cref="OperationJson"/>: a feed list has no
+/// before/after and no action, and squeezing one into <see cref="ChangeJson"/>'s shape would mean a
+/// consumer reading <c>from</c>/<c>to</c> as URL/name by convention. Order is the wire contract here
+/// — it is the resolution rule (SPEC.md §11.1) — so the array is emitted in declared order and must
+/// not be sorted by any consumer that wants to explain which feed wins.
+/// </remarks>
+public sealed record SourceListJson
+{
+    public IReadOnlyList<SourceJson> Sources { get; init; } = [];
+}
+
+/// <summary>One declared <c>[nuget.sources.*]</c> feed.</summary>
+public sealed record SourceJson
+{
+    public required string Name { get; init; }
+
+    public required string Url { get; init; }
+
+    /// <summary>Package ID patterns this feed owns, driving <c>&lt;packageSourceMapping&gt;</c>.</summary>
+    public IReadOnlyList<string> Packages { get; init; } = [];
+
+    /// <summary>The addon this feed was adopted from (SPEC.md §11.3), or null when the project
+    /// declared it itself. Lets a UI mark adopted feeds without a second lookup.</summary>
+    public string? DeclaredByAddon { get; init; }
+
+    /// <summary>
+    /// Whether a credential resolves for this feed right now.
+    /// </summary>
+    /// <remarks>
+    /// A bool, and only a bool. The username would already be more than a UI needs to render "logged
+    /// in", and the token is never printed back anywhere in dotquay (SPEC.md §11.2) — including into a
+    /// JSON document a plugin might log.
+    /// </remarks>
+    public bool HasCredential { get; init; }
+}

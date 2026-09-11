@@ -67,6 +67,12 @@ internal static class AddCommand
             Description = "Git sources only. Pin to an exact commit.",
         };
 
+        var nuGetSourceOption = new Option<string?>("--source")
+        {
+            Description = "Pin a NuGet package to one declared [nuget.sources.<name>] feed instead of searching "
+                + "them all in order. Only for NuGet packages; a git addon has no feed.",
+        };
+
         var previewOption = new Option<bool>("--preview")
         {
             Description = "Resolve what this add would do and report it without writing anything: the full "
@@ -99,6 +105,7 @@ internal static class AddCommand
             versionOption,
             branchOption,
             revOption,
+            nuGetSourceOption,
             previewOption,
             forceOption,
             adoptSourceOption,
@@ -129,6 +136,7 @@ internal static class AddCommand
                 Path = parseResult.GetValue(pathOption),
                 InstallAs = parseResult.GetValue(installAsOption),
                 Force = parseResult.GetValue(forceOption),
+                NuGetSource = parseResult.GetValue(nuGetSourceOption),
             };
 
             try
@@ -147,6 +155,15 @@ internal static class AddCommand
                     }
 
                     return await AddDotnetAsync(workflow, projectDirectory, source, options, json, progress, cancellationToken);
+                }
+
+                // The mirror of AddDotnetAsync's git-only check. Same reasoning: silently ignoring a
+                // flag leaves the user to wonder why their pin had no effect.
+                if (options.NuGetSource is not null)
+                {
+                    throw new WorkflowException(
+                        $"--source names a NuGet feed, but '{source}' is a git URL. A git addon is fetched from "
+                        + "the repository you named; NuGet feeds only apply to [dotnet] packages.");
                 }
 
                 var (gitUrl, reference) = SplitRef(source);
@@ -409,10 +426,12 @@ internal static class AddCommand
                 + "dirty-check override to bypass.");
         }
 
-        var locked = await workflow.AddDotnetAsync(projectDirectory, packageId, options.Version, cancellationToken);
+        var locked = await workflow.AddDotnetAsync(
+            projectDirectory, packageId, options.Version, options.NuGetSource, cancellationToken);
         progress.Dispose();
 
-        var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored";
+        var pinnedTo = options.NuGetSource is null ? "" : $", pinned to '{options.NuGetSource}'";
+        var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored{pinnedTo}";
 
         if (json)
         {

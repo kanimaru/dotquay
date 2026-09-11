@@ -43,4 +43,19 @@ public sealed class FakeNuGetClient : INuGetClient
 
     public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>
         (await GetVersionsAsync(packageId, cancellationToken)).Found;
+
+    /// <summary>Set to make <see cref="VerifySourceAsync"/> fail the way a wrong URL or a rejected
+    /// credential does — what <c>source add</c>'s verify-before-write path is tested against.</summary>
+    public Exception? VerifyFailure { get; set; }
+
+    /// <summary>Counts verification calls, so a test can assert <c>--no-verify</c> really skipped the
+    /// network rather than merely tolerating a reachable feed.</summary>
+    public int VerifyCount { get; private set; }
+
+    public Task VerifySourceAsync(CancellationToken cancellationToken = default)
+    {
+        VerifyCount++;
+
+        return VerifyFailure is null ? Task.CompletedTask : Task.FromException(VerifyFailure);
+    }
 }

@@ -35,6 +35,20 @@ public sealed record AddonAddOptions
     /// never got a chance to record.</summary>
     public bool Force { get; init; }
 
+    /// <summary>
+    /// The declared <c>[nuget.sources.*]</c> name to pin a NuGet package to (v0.14), i.e.
+    /// <c>--source</c>. Null searches every declared feed in order.
+    /// </summary>
+    /// <remarks>
+    /// <para>Only meaningful for a NuGet add; <c>AddCommand</c> refuses it against a git URL rather
+    /// than accepting and ignoring it, the same way it refuses <c>--branch</c> against a package ID.</para>
+    /// <para>v0.10's D8 declined to add flags for the <c>[dotnet.*]</c> asset arrays and swept
+    /// <c>source</c> along by analogy. That analogy is the weak link: D8's argument is about three
+    /// repeatable tag lists making an awkward CLI surface, and this is a single string that mirrors the
+    /// <c>--version</c> flag already there.</para>
+    /// </remarks>
+    public string? NuGetSource { get; init; }
+
     /// <summary>True when the caller named a source explicitly, so the tag-seeking default should be
     /// skipped.</summary>
     public bool HasExplicitSource => Version is not null || Branch is not null || Rev is not null;

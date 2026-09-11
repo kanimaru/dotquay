@@ -33,4 +33,21 @@ public sealed class LockedDotnet
     /// consuming project's own manifest never mentions that package.
     /// </remarks>
     public Manifest.PackageAssets Assets { get; init; } = Manifest.PackageAssets.None;
+
+    /// <summary>
+    /// This entry with its resolved-feed record cleared — what <c>source remove --force</c> writes so
+    /// no lockfile entry is left pointing at a feed the project no longer declares.
+    /// </summary>
+    /// <remarks>
+    /// A method here rather than a copy at the call site, for the reason
+    /// <see cref="Lockfile.LockedAddon"/> learned the hard way: a hand-written copy of a class with
+    /// init-only properties silently drops whichever property is added next.
+    /// </remarks>
+    public LockedDotnet WithoutSource() => new()
+    {
+        Name = Name,
+        Resolved = Resolved,
+        Source = null,
+        Assets = Assets,
+    };
 }

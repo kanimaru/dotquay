@@ -85,4 +85,17 @@ internal static class WorkflowFactory
     /// <summary>Overrides are a pure manifest edit — no git, no NuGet, no cache (see
     /// <see cref="OverrideWorkflow"/>'s remarks for why that separation is deliberate).</summary>
     public static OverrideWorkflow CreateOverrides() => new(new SystemFileSystem());
+
+    /// <summary>
+    /// Declaring a feed needs the manifest and a NuGet client — the client only to verify the feed
+    /// answers before the manifest is written. No git, no cache, nothing installed.
+    /// </summary>
+    /// <remarks>
+    /// Wired through the same <see cref="Dotquay.Core.Dotnet.NuGetV3ClientFactory"/> and the same
+    /// credential stack every other NuGet call uses, so `source add` verifies with exactly the
+    /// credentials a later `add` will resolve with. Verifying with a different lookup would let a feed
+    /// pass here and 401 on first use.
+    /// </remarks>
+    public static SourceWorkflow CreateSources() =>
+        new(new SystemFileSystem(), new Dotquay.Core.Dotnet.NuGetV3ClientFactory(CredentialFactory.CreateResolver()));
 }

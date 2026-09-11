@@ -312,8 +312,15 @@ public sealed partial class DependencyWorkflow
     /// the project's <c>.csproj</c>, runs <c>dotnet restore</c>, and updates the manifest and
     /// lockfile (SPEC.md §11, requirement P0-7).
     /// </summary>
+    /// <param name="pinnedSourceName">A declared <c>[nuget.sources.*]</c> name to resolve from, instead
+    /// of searching every feed in order (v0.14's <c>--source</c>). Written to the manifest as
+    /// <c>source = "..."</c>, so the pin survives into every later resolve.</param>
     public async Task<LockedDotnet> AddDotnetAsync(
-        string projectDirectory, string packageId, string? versionOverride = null, CancellationToken cancellationToken = default)
+        string projectDirectory,
+        string packageId,
+        string? versionOverride = null,
+        string? pinnedSourceName = null,
+        CancellationToken cancellationToken = default)
     {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
@@ -323,7 +330,21 @@ public sealed partial class DependencyWorkflow
                 $"'{packageId}' is already declared in {manifestPath}. Use 'dotquay update {packageId}' instead.");
         }
 
-        var nuGetClient = _nuGetClientFactory.Create(manifest.SourceSet());
+        var sourceSet = manifest.SourceSet();
+
+        // Checked before the first network call, and phrased for the flag the user actually typed:
+        // NuGetSourceSet.Resolve would raise this too, but as a message about a `source = "..."` key
+        // the user has not written yet.
+        if (pinnedSourceName is not null && sourceSet.ByName(pinnedSourceName) is null)
+        {
+            var declared = sourceSet.All.Select(source => $"'{source.Name}'").ToList();
+
+            throw new WorkflowException(
+                $"--source '{pinnedSourceName}' isn't a declared NuGet feed. Declared: {string.Join(", ", declared)}. "
+                + "Add it with 'dotquay source add <name> <url>'.");
+        }
+
+        var nuGetClient = _nuGetClientFactory.Create(sourceSet, pinnedSourceName);
         var (version, resolvedSource) = await ResolveDotnetVersionOrThrowAsync(
             nuGetClient, packageId, versionOverride, cancellationToken);
         var locked = await InstallDotnetOrThrowAsync(
@@ -335,8 +356,9 @@ public sealed partial class DependencyWorkflow
             {
                 // The resolved feed is recorded in the lockfile, not pinned in the manifest. A pin is
                 // a statement of intent the user makes; writing one automatically would silently
-                // freeze whichever feed happened to answer first today.
-                [packageId] = new DotnetSpec { Name = packageId, Version = version },
+                // freeze whichever feed happened to answer first today. An explicit --source is
+                // exactly that statement, so it is the one thing written here.
+                [packageId] = new DotnetSpec { Name = packageId, Version = version, Source = pinnedSourceName },
             },
         });
 

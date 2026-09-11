@@ -78,4 +78,14 @@ public sealed class MultiSourceNuGetClient : INuGetClient
 
     public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>
         (await GetVersionsAsync(packageId, cancellationToken)).Found;
+
+    /// <summary>Verifies every source, in declared order, and stops at the first that fails — so the
+    /// error names the feed actually at fault rather than reporting the set as broken.</summary>
+    public async Task VerifySourceAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var (_, client) in _clients)
+        {
+            await client.VerifySourceAsync(cancellationToken);
+        }
+    }
 }

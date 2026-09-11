@@ -105,6 +105,12 @@ public sealed class NuGetV3Client : INuGetClient
     public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>
         (await GetVersionsAsync(packageId, cancellationToken)).Found;
 
+    /// <summary>Discovering the base address is exactly the check: it fetches the service index and
+    /// throws unless the response is a V3 feed advertising a package resource. The discovered address
+    /// is cached, so a later query on the same client costs nothing extra.</summary>
+    public async Task VerifySourceAsync(CancellationToken cancellationToken = default) =>
+        await GetPackageBaseAddressAsync(cancellationToken);
+
     /// <summary>Null for nuget.org, matching the lockfile's convention of omitting the key for the
     /// public feed — so a public-only project's lockfile stays byte-identical to pre-v0.7.</summary>
     private string? ReportedSourceName => _isPublicDefault ? null : _sourceName;

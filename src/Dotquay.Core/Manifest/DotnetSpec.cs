@@ -35,4 +35,22 @@ public sealed class DotnetSpec
     /// the two readings never collide.
     /// </remarks>
     public PackageAssets Assets { get; init; } = PackageAssets.None;
+
+    /// <summary>
+    /// This spec with its feed pin cleared — what <c>source remove --force</c> writes.
+    /// </summary>
+    /// <remarks>
+    /// A method on the type rather than a copy expression at the call site, and this is not
+    /// bookkeeping: <see cref="Lockfile.LockedAddon"/> was a class with hand-written copy helpers that
+    /// silently dropped <c>Folder</c> when the field was added, which is exactly what an inline copy
+    /// invites. Keeping the copy here means a new property is added three lines from the code that has
+    /// to carry it.
+    /// </remarks>
+    public DotnetSpec WithoutSource() => new()
+    {
+        Name = Name,
+        Version = Version,
+        Source = null,
+        Assets = Assets,
+    };
 }
