@@ -134,6 +134,21 @@ public enum DoctorIssueKind
     LinkedProjectMissing,
 
     /// <summary>
+    /// <c>addons/&lt;folder&gt;</c> is a directory link that disagrees with what
+    /// <c>dotquay.local.toml</c> declares — a different target, or no declaration at all (v0.16).
+    /// </summary>
+    /// <remarks>
+    /// The junction and the declaration are two independent statements about one folder, kept by
+    /// different acts at different times, and they drift routinely: the checkout is moved, the link
+    /// is made from one project while the declaration lives in another, or the gitignored local file
+    /// is dropped by a fresh clone while the junction survives. Silent until an install reaches that
+    /// folder and has to choose between writing a package into somebody else's repository and
+    /// replacing their live link with a frozen copy. dotquay refuses both, so this reports the
+    /// disagreement while it is still cheap. See docs/DESIGN-v0.16-LINK-SAFETY.md.
+    /// </remarks>
+    AddonLinkMismatch,
+
+    /// <summary>
     /// <c>dotquay.local.targets</c> exists but the <c>.csproj</c> does not import it (v0.11).
     /// </summary>
     /// <remarks>

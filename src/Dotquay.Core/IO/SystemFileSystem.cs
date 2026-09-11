@@ -105,6 +105,33 @@ public sealed class SystemFileSystem : IFileSystem
     public bool IsDirectoryLink(string path) =>
         Directory.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
 
+    public string? ResolveDirectoryLinkTarget(string path)
+    {
+        if (!IsDirectoryLink(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            // returnFinalTarget walks a chain of links through to the real folder: two junctions
+            // hopping to the same checkout are the same claim and must compare equal.
+            var final = Directory.ResolveLinkTarget(path, returnFinalTarget: true);
+            if (final is not null)
+            {
+                return Path.GetFullPath(final.FullName);
+            }
+        }
+        catch (IOException)
+        {
+            // A link whose target is gone cannot be walked to the end. The immediate target is still
+            // the claim it makes, and reporting that is what lets the caller say so by name.
+        }
+
+        var immediate = Directory.ResolveLinkTarget(path, returnFinalTarget: false);
+        return immediate is null ? null : Path.GetFullPath(immediate.FullName);
+    }
+
     public void CreateDirectoryLink(string linkPath, string targetPath)
     {
         DeleteDirectory(linkPath);

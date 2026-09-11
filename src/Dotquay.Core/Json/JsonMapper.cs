@@ -353,6 +353,7 @@ public static class JsonMapper
         DoctorIssueKind.PackageAssetMetadataDrift => "package_asset_metadata_drift",
         DoctorIssueKind.InstallFolderDrift => "install_folder_drift",
         DoctorIssueKind.LinkedProjectMissing => "linked_project_missing",
+        DoctorIssueKind.AddonLinkMismatch => "addon_link_mismatch",
         DoctorIssueKind.LocalOverlayNotImported => "local_overlay_not_imported",
         DoctorIssueKind.SshHostNotTrusted => "ssh_host_not_trusted",
         _ => "unknown",

@@ -26,6 +26,8 @@ public sealed class SyncEngine
     /// </summary>
     public string SwapAndHash(string stagingPath, string destinationPath, string? expectedContentHash, bool force)
     {
+        RefuseToWriteThroughALink(destinationPath);
+
         var dirty = DirtyChecker.Check(_fileSystem, destinationPath, expectedContentHash);
 
         if (dirty.IsDirty && !force && !MatchesIncomingVersion(stagingPath, destinationPath))
@@ -48,6 +50,32 @@ public sealed class SyncEngine
         }
 
         return ContentHasher.HashDirectory(_fileSystem, destinationPath);
+    }
+
+    /// <summary>
+    /// Refuses a destination that is a directory link, whatever the caller believed
+    /// (docs/DESIGN-v0.16-LINK-SAFETY.md).
+    /// </summary>
+    /// <remarks>
+    /// This method is the only place addon content reaches disk, which is exactly why the invariant
+    /// is restated here rather than trusted to the caller. <see cref="AddonLinkGuard"/> classifies
+    /// the destination before an install begins and produces a message a human can act on; that
+    /// check sits at one call site and a future call path could route around it. This one cannot be
+    /// routed around, so a link surviving to here is a dotquay bug and says so: reaching it would
+    /// mean writing a package into a folder belonging to someone else, through a path neither
+    /// project's git is watching.
+    /// </remarks>
+    private void RefuseToWriteThroughALink(string destinationPath)
+    {
+        var target = _fileSystem.ResolveDirectoryLinkTarget(destinationPath);
+
+        if (target is not null)
+        {
+            throw new SyncException(
+                $"Refusing to install into '{destinationPath}': it is a link to '{target}', so the write "
+                + "would land in a folder dotquay does not own. This is a bug in dotquay - the install "
+                + "should have refused earlier, with an explanation (see docs/DESIGN-v0.16-LINK-SAFETY.md).");
+        }
     }
 
     /// <summary>

@@ -125,16 +125,23 @@ public sealed class AddonInstaller
 
         var destinationPath = InstallPaths.For(_fileSystem, projectDirectory, resolved);
 
-        // Unlinking: the destination is currently a link into someone's checkout. Remove the link
-        // first — it holds no content of its own to protect, and leaving it would make the dirty check
-        // hash their working copy and then the swap overwrite through it.
-        var wasLinked = _fileSystem.IsDirectoryLink(destinationPath);
-        if (wasLinked)
+        // Either this folder is one dotquay owns, or it is not safe to write at all (v0.16). Reaching
+        // here means no link was declared for this addon, so a link on disk is somebody else's: it
+        // points into a checkout, and installing through it would drop a published tree inside their
+        // working repository. Quietly deleting the link instead — which is what this used to do —
+        // freezes their live link into a copy without a word, which is the same surprise one degree
+        // quieter. Both are the caller's call to make, through `dotquay link` or `link --remove`.
+        var verdict = AddonLinkGuard.Inspect(_fileSystem, destinationPath, declared: null);
+        if (verdict.ForbidsWriting)
         {
-            _fileSystem.DeleteDirectory(destinationPath);
+            throw new SyncException(AddonLinkGuard.Explain(
+                resolved.Name,
+                resolved.EffectiveFolder,
+                resolved.DisplayVersion ?? resolved.ResolvedSha,
+                verdict));
         }
 
-        var expectedContentHash = isRename || wasLinked ? null : previous?.ContentHash;
+        var expectedContentHash = isRename ? null : previous?.ContentHash;
         var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, expectedContentHash, force);
 
         if (isRename)
@@ -224,6 +231,10 @@ public sealed class AddonInstaller
                 + "--force to discard them (SPEC.md requirement P0-6).");
         }
 
+        // Re-pointing an existing link is deliberately free: a link holds no content of its own, so
+        // nothing can be lost, and this is the act the v0.16 refusal tells people to perform when a
+        // junction and the declaration have drifted apart. The declaration wins here because the
+        // caller just stated it.
         _fileSystem.CreateDirectoryLink(destinationPath, link.Path);
 
         if (isRename)

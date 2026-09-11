@@ -187,9 +187,12 @@ internal static class LinkCommand
 
     private static string Unlink(LocalLinks links, string projectDirectory, string name, string? packageId)
     {
+        // The addon half goes through the workflow rather than LocalLinks alone: dropping the
+        // declaration has to drop the junction with it, or the reinstall that follows would meet a
+        // link this project no longer declares and refuse to write through it (v0.16).
         var removed = packageId is not null
             ? links.RemoveDotnet(projectDirectory, packageId)
-            : links.Remove(projectDirectory, name);
+            : WorkflowFactory.Create().RemoveAddonLink(projectDirectory, name);
 
         return removed ? $"Unlinked '{name}'." : $"'{name}' wasn't linked — nothing to do.";
     }

@@ -43,6 +43,18 @@ public interface IFileSystem
     bool IsDirectoryLink(string path);
 
     /// <summary>
+    /// The absolute path <paramref name="path"/> points at when it is a directory link, or
+    /// <c>null</c> when it is not one.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IsDirectoryLink"/> answers <em>whether</em>; deciding whether it is safe to write
+    /// answers <em>where</em> (docs/DESIGN-v0.16-LINK-SAFETY.md). A link agreeing with what the
+    /// project declares may be re-asserted; one pointing somewhere else is a folder belonging to
+    /// someone else, and package content must never travel through it into their repository.
+    /// </remarks>
+    string? ResolveDirectoryLinkTarget(string path);
+
+    /// <summary>
     /// Creates a directory link at <paramref name="linkPath"/> pointing at
     /// <paramref name="targetPath"/>, replacing anything already there.
     /// </summary>

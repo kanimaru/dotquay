@@ -1,6 +1,8 @@
 # ADR / Design — v0.16: A junction is a claim, and dotquay must check it before writing
 
-**Status:** **Proposed, not implemented.**
+**Status:** **Implemented**, 2026-09-11. 954 C# tests green (941 before: two encoded the behaviour this
+replaces and were rewritten, 15 added). Verified against a real junction on a real filesystem — see
+*Testing*. CLI and Core only; the editor plugin needed no change (see *In the Godot plugin*).
 **Date:** 2026-09-10
 **Deciders:** Kani
 
@@ -111,6 +113,20 @@ Deleting a junction is safe for its target, but it silently converts a developer
 frozen copy, and the developer finds out when their edits stop showing up. That is the same category
 of surprise as the write itself, one degree quieter.
 
+Two consequences of the routing are worth stating, because they decide which rows an install can
+actually reach. A **declared** link never reaches the content path at all: the workflow hands the
+installer the declaration and it takes the link branch, which re-points the junction and writes
+nothing. That is deliberate — it is how `dotquay link` repairs a drifted junction, and refusing there
+would make the refusal's own advice impossible to follow. So the row an install refuses on is
+`Undeclared` (plus `TargetMissing`, which the link branch already refused); `TargetMismatch` is
+reported by `doctor`, which is where a state nobody has acted on yet belongs.
+
+And **unlinking is the consent**. `dotquay link --remove` now goes through
+`DependencyWorkflow.RemoveAddonLink`, which drops the declaration *and* the junction together, so the
+reinstall that follows meets a folder dotquay owns. Leaving the junction for the installer to deal
+with would put it back in the position of having to tell consent apart from drift — and on disk the
+two are identical.
+
 ### 3. The error names both statements and the two ways out
 
 ```
@@ -152,9 +168,16 @@ message says so.
 New `DoctorIssueKind.AddonLinkMismatch`, wire string `addon_link_mismatch`: every `addons/<folder>`
 that is a link whose target disagrees with `dotquay.local.toml`, in either direction. `doctor` is
 where a project's disagreements with itself are already reported, and this one is silent until the
-moment it is expensive. Because `DoctorIssueKind` is a wire contract with the editor plugin,
-`core/dotquay_wire.gd` gets the new string and the plugin renders it in the same pass — a C# enum
-member alone would be dropped on the floor.
+moment it is expensive. It runs the *same* `AddonLinkGuard` the installer refuses on, so the report
+and the refusal cannot drift into disagreeing about what a bad state is.
+
+### In the Godot plugin
+
+Nothing. This was expected to need a matching string in `core/dotquay_wire.gd`, on the general rule
+that `DoctorIssueKind` is a wire contract — but doctor issues are the exception: `dotquay_panel.gd`
+renders `issue.message` and never switches on `kind`, and no doctor kind appears in any `.gd` file.
+A new kind therefore surfaces in the panel with no plugin change. The rule still holds for the enums
+the plugin *does* match on; it simply does not reach this one.
 
 ## Consequences
 
@@ -164,9 +187,13 @@ member alone would be dropped on the floor.
 - **A gitignored file can now block an install.** Deleting `dotquay.local.toml` while junctions remain
   puts the project in `UndeclaredLink` until either the links or the file are restored. `dotquay unlink`
   removing a junction it has no record of must therefore keep working — it is the escape hatch.
-- **The fakes gain a filesystem feature.** `InMemoryFileSystem` has to model link targets, not just
-  link-ness. That is a small cost and overdue: the current suite cannot express the bug this ADR is
-  about, which is why 900 green tests said nothing on the day it happened.
+- **The fakes could already express this; nothing had asked.** `InMemoryFileSystem` has modelled link
+  targets since v0.6 and even resolves reads *through* a link, so a test could always have caught a
+  write travelling backwards down one. 941 tests were green on the day it happened because not one of
+  them asked what the destination actually was. Adding `ResolveDirectoryLinkTarget` to the fake was
+  two lines. One real gap remains: the fake is case-sensitive about whether a folder exists while
+  Windows is not, so the case half of path comparison is asserted on `SamePath` directly rather than
+  through `Inspect`.
 - **`unchanged`-skipping still needs care.** An addon dotquay decides not to touch never reaches the
   classification. That is acceptable — not writing is always safe — but `doctor` covers the reporting
   gap so a mismatched link is visible without an install being attempted.
@@ -176,17 +203,24 @@ member alone would be dropped on the floor.
 
 ## Testing
 
-Unit, against the fakes, one per row of the table plus:
+Unit, against the fakes (`AddonLinkGuardTests`, `LocalLinkTests`): one per row of the table, plus a
+declaration with no link yet on disk (must stay writable, or `link` could never install), a target
+that no longer exists, spelling normalisation, `SamePath` on case, `--force` refusing all the same,
+`SwapAndHash` throwing on a reparse-point destination, and `RemoveAddonLink` dropping declaration and
+junction while leaving the checkout alone.
 
-- target missing → `LinkTargetMissing`, nothing written;
-- declared and matching, but spelled with a different separator/case/trailing slash → installs as
-  linked, no error (the normalisation is the thing under test);
-- `--force` on a mismatch → still errors, and the message names both paths;
-- `SwapAndHash` called directly with a reparse-point destination → throws;
-- `doctor` on a mismatched junction → exactly one `addon_link_mismatch`, naming the addon, the
-  junction target and the declared path.
+Then the part the fakes cannot reach — a real junction on a real filesystem, scratch project under
+`%TEMP%`, a local git repo as the addon source:
 
-Then, per this repo's standing rule, a **real-binary** run: a scratch project with a genuine `mklink /J`
-junction, `dotquay install` against it, and the junction's target inspected afterwards to confirm it
-is byte-identical to before. The fakes cannot see a reparse point; that is precisely the gap this ADR
-closes, so the verification cannot live only in them.
+| step | result |
+|---|---|
+| `install` into a plain folder | writes `# published version` |
+| replace it with `mklink /J` to a checkout holding `# MY UNCOMMITTED WORK`, `install` again | **refused**, message names both paths and both commands; checkout untouched; junction still a junction |
+| `doctor` | one `addon_link_mismatch`, same message |
+| `dotquay link demo <checkout>` | linked; `doctor` clean |
+| re-point the junction so it disagrees with the declaration, `doctor` | reports it, naming the junction's target and the declared path |
+| `dotquay link demo --remove` | junction gone, `# published version` installed, checkout still `# MY UNCOMMITTED WORK` |
+
+Both halves matter: the first says the rules are right, the second says they are wired to a
+filesystem that has reparse points in it. Before this change, step two deleted the junction and wrote
+the published tree — which is how a package ended up inside a source repository in the first place.

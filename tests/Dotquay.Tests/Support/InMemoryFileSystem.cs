@@ -81,6 +81,9 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public bool IsDirectoryLink(string path) => _links.ContainsKey(Normalize(path));
 
+    public string? ResolveDirectoryLinkTarget(string path) =>
+        _links.TryGetValue(Normalize(path), out var target) ? GetFullPath(target) : null;
+
     public void CreateDirectoryLink(string linkPath, string targetPath)
     {
         var key = Normalize(linkPath);

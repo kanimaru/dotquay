@@ -1031,6 +1031,91 @@ public sealed partial class DependencyWorkflow
     /// path, the second not at all. The second is the more dangerous: the build simply keeps using the
     /// published package, which is the exact silence the overlay design was chosen to avoid.
     /// </remarks>
+    /// <summary>
+    /// Reports an <c>addons/&lt;folder&gt;</c> that is a directory link disagreeing with what this
+    /// machine declares (v0.16).
+    /// </summary>
+    /// <remarks>
+    /// The junction and <c>dotquay.local.toml</c> are two independent statements about one folder,
+    /// and nothing keeps them in step. The disagreement is silent until an install reaches that
+    /// folder, and by then the only choices are writing a package into somebody else's repository or
+    /// quietly replacing their live link with a copy. <see cref="AddonLinkGuard"/> refuses both, and
+    /// refusing mid-install is a worse place to learn this than a check that costs nothing — so the
+    /// same classifier answers here, rather than a second implementation that can drift from it.
+    /// </remarks>
+    private void CheckAddonLinks(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    {
+        IReadOnlyDictionary<string, LocalLink> declared;
+        try
+        {
+            declared = _localLinks.Read(projectDirectory);
+        }
+        catch (LocalLinkException)
+        {
+            // An unreadable local file is its own problem and is reported where it is read for real.
+            // It says nothing about any particular addon's folder, so this check has no opinion.
+            return;
+        }
+
+        foreach (var locked in lockfile.Addons)
+        {
+            declared.TryGetValue(locked.Name, out var link);
+
+            var verdict = AddonLinkGuard.Inspect(
+                _fileSystem, InstallPaths.For(_fileSystem, projectDirectory, locked), link);
+
+            if (!verdict.ForbidsWriting)
+            {
+                continue;
+            }
+
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.AddonLinkMismatch,
+                AddonLinkGuard.Explain(locked.Name, locked.EffectiveFolder, locked.Version ?? locked.Resolved, verdict)));
+        }
+    }
+
+    /// <summary>
+    /// Drops this machine's link for <paramref name="name"/>: removes the declaration and, when
+    /// <c>addons/&lt;folder&gt;</c> is a directory link, removes the link itself. Returns false when
+    /// nothing was declared.
+    /// </summary>
+    /// <remarks>
+    /// Unlinking is the one act that authorises replacing a link with installed content, so it is
+    /// also the act that clears the link out of the way. Leaving that to the reinstall that follows
+    /// would put the installer in the position of having to tell consent apart from the drifted state
+    /// v0.16 exists to refuse — and it cannot, because on disk the two look identical.
+    /// <para>
+    /// Removing a link never touches the folder it points at
+    /// (<see cref="Abstractions.IFileSystem.DeleteDirectory"/>), so the developer's checkout is safe
+    /// here by the same invariant that protects it everywhere else.
+    /// </para>
+    /// </remarks>
+    public bool RemoveAddonLink(string projectDirectory, string name)
+    {
+        var declarationRemoved = _localLinks.Remove(projectDirectory, name);
+        var linkRemoved = false;
+
+        var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
+        var locked = lockfile.Addons.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.Ordinal));
+
+        if (locked is not null)
+        {
+            var installPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
+
+            if (_fileSystem.IsDirectoryLink(installPath))
+            {
+                _fileSystem.DeleteDirectory(installPath);
+                linkRemoved = true;
+            }
+        }
+
+        // A junction with no declaration behind it is precisely the state an install refuses, and the
+        // refusal offers this command as one of its two ways out. Requiring a declaration to be there
+        // would make that advice impossible to follow in the one case it matters most.
+        return declarationRemoved || linkRemoved;
+    }
+
     private void CheckDotnetLinks(string projectDirectory, List<DoctorIssue> issues)
     {
         IReadOnlyDictionary<string, DotnetLink> links;
@@ -1199,6 +1284,7 @@ public sealed partial class DependencyWorkflow
         CheckSshHostTrust(lockfile, issues);
         CheckFragileUidReferences(projectDirectory, issues);
         CheckDotnetLinks(projectDirectory, issues);
+        CheckAddonLinks(projectDirectory, lockfile, issues);
 
         return new DoctorResult(issues) { Trust = SummarizeTrust(manifest) };
     }

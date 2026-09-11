@@ -198,31 +198,127 @@ public class LocalLinkTests
         Assert.Contains("does not exist", exception.Message);
     }
 
+    // -----------------------------------------------------------------------------------------
+    // v0.16: a junction is a claim, and it has to agree with the declaration before anything writes
+    // -----------------------------------------------------------------------------------------
+
     [Fact]
-    public async Task InstallAsync_WithoutALink_ReplacesAnExistingLink()
+    public async Task InstallAsync_OverALinkThisProjectNoLongerDeclares_RefusesAndChangesNothing()
     {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
 
-        await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false);
+        // The junction survived while the declaration went away — a fresh clone dropped the
+        // gitignored local file, or the link was made from a different project. Installing used to
+        // delete the link and carry on; the version it wrote then landed inside the developer's own
+        // checkout whenever anything routed past that unlink.
+        var exception = await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(
+            Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false));
 
-        // Unlinking puts the project back on the commit the lockfile always named.
-        Assert.False(fileSystem.IsDirectoryLink(InstalledPath(fileSystem)));
-        Assert.Equal("# committed version", fileSystem.ReadAllText(fileSystem.CombinePath(InstalledPath(fileSystem), "thing.gd")));
+        Assert.Contains("declares no link", exception.Message);
+        Assert.Contains("dotquay link my-addon", exception.Message);
+        Assert.Contains("--remove", exception.Message);
+
+        // "Nothing was changed" has to be literally true, or the message is a lie at the worst moment.
+        Assert.True(fileSystem.IsDirectoryLink(InstalledPath(fileSystem)));
+        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
+        Assert.True(fileSystem.FileExists(fileSystem.CombinePath(SourceDirectory, "plugin.cfg")));
     }
 
     [Fact]
-    public async Task InstallAsync_UnlinkingLeavesTheSourceUntouched()
+    public async Task InstallAsync_OverALinkThisProjectNoLongerDeclares_RefusesEvenUnderForce()
     {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
 
+        // --force means "discard local modifications in a folder dotquay owns" (P0-6). This folder is
+        // not one, and nobody consented to anything about it by typing that flag.
+        await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(
+            Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: true));
+
+        Assert.True(fileSystem.IsDirectoryLink(InstalledPath(fileSystem)));
+        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
+    }
+
+    [Fact]
+    public async Task InstallAsync_AfterTheLinkIsRemoved_InstallsARealCopyAndLeavesTheCheckoutAlone()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
+
+        // What unlinking does (see DependencyWorkflow.RemoveAddonLink): the declaration goes, and the
+        // link goes with it, so the reinstall has a folder dotquay owns to write into. Unlinking is
+        // the consent — without it, the state above is indistinguishable from drift.
+        fileSystem.DeleteDirectory(InstalledPath(fileSystem));
+
         await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false);
 
+        // Back on the commit the lockfile always named, with the checkout untouched.
+        Assert.False(fileSystem.IsDirectoryLink(InstalledPath(fileSystem)));
+        Assert.Equal("# committed version", fileSystem.ReadAllText(fileSystem.CombinePath(InstalledPath(fileSystem), "thing.gd")));
         Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
         Assert.True(fileSystem.FileExists(fileSystem.CombinePath(SourceDirectory, "plugin.cfg")));
+    }
+
+    [Fact]
+    public async Task RemoveAddonLink_DropsTheDeclarationAndTheLinkButNotTheCheckout()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
+
+        new LocalLinks(fileSystem).Set(ProjectDirectory, "my-addon", SourceDirectory);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), $"""
+            [[addon]]
+            name = "my-addon"
+            git = "{RepoUrl}"
+            resolved = "{Sha}"
+            path = "."
+            """);
+
+        var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), installer);
+
+        Assert.True(workflow.RemoveAddonLink(ProjectDirectory, "my-addon"));
+
+        Assert.Empty(new LocalLinks(fileSystem).Read(ProjectDirectory));
+        Assert.False(fileSystem.DirectoryExists(InstalledPath(fileSystem)));
+        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
+    }
+
+    [Fact]
+    public void RemoveAddonLink_WithAnUndeclaredJunction_IsStillTheWayOut()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        fileSystem.CreateDirectoryLink(InstalledPath(fileSystem), SourceDirectory);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), $"""
+            [[addon]]
+            name = "my-addon"
+            git = "{RepoUrl}"
+            resolved = "{Sha}"
+            path = "."
+            """);
+
+        var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), BuildInstaller(fileSystem));
+
+        // A junction with nothing declaring it is exactly the state an install refuses, and the
+        // refusal names this command as one of its two ways out. If it answered "nothing to do" here
+        // — which it did, until the published binary was run against a real junction and said so —
+        // the advice would be impossible to follow in the one case it matters most.
+        Assert.True(workflow.RemoveAddonLink(ProjectDirectory, "my-addon"));
+        Assert.False(fileSystem.DirectoryExists(InstalledPath(fileSystem)));
+        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd")));
+    }
+
+    [Fact]
+    public void RemoveAddonLink_WithNoLinkAndNoDeclaration_ReportsNothingToDo()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), BuildInstaller(fileSystem));
+
+        Assert.False(workflow.RemoveAddonLink(ProjectDirectory, "my-addon"));
     }
 
     // -----------------------------------------------------------------------------------------
