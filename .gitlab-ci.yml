@@ -20,12 +20,42 @@
 #
 # Both jobs run on the same Docker image; no special runner tags are required beyond whatever
 # this project's default runner already picks up.
+#
+# One consequence of that fallback is worth stating where someone will read it, because it is a
+# gap in this project's own verification story rather than a detail: **the Windows artifact CI
+# produces is not the artifact anyone verifies**. Every hand-verification in this repo runs a real
+# AOT win-x64 binary built locally under vcvars (docs/DESIGN-v0.7-AUTH.md onward), while CI ships
+# a trimmed one. Trimming and AOT share most failure modes but not all, so a trimming-only
+# regression would reach a user unseen. `smoke:linux-x64` closes the equivalent gap on the side
+# where CI *can* build the real thing; the Windows side stays uncovered until there is a Windows
+# runner, and that is a known, accepted hole rather than an oversight.
+#
+# Release model (2026-09-11): auto-versioned continuous deployment, matching the vbeami and
+# lazy-o-godot pipelines. Every green push to the default branch that changes something shippable
+# reserves the next patch version, tags it, and releases it. A human can still cut a specific
+# major/minor by pushing a `vX.Y.Z` tag by hand — auto-tag then bumps the patch from *that* tag
+# next time. This replaced a `bump-version` job that edited the csproj's `<Version>` after a
+# human-pushed tag; CI now stamps the version at publish time instead, so there is no in-tree
+# version to keep in step and no follow-up commit per release.
 
 stages:
   - test
+  - tag
   - build
   - release
-  - version-bump
+
+# One pipeline per MR, one per push to a branch with no open MR, plus tags. Without this a branch
+# that has an MR open gets two pipelines for every push, which doubles an already slow AOT build.
+# auto-tag's own tag push is separately suppressed with `-o ci.skip`, so it never reaches this
+# evaluation at all — this is what still lets a *human* pushing a `vX.Y.Z` tag get a normal
+# pipeline.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
 
 variables:
   DOTNET_NOLOGO: "1"
@@ -50,22 +80,140 @@ variables:
 # once per pipeline rather than being duplicated in each platform build below.
 test:
   stage: test
-  image: mcr.microsoft.com/dotnet/sdk:10.0
+  image: mcr.microsoft.com/dotnet/sdk:10.0-noble
   cache: *dotnet_cache
   script:
     - dotnet restore
     - dotnet test -c Release --logger "console;verbosity=normal"
 
-build:linux-x64:
+# ---------------------------------------------------------------------------
+# auto-tag — reserve the next release version for this commit, in-pipeline
+# ---------------------------------------------------------------------------
+# Runs only on an ordinary push to the default branch (not MR pipelines, not tag pipelines —
+# $CI_COMMIT_BRANCH is unset for both), and only after `test` passed: a tag created here cascades
+# into a real, immutable release later in this same pipeline, and a published version cannot be
+# quietly un-shipped.
+#
+# `changes:` is what stops a README fix from cutting a release. Only `src/**` counts, because that
+# is what ends up in the binary. A tests-only commit still runs the suite and simply does not
+# release; a docs or CI commit does neither. Deliberately NOT including `.gitlab-ci.yml`: editing
+# the pipeline is not shipping a new dotquay, and including it would mean every CI tweak burns a
+# version number.
+#
+# Needs a $VERSION_BUMP_TOKEN CI/CD variable (protected + masked): a Project Access Token,
+# Settings > Access Tokens, scope write_repository, role Developer or higher. $CI_JOB_TOKEN cannot
+# push commits or tags. If the default branch is protected, that token's role also needs "allowed
+# to push" on it, and protected tags a matching allowance for `v*`, or this job fails at the push.
+auto-tag:
+  stage: tag
+  # alpine/git sets `ENTRYPOINT ["git"]`, so without overriding it the runner's shell invocation
+  # becomes `git sh -c "..."` — git tries to run "sh" as a subcommand and fails with "'sh' is not a
+  # git command." (confirmed from a real failed run 2026-09-04). The empty entrypoint hands control
+  # back to the runner so it can exec the job's own shell script normally.
+  #
+  # Pinned, unlike the SDK image, because this is the only job in the pipeline that writes to the
+  # repository. A silent major bump in git's behaviour belongs nowhere near a job that creates
+  # release tags.
+  image:
+    name: alpine/git:2.47.2
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - src/**/*
+  # No `needs:`, so stage ordering gates this job — `test` must pass first. This is deliberately
+  # NOT `needs: []`, which would detach the job from stage ordering entirely and start it
+  # immediately, in parallel with the tests it is supposed to be gated on.
+  variables:
+    # Tags are not fetched by depth, but the walk below needs every release tag that exists, so
+    # fetch them explicitly rather than relying on the runner's clone behaviour.
+    GIT_DEPTH: "20"
+  script:
+    - |
+      set -eu
+
+      git fetch origin --tags --quiet
+
+      LATEST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+      if [ -z "$LATEST_TAG" ]; then LATEST_TAG="v0.0.0"; fi
+
+      # Migration guard, and a decent invariant to keep regardless: never go backwards. This repo
+      # switched to auto-versioning with its git tags stopped at v0.4.4 while the csproj's
+      # <Version> had been bumped by the old `bump-version` job all the way to 0.9.0 — the two had
+      # drifted five minor versions apart. Taking the max means the first auto release continues
+      # from what the shipped binary has actually been reporting, and that a hand-edited csproj can
+      # never cause a version to be reissued.
+      CSPROJ="src/Dotquay.Cli/Dotquay.Cli.csproj"
+      CSPROJ_VERSION=$(grep -oE '<Version>[0-9]+\.[0-9]+\.[0-9]+</Version>' "$CSPROJ" | sed -E 's#</?Version>##g' || true)
+      BASELINE=$(printf '%s\n%s\n' "${LATEST_TAG#v}" "${CSPROJ_VERSION:-0.0.0}" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+      echo "latest tag $LATEST_TAG, csproj $CSPROJ_VERSION -> baseline $BASELINE"
+
+      MAJOR="${BASELINE%%.*}"
+      REST="${BASELINE#*.}"
+      MINOR="${REST%%.*}"
+      PATCH="${REST#*.}"
+      NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+      NEW_TAG="v$NEXT"
+      echo "tagging $CI_COMMIT_SHORT_SHA as $NEW_TAG"
+
+      echo "RELEASE_VERSION=$NEXT" >> release.env
+      echo "RELEASE_TAG=$NEW_TAG" >> release.env
+
+      # The token reaches git through a 0600 credential file rather than the remote URL. A
+      # credential embedded in the URL is copied into .git/config and echoed back verbatim in any
+      # push error message, which is how a masked variable ends up unmasked in a job log. dotquay's
+      # own SPEC §11.2 rejects URL-embedded credentials for exactly that reason; this is the CI
+      # side of the same rule. Variable masking is still the first line of defence — this is the
+      # second.
+      CRED_FILE="$CI_PROJECT_DIR/.git-credentials-ci"
+      trap 'rm -f "$CRED_FILE"' EXIT
+      (umask 077 && printf 'https://%s:%s@%s\n' "dotquay-ci" "$VERSION_BUMP_TOKEN" "$CI_SERVER_HOST" > "$CRED_FILE")
+      git config credential.helper "store --file=$CRED_FILE"
+
+      git tag "$NEW_TAG" "$CI_COMMIT_SHA"
+
+      # `-o ci.skip` is load-bearing: without it, pushing a tag spawns a *second*, independent
+      # pipeline for the same commit (GitLab treats tag and branch pipelines as unrelated), racing
+      # a second release attempt against this one.
+      git push -o ci.skip "https://$CI_SERVER_HOST/$CI_PROJECT_PATH.git" "refs/tags/$NEW_TAG"
+  artifacts:
+    reports:
+      dotenv: release.env
+
+# ---------------------------------------------------------------------------
+# build:* — the publishable artifacts
+# ---------------------------------------------------------------------------
+# Version is a three-way fallback: a human's $CI_COMMIT_TAG when the pipeline ran because of a
+# manual tag, else auto-tag's reserved $RELEASE_VERSION, else a throwaway ci- version so an MR
+# still builds. Computed in the script rather than in `variables:`, because GitLab's variable
+# expansion does plain $NAME substitution only; the shell parameter-expansion fallback needs a
+# real shell.
+#
+# Both build jobs list `test` in `needs` explicitly. With a `needs:` clause present at all, a job
+# no longer waits for earlier *stages* — only for the jobs it names — so omitting `test` here would
+# silently let a broken build publish.
+.build:
   stage: build
-  image: mcr.microsoft.com/dotnet/sdk:10.0
+  image: mcr.microsoft.com/dotnet/sdk:10.0-noble
   cache: *dotnet_cache
+  needs:
+    - job: test
+    - job: auto-tag
+      optional: true
+
+build:linux-x64:
+  extends: .build
   before_script:
     # NativeAOT on Linux needs clang (the native code generator's back end) — not present in the
     # base SDK image by default.
     - apt-get update && apt-get install -y --no-install-recommends clang zlib1g-dev
   script:
-    - dotnet publish src/Dotquay.Cli -c Release -r linux-x64 --self-contained -p:PublishAot=true -o publish/linux-x64
+    - |
+      set -eu
+      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-0.0.0-ci-$CI_COMMIT_SHORT_SHA}}"
+      echo "building dotquay $PKG_VERSION"
+      dotnet publish src/Dotquay.Cli -c Release -r linux-x64 --self-contained -p:PublishAot=true -p:Version="$PKG_VERSION" -o publish/linux-x64
   artifacts:
     name: "dotquay-linux-x64-$CI_COMMIT_SHORT_SHA"
     paths:
@@ -73,65 +221,170 @@ build:linux-x64:
     expire_in: 30 days
 
 build:windows-x64:
-  stage: build
-  image: mcr.microsoft.com/dotnet/sdk:10.0
-  cache: *dotnet_cache
+  extends: .build
   script:
-    # PublishAot explicitly disabled here -- see the file header. Still self-contained + trimmed +
-    # single-file, just not natively compiled, since no real Windows build host is available.
-    - dotnet publish src/Dotquay.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true -o publish/win-x64
+    - |
+      set -eu
+      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-0.0.0-ci-$CI_COMMIT_SHORT_SHA}}"
+      echo "building dotquay $PKG_VERSION"
+      # PublishAot explicitly disabled here -- see the file header. Still self-contained + trimmed +
+      # single-file, just not natively compiled, since no real Windows build host is available.
+      dotnet publish src/Dotquay.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true -p:Version="$PKG_VERSION" -o publish/win-x64
   artifacts:
     name: "dotquay-windows-x64-$CI_COMMIT_SHORT_SHA"
     paths:
       - publish/win-x64/dotquay.exe
     expire_in: 30 days
 
-# --- Release: only runs when the pipeline is for a tag (push a tag like `v0.4.0` to trigger it).
+# ---------------------------------------------------------------------------
+# smoke:linux-x64 — run the binary this pipeline is about to ship
+# ---------------------------------------------------------------------------
+# This project's standing rule is that a green `dotnet build`/`dotnet test` is not evidence a
+# NativeAOT-published binary works: the trimmer strips reflection metadata a library needs without
+# the analyzer catching it, which has broken Spectre.Console.Cli, NuGet.Protocol, and a `--json`
+# payload outright in this repo's history — every one of them invisible until the real binary was
+# run by hand. Until now CI built those binaries and never executed one, so the rule was enforced
+# entirely by someone remembering.
+#
+# Run against `runtime-deps`, not the SDK image, and with GIT_STRATEGY none: a NativeAOT binary
+# must run with nothing but the native prerequisites and no source tree. Smoking it inside the SDK
+# image would hide a publish that had quietly stopped being self-contained.
+#
+# The `--json` calls are the checks that matter. A payload missing from DotquayJsonContext builds
+# clean, passes the entire test suite, and fails only in the published binary — so asserting that
+# an envelope actually comes out is the one thing no unit test can do.
+smoke:linux-x64:
+  stage: build
+  image: mcr.microsoft.com/dotnet/runtime-deps:10.0-noble
+  needs:
+    - job: build:linux-x64
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      set -eu
+
+      BIN="$CI_PROJECT_DIR/publish/linux-x64/dotquay"
+      chmod +x "$BIN"
+
+      echo "--- it starts, and reports a version"
+      "$BIN" --version
+      "$BIN" --version | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+' \
+        || { echo "FAIL: --version did not print a version"; exit 1; }
+
+      echo "--- System.CommandLine's help renders (the Spectre.Console.Cli failure shape)"
+      "$BIN" --help > /dev/null
+
+      echo "--- it can scaffold a project"
+      mkdir -p /tmp/smoke
+      "$BIN" init --project /tmp/smoke
+      test -f /tmp/smoke/dotquay.toml || { echo "FAIL: init wrote no manifest"; exit 1; }
+
+      echo "--- the --json envelopes serialize under AOT"
+      OUT=$("$BIN" source list --json --project /tmp/smoke)
+      echo "$OUT"
+      echo "$OUT" | grep -q '"command":"source-list"' \
+        || { echo "FAIL: source list --json emitted no envelope"; exit 1; }
+      echo "$OUT" | grep -q '"ok":true' \
+        || { echo "FAIL: source list --json reported a failure"; exit 1; }
+
+      OUT=$("$BIN" list --json --project /tmp/smoke)
+      echo "$OUT"
+      echo "$OUT" | grep -q '"command":"list"' \
+        || { echo "FAIL: list --json emitted no envelope"; exit 1; }
+
+      # doctor exits non-zero when it finds issues, and it will: there is no git in this image, no
+      # .csproj, and nothing installed. That is fine and is itself worth exercising — what must not
+      # happen is a stack trace instead of an envelope, which is exactly how an AOT serialization
+      # failure surfaces to the editor plugin.
+      OUT=$("$BIN" doctor --json --project /tmp/smoke || true)
+      echo "$OUT"
+      echo "$OUT" | grep -q '"command":"doctor"' \
+        || { echo "FAIL: doctor --json emitted no envelope"; exit 1; }
+
+      echo "--- the published binary is good"
+
+# ---------------------------------------------------------------------------
+# release — durable copies, then the GitLab Release
+# ---------------------------------------------------------------------------
 # GitLab job artifacts expire (see `expire_in` above) and aren't a stable release-asset URL, so both
 # binaries are first uploaded to this project's own Generic Package Registry (a durable, versioned
 # file store keyed by package name + version), then the release is created with links pointing at
 # those uploaded copies rather than at the job artifacts directly.
+#
+# Every job below runs on both release paths — a human `vX.Y.Z` tag, and auto-tag's reserved
+# version on the default branch — and resolves the version the same way the build jobs do.
+.upload:
+  stage: release
+  image: curlimages/curl:8.10.1
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 upload:linux-x64:
-  stage: release
-  image: curlimages/curl:8.10.1
-  rules:
-    - if: $CI_COMMIT_TAG
+  extends: .upload
   needs:
-    - build:linux-x64
+    - job: auto-tag
+      optional: true
+    - job: build:linux-x64
+    # The smoke job gates the upload, not just the build. Publishing a binary that does not start
+    # is the one outcome worth making structurally impossible.
+    - job: smoke:linux-x64
+      artifacts: false
   script:
-    - >-
-      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dotquay
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64"
+    - |
+      set -eu
+      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      PKG_VERSION="${PKG_VERSION:-$RELEASE_VERSION}"
+      test -n "$PKG_VERSION" || { echo "FAIL: no version to release" >&2; exit 1; }
+      echo "uploading dotquay $PKG_VERSION (linux-x64)"
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dotquay \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}/dotquay-linux-x64"
 
 upload:windows-x64:
-  stage: release
-  image: curlimages/curl:8.10.1
-  rules:
-    - if: $CI_COMMIT_TAG
+  extends: .upload
   needs:
-    - build:windows-x64
+    - job: auto-tag
+      optional: true
+    - job: build:windows-x64
   script:
-    - >-
-      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dotquay.exe
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"
+    - |
+      set -eu
+      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      PKG_VERSION="${PKG_VERSION:-$RELEASE_VERSION}"
+      test -n "$PKG_VERSION" || { echo "FAIL: no version to release" >&2; exit 1; }
+      echo "uploading dotquay $PKG_VERSION (windows-x64)"
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dotquay.exe \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}/dotquay-windows-x64.exe"
 
-release:
+# Two release jobs with disjoint rules rather than one, because `release:tag_name` is expanded as a
+# CI variable and cannot take the shell fallback the upload jobs use for PKG_VERSION. A
+# human-pushed tag and auto-tag's reserved version arrive by different routes, so each job states
+# the spelling it can know statically.
+.release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
-  rules:
-    - if: $CI_COMMIT_TAG
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "creating a GitLab Release for $RELEASE_FOR"
+
+release:tagged:
+  extends: .release
   needs:
     - job: upload:linux-x64
       artifacts: false
     - job: upload:windows-x64
       artifacts: false
-  script:
-    - echo "Creating release ${CI_COMMIT_TAG}"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  variables:
+    RELEASE_FOR: $CI_COMMIT_TAG
   release:
-    tag_name: "${CI_COMMIT_TAG}"
-    name: "dotquay ${CI_COMMIT_TAG}"
-    description: "See docs/SPRINT-01.md and docs/SPEC.md for what shipped in this release."
+    tag_name: "$CI_COMMIT_TAG"
+    name: "dotquay $CI_COMMIT_TAG"
+    description: "See docs/SPEC.md and the DESIGN-v0.*.md files for what shipped in this release."
     assets:
       links:
         - name: "dotquay-linux-x64"
@@ -139,71 +392,28 @@ release:
         - name: "dotquay-windows-x64.exe"
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"
 
-# --- Auto version bump: firing a tag (e.g. `v0.4.5`) should immediately push a follow-up commit to
-# `main` bumping Dotquay.Cli.csproj's patch version (e.g. to 0.4.6), so any work landing after the
-# tag is already developed under the next version number.
-#
-# `needs: []` deliberately detaches this job from the pipeline's stage ordering: it starts as soon
-# as the tag pipeline starts and does NOT wait on test/build/release. Per the request, the version
-# must move forward even if the build is broken.
-#
-# Requires a CI/CD variable `VERSION_BUMP_TOKEN` (Settings > CI/CD > Variables, masked + protected):
-# a Project Access Token (or Personal/Group Access Token) with `write_repository` scope, whose role
-# is at least Maintainer if `main` is a protected branch. CI_JOB_TOKEN is not used because pushing
-# to a protected branch generally requires an explicit access token, not the job token.
-bump-version:
-  stage: version-bump
-  # alpine/git sets `ENTRYPOINT ["git"]`, so without overriding it the runner's shell invocation
-  # becomes `git sh -c "..."` — git tries to run "sh" as a subcommand and fails with "'sh' is not a
-  # git command." (confirmed from a real failed run 2026-09-04). The empty entrypoint hands control
-  # back to the runner so it can exec the job's own shell script normally.
-  image:
-    name: alpine/git:2.47.2
-    entrypoint: [""]
+release:auto:
+  extends: .release
+  # auto-tag is NOT optional here, unlike in the upload jobs: this job only runs on the default
+  # branch, which is exactly the case where auto-tag ran. Its dotenv is the only source of
+  # RELEASE_TAG.
+  needs:
+    - job: auto-tag
+    - job: upload:linux-x64
+      artifacts: false
+    - job: upload:windows-x64
+      artifacts: false
   rules:
-    - if: $CI_COMMIT_TAG
-  needs: []
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
-    GIT_STRATEGY: clone
-    GIT_DEPTH: 0
-  # One literal block for the whole script. Everything inside it is raw text as far as YAML is
-  # concerned, so a ": " in a commit message cannot be read as a key/value separator — which is what
-  # turned a list item into a mapping and failed the job with "script config should be a string or a
-  # nested array of strings".
-  #
-  # `set -eu` is load-bearing in this shape rather than decoration: a block scalar is a single
-  # command to GitLab, so only its *last* line would otherwise decide the job's exit status. Without
-  # it a failed fetch or commit reports a green pipeline that bumped nothing. Each entry in the old
-  # list form was checked individually, so this preserves that behaviour rather than changing it.
-  #
-  # The shell also stays alive across the whole block, which is why NEXT no longer has to be handed
-  # between steps through a bump.env file.
-  script:
-    - |
-      set -eu
-
-      git config user.email "ci@kemomi.de"
-      git config user.name "dotquay-ci"
-
-      git fetch origin main
-      git checkout -B main origin/main
-
-      CSPROJ="src/Dotquay.Cli/Dotquay.Cli.csproj"
-      CURRENT=$(grep -oE '<Version>[0-9]+\.[0-9]+\.[0-9]+</Version>' "$CSPROJ" | sed -E 's#</?Version>##g')
-
-      if [ -z "$CURRENT" ]; then
-        echo "Could not find <Version> in $CSPROJ" >&2
-        exit 1
-      fi
-
-      MAJOR=$(echo "$CURRENT" | cut -d. -f1)
-      MINOR=$(echo "$CURRENT" | cut -d. -f2)
-      PATCH=$(echo "$CURRENT" | cut -d. -f3)
-      NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
-
-      echo "Tag $CI_COMMIT_TAG triggered version bump: $CURRENT -> $NEXT"
-      sed -i "s#<Version>$CURRENT</Version>#<Version>$NEXT</Version>#" "$CSPROJ"
-
-      git add "$CSPROJ"
-      git commit -m "chore: bump version to $NEXT [skip ci]"
-      git push "https://project-access-token:${VERSION_BUMP_TOKEN}@gitlab.kemomi.de/wild-alliance/dotquay.git" HEAD:main
+    RELEASE_FOR: $RELEASE_TAG
+  release:
+    tag_name: "$RELEASE_TAG"
+    name: "dotquay $RELEASE_TAG"
+    description: "See docs/SPEC.md and the DESIGN-v0.*.md files for what shipped in this release."
+    assets:
+      links:
+        - name: "dotquay-linux-x64"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-linux-x64"
+        - name: "dotquay-windows-x64.exe"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-windows-x64.exe"
