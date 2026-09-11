@@ -1925,7 +1925,7 @@ public sealed partial class DependencyWorkflow
                 manifest.SourceSet(),
                 restore,
                 resolvedSourceName,
-                manifest.PinnedPackages(),
+                MappingForInstall(manifest, packageId, resolvedSourceName),
                 manifest.NuGetSourceMapping,
                 assets,
                 previouslyWritten,
@@ -1939,6 +1939,51 @@ public sealed partial class DependencyWorkflow
         {
             throw new WorkflowException($"'{packageId}': {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// The <c>&lt;packageSourceMapping&gt;</c> this one install needs: the manifest's pins, plus the
+    /// feed the package being installed actually resolved from.
+    /// </summary>
+    /// <remarks>
+    /// <para>That second half is the fix for a real failure. The mapping used to come from
+    /// <see cref="ProjectNuGetSources.PinnedPackages"/> alone, read from the manifest <em>as it is on
+    /// disk</em> — and during <c>add</c> the package being added is not in it yet, because the manifest
+    /// is written after the install succeeds. So the only pattern in the file was the <c>*</c>
+    /// catch-all pointing at nuget.org, and <c>dotnet restore</c> refused a package that had just been
+    /// resolved successfully from a private feed:
+    /// <c>NU1101 ... the following source(s) were not considered: dotquay-&lt;name&gt;</c>. Found by
+    /// running the published binary against a real GitLab feed, which is the only place it shows: the
+    /// fake CLI runner does not read NuGet.Config, and every unit test passed throughout.</para>
+    /// <para>SPEC.md §11.1 already asks for exactly this — "<c>dotnet restore</c> is bound to the same
+    /// feed via <c>&lt;packageSourceMapping&gt;</c>", without which multi-feed support "would be a
+    /// report rather than a guarantee". It was true of the final restore and not of the per-package
+    /// install.</para>
+    /// <para>Manifest pins are applied last so they win, mirroring
+    /// <see cref="ProjectNuGetSources.MappedPackages"/>: a pin is a statement of intent, a resolved
+    /// source is a record of what answered.</para>
+    /// </remarks>
+    private static IReadOnlyDictionary<string, string> MappingForInstall(
+        ProjectManifest manifest, string packageId, string? resolvedSourceName)
+    {
+        var pinned = manifest.PinnedPackages();
+
+        if (resolvedSourceName is null)
+        {
+            return pinned;
+        }
+
+        var mapped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [packageId] = resolvedSourceName,
+        };
+
+        foreach (var (pinnedId, sourceName) in pinned)
+        {
+            mapped[pinnedId] = sourceName;
+        }
+
+        return mapped;
     }
 
     private async Task RestoreDotnetOrThrowAsync(
