@@ -10,10 +10,13 @@ namespace Dotquay.Cli.Commands;
 /// construct real (non-test-double) infrastructure, so every command wires it the same way.</summary>
 internal static class WorkflowFactory
 {
-    public static DependencyWorkflow Create(ISourceApproval? sourceApproval = null) =>
+    public static DependencyWorkflow Create(
+        ISourceApproval? sourceApproval = null,
+        IGeneratorAssetDecision? generatorAssetDecision = null) =>
         new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root())
         {
             SourceApproval = sourceApproval ?? DenyAllSourceApproval.Instance,
+            GeneratorAssetDecision = generatorAssetDecision ?? ShareGeneratorDecision.Instance,
         };
 
     /// <summary>
@@ -35,15 +38,24 @@ internal static class WorkflowFactory
     /// editor plugin — a caller that cannot answer a prompt — complete an adoption it asked about in
     /// its own UI. Ignored entirely when <paramref name="allowSourceAdoption"/> is false, so
     /// <c>install</c> cannot be talked into a feed by a flag.</param>
+    /// <param name="generatorAssetDecision">Who answers the source-generator question (v0.14). Null
+    /// leaves it at <see cref="ShareGeneratorDecision"/>, the pre-v0.14 behaviour, which is what every
+    /// command other than <c>add</c> wants: nothing else resolves a package for the first time, so
+    /// nothing else has a decision to make.</param>
     public static (DependencyWorkflow Workflow, IDisposable Progress) CreateWithProgress(
-        bool json, bool allowSourceAdoption = false, IReadOnlyList<string>? preApprovedSourceUrls = null)
+        bool json,
+        bool allowSourceAdoption = false,
+        IReadOnlyList<string>? preApprovedSourceUrls = null,
+        IGeneratorAssetDecision? generatorAssetDecision = null)
     {
         var reporter = ConsoleProgressReporter.Create(json);
         var approval = allowSourceAdoption
             ? SourceApprovalFor(json, preApprovedSourceUrls)
             : DenyAllSourceApproval.Instance;
 
-        return (Create(approval).WithProgress(reporter), reporter as IDisposable ?? NullDisposable.Instance);
+        return (
+            Create(approval, generatorAssetDecision).WithProgress(reporter),
+            reporter as IDisposable ?? NullDisposable.Instance);
     }
 
     /// <summary>

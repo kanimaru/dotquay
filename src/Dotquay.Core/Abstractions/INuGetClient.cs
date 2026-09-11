@@ -30,6 +30,20 @@ public interface INuGetClient
     /// "bad token" and "no token" into one answer that can't be acted on.</para>
     /// </remarks>
     Task VerifySourceAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads what a package says about itself from its <c>.nuspec</c> (v0.14).
+    /// </summary>
+    /// <remarks>
+    /// One extra request against the <c>PackageBaseAddress</c> resource already discovered for version
+    /// queries, and no package download — which is the whole reason the signal read is the author's
+    /// <c>developmentDependency</c> flag rather than the package's folder layout. Returns
+    /// <see cref="PackageShape.Unknown"/> rather than throwing when the document is missing or
+    /// unreadable: this drives an optional question, and a feed that will not serve a nuspec must not
+    /// be able to fail an <c>add</c> that would otherwise have worked.
+    /// </remarks>
+    Task<PackageShape> GetPackageShapeAsync(
+        string packageId, string version, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

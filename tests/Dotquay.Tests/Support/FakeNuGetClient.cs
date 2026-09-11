@@ -52,6 +52,20 @@ public sealed class FakeNuGetClient : INuGetClient
     /// network rather than merely tolerating a reachable feed.</summary>
     public int VerifyCount { get; private set; }
 
+    /// <summary>Package IDs this fake reports as author-declared development dependencies — what
+    /// drives the generator question on <c>add</c>.</summary>
+    public HashSet<string> DevelopmentDependencyPackageIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Package IDs whose nuspec this fake cannot serve at all, so the shape is unknown rather
+    /// than a positive "not a generator". The distinction is the whole contract.</summary>
+    public HashSet<string> UnreadableNuspecPackageIds { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<PackageShape> GetPackageShapeAsync(
+        string packageId, string version, CancellationToken cancellationToken = default) =>
+        Task.FromResult(UnreadableNuspecPackageIds.Contains(packageId)
+            ? PackageShape.Unknown
+            : new PackageShape(DevelopmentDependencyPackageIds.Contains(packageId)));
+
     public Task VerifySourceAsync(CancellationToken cancellationToken = default)
     {
         VerifyCount++;

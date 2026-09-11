@@ -79,6 +79,31 @@ public sealed class MultiSourceNuGetClient : INuGetClient
     public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>
         (await GetVersionsAsync(packageId, cancellationToken)).Found;
 
+    /// <summary>
+    /// Asks each feed in declared order and returns the first that has a nuspec for this package.
+    /// </summary>
+    /// <remarks>
+    /// First-match, matching <see cref="GetVersionsAsync"/> — which is the feed the version came from,
+    /// so it is the feed whose nuspec describes the package about to be installed. Falls through on
+    /// <see cref="PackageShape.Unknown"/> rather than stopping, since a feed that will not serve a
+    /// nuspec has said nothing about the package either way.
+    /// </remarks>
+    public async Task<PackageShape> GetPackageShapeAsync(
+        string packageId, string version, CancellationToken cancellationToken = default)
+    {
+        foreach (var (_, client) in _clients)
+        {
+            var shape = await client.GetPackageShapeAsync(packageId, version, cancellationToken);
+
+            if (shape.IsDevelopmentDependency is not null)
+            {
+                return shape;
+            }
+        }
+
+        return PackageShape.Unknown;
+    }
+
     /// <summary>Verifies every source, in declared order, and stops at the first that fails — so the
     /// error names the feed actually at fault rather than reporting the set as broken.</summary>
     public async Task VerifySourceAsync(CancellationToken cancellationToken = default)

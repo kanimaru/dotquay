@@ -61,6 +61,17 @@ public sealed partial class DependencyWorkflow
     public ISourceApproval SourceApproval { get; init; } = DenyAllSourceApproval.Instance;
 
     /// <summary>
+    /// Who decides whether a source generator being added is kept private to this project (v0.14).
+    /// </summary>
+    /// <remarks>
+    /// Same seam-and-safe-default shape as <see cref="SourceApproval"/>, with the safe default in the
+    /// other direction: <see cref="ShareGeneratorDecision"/> writes nothing, which is exactly what
+    /// every release before v0.14 did. So a caller that never thought about this — the plugin, CI,
+    /// <c>--json</c>, <c>install</c> replaying a lockfile — keeps its existing behaviour byte for byte.
+    /// </remarks>
+    public IGeneratorAssetDecision GeneratorAssetDecision { get; init; } = ShareGeneratorDecision.Instance;
+
+    /// <summary>
     /// How this workflow reads the process environment. Defaults to the real one; overridden in
     /// tests, which must not depend on the machine they run on having (or not having) a known_hosts
     /// file. Named for its type rather than the shorter "Environment", which would shadow
@@ -347,8 +358,11 @@ public sealed partial class DependencyWorkflow
         var nuGetClient = _nuGetClientFactory.Create(sourceSet, pinnedSourceName);
         var (version, resolvedSource) = await ResolveDotnetVersionOrThrowAsync(
             nuGetClient, packageId, versionOverride, cancellationToken);
+        var assets = await DecideGeneratorAssetsAsync(
+            projectDirectory, nuGetClient, packageId, version, cancellationToken);
+
         var locked = await InstallDotnetOrThrowAsync(
-            projectDirectory, packageId, version, manifest, restore: true, resolvedSource, cancellationToken);
+            projectDirectory, packageId, version, manifest, restore: true, resolvedSource, cancellationToken, assets);
 
         WriteManifest(manifestPath, manifest with
         {
@@ -358,7 +372,13 @@ public sealed partial class DependencyWorkflow
                 // a statement of intent the user makes; writing one automatically would silently
                 // freeze whichever feed happened to answer first today. An explicit --source is
                 // exactly that statement, so it is the one thing written here.
-                [packageId] = new DotnetSpec { Name = packageId, Version = version, Source = pinnedSourceName },
+                [packageId] = new DotnetSpec
+                {
+                    Name = packageId,
+                    Version = version,
+                    Source = pinnedSourceName,
+                    Assets = assets,
+                },
             },
         });
 
@@ -369,6 +389,53 @@ public sealed partial class DependencyWorkflow
         });
 
         return locked;
+    }
+
+    /// <summary>
+    /// Asks whether a newly added source generator should be kept private to this project, and turns
+    /// the answer into asset metadata.
+    /// </summary>
+    /// <remarks>
+    /// <para>Two gates before anyone is asked anything, and both matter. The package must have declared
+    /// itself a development dependency — a missing signal is never read as a generator, or the question
+    /// would fire on every ordinary library. And the project must look like something other projects
+    /// consume, because a Godot game is the end of the line: nothing depends on it, so whether the
+    /// generator flows onward has no consequence and no right answer to get wrong. Both quiet paths
+    /// write nothing, which is what NuGet does anyway.</para>
+    /// <para>Only <c>private_assets</c> is ever written, and only to keep the generator in. "Share it
+    /// onward" needs no declaration at all: measured 2026-09-10 three levels deep with a generated
+    /// internal type, a generator behind a plain <c>PackageReference</c> really does run in a downstream
+    /// consumer, so the default already shares and only containment is a statement worth recording.
+    /// <c>include_assets</c>/<c>exclude_assets</c> stay hand-written — the case that needs them is a
+    /// package shipping both <c>lib/</c> and <c>analyzers/</c>, which is exactly what a nuspec-only
+    /// signal cannot see.</para>
+    /// </remarks>
+    private async Task<PackageAssets> DecideGeneratorAssetsAsync(
+        string projectDirectory,
+        INuGetClient nuGetClient,
+        string packageId,
+        string version,
+        CancellationToken cancellationToken)
+    {
+        var shape = await nuGetClient.GetPackageShapeAsync(packageId, version, cancellationToken);
+
+        if (!shape.IsGenerator)
+        {
+            return PackageAssets.None;
+        }
+
+        // Probed rather than asked, and a failure to find or parse the .csproj reads as "not
+        // publishable" — the quiet answer, which leaves behaviour as it was.
+        var evidence = CsprojPackable.Evidence(_fileSystem, CsprojLocator.Locate(_fileSystem, projectDirectory));
+
+        if (evidence is null)
+        {
+            return PackageAssets.None;
+        }
+
+        return GeneratorAssetDecision.KeepPrivate(new GeneratorAssetRequest(packageId, version, evidence))
+            ? new PackageAssets { Private = ["all"] }
+            : PackageAssets.None;
     }
 
     /// <summary>

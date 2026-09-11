@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Xml.Linq;
 using Dotquay.Core.Abstractions;
 
 namespace Dotquay.Core.Dotnet;
@@ -110,6 +111,55 @@ public sealed class NuGetV3Client : INuGetClient
     /// is cached, so a later query on the same client costs nothing extra.</summary>
     public async Task VerifySourceAsync(CancellationToken cancellationToken = default) =>
         await GetPackageBaseAddressAsync(cancellationToken);
+
+    /// <summary>
+    /// Fetches <c>{id}/{version}/{id}.nuspec</c> from the package resource and reads
+    /// <c>developmentDependency</c> out of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>Every failure short of a broken feed answers <see cref="PackageShape.Unknown"/>. A missing
+    /// or malformed nuspec means dotquay has no signal, and the only thing it drives is whether an
+    /// optional question gets asked — so it must never be the reason an otherwise-fine <c>add</c>
+    /// fails. An unauthorized response is the exception, and is left to throw: a feed that has stopped
+    /// accepting the credential is a real problem the caller is already handling for every other query.
+    /// </para>
+    /// <para>Parsed with LINQ-to-XML on local names only. A nuspec carries a default xmlns whose
+    /// version has changed several times (2010/07, 2011/10, 2013/05 all appear in the wild, and the same
+    /// package repacked on a newer SDK changes it), so matching qualified names would read a perfectly
+    /// good document as empty. No reflection either way, which keeps this NativeAOT-safe.</para>
+    /// </remarks>
+    public async Task<PackageShape> GetPackageShapeAsync(
+        string packageId, string version, CancellationToken cancellationToken = default)
+    {
+        var baseAddress = await GetPackageBaseAddressAsync(cancellationToken);
+        var id = packageId.ToLowerInvariant();
+
+        using var response = await SendAsync(
+            $"{baseAddress}{id}/{version.ToLowerInvariant()}/{id}.nuspec", cancellationToken);
+
+        ThrowIfUnauthorized(response, $"reading the nuspec for '{packageId}'");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return PackageShape.Unknown;
+        }
+
+        try
+        {
+            var document = XDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+
+            var declared = document.Descendants()
+                .FirstOrDefault(element => element.Name.LocalName == "developmentDependency")?.Value.Trim();
+
+            return declared is null
+                ? new PackageShape(IsDevelopmentDependency: false)
+                : new PackageShape(string.Equals(declared, "true", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (System.Xml.XmlException)
+        {
+            return PackageShape.Unknown;
+        }
+    }
 
     /// <summary>Null for nuget.org, matching the lockfile's convention of omitting the key for the
     /// public feed — so a public-only project's lockfile stays byte-identical to pre-v0.7.</summary>

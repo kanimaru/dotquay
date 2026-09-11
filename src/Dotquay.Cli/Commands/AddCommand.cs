@@ -73,6 +73,18 @@ internal static class AddCommand
                 + "them all in order. Only for NuGet packages; a git addon has no feed.",
         };
 
+        var keepGeneratorPrivateOption = new Option<bool>("--keep-generator-private")
+        {
+            Description = "For a source generator: keep it out of anything that depends on this project. "
+                + "Answers the question `add` would otherwise ask, so scripts and CI never hit a prompt.",
+        };
+
+        var shareGeneratorOption = new Option<bool>("--share-generator")
+        {
+            Description = "For a source generator: let projects depending on this one get it too. This is "
+                + "already NuGet's behaviour with no declaration, so this only suppresses the question.",
+        };
+
         var previewOption = new Option<bool>("--preview")
         {
             Description = "Resolve what this add would do and report it without writing anything: the full "
@@ -106,6 +118,8 @@ internal static class AddCommand
             branchOption,
             revOption,
             nuGetSourceOption,
+            keepGeneratorPrivateOption,
+            shareGeneratorOption,
             previewOption,
             forceOption,
             adoptSourceOption,
@@ -124,9 +138,24 @@ internal static class AddCommand
             // reports the question instead of asking it. The real run replays the answer the user
             // already gave through --adopt-source, falling back to the console prompt when the flow
             // is a human at a terminal rather than the editor plugin.
+            var keepGeneratorPrivate = parseResult.GetValue(keepGeneratorPrivateOption);
+            var shareGenerator = parseResult.GetValue(shareGeneratorOption);
+
+            if (keepGeneratorPrivate && shareGenerator)
+            {
+                return JsonOutput.Fail(
+                    json, CommandName, Core.Json.JsonErrorKind.Workflow,
+                    "--keep-generator-private and --share-generator are opposite answers to the same question. "
+                    + "Pass one, or neither to be asked.");
+            }
+
             var (workflow, progress) = preview
                 ? WorkflowFactory.CreateWithProgress(json)
-                : WorkflowFactory.CreateWithProgress(json, allowSourceAdoption: true, preApprovedSourceUrls: adoptSources);
+                : WorkflowFactory.CreateWithProgress(
+                    json,
+                    allowSourceAdoption: true,
+                    preApprovedSourceUrls: adoptSources,
+                    generatorAssetDecision: GeneratorDecisionFor(json, keepGeneratorPrivate, shareGenerator));
 
             var options = new AddonAddOptions
             {
@@ -164,6 +193,15 @@ internal static class AddCommand
                     throw new WorkflowException(
                         $"--source names a NuGet feed, but '{source}' is a git URL. A git addon is fetched from "
                         + "the repository you named; NuGet feeds only apply to [dotnet] packages.");
+                }
+
+                if (keepGeneratorPrivate || shareGenerator)
+                {
+                    var flag = keepGeneratorPrivate ? "--keep-generator-private" : "--share-generator";
+
+                    throw new WorkflowException(
+                        $"{flag} describes a NuGet package's asset flow, but '{source}' is a git URL. A GDScript "
+                        + "addon is copied into addons/ and has no PackageReference to configure.");
                 }
 
                 var (gitUrl, reference) = SplitRef(source);
@@ -431,7 +469,8 @@ internal static class AddCommand
         progress.Dispose();
 
         var pinnedTo = options.NuGetSource is null ? "" : $", pinned to '{options.NuGetSource}'";
-        var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored{pinnedTo}";
+        var kept = locked.Assets.Private is null ? "" : ", kept private to this project";
+        var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored{pinnedTo}{kept}";
 
         if (json)
         {
@@ -455,6 +494,22 @@ internal static class AddCommand
         ConsoleOutput.WriteLine(ConsoleColor.Green, summary);
         return 0;
     }
+
+    /// <summary>
+    /// Either flag is a final answer; neither means ask (or, where nobody can be asked, share).
+    /// </summary>
+    /// <remarks>
+    /// A flag wins over the prompt rather than layering with it, the same way <c>--adopt-source</c>
+    /// wins over the feed prompt: naming one is a statement that this run's answer is already decided,
+    /// and re-asking would turn a considered choice into a question the caller has to answer twice.
+    /// </remarks>
+    private static Core.Abstractions.IGeneratorAssetDecision GeneratorDecisionFor(
+        bool json, bool keepPrivate, bool share) => (keepPrivate, share) switch
+    {
+        (true, _) => Core.Abstractions.KeepGeneratorPrivateDecision.Instance,
+        (_, true) => Core.Abstractions.ShareGeneratorDecision.Instance,
+        _ => ConsoleGeneratorAssetDecision.For(json),
+    };
 
     /// <summary>Distinguishes a git URL from a bare NuGet package ID (e.g. "Newtonsoft.Json").
     /// Package IDs don't contain "://" or start with an SSH-style "git@" — good enough to route
