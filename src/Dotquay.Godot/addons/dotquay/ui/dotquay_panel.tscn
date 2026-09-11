@@ -109,6 +109,35 @@ layout_mode = 2
 tooltip_text = "Scaffold a manifest in this Godot project, the same as running `dotquay init`."
 text = "Create dotquay.toml"
 
+[node name="UpdateBanner" type="PanelContainer" parent="Root" unique_id=1900000001]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="UpdateRow" type="HBoxContainer" parent="Root/UpdateBanner" unique_id=1900000002]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="UpdateMessage" type="Label" parent="Root/UpdateBanner/UpdateRow" unique_id=1900000003]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "update available"
+autowrap_mode = 3
+
+[node name="UpdateButton" type="Button" parent="Root/UpdateBanner/UpdateRow" unique_id=1900000004]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Download and install the newest dotquay CLI, replacing the executable this plugin runs."
+text = "Update dotquay"
+
+[node name="UpdateDismissButton" type="Button" parent="Root/UpdateBanner/UpdateRow" unique_id=1900000005]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Hide this until the editor is restarted."
+text = "Not now"
+
 [node name="Split" type="HSplitContainer" parent="Root" unique_id=1551101651]
 layout_mode = 2
 size_flags_vertical = 3

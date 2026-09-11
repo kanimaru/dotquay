@@ -83,6 +83,11 @@ const COMMAND_OUTDATED := "outdated"
 const COMMAND_DOCTOR := "doctor"
 const COMMAND_STATUS := "status"
 
+## The CLI maintaining its own installation (v0.17). A wire contract like every other name here:
+## these strings are what the envelope's `command` field carries, and the panel dispatches on them.
+const COMMAND_SELF_CHECK := "self-check"
+const COMMAND_SELF_UPDATE := "self-update"
+
 
 ## JSON nulls arrive as `null`, and `String(null)` yields "<null>" rather than "". Every optional
 ## field goes through here, so a missing value renders as absent instead of as that literal text.

@@ -191,6 +191,32 @@ public sealed class SystemFileSystem : IFileSystem
         }
     }
 
+    public void MoveFile(string source, string destination, bool overwrite = false)
+    {
+        var directory = Path.GetDirectoryName(destination);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.Move(source, destination, overwrite);
+    }
+
+    public void SetExecutablePermissions(string path)
+    {
+        if (!File.Exists(path) || OperatingSystem.IsWindows())
+        {
+            // Windows decides executability by extension, so there is nothing to set. Returning
+            // rather than throwing keeps the self-update swap one code path on both platforms.
+            return;
+        }
+
+        var mode = File.GetUnixFileMode(path);
+        File.SetUnixFileMode(
+            path,
+            mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+    }
+
     public void SetOwnerOnlyPermissions(string path)
     {
         if (!File.Exists(path))

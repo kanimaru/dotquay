@@ -68,6 +68,31 @@ public interface IFileSystem
     void DeleteFile(string path);
 
     /// <summary>
+    /// Moves a single file, replacing <paramref name="destination"/> when
+    /// <paramref name="overwrite"/> is set.
+    /// </summary>
+    /// <remarks>
+    /// Added for the self-update swap (docs/DESIGN-v0.17-SELF-UPDATE.md), which is the one operation
+    /// in dotquay that must move a file that is currently <em>running</em>. Windows refuses to delete
+    /// a running image but allows renaming it, so "replace the executable" is spelled as two renames
+    /// inside one directory rather than a delete and a write. A same-directory move is as close to
+    /// atomic as the OS offers, which is what keeps the window where no dotquay exists down to one
+    /// rename.
+    /// </remarks>
+    void MoveFile(string source, string destination, bool overwrite = false);
+
+    /// <summary>
+    /// Adds the executable bit for owner, group and other on Unix. No-op on Windows, where
+    /// executability comes from the file extension, and on a file that doesn't exist.
+    /// </summary>
+    /// <remarks>
+    /// The sibling of <see cref="SetOwnerOnlyPermissions"/>, and here for the same reason: a
+    /// downloaded release binary arrives as plain bytes carrying no mode at all, and a dotquay that
+    /// installed itself without this would be a dotquay that cannot be run.
+    /// </remarks>
+    void SetExecutablePermissions(string path);
+
+    /// <summary>
     /// Restricts <paramref name="path"/> so only its owner can read or write it (<c>0600</c> on
     /// Unix). No-op on Windows and when the file doesn't exist.
     /// </summary>

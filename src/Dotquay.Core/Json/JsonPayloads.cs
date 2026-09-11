@@ -481,3 +481,53 @@ public sealed record SourceJson
     /// </remarks>
     public bool HasCredential { get; init; }
 }
+/// <summary>Payload of <c>dotquay self check --json</c> (v0.17).</summary>
+/// <remarks>
+/// Carries both versions rather than only the verdict: the editor plugin renders "0.17.0 -> 0.18.0"
+/// in its banner, and a consumer that only learned <c>update_available</c> would have to run
+/// <c>--version</c> separately to say anything useful.
+/// </remarks>
+public sealed record SelfCheckJson
+{
+    public required string CurrentVersion { get; init; }
+
+    /// <summary>Null when the channel has published nothing, which is distinct from "you are up to
+    /// date" and should not be rendered as it.</summary>
+    public string? LatestVersion { get; init; }
+
+    public bool UpdateAvailable { get; init; }
+
+    /// <summary>The channel's host, never a URL carrying anything secret.</summary>
+    public required string Channel { get; init; }
+
+    /// <summary>Which binary a <c>self update</c> would replace. The single most useful field when
+    /// someone has two dotquays on PATH and updates the wrong one.</summary>
+    public required string Executable { get; init; }
+
+    public string? ReleasedAt { get; init; }
+
+    /// <summary>The runtime identifiers this release actually published, so a UI can say "no
+    /// win-x64 build in 0.18.0" instead of failing silently.</summary>
+    public IReadOnlyList<string> AvailableRids { get; init; } = [];
+}
+
+/// <summary>Payload of <c>dotquay self update --json</c> and <c>self rollback --json</c> (v0.17).</summary>
+public sealed record SelfUpdateJson
+{
+    public required string From { get; init; }
+
+    public required string To { get; init; }
+
+    /// <summary>False for "already current" and for <c>--dry-run</c> alike. A consumer that needs to
+    /// tell those apart reads <c>messages</c>; a consumer that only needs to know whether to re-read
+    /// the version reads this.</summary>
+    public bool Changed { get; init; }
+
+    public required string Executable { get; init; }
+
+    /// <summary>Where the replaced binary was kept, and therefore what <c>self rollback</c> would
+    /// restore. Null when nothing was replaced.</summary>
+    public string? PreviousBinary { get; init; }
+
+    public IReadOnlyList<string> Messages { get; init; } = [];
+}

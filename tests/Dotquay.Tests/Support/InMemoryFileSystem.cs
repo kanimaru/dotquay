@@ -43,8 +43,34 @@ public sealed class InMemoryFileSystem : IFileSystem
     public void WriteAllBytes(string path, byte[] contents)
     {
         var key = Resolve(path);
+        GuardWritable(key);
         CreateDirectory(ParentOf(key));
         _files[key] = contents;
+    }
+
+    /// <summary>Directories this fake refuses to be written into, as a real one refuses a directory
+    /// the process does not own. Modelled rather than stubbed because the self-update writability
+    /// guard (docs/DESIGN-v0.17-SELF-UPDATE.md) exists precisely to turn that refusal into an
+    /// explanation, and a fake that always succeeds cannot test an explanation.</summary>
+    public HashSet<string> ReadOnlyDirectories { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Files that had <see cref="SetExecutablePermissions"/> called on them while they
+    /// existed, and that kept it across a move - which is the behaviour a downloaded binary depends
+    /// on and the only reason the bit is modelled at all.</summary>
+    public HashSet<string> ExecutableFiles { get; } = new(StringComparer.Ordinal);
+
+    private void GuardWritable(string key)
+    {
+        var parent = ParentOf(key);
+
+        foreach (var directory in ReadOnlyDirectories)
+        {
+            var normalized = Normalize(directory);
+            if (parent == normalized || parent.StartsWith(normalized + "/", StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException($"Access to the path '{key}' is denied.");
+            }
+        }
     }
 
     public void CreateDirectory(string path)
@@ -96,6 +122,44 @@ public sealed class InMemoryFileSystem : IFileSystem
     }
 
     public void DeleteFile(string path) => _files.Remove(Normalize(path));
+
+    public void MoveFile(string source, string destination, bool overwrite = false)
+    {
+        var from = Resolve(source);
+        var to = Resolve(destination);
+
+        if (!_files.TryGetValue(from, out var contents))
+        {
+            throw new FileNotFoundException($"No such file in the in-memory filesystem: {source}", source);
+        }
+
+        if (!overwrite && _files.ContainsKey(to))
+        {
+            throw new IOException($"The file '{destination}' already exists.");
+        }
+
+        GuardWritable(to);
+        CreateDirectory(ParentOf(to));
+
+        _files[to] = contents;
+        _files.Remove(from);
+
+        if (ExecutableFiles.Remove(from))
+        {
+            ExecutableFiles.Add(to);
+        }
+    }
+
+    public void SetExecutablePermissions(string path)
+    {
+        var key = Resolve(path);
+
+        // Matches the real implementation, which returns early for a missing file.
+        if (_files.ContainsKey(key))
+        {
+            ExecutableFiles.Add(key);
+        }
+    }
 
     /// <summary>Paths that had <see cref="SetOwnerOnlyPermissions"/> called on them while they
     /// existed. Modelled rather than stubbed, so "the credential file is written owner-only" is a

@@ -36,6 +36,11 @@ const MAX_LOG_ENTRIES := 200
 @onready var _locate_button: Button = %LocateButton
 @onready var _init_button: Button = %InitButton
 
+@onready var _update_banner: PanelContainer = %UpdateBanner
+@onready var _update_message: Label = %UpdateMessage
+@onready var _update_button: Button = %UpdateButton
+@onready var _update_dismiss_button: Button = %UpdateDismissButton
+
 @onready var _conflict_dialog: DotquayConflictDialog = %ConflictDialog
 @onready var _add_dialog: DotquayAddDependencyDialog = %AddDialog
 @onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
@@ -70,6 +75,11 @@ var _refresh_tracker := DotquayRefreshTracker.new()
 ## The log's contents, in message units. The [RichTextLabel] is a view of this, rebuilt on change.
 var _log_buffer := DotquayLogBuffer.new(MAX_LOG_ENTRIES)
 
+## Whether this editor session has already asked the release channel about the CLI (v0.17). Once,
+## not once per panel focus: [method refresh] runs every time the tab is shown, and reaching the
+## network on each of those would be a worse habit than the one this feature is fixing.
+var _self_checked := false
+
 
 func _ready() -> void:
 	_cli = CLI_SCRIPT.new()
@@ -90,6 +100,8 @@ func _ready() -> void:
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
 	_locate_button.pressed.connect(_on_locate_pressed)
 	_init_button.pressed.connect(_on_init_pressed)
+	_update_button.pressed.connect(_on_self_update_pressed)
+	_update_dismiss_button.pressed.connect(_on_self_update_dismissed)
 
 	_busy.add_theme_color_override("font_color", DotquayPalette.WARN)
 	_setup_message.add_theme_color_override("font_color", DotquayPalette.WARN)
@@ -128,6 +140,20 @@ func _wire_toolbar() -> void:
 ## Reloads the graph from the lockfile — fast, offline, and safe to call on every panel focus.
 func refresh() -> void:
 	_run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph"]))
+	_check_for_cli_update()
+
+
+## Asks the CLI whether a newer one exists, at most once per editor session.
+##
+## The plugin is asking on behalf of a binary it does not own: the thing being replaced is the
+## `dotquay` executable this panel shells out to, not the plugin, so nothing here needs a restart -
+## only a re-read of the version, which the next envelope carries anyway.
+func _check_for_cli_update() -> void:
+	if _self_checked:
+		return
+
+	_self_checked = true
+	_run(DotquayWire.COMMAND_SELF_CHECK, PackedStringArray(["self", "check"]))
 
 
 ## Re-walks live git refs. The only mode that can discover a conflict (SPEC.md §8), and the only one
@@ -349,6 +375,21 @@ func _on_busy_changed(is_busy: bool) -> void:
 
 
 func _on_cli_finished(result: DotquayResult) -> void:
+	# Handled before the setup banner and before the shared error path. A self-check that could not
+	# reach the release channel says nothing about whether this project is set up, and must not be
+	# allowed to rewrite a banner about the project or to put a red line in the log: dotquay's
+	# release project is private, and someone who has not logged in to it is in a perfectly ordinary
+	# state that they should not be told off for once per session.
+	if result.command == DotquayWire.COMMAND_SELF_CHECK:
+		_report_self_check(result)
+		_finish_refresh_cycle(result.ticket)
+		return
+
+	if result.command == DotquayWire.COMMAND_SELF_UPDATE:
+		_report_self_update(result)
+		_finish_refresh_cycle(result.ticket)
+		return
+
 	_update_setup_banner(result)
 
 	for warning in result.warnings:
@@ -450,6 +491,50 @@ func _show_explanation(result: DotquayResult) -> void:
 
 ## Only ever reached from the explain dialog, and only when it judged the change benign — so the log
 ## line says what was discarded rather than just naming the flag.
+func _report_self_check(result: DotquayResult) -> void:
+	if not result.ok:
+		_update_banner.visible = false
+		return
+
+	var latest := String(result.data.get("latest_version", ""))
+	if latest.is_empty() or not bool(result.data.get("update_available", false)):
+		_update_banner.visible = false
+		return
+
+	_update_message.text = "dotquay %s is available - this editor is running %s." % [
+		latest, String(result.data.get("current_version", ""))]
+	_update_banner.visible = true
+
+
+func _report_self_update(result: DotquayResult) -> void:
+	_update_button.disabled = false
+
+	for message in result.data.get("messages", []):
+		_log_line(String(message))
+
+	if not result.ok:
+		_log_error(result.error_message)
+		# Left visible on purpose: the update is still available, and hiding the one control that
+		# retries it would make a transient network failure look like a permanent one.
+		return
+
+	_update_banner.visible = false
+
+	# The CLI that answers from here on is a different binary. Refreshing costs one lockfile read
+	# and means the version every later envelope reports is the new one.
+	refresh()
+
+
+func _on_self_update_pressed() -> void:
+	_update_button.disabled = true
+	_update_message.text = "updating dotquay..."
+	_run(DotquayWire.COMMAND_SELF_UPDATE, PackedStringArray(["self", "update"]))
+
+
+func _on_self_update_dismissed() -> void:
+	_update_banner.visible = false
+
+
 func _on_force_update_requested(addon_name: String) -> void:
 	_log_warning("Force-updating %s, discarding the editor-generated changes listed in the dialog."
 		% addon_name)

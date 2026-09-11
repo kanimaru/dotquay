@@ -47,6 +47,9 @@ dotquay install                                # fresh clone -> addons/ + .cspro
 | `status` | Diff disk against the lockfile: clean / patched as expected / modified / missing. |
 | `patch <name>` | Capture hand-edits to an installed addon as a patch file, replayed via 3-way merge on future `install`/`update`. |
 | `doctor` | Run sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned `addons/` folders. |
+| `self check` | Ask whether a newer dotquay exists. Exits 3 when one does. |
+| `self update` | Download, verify and install the newest dotquay, replacing this executable. |
+| `self rollback` | Put back the dotquay the last update replaced. |
 
 Run `dotquay --help` or `dotquay <command> --help` for the full option list.
 
@@ -178,3 +181,30 @@ Tagging also triggers `bump-version`, which pushes a follow-up commit to `main` 
 developed under the next version. This job runs independently of test/build/release — it moves
 the version forward even if the build breaks — and needs a `VERSION_BUMP_TOKEN` CI/CD variable
 (a Maintainer-scoped access token with `write_repository`) to push to the protected branch.
+
+## Installing, and staying current
+
+```sh
+# Linux / macOS
+DOTQUAY_TOKEN=<gitlab token> sh scripts/install.sh
+
+# Windows
+$env:DOTQUAY_TOKEN = "<gitlab token>"; .\scripts\install.ps1
+```
+
+Both verify the download against the checksum the release publishes, run it once before installing
+it, and put it in `~/.local/bin` — the same place `dotquay self update` expects to be able to write,
+so anything installed this way can keep itself current afterwards:
+
+```
+dotquay self check      # is there a newer one?
+dotquay self update     # install it
+dotquay self rollback   # put the previous one back
+```
+
+A one-line notice on stderr mentions a new release at most once a day; `dotquay self notify off`
+turns it off without turning off `self check`. The release project is private, so run
+`dotquay login gitlab.kemomi.de` once and updates work without a token on the command line.
+
+Design and the reasoning behind every refusal: [`docs/DESIGN-v0.17-SELF-UPDATE.md`](docs/DESIGN-v0.17-SELF-UPDATE.md).
+

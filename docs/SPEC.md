@@ -85,6 +85,10 @@ Key consequence: commands split along the stage boundary.
 | `dotquay source remove <name>` | — | Remove a declared feed. Refuses while a manifest pin or lockfile record still names it; `--force` clears those and reports each one (v0.14) |
 | `dotquay login [<host\|url>]` | — | Store a username/token for a host in the shared credential file (§11.2). `--token-stdin` for scripts, no-echo prompt otherwise; `--list` shows hosts without tokens; verifies before saving unless `--no-verify` (v0.7) |
 | `dotquay logout <host>` | — | Remove that host's stored credential. Exact key only — never prefix-matched (v0.7) |
+| `dotquay self check` | — | Ask the release channel whether a newer dotquay exists (§19). Exits 3 when one does — not 1, because a newer dotquay is not a failure (v0.17) |
+| `dotquay self update` | — | Download, verify and install the newest dotquay, replacing this executable (§19). `--to <version>` pins a version (older allowed, and said out loud); `--dry-run` reports and writes nothing; `--force` reinstalls and skips the build-output guard (v0.17) |
+| `dotquay self rollback` | — | Restore the binary the last update replaced, after re-checking that it still starts (v0.17) |
+| `dotquay self notify on\|off` | — | Turn the passive "a newer dotquay exists" line on or off. Never affects `self check` or `self update` (v0.17) |
 
 Two options are global to every command (v0.5):
 
@@ -863,6 +867,7 @@ every project's packages in that group and may remove the need for any of this.
 | P1-8 | Godot editor plugin (§18) | Given the plugin enabled in a Godot 4.7 project, when the Dotquay tab is opened, then the dependency graph renders from the lockfile with no network access, conflicts can be resolved by picking a version, and add/update/remove/install run through the CLI — **done (v0.5)** |
 | P1-9 | Multiple named NuGet feeds (§11.1) | Given two private feeds and a package on each, when `add`/`install` runs, then each resolves from its declared feed, the lockfile records which, and `dotnet restore` fetches from the same one — **proposed (v0.7)**, `docs/DESIGN-v0.7-AUTH.md` |
 | P1-11 | Addon-declared NuGet feeds with project-side trust (§11.3) | Given an addon declaring a feed on a host in `trusted_hosts`, when `update` runs, then the package resolves from it and the feed is written into the committed manifest attributed to that addon; given an untrusted host and no way to ask, then nothing is adopted and the failure names the declined feed; given `install`, then nothing is ever adopted — **done (v0.8)** |
+| P1-12 | dotquay updates itself (§19) | Given a release newer than the running binary, when `self update` runs, then the executable is replaced by a download whose checksum matches the release manifest and which reports the expected version when started, the previous binary is kept for `self rollback`, and a failure at any step leaves the installation exactly as it was — **done (v0.17)**, `docs/DESIGN-v0.17-SELF-UPDATE.md` |
 | P1-10 | Shared credential store and `login`/`logout` (§11.2) | Given `dotquay login <host>`, when a later command hits any feed or git repo on that host, then it authenticates without an environment variable; given no credential, then it fails with `error.kind = "auth"` rather than hanging on a prompt; given a token configured, then it appears in no committed file — **proposed (v0.7)** |
 
 ### P2 — future considerations (design for, don't build)
@@ -1095,3 +1100,57 @@ contract breaks: a renamed JSON key compiles, passes every fixture, and produces
 ---
 
 *Companion document: `docs/how-it-works.md` (planned) — a visual explainer of package manager internals, one figure per pipeline stage.*
+
+## 19. Keeping dotquay current (v0.17)
+
+CI cuts a release on every green push to `main` that touches `src/**` (§12), so "the version people
+are running" and "the version that exists" drift apart within a day. The complaint this answers is
+not that updating is hard — it is that nobody knew there was anything to update to. So the **notice**
+is the feature and `self update` is what the notice tells you to run. Full design:
+`docs/DESIGN-v0.17-SELF-UPDATE.md`.
+
+### 19.1 The release channel
+
+Releases are looked up through an `IReleaseChannel`. The shipping implementation reads a GitLab
+project's Releases API and the per-version `manifest.json` CI uploads beside the binaries:
+
+```json
+{ "schema": 1, "version": "0.17.0", "released_at": "...",
+  "assets": [ { "rid": "linux-x64", "file_name": "dotquay-linux-x64",
+                "url": "...", "sha256": "...", "size": 11534336 } ] }
+```
+
+One immutable document per version, so "what is newest, for my platform, and what should it hash to"
+is two requests and cannot disagree with itself. There is no mutable `latest.json`: "newest" is
+answered by the Releases API, which is already the authority on what shipped.
+
+The channel URL is `[update] channel` in `~/.dotquay/config.toml`, or `DOTQUAY_UPDATE_URL`, defaulting
+to dotquay's own project. Credentials come from the existing stack (§11.2) — the release project is
+private, and someone already logged in for its NuGet feed is already logged in for updates.
+
+**No checksum, no update.** A release that publishes none is refused by name. There is no override:
+the value of a self-updater is that it is less risky than downloading a binary by hand, and an
+unverified download is exactly as risky as that.
+
+### 19.2 Replacing a running executable
+
+One path on every OS: download beside the executable, hash it, `chmod +x`, **run it with `--version`
+and require the version the manifest promised**, rename the running binary to `dotquay.old-<version>`,
+rename the download into its place, and keep exactly one retired binary for `self rollback`. Windows
+cannot delete a running image but can rename one, which is what makes two renames inside one
+directory the whole mechanism — and what keeps the window in which no dotquay exists down to a single
+rename, undone if the second one fails.
+
+`self update` refuses before touching the network when the executable is a build output (an `obj`
+segment, a `bin` followed by a configuration name, or a `.pdb`/`.deps.json` beside it — a bare `bin`
+is not a marker, because `~/.local/bin` is where the install scripts put it), when its directory is
+not writable, and when the release has no build for this platform.
+
+### 19.3 The notice
+
+Printed to **stderr** after the command, rendered from `~/.dotquay/update-check.json` and never from a
+live request, with a detached refresh given 500 ms at exit to land. stdout is a contract (§17) and
+suppressing this under `--json` alone would not be enough — `dotquay list | grep` is just as
+parseable. Silent under `--json`, when stderr is redirected, when `CI` is set, under the `self`
+command group, and when turned off by `self notify off` or `DOTQUAY_NO_UPDATE_CHECK`.
+

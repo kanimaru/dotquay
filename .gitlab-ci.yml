@@ -214,10 +214,20 @@ build:linux-x64:
       PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-0.0.0-ci-$CI_COMMIT_SHORT_SHA}}"
       echo "building dotquay $PKG_VERSION"
       dotnet publish src/Dotquay.Cli -c Release -r linux-x64 --self-contained -p:PublishAot=true -p:Version="$PKG_VERSION" -o publish/linux-x64
+
+      # Checksum and size, recorded here because here is the only place that has ever seen the bytes
+      # this pipeline produced. `dotquay self update` refuses a download that does not match (v0.17,
+      # docs/DESIGN-v0.17-SELF-UPDATE.md), which is only worth anything if the expected value comes
+      # from the build rather than from the same request as the binary.
+      sha256sum publish/linux-x64/dotquay | cut -d' ' -f1 > publish/linux-x64/dotquay.sha256
+      stat -c%s publish/linux-x64/dotquay > publish/linux-x64/dotquay.size
+      cat publish/linux-x64/dotquay.sha256
   artifacts:
     name: "dotquay-linux-x64-$CI_COMMIT_SHORT_SHA"
     paths:
       - publish/linux-x64/dotquay
+      - publish/linux-x64/dotquay.sha256
+      - publish/linux-x64/dotquay.size
     expire_in: 30 days
 
 build:windows-x64:
@@ -231,10 +241,16 @@ build:windows-x64:
       # PublishAot explicitly disabled here -- see the file header. Still self-contained + trimmed +
       # single-file, just not natively compiled, since no real Windows build host is available.
       dotnet publish src/Dotquay.Cli -c Release -r win-x64 --self-contained -p:PublishAot=false -p:PublishTrimmed=true -p:PublishSingleFile=true -p:Version="$PKG_VERSION" -o publish/win-x64
+
+      sha256sum publish/win-x64/dotquay.exe | cut -d' ' -f1 > publish/win-x64/dotquay.exe.sha256
+      stat -c%s publish/win-x64/dotquay.exe > publish/win-x64/dotquay.exe.size
+      cat publish/win-x64/dotquay.exe.sha256
   artifacts:
     name: "dotquay-windows-x64-$CI_COMMIT_SHORT_SHA"
     paths:
       - publish/win-x64/dotquay.exe
+      - publish/win-x64/dotquay.exe.sha256
+      - publish/win-x64/dotquay.exe.size
     expire_in: 30 days
 
 # ---------------------------------------------------------------------------
@@ -303,6 +319,27 @@ smoke:linux-x64:
       echo "$OUT" | grep -q '"command":"doctor"' \
         || { echo "FAIL: doctor --json emitted no envelope"; exit 1; }
 
+      echo "--- 'self check' answers with an envelope rather than a stack trace"
+      # The release channel is a private project and this job holds no credential for it, so the
+      # expected outcome is an auth failure - and that is still the assertion worth making. An
+      # AOT serialization bug in the new payload surfaces as *no envelope at all*, which is exactly
+      # what the editor plugin cannot cope with (SPEC.md 17). Whether the success payload
+      # serializes is verified by hand against a real AOT binary with a credential; CI cannot see it.
+      OUT=$("$BIN" self check --json || true)
+      echo "$OUT"
+      echo "$OUT" | grep -q '"command":"self-check"' \
+        || { echo "FAIL: self check --json emitted no envelope"; exit 1; }
+      if echo "$OUT" | grep -q '\"ok\":true'; then
+        echo "$OUT" | grep -q '"current_version"' \
+          || { echo "FAIL: a successful self check --json carried no payload"; exit 1; }
+      fi
+
+      echo "--- 'self update' refuses politely rather than crashing"
+      OUT=$("$BIN" self update --dry-run --json || true)
+      echo "$OUT"
+      echo "$OUT" | grep -q '"command":"self-update"' \
+        || { echo "FAIL: self update --json emitted no envelope"; exit 1; }
+
       echo "--- the published binary is good"
 
 # ---------------------------------------------------------------------------
@@ -341,6 +378,8 @@ upload:linux-x64:
       echo "uploading dotquay $PKG_VERSION (linux-x64)"
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dotquay \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}/dotquay-linux-x64"
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dotquay.sha256 \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}/dotquay-linux-x64.sha256"
 
 upload:windows-x64:
   extends: .upload
@@ -357,6 +396,56 @@ upload:windows-x64:
       echo "uploading dotquay $PKG_VERSION (windows-x64)"
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dotquay.exe \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}/dotquay-windows-x64.exe"
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dotquay.exe.sha256 \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}/dotquay-windows-x64.exe.sha256"
+
+# ---------------------------------------------------------------------------
+# upload:manifest -- the one document `dotquay self update` reads
+# ---------------------------------------------------------------------------
+# One immutable document per version, naming every published binary and what it should hash to. It
+# is what lets a self-update answer "what is newest, for my platform, and is this really it" in one
+# round trip, and it cannot disagree with itself the way a binary and a separately-fetched checksum
+# can.
+#
+# Uploaded last, and needing both upload jobs rather than just both builds: the URLs it names must
+# already resolve by the time anything reads it. There is deliberately no mutable `latest.json` -
+# "what is newest" is answered by the releases API, which is already the authority on what shipped,
+# and a mutable document would be one more thing for two concurrent publishes to race.
+upload:manifest:
+  extends: .upload
+  needs:
+    - job: auto-tag
+      optional: true
+    - job: build:linux-x64
+    - job: build:windows-x64
+    - job: upload:linux-x64
+      artifacts: false
+    - job: upload:windows-x64
+      artifacts: false
+  script:
+    - |
+      set -eu
+      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      PKG_VERSION="${PKG_VERSION:-$RELEASE_VERSION}"
+      test -n "$PKG_VERSION" || { echo "FAIL: no version to describe" >&2; exit 1; }
+
+      BASE="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}"
+
+      # printf rather than a heredoc: a heredoc's terminator has to survive YAML block-scalar
+      # indentation stripping to land in column 0, and a pipeline that breaks on a whitespace edit
+      # is a pipeline that will break on a whitespace edit.
+      printf '{"schema":1,"version":"%s","released_at":"%s","assets":[{"rid":"linux-x64","file_name":"dotquay-linux-x64","url":"%s/dotquay-linux-x64","sha256":"%s","size":%s},{"rid":"win-x64","file_name":"dotquay-windows-x64.exe","url":"%s/dotquay-windows-x64.exe","sha256":"%s","size":%s}]}' \
+        "$PKG_VERSION" \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$BASE" "$(cat publish/linux-x64/dotquay.sha256)" "$(cat publish/linux-x64/dotquay.size)" \
+        "$BASE" "$(cat publish/win-x64/dotquay.exe.sha256)" "$(cat publish/win-x64/dotquay.exe.size)" \
+        > manifest.json
+
+      cat manifest.json
+      echo
+
+      curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file manifest.json \
+        "$BASE/manifest.json"
 
 # Two release jobs with disjoint rules rather than one, because `release:tag_name` is expanded as a
 # CI variable and cannot take the shell fallback the upload jobs use for PKG_VERSION. A
@@ -377,6 +466,8 @@ release:tagged:
       artifacts: false
     - job: upload:windows-x64
       artifacts: false
+    - job: upload:manifest
+      artifacts: false
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
   variables:
@@ -391,6 +482,14 @@ release:tagged:
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64"
         - name: "dotquay-windows-x64.exe"
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"
+        # The link `dotquay self update` looks for by name. Without it a release is invisible to the
+        # self-updater, which reports "publishes no binaries at all" rather than guessing at URLs.
+        - name: "manifest.json"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/manifest.json"
+        - name: "dotquay-linux-x64.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64.sha256"
+        - name: "dotquay-windows-x64.exe.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe.sha256"
 
 release:auto:
   extends: .release
@@ -402,6 +501,8 @@ release:auto:
     - job: upload:linux-x64
       artifacts: false
     - job: upload:windows-x64
+      artifacts: false
+    - job: upload:manifest
       artifacts: false
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -417,3 +518,9 @@ release:auto:
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-linux-x64"
         - name: "dotquay-windows-x64.exe"
           url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-windows-x64.exe"
+        - name: "manifest.json"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/manifest.json"
+        - name: "dotquay-linux-x64.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-linux-x64.sha256"
+        - name: "dotquay-windows-x64.exe.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-windows-x64.exe.sha256"

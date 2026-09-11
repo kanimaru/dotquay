@@ -25,6 +25,8 @@ namespace Dotquay.Core.Json;
 [JsonSerializable(typeof(JsonEnvelope<LoginJson>))]
 [JsonSerializable(typeof(JsonEnvelope<AddPreviewJson>))]
 [JsonSerializable(typeof(JsonEnvelope<SourceListJson>))]
+[JsonSerializable(typeof(JsonEnvelope<SelfCheckJson>))]
+[JsonSerializable(typeof(JsonEnvelope<SelfUpdateJson>))]
 public sealed partial class DotquayJsonContext : JsonSerializerContext
 {
 }
@@ -60,4 +62,10 @@ public static class DotquayJson
 
     public static string Write(JsonEnvelope<SourceListJson> envelope) =>
         JsonSerializer.Serialize(envelope, DotquayJsonContext.Default.JsonEnvelopeSourceListJson);
+
+    public static string Write(JsonEnvelope<SelfCheckJson> envelope) =>
+        JsonSerializer.Serialize(envelope, DotquayJsonContext.Default.JsonEnvelopeSelfCheckJson);
+
+    public static string Write(JsonEnvelope<SelfUpdateJson> envelope) =>
+        JsonSerializer.Serialize(envelope, DotquayJsonContext.Default.JsonEnvelopeSelfUpdateJson);
 }
