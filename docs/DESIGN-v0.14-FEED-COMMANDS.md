@@ -1,6 +1,7 @@
 # Design — v0.14: declaring feeds and package metadata without a text editor
 
-Status: **proposed, not implemented**, 2026-09-10.
+Status: **implemented and verified against a real NativeAOT binary**, 2026-09-11.
+941 C# tests green. See *As built* at the end for where the implementation departed from this design.
 
 Motivating case: adding `Dev.Kani.Godot.Generator` (a Roslyn source generator for Godot, published
 to a private GitLab feed at `gitlab.kemomi.de`, project 130) to a Godot project.
@@ -271,3 +272,89 @@ commands touch; two flags and two questions on `add`; one nuspec fetch on a reso
 `NuGetV3Client` already discovers; a `.csproj` property probe next to the one
 `CsprojPackageReferenceWriter` already opens. No new dependency, no new file format, no change to
 any existing default, and nothing new for the Godot plugin to parse.
+
+## As built
+
+Shipped 2026-09-11 across three commits: `36a46a7` (the `source` group and `--source`), `76d55d1`
+(the generator question), and `dc10ea9` (a pre-existing bug the verification turned up). Four
+decisions this design did not settle, and one failure it did not predict.
+
+**D11 — `DotnetSpec` and `LockedDotnet` gained `WithoutSource()` rather than being copied at the call
+site.** Both are classes with init-only properties, not records, so `with` does not compile on them.
+The copy lives on the type on purpose: `LockedAddon` was a class with hand-written copy helpers that
+silently dropped `Folder` when that field was added, and an inline copy in `SourceWorkflow` would have
+been the same trap one property later.
+
+**D12 — `INuGetClient` gained `VerifySourceAsync`, not a sentinel package lookup.** "Ask for a package
+nobody published and see whether it throws" conflates two different answers: a 404 for an absent
+package is a perfectly healthy feed. Only the service index can say whether a URL is a feed at all.
+
+**D13 — `CsprojPackable` returns the property *name*, not a bool.** The probe is a heuristic, and the
+prompt names what it read ("This project sets PackageId"). A user asked an unexpected question about
+their own project is owed the evidence behind it. Properties are collected before anything is decided,
+so precedence does not depend on which line the author typed first, and an explicit
+`IsPackable=false` wins outright.
+
+**D14 — the two-question flow is one seam call, not two.** `IGeneratorAssetDecision.KeepPrivate` is
+consulted once, only after both gates pass, and the console implementation asks both questions behind
+it. Splitting the interface would have put the packable probe — a fact dotquay computes — on the same
+footing as a question only the user can answer.
+
+### The bug real-binary verification found
+
+The unit suite was green at 937 tests and `add` still failed against the live GitLab feed:
+
+```
+NU1101: Unable to find package Dev.Kani.Godot.Generator ... PackageSourceMapping is
+enabled, the following source(s) were not considered: dotquay-lazy_o.
+```
+
+The per-package install built `<packageSourceMapping>` from `PinnedPackages()` alone, read from the
+manifest *as it is on disk* — and during `add` the package being added is not in the manifest yet,
+because the manifest is written only after the install succeeds. So the file held nothing but the `*`
+catch-all aimed at nuget.org. The resolved feed was already threaded through for the lockfile record;
+it simply never reached the mapping. §11.1 had asked for this all along ("`dotnet restore` is bound to
+the same feed via `<packageSourceMapping>`"); it was true of the final restore and not of the install.
+
+Nothing in the suite could have caught it: `FakeDotnetCliRunner` does not read `NuGet.Config`, so no
+test was looking at the file. `AddSourceMappingTests` now reads it. This is the same shape of finding
+as v0.7's BOM-on-a-token and v0.10's JSON payload — the third time this project's "a green suite is
+not evidence the CLI works" rule has paid for itself, and worth one more entry in the tally.
+
+### Verified from the published `win-x64` AOT binary, against real feeds
+
+- `source add` verified a live private GitLab feed (project 130) and wrote the manifest; `source list`
+  and `source list --json` both correct, the new `SourceListJson` payload serialising cleanly — the
+  AOT-critical check, since a payload missing from `DotquayJsonContext` builds and tests fine and
+  fails only in the real binary.
+- `add --version 0.0.5 --source lazy_o` restored from the private feed after the mapping fix.
+- `add PolySharp --version 1.15.0 --keep-generator-private` into a packable project detected
+  `developmentDependency` from the real nuspec on nuget.org and wrote `private_assets = ["all"]` to
+  both `dotquay.toml` and the `.csproj`.
+- The same command into a non-packable project wrote nothing, which is the quiet path that matters
+  most.
+- `source remove` refused while pinned and named the package; `--force` cleared the manifest pin and
+  the lockfile record and reported both.
+- Both generator flags together, and `--source` against a git URL, refused with the intended messages.
+- Every written `dotquay.toml` inspected as raw bytes: no BOM, no non-ASCII.
+
+### Deferred, with the reason it changed
+
+**A NuGet `add --preview` is now worth having, and is not built.** v0.9 refused one on the grounds that
+"a NuGet add pulls in no addons and declares no feeds, so a preview of one would be a dialog with
+nothing in it" — and this feature is exactly what makes that false: there is now something to report,
+namely whether the package is a generator and whether this project looks published. Without it the
+editor plugin cannot know when to offer the choice, so the generator question is CLI-only for now.
+The two booleans this design proposed for the preview payload (`is_generator`,
+`project_is_packable`) were therefore not added; they belong with that preview when it is built.
+
+**No `doctor` check, as designed.** Intent is captured once, at add time, by someone answering a
+question they can answer. That also means no new `DoctorIssueKind`, no `JsonMapper` string, and nothing
+new for `core/dotquay_wire.gd` to learn — the whole feature touches the Godot plugin not at all.
+
+### One process note
+
+v0.15 and a v0.16 design landed from another session between this document being written and being
+implemented, so v0.14 ships after v0.15 did. The numbers identify design documents, not releases, and
+nothing about the ordering mattered — but the shared file (`DependencyWorkflow.cs`) was checked against
+both sets of changes rather than assumed, and both survived.

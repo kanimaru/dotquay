@@ -68,7 +68,7 @@ Key consequence: commands split along the stage boundary.
 |---|---|---|
 | `dotquay init` | — | Scaffold `dotquay.toml` in the project root |
 | `dotquay init --package` | — | Scaffold a package manifest (with `[package]` header) inside an addon folder |
-| `dotquay add <git-url>[#ref] \| <nuget-id>` | resolve | Add dependency to manifest, resolve, lock, install. With no source named, picks the newest release tag; no tags found → pin default-branch tip as `rev` and print a hint. Options: `--version`/`--branch`/`--rev` to name the source outright, `--path` for the subtree (§7.1, OQ-2), `--install-as` for the install folder. `#ref` shorthand asks the remote whether the ref is a branch, tag, or commit (v0.6). `--preview` reports what the add would do and writes nothing; `--adopt-source <url>` pre-approves an addon-declared feed (§6.3, v0.9) |
+| `dotquay add <git-url>[#ref] \| <nuget-id>` | resolve | Add dependency to manifest, resolve, lock, install. With no source named, picks the newest release tag; no tags found → pin default-branch tip as `rev` and print a hint. Options: `--version`/`--branch`/`--rev` to name the source outright, `--path` for the subtree (§7.1, OQ-2), `--install-as` for the install folder. `#ref` shorthand asks the remote whether the ref is a branch, tag, or commit (v0.6). `--preview` reports what the add would do and writes nothing; `--adopt-source <url>` pre-approves an addon-declared feed (§6.3, v0.9). `--source <name>` pins a NuGet package to one declared feed; `--keep-generator-private`/`--share-generator` answer the source-generator question without a prompt (v0.14) |
 | `dotquay remove <name>` | sync | Remove from manifest, lockfile, and disk |
 | `dotquay install` | sync | Make disk match lockfile exactly. Errors if lockfile missing entries from manifest |
 | `dotquay update [name]` | resolve | Re-resolve one or all dependencies, rewrite lockfile, install |
@@ -80,6 +80,9 @@ Key consequence: commands split along the stage boundary.
 | `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
 | `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
 | `dotquay link <name> <path>` | sync | Point an addon at a local folder for development (§7.4). `--remove` unlinks; no arguments lists them (v0.6) |
+| `dotquay source add <name> <url>` | — | Declare a NuGet feed (§7.1, §11.1). **Appended** after the feeds already declared, because declaration order is the resolution rule — a new feed must not silently outrank the existing ones. Verifies the service index before writing; `--no-verify` skips (v0.14) |
+| `dotquay source list` | — | Show declared feeds in search order, whether a credential resolves for each, and the implicit `nuget.org` (v0.14) |
+| `dotquay source remove <name>` | — | Remove a declared feed. Refuses while a manifest pin or lockfile record still names it; `--force` clears those and reports each one (v0.14) |
 | `dotquay login [<host\|url>]` | — | Store a username/token for a host in the shared credential file (§11.2). `--token-stdin` for scripts, no-echo prompt otherwise; `--list` shows hosts without tokens; verifies before saving unless `--no-verify` (v0.7) |
 | `dotquay logout <host>` | — | Remove that host's stored credential. Exact key only — never prefix-matched (v0.7) |
 
