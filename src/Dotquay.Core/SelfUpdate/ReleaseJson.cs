@@ -77,6 +77,29 @@ internal sealed class ReleaseAssetDocument
     public long Size { get; set; }
 }
 
+/// <summary>
+/// The body GitLab returns with a refusal.
+/// </summary>
+/// <remarks>
+/// Worth parsing rather than discarding, because a fine-grained personal access token's refusal
+/// names the exact permission it is missing ("[Release: Read]") in <c>error_description</c>. Without
+/// it, every 403 looks the same and the advice can only be a guess - which is how an afternoon goes
+/// into "the token has no api scope" when the token is fine and one checkbox is not ticked.
+/// </remarks>
+internal sealed class GitLabApiError
+{
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("error_description")]
+    public string? ErrorDescription { get; set; }
+
+    /// <summary>GitLab's older shape. A string here most of the time, but an object on validation
+    /// errors - which is why every read of this type is wrapped in a catch.</summary>
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
 /// <summary>What the last update check found, cached at <c>~/.dotquay/update-check.json</c> so the
 /// notice costs a file read rather than a request (docs/DESIGN-v0.17-SELF-UPDATE.md).</summary>
 public sealed class UpdateCheckState
@@ -99,6 +122,7 @@ public sealed class UpdateCheckState
 [JsonSerializable(typeof(GitLabRelease))]
 [JsonSerializable(typeof(ReleaseManifestDocument))]
 [JsonSerializable(typeof(UpdateCheckState))]
+[JsonSerializable(typeof(GitLabApiError))]
 internal sealed partial class SelfUpdateJsonContext : JsonSerializerContext
 {
 }

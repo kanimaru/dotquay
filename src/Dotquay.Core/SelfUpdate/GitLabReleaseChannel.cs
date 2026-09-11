@@ -96,7 +96,7 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     public async Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default)
     {
         using var response = await SendAsync(asset.Url, $"downloading {asset.FileName}", cancellationToken);
-        ThrowIfUnsuccessful(response, $"downloading {asset.FileName}");
+        await ThrowIfUnsuccessfulAsync(response, $"downloading {asset.FileName}", cancellationToken);
 
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
@@ -168,7 +168,7 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
             return default;
         }
 
-        ThrowIfUnsuccessful(response, what);
+        await ThrowIfUnsuccessfulAsync(response, what, cancellationToken);
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         return await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken);
@@ -199,40 +199,53 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     }
 
     /// <summary>
-    /// Branches on whether a credential was sent, not on the status code alone.
+    /// Reports a refusal in GitLab's own words when it gave any.
     /// </summary>
     /// <remarks>
-    /// Measured against gitlab.kemomi.de (reference_gitlab_api_status_codes): an unauthenticated 404
-    /// on a project endpoint is ambiguous between "does not exist" and "not allowed to see", because
-    /// GitLab denies both identically. With a valid credential the ambiguity is gone and 404 means
-    /// the URL is wrong — telling that user to log in would be advice that cannot work.
+    /// Reading the body is the whole point. A fine-grained personal access token names the exact
+    /// permission it is missing, and a client that throws that away can only offer a guess about
+    /// scopes - which is worse than saying nothing, because the guess sounds authoritative.
+    /// See <see cref="GitLabErrorExplanation"/> for the rest of the reasoning.
     /// </remarks>
-    private void ThrowIfUnsuccessful(HttpResponseMessage response, string what)
+    private async Task ThrowIfUnsuccessfulAsync(HttpResponseMessage response, string what, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
         {
             return;
         }
 
-        var status = $"{(int)response.StatusCode} {response.StatusCode}";
+        var authenticated = _authHeader is not null || _privateToken is not null;
+        var message = GitLabErrorExplanation.Describe(
+            response.StatusCode,
+            await ReadErrorDetailAsync(response, cancellationToken),
+            authenticated,
+            _describe,
+            what);
 
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-            || (response.StatusCode == HttpStatusCode.NotFound && _authHeader is null))
+        throw GitLabErrorExplanation.IsAuthFailure(response.StatusCode, authenticated)
+            ? new WorkflowException(message, new CredentialException(message))
+            : new WorkflowException(message);
+    }
+
+    /// <summary>GitLab's <c>error_description</c> or <c>message</c>, or null when the body is not one
+    /// of those shapes. Every failure here is null: an error body that cannot be parsed must not
+    /// replace the error it was describing.</summary>
+    private static async Task<string?> ReadErrorDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
         {
-            var message = _authHeader is null
-                ? $"The update channel ({_describe}) answered {status} while {what}. It is a private project, so "
-                  + $"this is most likely a missing credential: run 'dotquay login {_describe}'."
-                : $"The update channel ({_describe}) answered {status} while {what}. The stored credential was sent "
-                  + "and refused - it may have expired, or it may lack read_api scope.";
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (body.Length is 0 or > 8192)
+            {
+                return null;
+            }
 
-            throw new WorkflowException(message, new CredentialException(message));
+            var error = JsonSerializer.Deserialize(body, SelfUpdateJsonContext.Default.GitLabApiError);
+            return error?.ErrorDescription ?? error?.Message;
         }
-
-        throw new WorkflowException(
-            $"The update channel ({_describe}) answered {status} while {what}."
-            + (response.StatusCode == HttpStatusCode.NotFound
-                ? " A credential was accepted this far, so the channel URL is the likelier fault: it needs the"
-                  + " project's numeric ID, as in /api/v4/projects/<id>."
-                : string.Empty));
+        catch (Exception ex) when (ex is JsonException or HttpRequestException or IOException or NotSupportedException)
+        {
+            return null;
+        }
     }
 }
