@@ -152,38 +152,14 @@ internal static class LinkCommand
     }
 
     /// <summary>
-    /// The manifest's own spelling of <paramref name="name"/> if it names a <c>[dotnet.*]</c> package,
-    /// null if it doesn't (or there is no readable manifest, in which case an addon link is the right
-    /// default — it is what every link was before v0.11).
+    /// The project's spelling of <paramref name="name"/> if it names a <c>[dotnet.*]</c> package
+    /// this project declares or has adopted from an addon, null if it doesn't — in which case an
+    /// addon link is the right default (it is what every link was before v0.11). The decision
+    /// lives in <see cref="LinkTargetResolver"/> so it can be pinned against the in-memory
+    /// file system rather than a real project.
     /// </summary>
-    /// <remarks>
-    /// Matched case-insensitively because NuGet package IDs are, but the value returned is the
-    /// manifest's spelling: everything downstream keys on that, so accepting a differently-cased name
-    /// must not create a second entry under it.
-    /// </remarks>
-    private static string? ResolveDotnetPackageId(string projectDirectory, string name)
-    {
-        var fileSystem = new SystemFileSystem();
-        var manifestPath = fileSystem.CombinePath(projectDirectory, ProjectFileStore.ManifestFileName);
-
-        if (!fileSystem.FileExists(manifestPath))
-        {
-            return null;
-        }
-
-        try
-        {
-            return ManifestReader.ReadProject(fileSystem.ReadAllText(manifestPath), manifestPath)
-                .Dotnet.Keys
-                .FirstOrDefault(id => string.Equals(id, name, StringComparison.OrdinalIgnoreCase));
-        }
-        catch (ManifestParseException)
-        {
-            // A broken manifest is a problem for the commands that need it. Refusing to link over it
-            // would be this command inventing a prerequisite it doesn't actually have.
-            return null;
-        }
-    }
+    private static string? ResolveDotnetPackageId(string projectDirectory, string name) =>
+        LinkTargetResolver.ResolveDotnetPackageId(new SystemFileSystem(), projectDirectory, name);
 
     private static string Unlink(LocalLinks links, string projectDirectory, string name, string? packageId)
     {

@@ -317,6 +317,17 @@ one machine only. The line carries a comment saying it is safe to commit.
 **`--no-install` writes the link file only, overlay included.** Consistent with how the flag already
 behaves for addon links, and the command already tells you to run `install` to apply it.
 
+**Amended 2026-09-11 — adopted packages are linkable too.** `link` classified a name as a package
+only if the consumer's own `dotquay.toml` had a `[dotnet.<id>]` entry. A package *adopted* from an
+addon's package manifest (vbeami's `[dotnet.VBeami.Core]`, pulled into BotV2 by `update`) lands in the
+consumer's lockfile and `.csproj` but never in its manifest — so the author of exactly the library
+this design was written for could not link it, and the name fell through to an addon link that tried
+to junction `addons/VBeami.Core`. The decision now lives in `Dotquay.Core.Local.LinkTargetResolver`
+and consults the manifest first, then the lockfile's `[[dotnet]]` entries (the record of what the
+project has, whatever route it arrived by); the manifest's spelling wins when both name it. The
+install side never needed the manifest — the overlay removes a `PackageReference` by ID — so nothing
+else changed. `LinkTargetResolverTests` pins it against the in-memory file system.
+
 ### Verified end to end (published NativeAOT binary, real Roslyn generator)
 
 A consuming project declaring `[dotnet."Dev.Kani.Gen"]` — a package that exists on no feed anywhere —
