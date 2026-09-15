@@ -50,6 +50,11 @@ const MAX_LOG_ENTRIES := 200
 var _cli: DotquayCli
 var _graph: DotquayGraph
 
+## Mirrors [signal DotquayCli.busy_changed]; kept separately from [member _busy]'s visibility because
+## [method _update_toolbar_state] needs busy state whenever readiness changes too, not only when
+## busy itself changes.
+var _is_busy := false
+
 ## Re-imports what the CLI wrote. Owned here rather than by [DotquayCli] because it reacts to what a
 ## command *reported*, not to a process exiting — an `install` that changed nothing should not make
 ## the editor walk the project.
@@ -80,6 +85,11 @@ var _log_buffer := DotquayLogBuffer.new(MAX_LOG_ENTRIES)
 ## network on each of those would be a worse habit than the one this feature is fixing.
 var _self_checked := false
 
+## Whether the last graph result implied a working CLI and an existing manifest. Buttons that mutate
+## the project are gated on this rather than just on busy state, so a fresh, unconfigured project
+## can't be told to `install` or `update` before there is anything for those commands to act on.
+var _project_ready := false
+
 
 func _ready() -> void:
 	_cli = CLI_SCRIPT.new()
@@ -91,6 +101,9 @@ func _ready() -> void:
 	_log_buffer.changed.connect(_render_log)
 
 	_wire_toolbar()
+	# Nothing is known to be ready yet — gate the mutating buttons immediately rather than leaving
+	# them clickable until the first busy_changed or graph result arrives.
+	_update_toolbar_state()
 
 	_graph_view.node_action_requested.connect(_on_node_action)
 	_add_dialog.add_requested.connect(_on_add_requested)
@@ -113,6 +126,11 @@ func _ready() -> void:
 
 	# No refresh here: the plugin adds this panel hidden and refreshes it on first show, so a refresh
 	# in _ready would only ever run the CLI twice for one tab click.
+
+	# Belt-and-braces alongside the scene's own default: the scene should never carry placeholder
+	# text, but the script owning the truth means a bad scene default can't put a fake summary on
+	# screen before a real graph ever comes back.
+	_summary.text = ""
 
 
 ## Only ever running while [member _rescan] is waiting for the editor to finish a scan of its own.
@@ -213,12 +231,12 @@ func _on_install_confirmed(request: DotquayAddRequest, adopt_source_urls: Packed
 
 func _on_install_pressed() -> void:
 	_log_line("Installing from the lockfile...")
-	_run("install", PackedStringArray(["install"]), true)
+	_run(DotquayWire.COMMAND_INSTALL, PackedStringArray(["install"]), true)
 
 
 func _on_update_all_pressed() -> void:
 	_log_line("Updating everything...")
-	_run("update", PackedStringArray(["update"]), true)
+	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update"]), true)
 
 
 func _on_outdated_pressed() -> void:
@@ -233,7 +251,7 @@ func _on_node_action(action: String, addon_name: String) -> void:
 	match action:
 		DotquayDependencyNode.ACTION_UPDATE:
 			_log_line("Updating %s..." % addon_name)
-			_run("update", PackedStringArray(["update", addon_name]), true)
+			_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update", addon_name]), true)
 
 		DotquayDependencyNode.ACTION_REMOVE:
 			_pending_removal = addon_name
@@ -249,11 +267,11 @@ func _on_node_action(action: String, addon_name: String) -> void:
 
 		DotquayDependencyNode.ACTION_CLEAR_OVERRIDE:
 			_log_line("Clearing the override on %s..." % addon_name)
-			_run("override", PackedStringArray(["override", addon_name, "--clear"]), true)
+			_run(DotquayWire.COMMAND_OVERRIDE, PackedStringArray(["override", addon_name, "--clear"]), true)
 
 		DotquayDependencyNode.ACTION_CAPTURE_PATCH:
 			_log_line("Capturing edits to %s as a patch..." % addon_name)
-			_run("patch", PackedStringArray(["patch", addon_name]), true)
+			_run(DotquayWire.COMMAND_PATCH, PackedStringArray(["patch", addon_name]), true)
 
 		DotquayDependencyNode.ACTION_EXPLAIN:
 			# `--explain` compares against the locked commit, which can mean a fetch — so it is said
@@ -281,7 +299,7 @@ func _on_remove_confirmed() -> void:
 		return
 
 	_log_line("Removing %s..." % _pending_removal)
-	_run("remove", PackedStringArray(["remove", _pending_removal]), true)
+	_run(DotquayWire.COMMAND_REMOVE, PackedStringArray(["remove", _pending_removal]), true)
 	_pending_removal = ""
 
 
@@ -299,7 +317,7 @@ func _open_conflict_dialog(addon_name: String) -> void:
 		conflict.name = addon_name
 		conflict.kind = ""
 		conflict.message = (
-			"No conflict was reported for '%s'. Pinning it here writes an [overrides] entry that wins over every other constraint (SPEC.md §8)."
+			"No conflict was reported for '%s'. Pinning it here writes an [overrides] entry that wins over every other constraint."
 			% addon_name)
 
 		var node: DotquayGraph.AddonNode = _graph.find(addon_name)
@@ -325,12 +343,12 @@ func _on_override_chosen(addon_name: String, kind: String, value: String, git: S
 	else:
 		_log_line("Pinning %s to addons/%s..." % [addon_name, install_as])
 
-	_run("override", args, true)
+	_run(DotquayWire.COMMAND_OVERRIDE, args, true)
 
 
 func _on_init_pressed() -> void:
 	_log_line("Creating dotquay.toml...")
-	_run("init", PackedStringArray(["init"]), true)
+	_run(DotquayWire.COMMAND_INIT, PackedStringArray(["init"]), true)
 
 
 func _on_locate_pressed() -> void:
@@ -361,6 +379,11 @@ func _update_setup_banner(result: DotquayResult) -> void:
 	if not _setup_banner.visible:
 		return
 
+	# A CLI that can't be found, or a project with no manifest, is not a state any mutating command
+	# should be offered against.
+	_project_ready = false
+	_update_toolbar_state()
+
 	_setup_message.text = (
 		result.error_message if not_configured
 		else "This Godot project has no dotquay.toml yet, so there is nothing to show.")
@@ -368,10 +391,24 @@ func _update_setup_banner(result: DotquayResult) -> void:
 
 func _on_busy_changed(is_busy: bool) -> void:
 	_busy.visible = is_busy
+	_is_busy = is_busy
+	_update_toolbar_state()
 
+
+## Every mutating button is disabled while busy OR before the project is known to be ready — combined
+## here rather than at each call site, since both [method _on_busy_changed] and a change to
+## [member _project_ready] need the same two conditions applied together. RefreshButton is exempt from
+## the readiness half of that: it is the only control that can retry after the setup banner's fix, so
+## it must stay reachable even when nothing else is.
+func _update_toolbar_state() -> void:
 	for button in _toolbar.get_children():
-		if button is Button:
-			button.disabled = is_busy
+		if not (button is Button):
+			continue
+
+		if button.name == "RefreshButton":
+			button.disabled = _is_busy
+		else:
+			button.disabled = _is_busy or not _project_ready
 
 
 func _on_cli_finished(result: DotquayResult) -> void:
@@ -489,8 +526,9 @@ func _show_explanation(result: DotquayResult) -> void:
 	_explain_dialog.show_explanation(addon_name, explanation)
 
 
-## Only ever reached from the explain dialog, and only when it judged the change benign — so the log
-## line says what was discarded rather than just naming the flag.
+## Hides the update banner on ANY failure, without ever showing an error for it: dotquay's release
+## channel can be a private project, and a user who hasn't logged in to it is in a perfectly ordinary
+## state, not something worth a red error line.
 func _report_self_check(result: DotquayResult) -> void:
 	if not result.ok:
 		_update_banner.visible = false
@@ -535,10 +573,12 @@ func _on_self_update_dismissed() -> void:
 	_update_banner.visible = false
 
 
+## Only ever reached from the explain dialog, and only when it judged the change benign — so the log
+## line says what was discarded rather than just naming the flag.
 func _on_force_update_requested(addon_name: String) -> void:
 	_log_warning("Force-updating %s, discarding the editor-generated changes listed in the dialog."
 		% addon_name)
-	_run("update", PackedStringArray(["update", addon_name, "--force"]), true)
+	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update", addon_name, "--force"]), true)
 
 
 func _apply_graph(payload: Dictionary) -> void:
@@ -547,6 +587,11 @@ func _apply_graph(payload: Dictionary) -> void:
 	_render_conflicts()
 	_render_dotnet()
 	_update_summary()
+
+	# A graph result — even a failing one carrying a conflict — implies both a working CLI and an
+	# existing manifest, which is everything the mutating buttons need.
+	_project_ready = true
+	_update_toolbar_state()
 
 
 func _update_summary() -> void:

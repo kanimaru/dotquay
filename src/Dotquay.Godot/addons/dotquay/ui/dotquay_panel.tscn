@@ -68,7 +68,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
-text = "  1 addon(s) · 1 linked  (from lockfile — press Re-resolve to check for conflicts)"
+text = ""
 
 [node name="Busy" type="Label" parent="Root/Toolbar" unique_id=973956480]
 unique_name_in_owner = true
