@@ -80,8 +80,8 @@ func _render_status_row() -> void:
 		_badge("conflict", DotquayPalette.ERROR, _conflict.headline())
 	elif _model.status == DotquayWire.STATUS_MODIFIED:
 		_badge("modified", DotquayPalette.ERROR,
-			"Hand-edited without a captured patch. Install and update will refuse to overwrite it "
-			+ "(SPEC.md P0-6).\nPick 'Why is this modified?' from this node's menu to see what actually "
+			"Hand-edited without a captured patch. Install and update will refuse to overwrite it.\n"
+			+ "Pick 'Why is this modified?' from this node's menu to see what actually "
 			+ "differs — an addon Godot only rewrote a uid in reads the same as one you edited.")
 	elif _model.status == DotquayWire.STATUS_MISSING:
 		_badge("missing", DotquayPalette.WARN, "Locked, but the folder isn't on disk. Run Install.")
@@ -90,7 +90,7 @@ func _render_status_row() -> void:
 			"Linked to a folder on this machine, so its contents are a live working copy rather than the "
 			+ "locked commit. Run 'dotquay link --remove' to put it back.")
 	elif _model.is_patched:
-		_badge("patched", DotquayPalette.OK, "A captured patch is re-applied on every update (SPEC.md §10).")
+		_badge("patched", DotquayPalette.OK, "A captured patch is re-applied on every update.")
 
 	if _model.is_overridden:
 		_badge("override", DotquayPalette.OVERRIDE, "Forced by an [overrides] entry in dotquay.toml.")
