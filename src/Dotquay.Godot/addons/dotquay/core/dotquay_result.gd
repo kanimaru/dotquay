@@ -25,6 +25,8 @@ const KIND_NOT_CONFIGURED := "cli_not_configured"
 const KIND_LAUNCH_FAILED := "cli_launch_failed"
 const KIND_BAD_OUTPUT := "cli_bad_output"
 const KIND_SCHEMA_MISMATCH := "cli_schema_mismatch"
+## The process started but did not exit within the configured timeout and was killed (P0-7).
+const KIND_TIMEOUT := "cli_timeout"
 
 var ok: bool = false
 var command: String = ""

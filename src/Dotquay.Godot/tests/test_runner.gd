@@ -20,6 +20,10 @@ const SUITES := [
 	preload("res://tests/test_dotquay_rescan.gd"),
 	preload("res://tests/test_dotquay_log_buffer.gd"),
 	preload("res://tests/test_dotquay_refresh_tracker.gd"),
+	# Runs real (short-lived) OS processes to prove the wall-clock timeout in P0-7 actually cuts off
+	# a hung one rather than just being plumbing that looks right. Unlike test_cli_contract.gd below,
+	# this doesn't need dotquay itself, so it always runs rather than skipping when unconfigured.
+	preload("res://tests/test_dotquay_process_runner.gd"),
 	# Hand-written .tscn files fail at load time, not compile time, so the only way to know they are
 	# valid is to load them.
 	preload("res://tests/test_scenes.gd"),

@@ -21,13 +21,21 @@ signal busy_changed(is_busy: bool)
 
 const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
 const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
+const PROCESS_RUNNER := preload("res://addons/dotquay/core/dotquay_process_runner.gd")
 
 var _threads: Array[Thread] = []
 var _running := 0
 
+## pid -> true, for every child process a worker thread is currently waiting on. Written from a
+## worker thread the moment [PROCESS_RUNNER] reports one has started, read from the main thread by
+## [method _exit_tree]; [member _pids_mutex] is what makes that safe. Existing rather than derived
+## from [member _threads] because a [Thread] doesn't expose the pid of whatever it's blocked on.
+var _running_pids: Dictionary = {}
+var _pids_mutex := Mutex.new()
+
 ## Queued calls to [method run] made while another run is already executing, in FIFO order. Each
 ## entry is a Dictionary of the same arguments [method _start] needs (`executable`, `full_args`,
-## `command_name`, `ticket`).
+## `command_name`, `ticket`, `timeout_ms`).
 ##
 ## This serializes *every* run, not just the mutating ones (`install`/`update`/`link`) that actually
 ## race on `dotquay.lock`/`addons/`. Splitting mutating from read-only commands would need a table
@@ -46,16 +54,26 @@ var _next_ticket := 1
 func _exit_tree() -> void:
 	# Joining rather than abandoning: a half-finished `dotquay update` is writing to addons/ and the
 	# lockfile, and letting the editor tear the script out from under it is how a project ends up in
-	# a state neither the lockfile nor disk describes.
-	#
-	# TODO: OS.execute still has no timeout, so a stalled child process (e.g. an interactive ssh
-	# host-key prompt) can block indefinitely, including right here at editor shutdown. Fixing that
-	# needs OS.execute_with_pipe and live-binary testing; tracked as a follow-up, not attempted here.
+	# a state neither the lockfile nor disk describes. [PROCESS_RUNNER] already bounds every worker
+	# thread to the configured command timeout on its own, so this join can no longer hang forever —
+	# but the configured timeout can legitimately be minutes, which is still an unacceptable wait for
+	# someone who just clicked "close editor". Killing every still-running child directly, here,
+	# first, is what makes the join fast instead of merely finite: [PROCESS_RUNNER]'s poll loop
+	# notices the kill within one poll interval and returns immediately afterwards (measured
+	# single-digit milliseconds on Windows — see [PROCESS_RUNNER]'s own doc comment).
+	_pids_mutex.lock()
+	var pids: Array = _running_pids.keys()
+	_pids_mutex.unlock()
+
+	for pid in pids:
+		OS.kill(pid)
+
 	for thread in _threads:
 		if thread.is_started():
 			thread.wait_to_finish()
 	_threads.clear()
 	_running = 0
+	_running_pids.clear()
 	# Never started, so there's nothing to join — they simply never happened.
 	_pending.clear()
 
@@ -77,6 +95,10 @@ func run(command_name: String, args: PackedStringArray) -> int:
 
 	var editor_settings := EditorInterface.get_editor_settings()
 	var executable := SETTINGS.cli_path(editor_settings)
+	# Read here, on the main thread, alongside the executable path — EditorSettings is a main-thread
+	# API like the rest of the editor, so the resolved millisecond value (not the EditorSettings
+	# object itself) is what crosses into the worker thread.
+	var timeout_ms := SETTINGS.command_timeout_ms(editor_settings)
 
 	if executable.is_empty():
 		_emit_deferred(RESULT.failure(
@@ -107,9 +129,10 @@ func run(command_name: String, args: PackedStringArray) -> int:
 			"full_args": full_args,
 			"command_name": command_name,
 			"ticket": ticket,
+			"timeout_ms": timeout_ms,
 		})
 	else:
-		_start(executable, full_args, command_name, ticket)
+		_start(executable, full_args, command_name, ticket, timeout_ms)
 
 	if not was_busy:
 		busy_changed.emit(true)
@@ -119,11 +142,12 @@ func run(command_name: String, args: PackedStringArray) -> int:
 
 ## Starts a thread for one call, whether it's running immediately from [method run] or being pulled
 ## off [member _pending] by [method _finish].
-func _start(executable: String, full_args: PackedStringArray, command_name: String, ticket: int) -> void:
+func _start(executable: String, full_args: PackedStringArray, command_name: String, ticket: int,
+		timeout_ms: int) -> void:
 	_running += 1
 	var thread := Thread.new()
 	_threads.append(thread)
-	thread.start(_run_blocking.bind(executable, full_args, command_name, ticket, thread))
+	thread.start(_run_blocking.bind(executable, full_args, command_name, ticket, timeout_ms, thread))
 
 
 ## The Godot project's directory on the real filesystem. The CLI has no idea what `res://` means,
@@ -133,31 +157,47 @@ func project_directory() -> String:
 	return ProjectSettings.globalize_path("res://").rstrip("/")
 
 
-func _run_blocking(executable: String, args: PackedStringArray, command_name: String, ticket: int, thread: Thread) -> void:
-	var output: Array = []
-	# read_stderr: true. dotquay's own errors arrive as a JSON envelope on stdout, but a *launch*
-	# failure (missing .NET runtime, a wrong architecture) only ever writes to stderr — folding both
-	# in means the panel can show the real reason instead of "no output".
-	var code := OS.execute(executable, args, output, true, false)
+func _run_blocking(executable: String, args: PackedStringArray, command_name: String, ticket: int,
+		timeout_ms: int, thread: Thread) -> void:
+	# Registered the moment the child actually has a pid, so [method _exit_tree] can kill it even
+	# while this thread is still inside [method PROCESS_RUNNER.run]'s own wait loop. Unregistered
+	# again right below, once that loop returns for any reason — a pid [method _exit_tree] no longer
+	# needs to know about, whether it exited on its own, timed out, or was already killed.
+	#
+	# `started_pid_box` is a one-element Array rather than a plain local so the value written inside
+	# the lambda is visible after it returns regardless of GDScript's closure-capture rules for a bare
+	# int — an Array is a reference type, so both sides are looking at the same one.
+	var started_pid_box := [-1]
+	var on_started := func(pid: int) -> void:
+		started_pid_box[0] = pid
+		_pids_mutex.lock()
+		_running_pids[pid] = true
+		_pids_mutex.unlock()
 
-	var joined := ""
-	for line in output:
-		joined += String(line)
+	var outcome: DotquayProcessRunner.Outcome = PROCESS_RUNNER.run(executable, args, timeout_ms, on_started)
+
+	var started_pid: int = started_pid_box[0]
+	if started_pid != -1:
+		_pids_mutex.lock()
+		_running_pids.erase(started_pid)
+		_pids_mutex.unlock()
 
 	var result: DotquayResult
-	if code == -1:
-		# -1 is exactly what OS.execute returns when the process genuinely never started. On
-		# Windows, a .NET crash or missing-runtime exit code is a large DWORD that Godot stores into
-		# a signed int, so it can *also* read as negative — but it is not -1, and treating it the
-		# same here would report "could not start" while throwing away the real stderr (a stack
-		# trace) that's sitting in `joined`. Pass it through either way.
+	if outcome.launch_failed:
 		result = RESULT.failure(
 			RESULT.KIND_LAUNCH_FAILED,
 			"Could not start dotquay at %s." % executable,
 			command_name,
-			joined)
+			outcome.output)
+	elif outcome.timed_out:
+		result = RESULT.failure(
+			RESULT.KIND_TIMEOUT,
+			"dotquay did not finish within %ds and was stopped. If this keeps happening on a slow " % (timeout_ms / 1000)
+				+ "connection, raise the timeout in Editor Settings -> Dotquay -> Command Timeout Seconds.",
+			command_name,
+			outcome.output)
 	else:
-		result = RESULT.parse(joined, code, command_name)
+		result = RESULT.parse(outcome.output, outcome.exit_code, command_name)
 
 	result.ticket = ticket
 	_finish.bind(result, thread).call_deferred()
@@ -175,7 +215,7 @@ func _finish(result: DotquayResult, thread: Thread) -> void:
 
 	if not _pending.is_empty():
 		var next: Dictionary = _pending.pop_front()
-		_start(next["executable"], next["full_args"], next["command_name"], next["ticket"])
+		_start(next["executable"], next["full_args"], next["command_name"], next["ticket"], next["timeout_ms"])
 	elif _running == 0:
 		busy_changed.emit(false)
 

@@ -11,10 +11,21 @@ extends RefCounted
 
 const CLI_PATH_SETTING := "dotquay/general/cli_path"
 const AUTO_REFRESH_SETTING := "dotquay/general/refresh_on_focus"
+## How long a single CLI call may run before [DotquayCli] kills it (P0-7). Generous by default: a
+## `dotquay update` can mean several git fetches over a slow connection, and killing a legitimately
+## slow-but-working clone is worse than the hang this exists to prevent. What it actually guards
+## against is a call that will never finish on its own — an interactive prompt the CLI can't answer
+## non-interactively, a half-open connection — where any finite number beats forever.
+const COMMAND_TIMEOUT_SETTING := "dotquay/general/command_timeout_seconds"
+const DEFAULT_COMMAND_TIMEOUT_SECONDS := 300
+## Below this, a fat-fingered "2" in the settings field would fail nearly every real command instead
+## of only the ones that are actually stuck.
+const MIN_COMMAND_TIMEOUT_SECONDS := 10
 
-## Registered by earlier versions but never read — `OS.execute` has no timeout to give it to. Kept
-## only so [method register] can erase it from an editor config that still carries it; a setting the
-## user can change and that changes nothing is worse than no setting.
+## A now-meaningless setting from an earlier version, back when `OS.execute` truly had no timeout to
+## give it to — kept only so [method register] can erase it from an editor config that still carries
+## it. [constant COMMAND_TIMEOUT_SETTING] is its unrelated, working replacement, not a renamed
+## continuation of it: the two were never live at the same time, so there is nothing to migrate.
 const RETIRED_SETTINGS := ["dotquay/general/resolve_timeout_seconds"]
 
 ## Names to look for on PATH when no explicit path is configured, so the common case (dotquay
@@ -47,6 +58,13 @@ static func register(editor_settings: EditorSettings) -> void:
 	_register_one(editor_settings, AUTO_REFRESH_SETTING, true, {
 		"name": AUTO_REFRESH_SETTING,
 		"type": TYPE_BOOL,
+	})
+
+	_register_one(editor_settings, COMMAND_TIMEOUT_SETTING, DEFAULT_COMMAND_TIMEOUT_SECONDS, {
+		"name": COMMAND_TIMEOUT_SETTING,
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "%d,3600,1,suffix:s" % MIN_COMMAND_TIMEOUT_SECONDS,
 	})
 
 	for retired in RETIRED_SETTINGS:
@@ -159,3 +177,14 @@ static func refresh_on_focus(editor_settings: EditorSettings) -> bool:
 	if not editor_settings.has_setting(AUTO_REFRESH_SETTING):
 		return true
 	return bool(editor_settings.get_setting(AUTO_REFRESH_SETTING))
+
+
+## In milliseconds, for direct use against [method Time.get_ticks_msec]. Clamped to
+## [constant MIN_COMMAND_TIMEOUT_SECONDS] so a stray "0" or a negative value typed into the settings
+## field can't turn every command into an instant, confusing timeout.
+static func command_timeout_ms(editor_settings: EditorSettings) -> int:
+	var seconds := DEFAULT_COMMAND_TIMEOUT_SECONDS
+	if editor_settings.has_setting(COMMAND_TIMEOUT_SETTING):
+		seconds = int(editor_settings.get_setting(COMMAND_TIMEOUT_SETTING))
+
+	return maxi(seconds, MIN_COMMAND_TIMEOUT_SECONDS) * 1000
