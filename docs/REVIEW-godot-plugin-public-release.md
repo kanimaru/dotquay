@@ -210,13 +210,19 @@ These either show wrong information, lose data, or leave a beginner stuck with n
 
 ### Add dialog
 
-- [ ] **P1-8** No input-shape validation; the common pastes fail *after* the dialog closed and wiped
+- [x] **P1-8** ~~No input-shape validation; the common pastes fail *after* the dialog closed and wiped
   itself (`dotquay_add_request.gd:49-61,67-74`, `add_dependency_dialog.gd:143,194-202` — `is_complete`
-  only checks non-empty). Handle: browser URL `https://github.com/o/r/tree/main/addons/foo` (parse into
-  URL + branch + subtree, tell the user), bare `owner/repo` (expand or warn), `.git` suffix (fine, say
-  so). Use the existing `%Hint` label for live validation and keep OK disabled with a reason.
-- [ ] **P1-9** On a failed `add` / `add --preview`, re-open the dialog with the previous values and show
-  the error inside it (a Label above the buttons) instead of only in the log.
+  only checks non-empty).~~ Fixed: new pure `DotquayAddRequest.diagnose_source_shape()` parses a
+  GitHub/GitLab "tree" browser URL into repo URL + branch + subtree and the dialog writes all three
+  fields back automatically; a bare `owner/repo` shorthand is rejected with a reason (guessing a host
+  would be worse than asking) rather than expanded; a `.git` suffix is acknowledged as already correct.
+  The `%Hint` label shows the diagnosis live, and the OK button's tooltip names whatever's still missing
+  while it's disabled.
+- [x] **P1-9** ~~On a failed `add` / `add --preview`, re-open the dialog with the previous values and
+  show the error inside it (a Label above the buttons) instead of only in the log.~~ Fixed: a new
+  `%Error` label sits above the buttons, and `DotquayPanel` now tracks the request behind every
+  add-family ticket (not just the preview path) so `reopen_after_failure()` can restore it, along with
+  the CLI's own error message, the instant an `add` or `add --preview` fails.
 - [ ] **P1-10** Field labels/placeholders: "Subtree" (`add_dependency_dialog.tscn:91`) is git jargon and
   its placeholder (`:97`, ~85 chars) is cut mid-sentence in the ~510 px field; same for "Install as"
   (`:113`, ~75 chars). Suggest "Folder in repo" / "Install to", short placeholders, and tooltips on the
@@ -232,11 +238,16 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   Enter-confirm but never `register_text_enter(_source)`). Kind auto-switches to Git on a git-looking
   URL but never back (`:102-108`). NuGet hint is always "latest stable" even with Pin to = Version
   (`:159-161`).
-- [ ] **P1-14** Naming: the flow is toolbar **Add…** → dialog **"Install 'x'?"** / OK **Install**
+- [x] **P1-14** ~~Naming: the flow is toolbar **Add…** → dialog **"Install 'x'?"** / OK **Install**
   (`install_preview_dialog.gd:58`, `.tscn:12`) → summary "Installing 'x' adds …" — next to an unrelated
-  toolbar **Install** button. Rename the preview to "Add 'x'?" / **Add** / "Adding 'x' installs …".
-  Also "Add a dependency" (`add_dependency_dialog.tscn:7`) and "Remove dependency"
-  (`dotquay_panel.tscn:213`) vs "addon" everywhere else.
+  toolbar **Install** button.~~ Fixed: the preview dialog is now "Add 'x'?" / **Add** / "Adding 'x'
+  installs …", so nothing left in that flow says "Install" except the unrelated toolbar button it was
+  colliding with.
+  _Deferred: "Add a dependency" (`add_dependency_dialog.tscn:7`) and "Remove dependency"
+  (`dotquay_panel.tscn:213`) vs "addon" everywhere else — left alone this pass, since both dialogs are
+  shared with NuGet packages, which are not "addons"; renaming either word risks trading one
+  inaccuracy for another rather than fixing the collision this item was actually about. Worth a look
+  together with P1-10/P1-11's wording pass (step 6)._
 - [ ] **P1-15** Preview dialog: the `+ ~ =` markers have no legend (only per-row tooltips,
   `preview_addon_row.gd:37,49-55`); a no-op preview ("nothing on disk would change",
   `dotquay_preview.gd:195-197`) still offers an enabled **Install**; cancelling leaves the log on
@@ -563,8 +574,10 @@ Graph view:
 - `test_depths_terminate_on_a_cycle`, `test_layers_with_fifty_nodes_are_stable_and_sorted`
 
 Add form:
-- `test_add_form_parses_github_tree_urls_into_branch_and_subtree`,
-  `test_add_form_rejects_bare_owner_repo_with_a_hint` (P1-8)
+- ~~`test_add_form_parses_github_tree_urls_into_branch_and_subtree`,
+  `test_add_form_rejects_bare_owner_repo_with_a_hint` (P1-8)~~ Added, alongside six more
+  `diagnose_source_shape()` cases (GitLab's `-/tree/`, no-subtree links, plain URLs, `.git` suffixes,
+  NuGet IDs, blank input) — all in `tests/test_dotquay_add_request.gd`, no scene needed.
 - `test_to_args_keeps_values_with_spaces_as_single_elements`,
   `test_to_args_rejects_leading_dash_values`
 
@@ -578,13 +591,14 @@ Add form:
    latter verified against real hung and real fast processes on the actual Godot 4.7.2 binary.
 3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
 4. ~~P0-2, P0-3, P1-1..P1-4~~ — done.
-5. P0-9, P1-8, P1-9, P1-14 — **P0-9 done.** P1-8, P1-9, P1-14 still open.
+5. ~~P0-9, P1-8, P1-9, P1-14~~ — done.
 6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
 7. The P2 string table, then the remaining P1 polish and C items. Not started.
 
-**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, C-2, C-3, C-8, C-11, C-12.
-Verified for real: 522/522 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
-across 15 conventional commits (`10636ca`..`0ab2391`) on `main`. Everything a first-time Godot user
+**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, P1-8, P1-9, P1-14, C-2, C-3,
+C-8, C-11, C-12.
+Verified for real: 546/546 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 16 conventional commits (`10636ca`..`178c9e6`) on `main`. Everything a first-time Godot user
 would hit trying to add, update, or remove an addon through this tab is now either fixed or has a
 working, discoverable path forward — the remaining P1/P2/C backlog above is wording, ergonomics, and
 hygiene,
