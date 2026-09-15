@@ -181,6 +181,33 @@ func test_no_differences_at_all_says_so_explicitly() -> void:
 		"an empty diff should be stated rather than left as a blank list")
 
 
+func test_null_changes_parses_as_empty_not_a_crash() -> void:
+	# SPEC.md §17: optional array fields are emitted as JSON null, never omitted. `payload.get(key,
+	# [])` only supplies its default when the key is absent, so a present-but-null "changes" used to
+	# raise "Unable to iterate on object of type 'Nil'" instead of parsing.
+	var status: DotquayExplain = EXPLAIN.from_payload({
+		"addons": [_entry("gut", "modified", {
+			"verdict": DotquayWire.VERDICT_SAFE_TO_FORCE,
+			"counts": _counts(0, 0, 0, 0),
+			"changes": null,
+			"unavailable_reason": null,
+			"baseline_includes_patch": false,
+			"patch_could_not_be_applied": false,
+		})],
+	})
+
+	var explanation: DotquayExplain.Explanation = status.explanation_for("gut")
+
+	runner.check(explanation != null, "the entry's explanation should still parse")
+	runner.equal(explanation.changes.size(), 0, "a null changes array should parse as empty, not raise")
+
+
+func test_null_addons_parses_as_empty_not_a_crash() -> void:
+	var status: DotquayExplain = EXPLAIN.from_payload({"addons": null, "all_clean": true})
+
+	runner.equal(status.addons.size(), 0, "a null addons array should parse as empty, not raise")
+
+
 func test_patch_reconstruction_failure_is_distinct_from_having_no_patch() -> void:
 	var without_patch: DotquayExplain = EXPLAIN.from_payload({
 		"addons": [_entry("gut", "modified", _explanation(

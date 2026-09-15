@@ -31,13 +31,16 @@ class Addon extends RefCounted:
 		addon.name = String(payload.get("name", ""))
 		addon.git = String(payload.get("git", ""))
 		addon.version = DotquayWire.str_or_empty(payload.get("version"))
-		addon.resolved = String(payload.get("resolved", ""))
-		addon.short_sha = String(payload.get("short_sha", ""))
-		addon.folder = String(payload.get("folder", addon.name))
+		addon.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
+		addon.short_sha = DotquayWire.str_or_empty(payload.get("short_sha"))
+		# Falls back to the name — both when the key is absent and when it is present but null
+		# (SPEC.md §17: emitted as null, not omitted, when it equals the name).
+		var folder := DotquayWire.str_or_empty(payload.get("folder"))
+		addon.folder = folder if not folder.is_empty() else addon.name
 		addon.is_new = bool(payload.get("is_new", false))
 		addon.previous_resolved = DotquayWire.str_or_empty(payload.get("previous_resolved"))
 
-		for requirer in payload.get("required_by", []):
+		for requirer in DotquayWire.array_or_empty(payload.get("required_by")):
 			addon.required_by.append(String(requirer))
 
 		return addon
@@ -108,13 +111,13 @@ class Source extends RefCounted:
 		var source := Source.new()
 		source.name = String(payload.get("name", ""))
 		source.url = String(payload.get("url", ""))
-		source.declared_by_addon = String(payload.get("declared_by_addon", ""))
+		source.declared_by_addon = DotquayWire.str_or_empty(payload.get("declared_by_addon"))
 		source.is_trusted_host = bool(payload.get("is_trusted_host", false))
 
-		for pattern in payload.get("packages", []):
+		for pattern in DotquayWire.array_or_empty(payload.get("packages")):
 			source.packages.append(String(pattern))
 
-		for package_id in payload.get("package_ids", []):
+		for package_id in DotquayWire.array_or_empty(payload.get("package_ids")):
 			source.package_ids.append(String(package_id))
 
 		return source
@@ -149,19 +152,19 @@ static func from_payload(payload: Dictionary) -> DotquayPreview:
 	preview.needs_approval = bool(payload.get("needs_approval", false))
 	preview.is_no_op = bool(payload.get("is_no_op", false))
 
-	for entry in payload.get("addons", []):
+	for entry in DotquayWire.array_or_empty(payload.get("addons")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.addons.append(Addon.from_payload(entry))
 
-	for entry in payload.get("dotnet", []):
+	for entry in DotquayWire.array_or_empty(payload.get("dotnet")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.dotnet.append(DotnetPackage.from_payload(entry))
 
-	for entry in payload.get("sources_to_adopt", []):
+	for entry in DotquayWire.array_or_empty(payload.get("sources_to_adopt")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.sources_to_adopt.append(Source.from_payload(entry))
 
-	for entry in payload.get("sources_needing_approval", []):
+	for entry in DotquayWire.array_or_empty(payload.get("sources_needing_approval")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.sources_needing_approval.append(Source.from_payload(entry))
 

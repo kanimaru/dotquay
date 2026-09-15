@@ -242,6 +242,19 @@ func test_folder_defaults_to_the_name() -> void:
 	runner.check(not node.is_renamed(), "matching name and folder is not a rename")
 
 
+func test_null_folder_also_defaults_to_the_name() -> void:
+	# SPEC.md §17: an optional field is emitted as null, not omitted, once a payload declares the key
+	# at all — a JSON "folder": null must fall back the same way an absent key does, not render as the
+	# literal text "<null>".
+	var node := DotquayGraph.AddonNode.from_payload({
+		"name": "leaf", "git": "https://example.com/leaf", "path": "addons/leaf", "origin": "root",
+		"folder": null,
+	})
+
+	runner.equal(node.folder, "leaf", "a null folder means the addon's own name")
+	runner.check(not node.is_renamed(), "matching name and folder is not a rename")
+
+
 func _folder_conflict() -> Dictionary:
 	var payload := _diamond()
 	payload["has_conflicts"] = true
@@ -291,6 +304,40 @@ func test_folder_conflict_has_its_own_headline() -> void:
 	runner.check(
 		graph.conflict_for("mtoon-shader").headline().contains("different folders"),
 		"a folder conflict should not be described as a version problem")
+
+
+func test_null_arrays_parse_as_empty_not_a_crash() -> void:
+	# SPEC.md §17: optional array fields are emitted as JSON null, never omitted. `payload.get(key,
+	# [])` only supplies its default when the key is absent, so a present-but-null "conflicts" used to
+	# raise "Unable to iterate on object of type 'Nil'" instead of parsing.
+	var payload := _diamond()
+	payload["conflicts"] = null
+	payload["overrides"] = null
+
+	var graph: DotquayGraph = GRAPH.from_payload(payload)
+
+	runner.equal(graph.conflicts.size(), 0, "a null conflicts array should parse as empty, not raise")
+	runner.equal(graph.overrides.size(), 0, "a null overrides array should parse as empty, not raise")
+
+
+func test_null_nested_arrays_parse_as_empty_not_a_crash() -> void:
+	# The same null-vs-absent trap applies one level down — an addon's own "dependencies" and
+	# "requirements", and a conflict's "requirements" and "candidates".
+	var node := DotquayGraph.AddonNode.from_payload({
+		"name": "leaf", "git": "https://example.com/leaf", "path": "addons/leaf", "origin": "root",
+		"dependencies": null, "requirements": null,
+	})
+
+	runner.equal(node.dependencies.size(), 0, "a null dependencies array should parse as empty")
+	runner.equal(node.requirements.size(), 0, "a null requirements array should parse as empty")
+
+	var conflict := DotquayGraph.Conflict.from_payload({
+		"name": "core", "kind": "no_common_version", "message": "x",
+		"requirements": null, "candidates": null,
+	})
+
+	runner.equal(conflict.requirements.size(), 0, "a null requirements array should parse as empty")
+	runner.equal(conflict.candidates.size(), 0, "a null candidates array should parse as empty")
 
 
 func test_empty_payload_parses_cleanly() -> void:

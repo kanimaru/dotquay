@@ -88,11 +88,28 @@ const COMMAND_STATUS := "status"
 const COMMAND_SELF_CHECK := "self-check"
 const COMMAND_SELF_UPDATE := "self-update"
 
+## The remaining mutating commands the panel dispatches on. Same wire contract as every other
+## `COMMAND_*` above: these strings are what the envelope's `command` field carries.
+const COMMAND_INSTALL := "install"
+const COMMAND_UPDATE := "update"
+const COMMAND_OVERRIDE := "override"
+const COMMAND_PATCH := "patch"
+const COMMAND_REMOVE := "remove"
+const COMMAND_INIT := "init"
+
 
 ## JSON nulls arrive as `null`, and `String(null)` yields "<null>" rather than "". Every optional
 ## field goes through here, so a missing value renders as absent instead of as that literal text.
 static func str_or_empty(value: Variant) -> String:
 	return "" if value == null else String(value)
+
+
+## Optional array fields go through here for the same reason [method str_or_empty] exists for
+## strings: SPEC.md §17 has the CLI emit them as JSON `null` rather than omitting the key, so
+## `payload.get(key, [])` only supplies its default when the key is *absent* — a present-but-null
+## value sails past that default and blows up the first `for x in null` that touches it.
+static func array_or_empty(value: Variant) -> Array:
+	return value if value is Array else []
 
 
 ## Turns a wire requirer name into something worth showing a person.

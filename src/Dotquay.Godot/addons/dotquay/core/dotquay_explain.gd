@@ -146,7 +146,7 @@ class Explanation extends RefCounted:
 		var counts: Variant = payload.get("counts")
 		explanation.counts = Counts.from_payload(counts if typeof(counts) == TYPE_DICTIONARY else {})
 
-		for entry in payload.get("changes", []):
+		for entry in DotquayWire.array_or_empty(payload.get("changes")):
 			if typeof(entry) == TYPE_DICTIONARY:
 				explanation.changes.append(Change.from_payload(entry))
 
@@ -214,7 +214,7 @@ static func from_payload(payload: Dictionary) -> DotquayExplain:
 	var status := DotquayExplain.new()
 	status.all_clean = bool(payload.get("all_clean", false))
 
-	for entry in payload.get("addons", []):
+	for entry in DotquayWire.array_or_empty(payload.get("addons")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			status.addons.append(Entry.from_payload(entry))
 

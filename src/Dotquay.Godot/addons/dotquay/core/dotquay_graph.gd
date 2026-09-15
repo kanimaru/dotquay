@@ -36,8 +36,11 @@ class AddonNode extends RefCounted:
 		node.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
 		node.short_sha = DotquayWire.str_or_empty(payload.get("short_sha"))
 		node.path = String(payload.get("path", ""))
-		# Falls back to the name so a payload from a dotquay predating install_as still renders.
-		node.folder = String(payload.get("folder", node.name))
+		# Falls back to the name — both when the key is absent (a payload from a dotquay predating
+		# install_as) and when it is present but null (SPEC.md §17: emitted as null, not omitted, when
+		# it equals the name).
+		var folder := DotquayWire.str_or_empty(payload.get("folder"))
+		node.folder = folder if not folder.is_empty() else node.name
 		node.origin = String(payload.get("origin", DotquayWire.ORIGIN_ROOT))
 		node.source_kind = DotquayWire.str_or_empty(payload.get("source_kind"))
 		node.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
@@ -45,10 +48,10 @@ class AddonNode extends RefCounted:
 		node.is_patched = bool(payload.get("is_patched", false))
 		node.status = DotquayWire.str_or_empty(payload.get("status"))
 
-		for dependency in payload.get("dependencies", []):
+		for dependency in DotquayWire.array_or_empty(payload.get("dependencies")):
 			node.dependencies.append(String(dependency))
 
-		for requirement in payload.get("requirements", []):
+		for requirement in DotquayWire.array_or_empty(payload.get("requirements")):
 			if typeof(requirement) == TYPE_DICTIONARY:
 				node.requirements.append(Requirement.from_payload(requirement))
 
@@ -125,7 +128,7 @@ class Candidate extends RefCounted:
 		candidate.git = String(payload.get("git", ""))
 		candidate.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
 
-		for requirer in payload.get("satisfies", []):
+		for requirer in DotquayWire.array_or_empty(payload.get("satisfies")):
 			candidate.satisfies.append(String(requirer))
 
 		candidate.satisfies_all = bool(payload.get("satisfies_all", false))
@@ -170,11 +173,11 @@ class Conflict extends RefCounted:
 		conflict.kind = String(payload.get("kind", ""))
 		conflict.message = String(payload.get("message", ""))
 
-		for requirement in payload.get("requirements", []):
+		for requirement in DotquayWire.array_or_empty(payload.get("requirements")):
 			if typeof(requirement) == TYPE_DICTIONARY:
 				conflict.requirements.append(Requirement.from_payload(requirement))
 
-		for candidate in payload.get("candidates", []):
+		for candidate in DotquayWire.array_or_empty(payload.get("candidates")):
 			if typeof(candidate) == TYPE_DICTIONARY:
 				conflict.candidates.append(Candidate.from_payload(candidate))
 
@@ -253,25 +256,25 @@ static func from_payload(payload: Dictionary) -> DotquayGraph:
 	graph.project_directory = String(payload.get("project_directory", ""))
 	graph.has_conflicts = bool(payload.get("has_conflicts", false))
 
-	for root in payload.get("roots", []):
+	for root in DotquayWire.array_or_empty(payload.get("roots")):
 		graph.roots.append(String(root))
 
-	for name in payload.get("overrides", []):
+	for name in DotquayWire.array_or_empty(payload.get("overrides")):
 		graph.overrides.append(String(name))
 
-	for entry in payload.get("addons", []):
+	for entry in DotquayWire.array_or_empty(payload.get("addons")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			graph.addons.append(AddonNode.from_payload(entry))
 
-	for entry in payload.get("edges", []):
+	for entry in DotquayWire.array_or_empty(payload.get("edges")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			graph.edges.append({"from": String(entry.get("from", "")), "to": String(entry.get("to", ""))})
 
-	for entry in payload.get("dotnet", []):
+	for entry in DotquayWire.array_or_empty(payload.get("dotnet")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			graph.dotnet.append(DotnetEntry.from_payload(entry))
 
-	for entry in payload.get("conflicts", []):
+	for entry in DotquayWire.array_or_empty(payload.get("conflicts")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			graph.conflicts.append(Conflict.from_payload(entry))
 
