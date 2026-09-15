@@ -54,20 +54,19 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   `/opt/homebrew/bin` (macOS), and `%LOCALAPPDATA%\dotquay` / `%LOCALAPPDATA%\Programs\dotquay`
   (Windows) after a plain PATH lookup fails, and `EXECUTABLE_NAMES` is now platform-specific.
 
-- [ ] **P0-4 Wrong-path / launch failures never reach the banner, and the real reason is thrown away.**
-  `_update_setup_banner` (`dotquay_panel.gd:353-359`) only handles `KIND_NOT_CONFIGURED` and
+- [x] **P0-4 Wrong-path / launch failures never reach the banner, and the real reason is thrown away.**
+  ~~`_update_setup_banner` (`dotquay_panel.gd:353-359`) only handles `KIND_NOT_CONFIGURED` and
   `KIND_NO_MANIFEST`. `KIND_BAD_OUTPUT`, `KIND_LAUNCH_FAILED`, `KIND_SCHEMA_MISMATCH`,
   `KIND_WRONG_TOOL` are one red line in the 140 px log while graph and sidebar stay blank.
   `DotquayResult.raw_output` (`dotquay_result.gd:40`) is assigned at `:103,:114,:123` and **never
-  read** — its own doc comment (`:37-39`, "The panel shows it when parsing failed") is false. A
-  Gatekeeper kill, a missing execute bit (`sh: Permission denied`, exit 126), or a crash trace all
-  become "dotquay did not return JSON (exit code N). Check that the CLI path points at the dotquay
-  executable." Fix: route all four `cli_*` kinds into the banner with an **Open Editor Settings** /
-  **Browse…** button, and append the first ~10 lines of `raw_output` to the message.
-  _Progress: `raw_output` is no longer thrown away — `DotquayResult.failure()` now folds its first ~10
-  lines into `error_message` itself, so it reaches the log. Still open: `_update_setup_banner` only
-  ever routes `KIND_NOT_CONFIGURED`/`KIND_NO_MANIFEST`; the other `cli_*` kinds still only get a log
-  line, not the banner with a fix-it button._
+  read** — its own doc comment (`:37-39`, "The panel shows it when parsing failed") is false.~~ Fixed
+  in two passes: `raw_output` was folded into `error_message` earlier (so the log line already carried
+  it); `_update_setup_banner` now also routes `KIND_LAUNCH_FAILED`, `KIND_BAD_OUTPUT` (this build has
+  no separate `KIND_WRONG_TOOL` — "not dotquay" is one of the `KIND_BAD_OUTPUT` cases already), and
+  `KIND_SCHEMA_MISMATCH` into the banner with the real message. "Find dotquay on PATH" is offered as a
+  retry for the two that plausibly mean a wrong path; skipped for a schema mismatch, since re-running
+  discovery would likely find the same differently-versioned binary. No **Open Editor Settings** /
+  **Browse…** button was added — that's P0-2's ask, still open below.
 
 - [x] **P0-5 Windows: crash exit codes are misreported as "could not start".** ~~`core/dotquay_cli.gd:112`:
   `if code < 0:` → `KIND_LAUNCH_FAILED` and the captured output is
@@ -108,20 +107,20 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   too risky to bundle into a parallel pass. Left a `## TODO` at `dotquay_cli.gd`'s `_exit_tree` marking
   the gap. This is the one P0 still fully open._
 
-- [ ] **P0-8 A `null` list anywhere in an envelope is a script error on the worker thread → panel
-  stuck busy forever.** `dotquay_result.gd:126` `for warning in envelope.get("warnings", [])` only
+- [x] **P0-8 A `null` list anywhere in an envelope is a script error on the worker thread → panel
+  stuck busy forever.** ~~`dotquay_result.gd:126` `for warning in envelope.get("warnings", [])` only
   defaults when the key is *absent*; SPEC §17 says optional fields are emitted as `null`. The same
   `for x in payload.get(key, [])` pattern is in `dotquay_graph.gd:48,51,128,173,177,256-274`,
-  `dotquay_preview.gd:40,114,117,152-164`, `dotquay_explain.gd:149,217`, `dotquay_panel.gd:512,661`.
-  In `_run_blocking` a parse error means `_finish` never runs and `_running` never decrements. Fix: a
-  `DotquayWire.array_or_empty()` helper used everywhere (like `str_or_empty`), and in `_run_blocking`
-  `if result == null: result = RESULT.failure(KIND_BAD_OUTPUT, …)` so `_finish` is unconditional.
-  _Progress: `DotquayWire.array_or_empty()` was added and applied throughout `dotquay_result.gd`,
+  `dotquay_preview.gd:40,114,117,152-164`, `dotquay_explain.gd:149,217`, `dotquay_panel.gd:512,661`.~~
+  Fixed: `DotquayWire.array_or_empty()` was added and applied throughout `dotquay_result.gd`,
   `dotquay_graph.gd`, `dotquay_preview.gd`, and `dotquay_explain.gd`, with fixture tests for every null
-  site. Still open: `dotquay_panel.gd`'s own two raw-payload loops (`payload.get(key, [])` at the
-  doctor/outdated reporting sites) were not converted — those two spots can still raise on a null
-  array. `_run_blocking` already can't leave `_finish` uncalled: `RESULT.parse()` never returns null,
-  it always returns a `DotquayResult` (a failure one, if parsing went wrong)._
+  site. On re-check, `dotquay_panel.gd`'s doctor/outdated sites (`_dictionaries_in`) turned out to
+  already guard against null via an `is Array` check — only `_report_operation`'s
+  `payload.get("messages", [])` was a genuine gap, now fixed the same way (no fixture test added for
+  it; C-24 already tracks the lack of a typed parser/fixture suite for this raw-payload reporting
+  path). `_run_blocking` was never actually at risk: `RESULT.parse()` has no path that returns null —
+  every branch returns a `DotquayResult`, a failure one if parsing went wrong — so `_finish` was always
+  unconditional; the review's stated risk here didn't hold up on a closer read.
 
 - [x] **P0-9 Every toolbar button stays enabled with no `dotquay.toml`.** ~~With `no_manifest`, **Add…**
   opens the full form, the user fills it in, presses Add, the dialog closes and clears
@@ -544,16 +543,14 @@ Add form:
 2. P0-6 + P0-7 together (queue + `execute_with_pipe` + timeout + kill-on-exit) — one change, fixes
    five findings. **Done: the queue (P0-6). Still open: P0-7's timeout/kill-on-exit rewrite** —
    deliberately deferred, needs live-binary testing a sandboxed pass can't do.
-3. ~~P0-4, P0-5, P0-8, P1-33~~ — P0-5 done; P0-4/P0-8 partially done (see notes above — the
-   core-parser and message-surfacing halves landed, the panel-level banner-routing and the two
-   `dotquay_panel.gd` raw-payload sites didn't); P1-33 not yet reviewed against the current code.
+3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
 4. P0-2, P0-3, P1-1..P1-4 — **P0-3 done.** P0-2 and P1-1..P1-4 still open.
 5. P0-9, P1-8, P1-9, P1-14 — **P0-9 done.** P1-8, P1-9, P1-14 still open.
 6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
 7. The P2 string table, then the remaining P1 polish and C items. Not started.
 
-**Net this pass:** 6 of 11 P0s fully closed (P0-1, P0-3, P0-5, P0-6, P0-9, P0-10, P0-11 — that's 7,
-with P0-4/P0-8 partially closed and P0-2/P0-7 still open), plus C-2, C-3, C-8, C-11, C-12. Verified for
-real: 468/468 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, in 9
-conventional commits (`10636ca`..`f169bbf`) on `main`. No P1/P2 items were touched — the whole pass
+**Net this pass:** 9 of 11 P0s fully closed (P0-1, P0-3, P0-4, P0-5, P0-6, P0-8, P0-9, P0-10, P0-11),
+2 still open (P0-2, P0-7 — both deliberately, see their notes), plus C-2, C-3, C-8, C-11, C-12. Verified
+for real: 468/468 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, across 11
+conventional commits (`10636ca`..`eb4d34d`) on `main`. No P1/P2 items were touched — the whole pass
 stayed scoped to P0s plus the C-items that rode along with them.
