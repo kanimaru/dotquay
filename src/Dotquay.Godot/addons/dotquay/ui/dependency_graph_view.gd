@@ -24,15 +24,6 @@ const MARGIN := Vector2(40, 40)
 var _nodes_by_name: Dictionary = {}
 
 
-func _ready() -> void:
-	# Refusing every attempt is how GraphEdit is told a graph is read-only: it asks before applying
-	# a drag, and simply not connecting the signal would let the user rearrange real dependencies.
-	if not connection_request.is_connected(_reject_connection):
-		connection_request.connect(_reject_connection)
-	if not disconnection_request.is_connected(_reject_disconnection):
-		disconnection_request.connect(_reject_disconnection)
-
-
 func render(graph: DotquayGraph) -> void:
 	clear_connections()
 
@@ -98,11 +89,3 @@ func focus_addon(addon_name: String) -> void:
 
 func _on_node_action(action: String, addon_name: String) -> void:
 	node_action_requested.emit(action, addon_name)
-
-
-func _reject_connection(_from_node: StringName, _from_port: int, _to_node: StringName, _to_port: int) -> void:
-	pass
-
-
-func _reject_disconnection(_from_node: StringName, _from_port: int, _to_node: StringName, _to_port: int) -> void:
-	pass
