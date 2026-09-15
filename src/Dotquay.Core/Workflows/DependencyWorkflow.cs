@@ -361,8 +361,15 @@ public sealed partial class DependencyWorkflow
         var assets = await DecideGeneratorAssetsAsync(
             projectDirectory, nuGetClient, packageId, version, cancellationToken);
 
+        // Read before the install, not after: the install rewrites NuGet.Config's
+        // <packageSourceMapping> wholesale, and the lockfile is the only record of which feed every
+        // other package resolved from. Without it that rewrite names the package being added and
+        // nothing else, silently un-mapping every other private package in the project.
+        var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
+
         var locked = await InstallDotnetOrThrowAsync(
-            projectDirectory, packageId, version, manifest, restore: true, resolvedSource, cancellationToken, assets);
+            projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
+            cancellationToken, assets);
 
         WriteManifest(manifestPath, manifest with
         {
@@ -382,7 +389,6 @@ public sealed partial class DependencyWorkflow
             },
         });
 
-        var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
         WriteLockfile(lockfilePath, lockfile with
         {
             Dotnet = lockfile.Dotnet.Where(d => d.Name != packageId).Append(locked).ToList(),
@@ -483,7 +489,7 @@ public sealed partial class DependencyWorkflow
             // the "install reproduces the lockfile exactly" guarantee for the same reason re-resolving
             // the version would. 'doctor' reports the resulting drift so the edit isn't silent.
             installedDotnet.Add(await InstallDotnetOrThrowAsync(
-                projectDirectory, dependency.Name, dependency.Resolved, manifest, restore: false,
+                projectDirectory, dependency.Name, dependency.Resolved, manifest, lockfile.Dotnet, restore: false,
                 dependency.Source, cancellationToken, dependency.Assets, dependency.Assets));
         }
 
@@ -1996,6 +2002,7 @@ public sealed partial class DependencyWorkflow
         string packageId,
         string version,
         ProjectManifest manifest,
+        IReadOnlyList<LockedDotnet> known,
         bool restore,
         string? resolvedSourceName,
         CancellationToken cancellationToken,
@@ -2011,7 +2018,7 @@ public sealed partial class DependencyWorkflow
                 manifest.SourceSet(),
                 restore,
                 resolvedSourceName,
-                MappingForInstall(manifest, packageId, resolvedSourceName),
+                MappingForInstall(manifest, known, packageId, version, resolvedSourceName),
                 manifest.NuGetSourceMapping,
                 assets,
                 previouslyWritten,
@@ -2028,8 +2035,8 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
-    /// The <c>&lt;packageSourceMapping&gt;</c> this one install needs: the manifest's pins, plus the
-    /// feed the package being installed actually resolved from.
+    /// The <c>&lt;packageSourceMapping&gt;</c> this one install needs: every package whose feed is
+    /// already known, plus the one being installed.
     /// </summary>
     /// <remarks>
     /// <para>That second half is the fix for a real failure. The mapping used to come from
@@ -2048,28 +2055,56 @@ public sealed partial class DependencyWorkflow
     /// <para>Manifest pins are applied last so they win, mirroring
     /// <see cref="ProjectNuGetSources.MappedPackages"/>: a pin is a statement of intent, a resolved
     /// source is a record of what answered.</para>
+    /// <para>The <em>rest</em> of the picture is the fix for a second failure, seen 2026-09-15: a
+    /// <c>dotquay add</c> in a project that already had VBeami.Core bound to a private feed left a
+    /// <c>NuGet.Config</c> naming only the package just added. <see cref="NuGetConfigWriter"/>
+    /// rewrites the whole <c>&lt;packageSourceMapping&gt;</c> element on every write, so a partial
+    /// mapping is not merely incomplete: it un-maps every other private package, which then matches
+    /// the <c>*</c> catch-all and is looked for on nuget.org. A machine-local link hid it there; on
+    /// any other machine restore would have failed. Hence the whole picture, taken from the lockfile
+    /// (the record of what each package actually resolved from) and built through
+    /// <see cref="ProjectNuGetSources.MappedPackages"/>, the same function the closing restore uses,
+    /// so the file an install leaves behind and the file that restore writes cannot disagree.</para>
     /// </remarks>
     private static IReadOnlyDictionary<string, string> MappingForInstall(
-        ProjectManifest manifest, string packageId, string? resolvedSourceName)
+        ProjectManifest manifest,
+        IReadOnlyList<LockedDotnet> known,
+        string packageId,
+        string version,
+        string? resolvedSourceName)
     {
-        var pinned = manifest.PinnedPackages();
+        // What is being written now wins over whatever the lockfile still says about the same
+        // package, including when it resolves from nuget.org this time: dropping the stale entry is
+        // what keeps the old feed's pattern from outliving the change.
+        var complete = known
+            .Where(locked => !string.Equals(locked.Name, packageId, StringComparison.OrdinalIgnoreCase))
+            .Append(new LockedDotnet { Name = packageId, Resolved = version, Source = resolvedSourceName })
+            .ToList();
 
-        if (resolvedSourceName is null)
+        return manifest.MappedPackages(complete);
+    }
+
+    /// <summary>
+    /// The best picture available part-way through a graph sync: what this run has installed so far,
+    /// plus the previous lockfile entry for every package it has not reached yet.
+    /// </summary>
+    /// <remarks>
+    /// The closing restore rewrites the mapping from the complete set either way, so this is about
+    /// the file left behind in between: what survives a run that fails half-way, and what a build
+    /// triggered from the editor in that window would restore against.
+    /// </remarks>
+    private static IReadOnlyList<LockedDotnet> KnownDotnet(
+        IReadOnlyDictionary<string, LockedDotnet> previous,
+        IReadOnlyDictionary<string, LockedDotnet> installed)
+    {
+        var known = new Dictionary<string, LockedDotnet>(previous, StringComparer.Ordinal);
+
+        foreach (var (name, locked) in installed)
         {
-            return pinned;
+            known[name] = locked;
         }
 
-        var mapped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [packageId] = resolvedSourceName,
-        };
-
-        foreach (var (pinnedId, sourceName) in pinned)
-        {
-            mapped[pinnedId] = sourceName;
-        }
-
-        return mapped;
+        return known.Values.ToList();
     }
 
     private async Task RestoreDotnetOrThrowAsync(
@@ -2440,8 +2475,8 @@ public sealed partial class DependencyWorkflow
 
             resultByName[targetName] = changed
                 ? await InstallDotnetOrThrowAsync(
-                    projectDirectory, targetName, version, manifest, restore: false, resolvedSource, cancellationToken,
-                    assets, previous?.Assets)
+                    projectDirectory, targetName, version, manifest, KnownDotnet(previousByName, resultByName),
+                    restore: false, resolvedSource, cancellationToken, assets, previous?.Assets)
                 : previous!;
 
             anyChanged |= changed;

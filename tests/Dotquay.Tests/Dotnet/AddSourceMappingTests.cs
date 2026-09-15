@@ -33,11 +33,17 @@ public class AddSourceMappingTests
         </Project>
         """;
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string manifest, string feedName)
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(
+        string manifest, string feedName, string? lockfile = null)
     {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", manifest);
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", Csproj);
+
+        if (lockfile is not null)
+        {
+            fileSystem.WriteAllText($"{ProjectDir}/dotquay.lock", lockfile);
+        }
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
 
@@ -114,6 +120,56 @@ public class AddSourceMappingTests
 
         var config = ReadNuGetConfig(fileSystem);
         Assert.DoesNotContain("<package pattern=\"Kani.Core\" />", config);
+        Assert.Contains("<package pattern=\"*\" />", config);
+    }
+
+    private const string LockfileWithPrivatePackage = """
+        [[dotnet]]
+        name = "VBeami.Core"
+        resolved = "0.7.21"
+        source = "lazy_o"
+        """;
+
+    /// <summary>
+    /// The second regression, reported 2026-09-15: adding one package un-mapped every other one.
+    /// </summary>
+    /// <remarks>
+    /// The mapping element is rewritten wholesale on every write, so an install that knows only the
+    /// package it is installing does not leave the others alone, it deletes them. VBeami.Core then
+    /// matched nothing but the <c>*</c> catch-all, and would have been fetched from nuget.org on any
+    /// machine without a local link to hide it.
+    /// </remarks>
+    [Fact]
+    public async Task AnAddKeepsTheMappingOfEveryPackageAlreadyLocked()
+    {
+        var (workflow, fileSystem) = Build(
+            ManifestWithPrivateFeed, feedName: "lazy_o", lockfile: LockfileWithPrivatePackage);
+
+        await workflow.AddDotnetAsync(ProjectDir, "Kani.Core");
+
+        var config = ReadNuGetConfig(fileSystem);
+        Assert.Contains("<package pattern=\"Kani.Core\" />", config);
+        Assert.Contains("<package pattern=\"VBeami.Core\" />", config);
+    }
+
+    /// <summary>The same for a package left on nuget.org: it needs no pattern of its own, and the
+    /// catch-all it relies on has to survive the add.</summary>
+    [Fact]
+    public async Task AnAddLeavesAnAlreadyLockedPublicPackageOnTheCatchAll()
+    {
+        var (workflow, fileSystem) = Build(
+            ManifestWithPrivateFeed,
+            feedName: "lazy_o",
+            lockfile: """
+                [[dotnet]]
+                name = "Newtonsoft.Json"
+                resolved = "13.0.3"
+                """);
+
+        await workflow.AddDotnetAsync(ProjectDir, "Kani.Core");
+
+        var config = ReadNuGetConfig(fileSystem);
+        Assert.DoesNotContain("<package pattern=\"Newtonsoft.Json\" />", config);
         Assert.Contains("<package pattern=\"*\" />", config);
     }
 }
