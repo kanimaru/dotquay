@@ -25,6 +25,17 @@ const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
 var _threads: Array[Thread] = []
 var _running := 0
 
+## Queued calls to [method run] made while another run is already executing, in FIFO order. Each
+## entry is a Dictionary of the same arguments [method _start] needs (`executable`, `full_args`,
+## `command_name`, `ticket`).
+##
+## This serializes *every* run, not just the mutating ones (`install`/`update`/`link`) that actually
+## race on `dotquay.lock`/`addons/`. Splitting mutating from read-only commands would need a table
+## this file doesn't otherwise maintain, and would need to stay in sync with the CLI's own command
+## list forever. dotquay itself is fast enough that full serialization costs nothing visible: a
+## `graph` refresh queued behind an `update` is a sub-second delay, not a UX problem.
+var _pending: Array = []
+
 ## Handed out by [method run], one per call, and echoed back on the result as
 ## [member DotquayResult.ticket]. It is the only reliable way to match a result to the call that
 ## produced it: the envelope's `command` is the CLI's name for what ran ("override" for both a pin and
@@ -36,15 +47,21 @@ func _exit_tree() -> void:
 	# Joining rather than abandoning: a half-finished `dotquay update` is writing to addons/ and the
 	# lockfile, and letting the editor tear the script out from under it is how a project ends up in
 	# a state neither the lockfile nor disk describes.
+	#
+	# TODO: OS.execute still has no timeout, so a stalled child process (e.g. an interactive ssh
+	# host-key prompt) can block indefinitely, including right here at editor shutdown. Fixing that
+	# needs OS.execute_with_pipe and live-binary testing; tracked as a follow-up, not attempted here.
 	for thread in _threads:
 		if thread.is_started():
 			thread.wait_to_finish()
 	_threads.clear()
 	_running = 0
+	# Never started, so there's nothing to join — they simply never happened.
+	_pending.clear()
 
 
 func is_busy() -> bool:
-	return _running > 0
+	return _running > 0 or not _pending.is_empty()
 
 
 ## Runs `dotquay <args> --json --project <project_dir>` in the background.
@@ -80,14 +97,33 @@ func run(command_name: String, args: PackedStringArray) -> int:
 	full_args.append("--project")
 	full_args.append(project_directory())
 
-	_running += 1
-	if _running == 1:
+	# A run is already executing: queue this one instead of racing it against that thread over
+	# dotquay.lock/addons/. The ticket is still handed back immediately either way — callers don't
+	# need to know (or care) whether their call started right away or is waiting in line.
+	var was_busy := is_busy()
+	if _running > 0:
+		_pending.append({
+			"executable": executable,
+			"full_args": full_args,
+			"command_name": command_name,
+			"ticket": ticket,
+		})
+	else:
+		_start(executable, full_args, command_name, ticket)
+
+	if not was_busy:
 		busy_changed.emit(true)
 
+	return ticket
+
+
+## Starts a thread for one call, whether it's running immediately from [method run] or being pulled
+## off [member _pending] by [method _finish].
+func _start(executable: String, full_args: PackedStringArray, command_name: String, ticket: int) -> void:
+	_running += 1
 	var thread := Thread.new()
 	_threads.append(thread)
 	thread.start(_run_blocking.bind(executable, full_args, command_name, ticket, thread))
-	return ticket
 
 
 ## The Godot project's directory on the real filesystem. The CLI has no idea what `res://` means,
@@ -109,11 +145,17 @@ func _run_blocking(executable: String, args: PackedStringArray, command_name: St
 		joined += String(line)
 
 	var result: DotquayResult
-	if code < 0:
+	if code == -1:
+		# -1 is exactly what OS.execute returns when the process genuinely never started. On
+		# Windows, a .NET crash or missing-runtime exit code is a large DWORD that Godot stores into
+		# a signed int, so it can *also* read as negative — but it is not -1, and treating it the
+		# same here would report "could not start" while throwing away the real stderr (a stack
+		# trace) that's sitting in `joined`. Pass it through either way.
 		result = RESULT.failure(
 			RESULT.KIND_LAUNCH_FAILED,
 			"Could not start dotquay at %s." % executable,
-			command_name)
+			command_name,
+			joined)
 	else:
 		result = RESULT.parse(joined, code, command_name)
 
@@ -131,7 +173,10 @@ func _finish(result: DotquayResult, thread: Thread) -> void:
 	_running = max(0, _running - 1)
 	finished.emit(result)
 
-	if _running == 0:
+	if not _pending.is_empty():
+		var next: Dictionary = _pending.pop_front()
+		_start(next["executable"], next["full_args"], next["command_name"], next["ticket"])
+	elif _running == 0:
 		busy_changed.emit(false)
 
 
