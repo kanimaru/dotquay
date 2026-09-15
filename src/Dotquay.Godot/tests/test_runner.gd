@@ -24,6 +24,8 @@ const SUITES := [
 	# a hung one rather than just being plumbing that looks right. Unlike test_cli_contract.gd below,
 	# this doesn't need dotquay itself, so it always runs rather than skipping when unconfigured.
 	preload("res://tests/test_dotquay_process_runner.gd"),
+	# Pure banner-state decisions (P0-2) — no Control, no EditorSettings, no CLI needed.
+	preload("res://tests/test_dotquay_setup_banner.gd"),
 	# Hand-written .tscn files fail at load time, not compile time, so the only way to know they are
 	# valid is to load them.
 	preload("res://tests/test_scenes.gd"),

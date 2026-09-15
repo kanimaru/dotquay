@@ -33,8 +33,18 @@ const MAX_LOG_ENTRIES := 200
 
 @onready var _setup_banner: PanelContainer = %SetupBanner
 @onready var _setup_message: Label = %SetupMessage
+@onready var _get_dotquay_button: Button = %GetDotquayButton
+@onready var _browse_button: Button = %BrowseButton
 @onready var _locate_button: Button = %LocateButton
 @onready var _init_button: Button = %InitButton
+
+## Built in code, not the scene, unlike every other dialog this panel owns: `EditorFileDialog`
+## engine-refuses to be instantiated as part of a hand-authored `.tscn` outside a real running
+## editor ("Class 'EditorFileDialog' can only be instantiated by editor") — which is exactly the
+## context `tests/test_scenes.gd` loads every scene in, headless and script-driven. Built here in
+## `_ready()` instead, which the scene-loading tests never call (they `.instantiate()` and `.free()`
+## without adding the panel to a tree), so it never collides with that restriction.
+var _cli_path_dialog: EditorFileDialog
 
 @onready var _update_banner: PanelContainer = %UpdateBanner
 @onready var _update_message: Label = %UpdateMessage
@@ -111,6 +121,16 @@ func _ready() -> void:
 	_explain_dialog.force_update_requested.connect(_on_force_update_requested)
 	_conflict_dialog.override_chosen.connect(_on_override_chosen)
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
+	_get_dotquay_button.pressed.connect(_on_get_dotquay_pressed)
+	_browse_button.pressed.connect(_on_browse_pressed)
+
+	_cli_path_dialog = EditorFileDialog.new()
+	_cli_path_dialog.title = "Select the dotquay executable"
+	_cli_path_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+	_cli_path_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
+	_cli_path_dialog.file_selected.connect(_on_cli_path_selected)
+	add_child(_cli_path_dialog)
+
 	_locate_button.pressed.connect(_on_locate_pressed)
 	_init_button.pressed.connect(_on_init_pressed)
 	_update_button.pressed.connect(_on_self_update_pressed)
@@ -362,41 +382,51 @@ func _on_locate_pressed() -> void:
 	refresh()
 
 
+## Opens the release page in the system browser (P0-2). Nothing here can tell whether the user
+## actually downloaded anything — there's no signal for that — so this only opens the page; the
+## refresh that picks up a newly-installed binary is whatever the user presses next (Browse, Find on
+## PATH, or Refresh).
+func _on_get_dotquay_pressed() -> void:
+	OS.shell_open(SETTINGS.RELEASES_URL)
+
+
+func _on_browse_pressed() -> void:
+	_cli_path_dialog.popup_centered_ratio(0.5)
+
+
+func _on_cli_path_selected(path: String) -> void:
+	EditorInterface.get_editor_settings().set_setting(SETTINGS.CLI_PATH_SETTING, path)
+	_log_line("dotquay path set to %s." % path)
+	refresh()
+
+
 # ---------------------------------------------------------------------------------------------
 # CLI results
 # ---------------------------------------------------------------------------------------------
 
 ## The banner is a first-run affordance, not a second error log: it appears for every problem that
-## leaves the CLI unusable, not only the two that have a one-click fix, and offers exactly the button
-## (if any) that fixes what it's showing.
+## leaves the CLI unusable, and offers exactly the buttons (if any) that fix what it's showing. Which
+## buttons and which message is [DotquaySetupBanner]'s call, not this method's — pulled out as a pure
+## function so those decisions are testable without a scene.
 func _update_setup_banner(result: DotquayResult) -> void:
-	var not_configured := result.error_kind == RESULT.KIND_NOT_CONFIGURED
-	var no_manifest := result.error_kind == RESULT.KIND_NO_MANIFEST
-	# A wrong or stale CLI path — pointed at nothing, at something that isn't dotquay, or at a crashed
-	# process — produces one of these three kinds. Burying that in the 140px log leaves the graph and
-	# sidebar blank with no visible explanation, same as an unconfigured path.
-	var cli_unusable := (
-		result.error_kind == RESULT.KIND_LAUNCH_FAILED
-		or result.error_kind == RESULT.KIND_BAD_OUTPUT
-		or result.error_kind == RESULT.KIND_SCHEMA_MISMATCH)
+	var decision := DotquaySetupBanner.decide(result.error_kind)
 
-	_setup_banner.visible = not_configured or no_manifest or cli_unusable
-	# A schema mismatch is a real, differently-versioned dotquay sitting at the right path — re-running
-	# PATH discovery would likely find that same binary again and offer a "fix" that fixes nothing.
-	_locate_button.visible = not_configured or (
-		cli_unusable and result.error_kind != RESULT.KIND_SCHEMA_MISMATCH)
-	_init_button.visible = no_manifest
+	_setup_banner.visible = decision.visible
+	_get_dotquay_button.visible = decision.show_get_dotquay
+	_browse_button.visible = decision.show_browse
+	_locate_button.visible = decision.show_locate
+	_init_button.visible = decision.show_init
 
-	if not _setup_banner.visible:
+	if not decision.visible:
 		return
 
 	# None of these states is one any mutating command should be offered against.
 	_project_ready = false
 	_update_toolbar_state()
 
-	_setup_message.text = (
-		"This Godot project has no dotquay.toml yet, so there is nothing to show." if no_manifest
-		else result.error_message)
+	# An empty decision message means the CLI's own error_message is the one worth showing (a wrong
+	# path or a schema mismatch) — DotquaySetupBanner has no way to know that text, only the kind.
+	_setup_message.text = decision.message if not decision.message.is_empty() else result.error_message
 
 
 func _on_busy_changed(is_busy: bool) -> void:

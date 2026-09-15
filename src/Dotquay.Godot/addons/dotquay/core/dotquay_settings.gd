@@ -28,6 +28,10 @@ const MIN_COMMAND_TIMEOUT_SECONDS := 10
 ## continuation of it: the two were never live at the same time, so there is nothing to migrate.
 const RETIRED_SETTINGS := ["dotquay/general/resolve_timeout_seconds"]
 
+## Where the "Get dotquay…" button (P0-2) opens — this plugin's own repo's release page, the
+## canonical place to download the CLI binary this tab needs.
+const RELEASES_URL := "https://gitlab.kemomi.de/wild-alliance/dotquay/-/releases"
+
 ## Names to look for on PATH when no explicit path is configured, so the common case (dotquay
 ## installed normally) needs no setup at all. Platform-specific: `where` on Windows already resolves
 ## the bare name via PATHEXT, so trying `dotquay.exe` there is just a documented order-of-preference,
