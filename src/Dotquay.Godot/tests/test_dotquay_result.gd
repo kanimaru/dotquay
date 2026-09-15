@@ -129,3 +129,46 @@ func test_failure_helper_needs_no_output() -> void:
 
 	runner.check(not result.ok, "a synthesised failure is still a failure")
 	runner.equal(result.command, "graph", "the command should be recorded even when the CLI never ran")
+
+
+func test_null_warnings_do_not_crash_and_yield_none() -> void:
+	# The wire contract emits absent optional arrays as JSON null rather than omitting the key
+	# (SPEC.md §17), so `warnings` can arrive as null on an otherwise ordinary envelope.
+	var result: DotquayResult = RESULT.parse(_envelope({"warnings": null}), 0, "graph")
+
+	runner.check(result.ok, "a null warnings field should not affect an otherwise successful envelope")
+	runner.equal(result.warnings.size(), 0, "a null warnings field should yield zero warnings, not raise")
+
+
+func test_missing_error_object_produces_an_informative_message() -> void:
+	var json := JSON.stringify({
+		"schema": 1,
+		"tool": "dotquay",
+		"version": "0.5.0",
+		"command": "graph",
+		"ok": false,
+	})
+
+	var result: DotquayResult = RESULT.parse(json, 1, "graph")
+
+	runner.check(not result.ok, "an ok:false envelope should not parse as ok")
+	runner.check(not result.error_message.is_empty(),
+		"a failure envelope with no error object must not leave error_message empty")
+
+
+func test_non_dictionary_error_produces_an_informative_message() -> void:
+	var result: DotquayResult = RESULT.parse(
+		_envelope({"ok": false, "error": "just a string"}), 1, "graph")
+
+	runner.check(not result.ok, "an ok:false envelope should not parse as ok")
+	runner.check(not result.error_message.is_empty(),
+		"a non-dictionary error value must not leave error_message empty, and must not raise")
+
+
+func test_failure_helper_records_and_surfaces_raw_output() -> void:
+	var result: DotquayResult = RESULT.failure(
+		RESULT.KIND_LAUNCH_FAILED, "could not start", "graph", "some raw output")
+
+	runner.equal(result.raw_output, "some raw output", "failure() should store the raw output it was given")
+	runner.check(result.error_message.contains("some raw output"),
+		"the error message should surface the raw output, not just the lead sentence")

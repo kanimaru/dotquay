@@ -17,6 +17,7 @@ const KIND_WORKFLOW := "workflow"
 const KIND_NO_MANIFEST := "no_manifest"
 const KIND_CONFLICT := "conflict"
 const KIND_GIT := "git"
+const KIND_AUTH := "auth"
 const KIND_UNEXPECTED := "unexpected"
 
 ## Error kinds this addon synthesises for failures that never reached the CLI.
@@ -46,13 +47,33 @@ var exit_code: int = 0
 var ticket: int = 0
 
 
-static func failure(kind: String, message: String, for_command: String = "") -> DotquayResult:
+## Builds a synthesised failure (a launch that never reached the CLI, or a parse that could not make
+## sense of what it returned). `raw_output`, when given, is folded into [member error_message] as
+## well as stored on [member raw_output] — the caller supplies the lead sentence, this appends the
+## evidence.
+static func failure(kind: String, message: String, command_name: String, raw_output: String = "") -> DotquayResult:
 	var result := DotquayResult.new()
 	result.ok = false
-	result.command = for_command
+	result.command = command_name
 	result.error_kind = kind
 	result.error_message = message
+	result.raw_output = raw_output
+	if not raw_output.is_empty():
+		# Folded in here, not left for each call site to remember: a shell "Permission denied", a
+		# .NET crash trace, or a Gatekeeper block is the actual cause, and it is sitting unread in
+		# raw_output unless something surfaces it in the message a person actually looks at.
+		result.error_message += "\n%s" % _first_lines(raw_output, 10)
 	return result
+
+
+## Cuts diagnostic output down to its first few lines, for folding into an error message without
+## drowning the actual cause (a shell "Permission denied", a .NET crash trace, a Gatekeeper block)
+## under everything printed after it.
+static func _first_lines(text: String, max_lines: int) -> String:
+	var lines := text.split("\n")
+	if lines.size() <= max_lines:
+		return text
+	return "\n".join(lines.slice(0, max_lines)) + "\n… (truncated)"
 
 
 ## Cuts a captured buffer down to the outermost `{ ... }` it contains.
@@ -99,8 +120,8 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 		var bad := DotquayResult.failure(
 			KIND_BAD_OUTPUT,
 			"dotquay did not return JSON (exit code %d). Check that the CLI path points at the dotquay executable." % code,
-			for_command)
-		bad.raw_output = output
+			for_command,
+			output)
 		bad.exit_code = code
 		return bad
 
@@ -110,8 +131,8 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 		var wrong := DotquayResult.failure(
 			KIND_BAD_OUTPUT,
 			"That executable is not dotquay — it returned JSON, but not dotquay's.",
-			for_command)
-		wrong.raw_output = output
+			for_command,
+			output)
 		wrong.exit_code = code
 		return wrong
 
@@ -123,7 +144,7 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 	result.raw_output = output
 	result.ok = bool(envelope.get("ok", false))
 
-	for warning in envelope.get("warnings", []):
+	for warning in DotquayWire.array_or_empty(envelope.get("warnings")):
 		result.warnings.append(String(warning))
 
 	# Refuse a payload shape this addon wasn't written against rather than half-reading it: silently
@@ -134,6 +155,8 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 		result.error_message = (
 			"dotquay %s speaks payload schema %d, but this plugin understands %d. Update whichever is older."
 			% [result.cli_version, result.schema, SCHEMA_SUPPORTED])
+		if not result.raw_output.is_empty():
+			result.error_message += "\n%s" % _first_lines(result.raw_output, 10)
 		return result
 
 	var error_value: Variant = envelope.get("error")
@@ -142,6 +165,11 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 		result.error_kind = String(error_dict.get("kind", KIND_UNEXPECTED))
 		result.error_message = String(error_dict.get("message", ""))
 		result.ok = false
+	elif not result.ok:
+		# A failure envelope with no `error` object at all, or one where it isn't a dictionary (a
+		# bare string, say) — still a failure, so error_message must not be left empty.
+		result.error_kind = KIND_UNEXPECTED
+		result.error_message = "dotquay reported a failure (exit code %d) but gave no details." % code
 
 	var data_value: Variant = envelope.get("data")
 	if typeof(data_value) == TYPE_DICTIONARY:
