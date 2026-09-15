@@ -93,19 +93,29 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   Remove button aren't individually greyed out while a run is queued — clicking them still works, it
   just waits its turn safely instead of racing.
 
-- [ ] **P0-7 No timeout; `_exit_tree` joins unconditionally, so a stalled child hangs the editor —
-  including on quit.** `dotquay_cli.gd:35-43` + the retired timeout setting
+- [x] **P0-7 No timeout; `_exit_tree` joins unconditionally, so a stalled child hangs the editor —
+  including on quit.** ~~`dotquay_cli.gd:35-43` + the retired timeout setting
   (`dotquay_settings.gd:15-18`, "OS.execute has no timeout to give it to"). An ssh host-key prompt on a
   first `git@host:` clone, or a half-open connection to a feed, leaves the toolbar disabled forever and
   blocks Godot's shutdown until the user force-kills it — which is exactly the mid-write corruption the
-  join was meant to prevent. Fix: `OS.execute_with_pipe()` (4.3+; plugin requires 4.7) gives a pid plus
-  separate stdout/stderr; poll from the worker, enforce a timeout, and on `_exit_tree` grant a bounded
-  grace period then `OS.kill(pid)`. This also fixes P0-4's merged stderr, C-15 (brace heuristic) and
-  P1-16 (shell quoting on Unix).
-  _Deliberately deferred this pass — needs live-binary testing (a real hung process, a real
-  `_exit_tree` quit) that a sandboxed agent can't verify, and rewriting the process boundary was judged
-  too risky to bundle into a parallel pass. Left a `## TODO` at `dotquay_cli.gd`'s `_exit_tree` marking
-  the gap. This is the one P0 still fully open._
+  join was meant to prevent.~~ Fixed: added `DotquayProcessRunner`, which wraps `OS.execute_with_pipe()`
+  so a worker thread polls wall-clock time against a new editor setting (`Command Timeout Seconds`,
+  `dotquay_settings.gd`, default 300s) and kills the child once the budget runs out, instead of being
+  stuck inside one blocking `OS.execute()` call with no way to interrupt it. `_exit_tree` now tracks
+  every running child's pid (`Mutex` + `Dictionary`, written by the worker thread the moment a pid
+  exists) and kills them directly before joining, so shutdown is bounded by one poll interval instead of
+  the full configurable timeout.
+  _Verified with a new suite, `tests/test_dotquay_process_runner.gd`, that spawns real OS processes: a
+  missing executable, a fast process's real exit code and output, and a process genuinely killed after
+  outliving a 500ms budget. All 479 assertions pass against the real Godot 4.7.2 binary and the real
+  dotquay CLI (`d961a06`). Getting the implementation right took one throwaway headless probe first:
+  reading the child's output pipes concurrently with the timeout-polling loop silently returns empty
+  output on Windows, regardless of what the child actually wrote, confirmed against both `powershell.exe`
+  and the real `dotquay.exe` binary — so `DotquayProcessRunner` deliberately reads the pipes only after
+  `OS.is_process_running()` has already gone false. Still unverified: the Linux/macOS `/bin/sh` branch
+  (cross-platform by construction, never actually run), and manually clicking through a real hang inside
+  the GUI editor itself — headless `--script` mode proves the timeout/kill mechanism but not the editor's
+  own quit sequence._
 
 - [x] **P0-8 A `null` list anywhere in an envelope is a script error on the worker thread → panel
   stuck busy forever.** ~~`dotquay_result.gd:126` `for warning in envelope.get("warnings", [])` only
@@ -541,16 +551,16 @@ Add form:
 
 1. ~~P0-1, P0-10, P0-11, C-11, C-12, C-13~~ — done except C-13 (see note above).
 2. P0-6 + P0-7 together (queue + `execute_with_pipe` + timeout + kill-on-exit) — one change, fixes
-   five findings. **Done: the queue (P0-6). Still open: P0-7's timeout/kill-on-exit rewrite** —
-   deliberately deferred, needs live-binary testing a sandboxed pass can't do.
+   five findings. **Done: both the queue (P0-6) and the timeout/kill-on-exit rewrite (P0-7)** — the
+   latter verified against real hung and real fast processes on the actual Godot 4.7.2 binary.
 3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
 4. P0-2, P0-3, P1-1..P1-4 — **P0-3 done.** P0-2 and P1-1..P1-4 still open.
 5. P0-9, P1-8, P1-9, P1-14 — **P0-9 done.** P1-8, P1-9, P1-14 still open.
 6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
 7. The P2 string table, then the remaining P1 polish and C items. Not started.
 
-**Net this pass:** 9 of 11 P0s fully closed (P0-1, P0-3, P0-4, P0-5, P0-6, P0-8, P0-9, P0-10, P0-11),
-2 still open (P0-2, P0-7 — both deliberately, see their notes), plus C-2, C-3, C-8, C-11, C-12. Verified
-for real: 468/468 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, across 11
-conventional commits (`10636ca`..`eb4d34d`) on `main`. No P1/P2 items were touched — the whole pass
-stayed scoped to P0s plus the C-items that rode along with them.
+**Net this pass:** 10 of 11 P0s fully closed (P0-1, P0-3, P0-4, P0-5, P0-6, P0-7, P0-8, P0-9, P0-10,
+P0-11), 1 still open (P0-2 — see its note), plus C-2, C-3, C-8, C-11, C-12. Verified for real: 479/479
+GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, across 13 conventional
+commits (`10636ca`..`d961a06`) on `main`. No P1/P2 items were touched — the whole pass stayed scoped to
+P0s plus the C-items that rode along with them.
