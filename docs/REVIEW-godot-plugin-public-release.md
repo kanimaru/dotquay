@@ -165,21 +165,35 @@ These either show wrong information, lose data, or leave a beginner stuck with n
 
 ### First run / setup
 
-- [ ] **P1-1** Settings breadcrumb is wrong everywhere it is written. The key is
+- [x] **P1-1** ~~Settings breadcrumb is wrong everywhere it is written. The key is
   `dotquay/general/cli_path` (`dotquay_settings.gd:12`), which Godot renders as **Dotquay › General ›
   Cli Path**; the strings say "Editor Settings -> Dotquay -> CLI Path" (`plugin.cfg:4`,
-  `dotquay_cli.gd:67`, `dotquay_panel.gd:339`, `README.md:18`). Use the real breadcrumb once, in one
-  constant. Consider renaming the key to `executable_path` ("Executable Path" reads better than "Cli
-  Path") and migrating via `RETIRED_SETTINGS`.
-- [ ] **P1-2** Common path-setting mistakes get "does not exist" with no hint (`dotquay_cli.gd:71-76`,
+  `dotquay_cli.gd:67`, `dotquay_panel.gd:339`, `README.md:18`).~~ Fixed: added
+  `DotquaySettings.breadcrumb()`, which derives the real breadcrumb from a setting key the same way
+  Godot's own dialog does (title-case each `/`-delimited segment) — the two runtime strings
+  (`dotquay_cli.gd`) now read from it instead of a hand-typed guess. `plugin.cfg` and `README.md` are
+  plain text, not GDScript, so those two carry a hand-corrected copy instead. Not done: renaming the
+  key itself to `executable_path` — left as explicitly optional ("consider") in the original wording,
+  and not worth the migration risk for a cosmetic rename.
+- [x] **P1-2** ~~Common path-setting mistakes get "does not exist" with no hint (`dotquay_cli.gd:71-76`,
   `dotquay_settings.gd:58-62` only `strip_edges()`): Windows "Copy as path" gives a quoted string,
-  `~/.local/bin/dotquay` is not expanded, a folder or `dotquay.dll` is accepted. Trim quotes, expand
-  `~`, and say "pick the executable, not a folder/.dll".
-- [ ] **P1-3** Linux/macOS: `FileAccess.file_exists` does not check the execute bit; a binary without
-  `chmod +x` yields "Could not start dotquay" (`dotquay_cli.gd:115`) with no hint. Add the hint.
-- [ ] **P1-4** "Find dotquay on PATH" gives no feedback in the banner itself (`dotquay_panel.gd:336-344`,
-  log only), and silently overwrites a deliberately configured-but-wrong path (`:342`). Update
-  `_setup_message.text` immediately; confirm before overwriting.
+  `~/.local/bin/dotquay` is not expanded, a folder or `dotquay.dll` is accepted.~~ Quote-stripping and
+  `~` expansion were already handled by `_normalize_configured_path`/`_expand_home` from an earlier
+  pass (not this one). Fixed the remaining gap: `DotquaySettings.path_problem()` now checks for a
+  folder or a `.dll` specifically and returns a ready-to-show sentence naming which one it is, in
+  addition to plain nonexistence.
+- [x] **P1-3** ~~Linux/macOS: `FileAccess.file_exists` does not check the execute bit; a binary without
+  `chmod +x` yields "Could not start dotquay" (`dotquay_cli.gd:115`) with no hint.~~ Fixed:
+  `DotquayProcessRunner.launch_failed_message()` adds a `chmod +x` hint whenever `OS.get_name() !=
+  "Windows"`.
+- [x] **P1-4** ~~"Find dotquay on PATH" gives no feedback in the banner itself (`dotquay_panel.gd:336-344`,
+  log only), and silently overwrites a deliberately configured-but-wrong path (`:342`).~~ Fixed:
+  `_setup_message.text` now updates directly on both outcomes, and a new `ConfirmOverwriteCliPath`
+  dialog asks first whenever a different, non-blank path was already configured (a blank one is never
+  worth confirming — there's nothing to lose).
+  _P1-1..P1-4 covered by `tests/test_dotquay_settings.gd` (new) and two added cases in
+  `tests/test_dotquay_process_runner.gd`. 522 assertions pass against the real Godot 4.7.2 binary and
+  the real dotquay CLI (`0ab2391`)._
 - [ ] **P1-5** The no-manifest banner and button are jargon: "Scaffold a manifest in this Godot
   project, the same as running `dotquay init`." (`dotquay_panel.tscn:109`, backticks render
   literally). Suggest banner "dotquay keeps the list of your addons in a file called dotquay.toml.
@@ -563,15 +577,15 @@ Add form:
    five findings. **Done: both the queue (P0-6) and the timeout/kill-on-exit rewrite (P0-7)** — the
    latter verified against real hung and real fast processes on the actual Godot 4.7.2 binary.
 3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
-4. P0-2, P0-3, P1-1..P1-4 — **P0-2 and P0-3 done.** P1-1..P1-4 still open.
+4. ~~P0-2, P0-3, P1-1..P1-4~~ — done.
 5. P0-9, P1-8, P1-9, P1-14 — **P0-9 done.** P1-8, P1-9, P1-14 still open.
 6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
 7. The P2 string table, then the remaining P1 polish and C items. Not started.
 
-**Net this pass:** 11 of 11 P0s fully closed. Plus C-2, C-3, C-8, C-11, C-12. Verified for real:
-511/511 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, across 14
-conventional commits (`10636ca`..`75a80ba`) on `main`. No P1/P2 items were touched — the whole pass
-stayed scoped to P0s plus the C-items that rode along with them. Everything a first-time Godot user
+**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, C-2, C-3, C-8, C-11, C-12.
+Verified for real: 522/522 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 15 conventional commits (`10636ca`..`0ab2391`) on `main`. Everything a first-time Godot user
 would hit trying to add, update, or remove an addon through this tab is now either fixed or has a
-working, discoverable path forward — the P1/P2/C backlog above is wording, ergonomics, and hygiene,
+working, discoverable path forward — the remaining P1/P2/C backlog above is wording, ergonomics, and
+hygiene,
 not a beginner getting stuck with no way out.
