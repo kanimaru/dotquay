@@ -1237,6 +1237,78 @@ public sealed partial class DependencyWorkflow
         }
     }
 
+    /// <summary>
+    /// Reports a package the lockfile binds to a private feed that <c>NuGet.Config</c> does not bind
+    /// there.
+    /// </summary>
+    /// <remarks>
+    /// <para>The mapping is all-or-nothing per config file: a package matching no pattern falls to
+    /// the <c>*</c> catch-all, which points at nuget.org. A missing pattern is therefore not a
+    /// weaker binding but a different feed, and the machine that caused the drift is the least
+    /// likely to notice - a warm package cache or a local link answers the restore it would have
+    /// broken. That is how the 2026-09-15 add bug survived: the file was wrong, every command
+    /// reported success, and only a clean restore elsewhere would have failed.</para>
+    /// <para>Only missing bindings are reported, never extra ones. A pattern for a package the
+    /// project no longer references costs nothing at restore time, and pruning it is the writer's
+    /// job on the next install.</para>
+    /// </remarks>
+    private void CheckNuGetSourceMappingDrift(
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    {
+        // Both gates are the writer's own conditions: with mapping switched off, or with no private
+        // feed declared, dotquay writes no mapping at all and there is nothing to have drifted from.
+        if (!manifest.NuGetSourceMapping)
+        {
+            return;
+        }
+
+        var sources = manifest.SourceSet();
+        if (!sources.HasCustomSources)
+        {
+            return;
+        }
+
+        var mapping = NuGetConfigWriter.ReadSourceMapping(_fileSystem, projectDirectory);
+
+        foreach (var locked in lockfile.Dotnet.Where(dependency => dependency.Source is not null))
+        {
+            // A manifest pin outranks the lockfile's record here for the same reason it does when the
+            // mapping is written: the pin is what the next write will honour.
+            var expected = manifest.Dotnet.TryGetValue(locked.Name, out var spec) && spec.Source is not null
+                ? spec.Source
+                : locked.Source!;
+
+            var source = sources.ByName(expected);
+
+            // A feed the manifest no longer declares is the dangling-entry check's business, and
+            // nuget.org needs no pattern of its own - the catch-all already points there.
+            if (source is null || source.IsPublicDefault)
+            {
+                continue;
+            }
+
+            if (mapping.TryGetValue(source.ConfigKey, out var patterns)
+                && patterns.Any(pattern => PatternCovers(pattern, locked.Name)))
+            {
+                continue;
+            }
+
+            issues.Add(new DoctorIssue(
+                DoctorIssueKind.NuGetSourceMappingDrift,
+                $"'{locked.Name}' is locked to NuGet feed '{expected}', but NuGet.Config's "
+                + $"<packageSourceMapping> does not bind it to '{source.ConfigKey}'. 'dotnet restore' will "
+                + "look for it on nuget.org instead, and fail if it was never published there. Run "
+                + "'dotquay install' to rewrite the mapping from the lockfile."));
+        }
+    }
+
+    /// <summary>NuGet's pattern rule, as much of it as this check needs: an exact package ID, or a
+    /// prefix ending in <c>*</c>. Case-insensitive, like package IDs themselves.</summary>
+    private static bool PatternCovers(string pattern, string packageId) =>
+        pattern.EndsWith('*')
+            ? packageId.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase)
+            : string.Equals(pattern, packageId, StringComparison.OrdinalIgnoreCase);
+
     private static bool DeclaredSlotsMatch(PackageAssets expected, PackageAssets actual) =>
         (expected.Include is null || PackageAssets.SameTags(expected.Include, actual.Include))
         && (expected.Exclude is null || PackageAssets.SameTags(expected.Exclude, actual.Exclude))
@@ -1275,6 +1347,7 @@ public sealed partial class DependencyWorkflow
             CheckManifestForSecrets(manifestPath, issues);
             CheckTrustedHosts(manifest, manifestPath, issues);
             CheckPackageAssetDrift(projectDirectory, manifest, lockfile, issues);
+            CheckNuGetSourceMappingDrift(projectDirectory, manifest, lockfile, issues);
         }
 
         foreach (var locked in lockfile.Addons)

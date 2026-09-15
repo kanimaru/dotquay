@@ -76,7 +76,7 @@ Key consequence: commands split along the stage boundary.
 | `dotquay outdated` | — | `git ls-remote` per repo + NuGet metadata check; compares against lockfile without cloning |
 | `dotquay status` | — | Diff disk against lockfile hashes: `clean` / `patched as expected` / `modified` |
 | `dotquay patch <name>` | — | Diff installed addon against pristine cache copy, write `<patches_dir>/<name>.patch` (§10.1). `--resolve` finishes a conflicted update; `--abandon` drops the patch (v0.6) |
-| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, (v0.5) installed addons shipping an unreadable package manifest, and (v0.9) project code loading an addon resource by a bare `uid://` (§7.3.1) plus addons installed under a wrongly-cased folder (§7.1.1), and (v0.13) an addon installed somewhere other than where the manifest declaring it asks for (§7.1.2) |
+| `dotquay doctor` | — | Sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned folders in `addons/`, (v0.5) installed addons shipping an unreadable package manifest, and (v0.9) project code loading an addon resource by a bare `uid://` (§7.3.1) plus addons installed under a wrongly-cased folder (§7.1.1), and (v0.13) an addon installed somewhere other than where the manifest declaring it asks for (§7.1.2), and (v0.18) a package the lockfile binds to a private NuGet feed that `NuGet.Config` does not bind it to |
 | `dotquay graph [--resolve]` | — | Print the dependency graph (§8): who requires what, and where it conflicts. Reads the lockfile by default (offline, instant); `--resolve` re-walks live git refs, the only mode that can report unresolved conflicts (v0.5) |
 | `dotquay override <name> --version\|--branch\|--rev <value>` | resolve | Write an `[overrides.<name>]` entry and re-apply the graph. `--clear` removes it; no arguments lists them. The escape hatch every conflict message already points at, without hand-editing TOML (v0.5) |
 | `dotquay link <name> <path>` | sync | Point an addon at a local folder for development (§7.4). `--remove` unlinks; no arguments lists them (v0.6) |
@@ -670,6 +670,12 @@ Three rules make a multi-feed setup deterministic rather than merely possible:
   and multi-feed support would be a report rather than a guarantee. Mapping is all-or-nothing per
   config, so dotquay always writes a `*` catch-all (and an explicit `nuget.org` entry for it to point
   at); `[nuget] source_mapping = false` opts out.
+- **Every write of the mapping carries the whole picture** (v0.18). The element is rewritten
+  wholesale, so an install that passes only the package it is installing does not leave the other
+  bindings alone, it deletes them, and every deleted binding falls to the `*` catch-all and is
+  fetched from nuget.org. Callers therefore pass the complete package-to-feed set, built from the
+  lockfile by `ProjectNuGetSources.MappedPackages`; `doctor` reports a lockfile-recorded feed the
+  file does not bind (`nuget_source_mapping_drift`).
 
 **Addon-declared packages resolve against the feeds the project ends up with.** When an installed
 addon's own package manifest declares a `[dotnet.*]` dependency (§7.2, requirement P1-5), that package

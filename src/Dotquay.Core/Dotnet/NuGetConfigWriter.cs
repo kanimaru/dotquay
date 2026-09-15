@@ -44,11 +44,7 @@ public static class NuGetConfigWriter
         IReadOnlyDictionary<string, string>? pinnedPackages = null,
         bool writeSourceMapping = true)
     {
-        var lowercasePath = fileSystem.CombinePath(projectDirectory, LowercaseConfigFileName);
-        var path = fileSystem.FileExists(lowercasePath)
-            ? lowercasePath
-            : fileSystem.CombinePath(projectDirectory, ConfigFileName);
-
+        var path = ResolvePath(fileSystem, projectDirectory);
         var document = LoadOrCreate(fileSystem, path);
         var configuration = document.Root;
         if (configuration is null || configuration.Name.LocalName != "configuration")
@@ -83,6 +79,71 @@ public static class NuGetConfigWriter
         {
             throw new DotnetSyncException($"{path}: not valid XML.{Environment.NewLine}{ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// The <c>&lt;packageSourceMapping&gt;</c> the project's config currently declares: each source
+    /// key to the patterns bound to it.
+    /// </summary>
+    /// <remarks>
+    /// The read half of <see cref="WritePackageSourceMapping"/>, kept here so this class stays the
+    /// one place that knows the file's shape. Deliberately forgiving: a missing file, a missing
+    /// mapping element and a file too broken to parse all read as "nothing is bound", because the
+    /// only caller is <c>doctor</c>, which reports rather than writes - and an unparseable file is
+    /// already reported by anything that tries to write it.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadSourceMapping(
+        IFileSystem fileSystem, string projectDirectory)
+    {
+        var mapped = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        var path = ResolvePath(fileSystem, projectDirectory);
+
+        if (!fileSystem.FileExists(path))
+        {
+            return mapped;
+        }
+
+        XDocument document;
+        try
+        {
+            document = XDocument.Parse(fileSystem.ReadAllText(path));
+        }
+        catch (System.Xml.XmlException)
+        {
+            return mapped;
+        }
+
+        var mapping = document.Root?.Element("packageSourceMapping");
+        if (mapping is null)
+        {
+            return mapped;
+        }
+
+        foreach (var source in mapping.Elements("packageSource"))
+        {
+            if ((string?)source.Attribute("key") is not { } key)
+            {
+                continue;
+            }
+
+            mapped[key] = source.Elements("package")
+                .Select(package => (string?)package.Attribute("pattern"))
+                .OfType<string>()
+                .ToList();
+        }
+
+        return mapped;
+    }
+
+    /// <summary>Either casing, preferring one that is already on disk - NuGet does not care which,
+    /// and dotquay must not create a second file beside one that is already there.</summary>
+    private static string ResolvePath(IFileSystem fileSystem, string projectDirectory)
+    {
+        var lowercasePath = fileSystem.CombinePath(projectDirectory, LowercaseConfigFileName);
+
+        return fileSystem.FileExists(lowercasePath)
+            ? lowercasePath
+            : fileSystem.CombinePath(projectDirectory, ConfigFileName);
     }
 
     /// <summary>

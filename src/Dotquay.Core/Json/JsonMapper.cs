@@ -356,6 +356,7 @@ public static class JsonMapper
         DoctorIssueKind.AddonLinkMismatch => "addon_link_mismatch",
         DoctorIssueKind.LocalOverlayNotImported => "local_overlay_not_imported",
         DoctorIssueKind.SshHostNotTrusted => "ssh_host_not_trusted",
+        DoctorIssueKind.NuGetSourceMappingDrift => "nuget_source_mapping_drift",
         _ => "unknown",
     };
 

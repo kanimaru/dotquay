@@ -177,4 +177,21 @@ public enum DoctorIssueKind
     /// </para>
     /// </remarks>
     SshHostNotTrusted,
+
+    /// <summary>
+    /// A package the lockfile records as resolving from a private feed that <c>NuGet.Config</c>'s
+    /// <c>&lt;packageSourceMapping&gt;</c> does not bind to that feed (v0.18).
+    /// </summary>
+    /// <remarks>
+    /// Mapping is all-or-nothing per config file: a package matching no pattern falls to the
+    /// <c>*</c> catch-all and is fetched from nuget.org, so a missing pattern does not weaken the
+    /// binding, it changes which feed the package comes from. A hand-edit does this, and so did a
+    /// dotquay bug fixed on 2026-09-15 where <c>add</c> rewrote the whole mapping from the single
+    /// package it was installing. Worth a check of its own because nothing local fails: the project
+    /// that caused the drift usually restores fine from its cache or a local link, and the error
+    /// surfaces on a teammate's clean machine instead. Reported rather than repaired, like every
+    /// other check here - <c>dotquay install</c> rewrites the file from the lockfile, which is what
+    /// the message says to run.
+    /// </remarks>
+    NuGetSourceMappingDrift,
 }
