@@ -226,3 +226,9 @@ unique_name_in_owner = true
 oversampling_override = 1.0
 title = "Remove dependency"
 ok_button_text = "Remove"
+
+[node name="ConfirmOverwriteCliPath" type="ConfirmationDialog" parent="." unique_id=1900000009]
+unique_name_in_owner = true
+oversampling_override = 1.0
+title = "Replace the configured dotquay path?"
+ok_button_text = "Replace"

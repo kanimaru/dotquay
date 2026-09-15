@@ -26,6 +26,8 @@ const SUITES := [
 	preload("res://tests/test_dotquay_process_runner.gd"),
 	# Pure banner-state decisions (P0-2) — no Control, no EditorSettings, no CLI needed.
 	preload("res://tests/test_dotquay_setup_banner.gd"),
+	# Breadcrumb building and path-mistake detection (P1-1, P1-2).
+	preload("res://tests/test_dotquay_settings.gd"),
 	# Hand-written .tscn files fail at load time, not compile time, so the only way to know they are
 	# valid is to load them.
 	preload("res://tests/test_scenes.gd"),

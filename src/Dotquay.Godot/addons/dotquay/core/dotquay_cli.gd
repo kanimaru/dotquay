@@ -103,15 +103,15 @@ func run(command_name: String, args: PackedStringArray) -> int:
 	if executable.is_empty():
 		_emit_deferred(RESULT.failure(
 			RESULT.KIND_NOT_CONFIGURED,
-			"No dotquay executable configured or found on PATH. Set Editor Settings -> Dotquay -> CLI Path.",
+			"No dotquay executable configured or found on PATH. Set %s." % SETTINGS.breadcrumb(SETTINGS.CLI_PATH_SETTING),
 			command_name), ticket)
 		return ticket
 
-	if not FileAccess.file_exists(executable):
-		_emit_deferred(RESULT.failure(
-			RESULT.KIND_NOT_CONFIGURED,
-			"The configured dotquay path does not exist: %s" % executable,
-			command_name), ticket)
+	# A folder, a .dll, or nothing at all — the mistakes a newbie commonly ends up with before ever
+	# spawning it (P1-2).
+	var problem := SETTINGS.path_problem(executable)
+	if not problem.is_empty():
+		_emit_deferred(RESULT.failure(RESULT.KIND_NOT_CONFIGURED, problem, command_name), ticket)
 		return ticket
 
 	var full_args := PackedStringArray(args)
@@ -186,14 +186,14 @@ func _run_blocking(executable: String, args: PackedStringArray, command_name: St
 	if outcome.launch_failed:
 		result = RESULT.failure(
 			RESULT.KIND_LAUNCH_FAILED,
-			"Could not start dotquay at %s." % executable,
+			PROCESS_RUNNER.launch_failed_message(executable, OS.get_name()),
 			command_name,
 			outcome.output)
 	elif outcome.timed_out:
 		result = RESULT.failure(
 			RESULT.KIND_TIMEOUT,
 			"dotquay did not finish within %ds and was stopped. If this keeps happening on a slow " % (timeout_ms / 1000)
-				+ "connection, raise the timeout in Editor Settings -> Dotquay -> Command Timeout Seconds.",
+				+ "connection, raise the timeout in %s." % SETTINGS.breadcrumb(SETTINGS.COMMAND_TIMEOUT_SETTING),
 			command_name,
 			outcome.output)
 	else:

@@ -76,3 +76,19 @@ func test_on_started_callback_receives_a_real_pid() -> void:
 	PROCESS_RUNNER.run(shell[0], shell[1], 2000, func(pid: int) -> void: seen_pid[0] = pid)
 
 	runner.check(seen_pid[0] > 0, "on_started should be called with a positive pid before the process exits")
+
+
+## P1-3: a Linux/macOS binary missing its execute bit fails exactly like a bad path or a nonexistent
+## file — there is nothing else to go on, so the hint has to live in this message.
+func test_launch_failed_message_adds_a_chmod_hint_on_non_windows() -> void:
+	var message := PROCESS_RUNNER.launch_failed_message("/opt/dotquay/dotquay", "Linux")
+
+	runner.check(message.contains("chmod +x"), "non-Windows should hint at the execute bit")
+	runner.check(message.contains("/opt/dotquay/dotquay"), "the message should still name the configured path")
+
+
+func test_launch_failed_message_has_no_chmod_hint_on_windows() -> void:
+	var message := PROCESS_RUNNER.launch_failed_message("C:\\dotquay\\dotquay.exe", "Windows")
+
+	runner.check(not message.contains("chmod"), "chmod is not a Windows concept")
+	runner.check(message.contains("C:\\dotquay\\dotquay.exe"), "the message should still name the configured path")

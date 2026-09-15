@@ -41,6 +41,40 @@ const EXECUTABLE_NAMES_WINDOWS := ["dotquay.exe", "dotquay"]
 const EXECUTABLE_NAMES_UNIX := ["dotquay"]
 
 
+## Turns a "/"-delimited setting key into the breadcrumb Godot's own Editor Settings dialog shows for
+## it — the same rule the dialog itself uses to build its category tree from the key (title-case each
+## segment). Every "Editor Settings -> ..." string in this plugin should read from here rather than
+## re-typing the breadcrumb by hand: three hand-typed copies (`dotquay_cli.gd`, `plugin.cfg`,
+## `README.md`) had already drifted from the real one, "Dotquay -> General -> Cli Path", down to just
+## "Dotquay -> CLI Path" (P1-1). `plugin.cfg` and `README.md` are plain text, not GDScript, so those
+## two still carry a hand-corrected copy — this only reaches the paths built at runtime.
+static func breadcrumb(setting_key: String) -> String:
+	var parts := PackedStringArray(["Editor Settings"])
+	for segment in setting_key.split("/"):
+		parts.append(segment.capitalize())
+	return " -> ".join(parts)
+
+
+## Checks a resolved CLI path for the mistakes a newbie commonly ends up with before ever spawning it:
+## a folder (a file picker lets you select one), a `.dll` (the framework-dependent half of a two-file
+## publish), or nothing at that path at all. Separate from [method cli_path] because this only makes
+## sense once a concrete path is in hand — there's nothing to validate about "not configured" or "look
+## on PATH" (P1-2).
+##
+## Returns "" when nothing is wrong; otherwise a complete, user-facing sentence ready to show as-is.
+static func path_problem(path: String) -> String:
+	if DirAccess.dir_exists_absolute(path):
+		return "The configured dotquay path is a folder, not the executable itself: %s. Pick dotquay (or dotquay.exe) inside it, not the folder." % path
+
+	if not FileAccess.file_exists(path):
+		return "The configured dotquay path does not exist: %s" % path
+
+	if path.get_extension().to_lower() == "dll":
+		return "The configured dotquay path points at a .dll: %s. Point it at the dotquay executable (dotquay.exe on Windows, dotquay elsewhere) instead." % path
+
+	return ""
+
+
 ## The executable names to probe for the current platform. See [constant EXECUTABLE_NAMES_WINDOWS]
 ## and [constant EXECUTABLE_NAMES_UNIX].
 static func _executable_names() -> PackedStringArray:

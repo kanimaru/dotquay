@@ -14,8 +14,9 @@ it is.
 2. Enable **Dotquay** in *Project → Project Settings → Plugins*.
 3. Open the **Dotquay** tab, next to 2D / 3D / Script / Game / AssetLib.
 
-If the dotquay executable isn't on your `PATH`, the panel says so and offers to find it. You can also
-set it by hand at *Editor → Editor Settings → Dotquay → CLI Path*.
+If the dotquay executable isn't on your `PATH`, the panel says so and offers a **Get dotquay…** button
+(opens the release page), a **Browse…** button (pick the file directly), and **Find dotquay on PATH**
+as a retry. You can also set it by hand at *Editor → Editor Settings → Dotquay → General → Cli Path*.
 
 ## Editor settings
 

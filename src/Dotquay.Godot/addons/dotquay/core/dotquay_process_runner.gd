@@ -83,3 +83,19 @@ static func run(executable: String, args: PackedStringArray, timeout_ms: int,
 	outcome.exit_code = -1 if outcome.timed_out else OS.get_process_exit_code(pid)
 	outcome.elapsed_ms = Time.get_ticks_msec() - start
 	return outcome
+
+
+## Builds the message for a launch that produced no process at all — a bad path, something not
+## executable, or, on Linux/macOS, a real binary just missing its execute bit. [method run] cannot
+## tell these apart ([code]OS.execute_with_pipe[/code] fails the same way for all three), and
+## [FileAccess.file_exists] cannot see the execute bit at all — so a `chmod +x` binary silently fails
+## right here with nothing before this point ever having flagged it (P1-3).
+##
+## Takes [param platform] rather than reading [method OS.get_name] itself so both branches — with and
+## without the chmod hint — are directly testable without depending on the platform actually running
+## the test.
+static func launch_failed_message(executable: String, platform: String) -> String:
+	var message := "Could not start dotquay at %s." % executable
+	if platform != "Windows":
+		message += " If this is a binary you downloaded, make sure it's executable: chmod +x \"%s\"" % executable
+	return message

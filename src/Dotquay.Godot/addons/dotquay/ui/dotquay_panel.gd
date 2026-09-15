@@ -56,6 +56,7 @@ var _cli_path_dialog: EditorFileDialog
 @onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
 @onready var _explain_dialog: DotquayExplainDialog = %ExplainDialog
 @onready var _confirm_remove: ConfirmationDialog = %ConfirmRemove
+@onready var _confirm_overwrite_cli_path: ConfirmationDialog = %ConfirmOverwriteCliPath
 
 var _cli: DotquayCli
 var _graph: DotquayGraph
@@ -71,6 +72,11 @@ var _is_busy := false
 var _rescan: DotquayRescan
 
 var _pending_removal := ""
+
+## The path a "Find dotquay on PATH" just discovered, held here only while
+## [member _confirm_overwrite_cli_path] is asking whether to replace an already-configured, different
+## path (P1-4). Empty means nothing is pending confirmation.
+var _pending_locate_path := ""
 
 ## CLI ticket to the [DotquayAddRequest] whose preview that run is producing. Keyed on the ticket, not
 ## the URL: several previews can be in flight, a failed one must not leave its request behind to be
@@ -121,6 +127,7 @@ func _ready() -> void:
 	_explain_dialog.force_update_requested.connect(_on_force_update_requested)
 	_conflict_dialog.override_chosen.connect(_on_override_chosen)
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
+	_confirm_overwrite_cli_path.confirmed.connect(_on_overwrite_cli_path_confirmed)
 	_get_dotquay_button.pressed.connect(_on_get_dotquay_pressed)
 	_browse_button.pressed.connect(_on_browse_pressed)
 
@@ -371,13 +378,47 @@ func _on_init_pressed() -> void:
 	_run(DotquayWire.COMMAND_INIT, PackedStringArray(["init"]), true)
 
 
+## Feedback goes to the banner itself, not only the log (P1-4): the log is 120px tall and easy to
+## miss, and this button exists specifically because the banner is already telling the user something
+## is wrong — the answer belongs where the question was asked.
 func _on_locate_pressed() -> void:
 	var found := SETTINGS.discover_on_path()
 	if found.is_empty():
-		_log_error("Could not find dotquay on PATH. Set the path by hand in Editor Settings -> Dotquay.")
+		_setup_message.text = "Could not find dotquay on PATH either. Use Get dotquay or Browse instead."
+		_log_error("Could not find dotquay on PATH.")
 		return
 
+	var editor_settings := EditorInterface.get_editor_settings()
+	var configured := ""
+	if editor_settings.has_setting(SETTINGS.CLI_PATH_SETTING):
+		configured = String(editor_settings.get_setting(SETTINGS.CLI_PATH_SETTING)).strip_edges()
+
+	# A blank setting (the common case: nothing configured yet) is never worth confirming — there is
+	# nothing to lose. A non-blank one that differs was set on purpose by someone, even if it's
+	# currently broken, and silently replacing it is the kind of "helpful" surprise that erases a
+	# deliberate choice (a pinned build, a fork) with no way back except retyping it from memory.
+	if not configured.is_empty() and configured != found:
+		_pending_locate_path = found
+		_confirm_overwrite_cli_path.dialog_text = (
+			"dotquay was found at:\n%s\n\nThis replaces the path currently configured:\n%s"
+			% [found, configured])
+		_confirm_overwrite_cli_path.popup_centered()
+		return
+
+	_apply_located_path(found)
+
+
+func _on_overwrite_cli_path_confirmed() -> void:
+	if _pending_locate_path.is_empty():
+		return
+
+	_apply_located_path(_pending_locate_path)
+	_pending_locate_path = ""
+
+
+func _apply_located_path(found: String) -> void:
 	EditorInterface.get_editor_settings().set_setting(SETTINGS.CLI_PATH_SETTING, found)
+	_setup_message.text = "Found dotquay at %s. Refreshing..." % found
 	_log_line("Found dotquay at %s." % found)
 	refresh()
 
