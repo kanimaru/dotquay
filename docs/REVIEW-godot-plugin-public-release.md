@@ -31,15 +31,24 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   `dotquay.toml`, or any failed `graph`, the toolbar claims one linked addon exists.~~ Fixed: the scene
   default is now `""`, cleared explicitly in `_ready()`, and only ever set from a real `_apply_graph()`.
 
-- [ ] **P0-2 First-run banner does not say where to get dotquay.** `core/dotquay_cli.gd:67`:
+- [x] **P0-2 First-run banner does not say where to get dotquay.** ~~`core/dotquay_cli.gd:67`:
   "No dotquay executable configured or found on PATH. Set Editor Settings -> Dotquay -> CLI Path."
   The only button, "Find dotquay on PATH" (`dotquay_panel.tscn:103`), re-runs the same `where`/`which`
-  that already failed (`dotquay_settings.gd:57-64` ran it before producing this error). Needed: one
-  plain sentence ("dotquay is a separate program this tab talks to; it isn't installed or Godot can't
-  see it"), a **Get dotquay…** button (`OS.shell_open` to the release page), and a **Browse…** button
-  (`EditorFileDialog` writing `cli_path`). Keep "Find on PATH" as a retry.
-  _Progress: P0-3's discovery improvements land here too, but the banner still has no "Get dotquay"
-  link or Browse... button — still open._
+  that already failed (`dotquay_settings.gd:57-64` ran it before producing this error).~~ Fixed: added
+  a **Get dotquay…** button (`OS.shell_open` to the release page) and a **Browse…** button
+  (`EditorFileDialog`, writing straight to `cli_path`), alongside the existing "Find on PATH" retry.
+  The plain-English sentence explaining what dotquay even is now shows for the not-configured case
+  specifically, replacing the raw setting-name error text there (the other cli-unusable kinds still
+  show the CLI's own real message, per P0-4).
+  _Which buttons a given failure kind offers moved into a new pure function,
+  `DotquaySetupBanner.decide()` (not_configured gets all three; a wrong path/bad output gets Browse
+  and Find on PATH but not Get dotquay, since something is already at that path; a schema mismatch
+  gets none of the three, since both would just re-find the same differently-versioned binary),
+  covered by `tests/test_dotquay_setup_banner.gd` with no Control/EditorSettings/CLI needed. One
+  finding along the way: `EditorFileDialog` engine-refuses instantiation as part of a hand-authored
+  `.tscn` outside a real editor session, which `tests/test_scenes.gd`'s headless scene-loading caught
+  immediately — built in code in `_ready()` instead, which those tests never reach. All 511 assertions
+  pass against the real Godot 4.7.2 binary and the real dotquay CLI (`75a80ba`)._
 
 - [x] **P0-3 PATH discovery fails for the recommended install on macOS/Linux.**
   `core/dotquay_settings.gd:69-84` only asks `which dotquay` with the editor's own environment. Godot
@@ -554,13 +563,15 @@ Add form:
    five findings. **Done: both the queue (P0-6) and the timeout/kill-on-exit rewrite (P0-7)** — the
    latter verified against real hung and real fast processes on the actual Godot 4.7.2 binary.
 3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
-4. P0-2, P0-3, P1-1..P1-4 — **P0-3 done.** P0-2 and P1-1..P1-4 still open.
+4. P0-2, P0-3, P1-1..P1-4 — **P0-2 and P0-3 done.** P1-1..P1-4 still open.
 5. P0-9, P1-8, P1-9, P1-14 — **P0-9 done.** P1-8, P1-9, P1-14 still open.
 6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
 7. The P2 string table, then the remaining P1 polish and C items. Not started.
 
-**Net this pass:** 10 of 11 P0s fully closed (P0-1, P0-3, P0-4, P0-5, P0-6, P0-7, P0-8, P0-9, P0-10,
-P0-11), 1 still open (P0-2 — see its note), plus C-2, C-3, C-8, C-11, C-12. Verified for real: 479/479
-GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, across 13 conventional
-commits (`10636ca`..`d961a06`) on `main`. No P1/P2 items were touched — the whole pass stayed scoped to
-P0s plus the C-items that rode along with them.
+**Net this pass:** 11 of 11 P0s fully closed. Plus C-2, C-3, C-8, C-11, C-12. Verified for real:
+511/511 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, across 14
+conventional commits (`10636ca`..`75a80ba`) on `main`. No P1/P2 items were touched — the whole pass
+stayed scoped to P0s plus the C-items that rode along with them. Everything a first-time Godot user
+would hit trying to add, update, or remove an addon through this tab is now either fixed or has a
+working, discoverable path forward — the P1/P2/C backlog above is wording, ergonomics, and hygiene,
+not a beginner getting stuck with no way out.
