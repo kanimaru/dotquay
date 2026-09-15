@@ -366,27 +366,37 @@ func _on_locate_pressed() -> void:
 # CLI results
 # ---------------------------------------------------------------------------------------------
 
-## The banner is a first-run affordance, not a second error log: it appears only for the two problems
-## that have a one-click fix, and offers exactly the button that fixes the one it's showing.
+## The banner is a first-run affordance, not a second error log: it appears for every problem that
+## leaves the CLI unusable, not only the two that have a one-click fix, and offers exactly the button
+## (if any) that fixes what it's showing.
 func _update_setup_banner(result: DotquayResult) -> void:
 	var not_configured := result.error_kind == RESULT.KIND_NOT_CONFIGURED
 	var no_manifest := result.error_kind == RESULT.KIND_NO_MANIFEST
+	# A wrong or stale CLI path — pointed at nothing, at something that isn't dotquay, or at a crashed
+	# process — produces one of these three kinds. Burying that in the 140px log leaves the graph and
+	# sidebar blank with no visible explanation, same as an unconfigured path.
+	var cli_unusable := (
+		result.error_kind == RESULT.KIND_LAUNCH_FAILED
+		or result.error_kind == RESULT.KIND_BAD_OUTPUT
+		or result.error_kind == RESULT.KIND_SCHEMA_MISMATCH)
 
-	_setup_banner.visible = not_configured or no_manifest
-	_locate_button.visible = not_configured
+	_setup_banner.visible = not_configured or no_manifest or cli_unusable
+	# A schema mismatch is a real, differently-versioned dotquay sitting at the right path — re-running
+	# PATH discovery would likely find that same binary again and offer a "fix" that fixes nothing.
+	_locate_button.visible = not_configured or (
+		cli_unusable and result.error_kind != RESULT.KIND_SCHEMA_MISMATCH)
 	_init_button.visible = no_manifest
 
 	if not _setup_banner.visible:
 		return
 
-	# A CLI that can't be found, or a project with no manifest, is not a state any mutating command
-	# should be offered against.
+	# None of these states is one any mutating command should be offered against.
 	_project_ready = false
 	_update_toolbar_state()
 
 	_setup_message.text = (
-		result.error_message if not_configured
-		else "This Godot project has no dotquay.toml yet, so there is nothing to show.")
+		"This Godot project has no dotquay.toml yet, so there is nothing to show." if no_manifest
+		else result.error_message)
 
 
 func _on_busy_changed(is_busy: bool) -> void:
@@ -703,7 +713,10 @@ func _report_doctor(payload: Dictionary) -> void:
 
 
 func _report_operation(payload: Dictionary) -> void:
-	for message in payload.get("messages", []):
+	# `payload.get("messages", [])` only supplies its default when the key is absent; SPEC.md §17
+	# emits an absent optional array as JSON null, not an omitted key, so an ordinary no-message
+	# operation used to raise "Unable to iterate on object of type 'Nil'" on the worker thread.
+	for message in DotquayWire.array_or_empty(payload.get("messages")):
 		_log_line(String(message))
 
 	for change in _dictionaries_in(payload, "changes"):
