@@ -207,3 +207,73 @@ func test_a_dot_git_suffix_looks_like_git() -> void:
 func test_nuget_ids_do_not_look_like_git() -> void:
 	for source in ["Newtonsoft.Json", "Microsoft.Extensions.Logging", "System.Text.Json", "VBeami.Core", ""]:
 		runner.check(not REQUEST.looks_like_git(source), "%s is a package ID, not a repository" % source)
+
+
+# -- input-shape diagnosis (P1-8) --------------------------------------------------------------
+
+func test_add_form_parses_github_tree_urls_into_branch_and_subtree() -> void:
+	var fix := REQUEST.diagnose_source_shape(
+		"https://github.com/nathanhoad/godot_dialogue_manager/tree/main/addons/dialogue_manager")
+
+	runner.check(fix.has_fix(), "a tree URL has a corrected repository URL")
+	runner.equal(fix.url, URL, "the /tree/... suffix is stripped back to the repository URL")
+	runner.equal(fix.branch, "main", "the branch is recovered")
+	runner.equal(fix.path, "addons/dialogue_manager", "the subtree is recovered")
+	runner.check(not fix.explanation.is_empty(), "the fix explains what it did")
+	runner.check(not fix.blocks_submit, "a tree URL is corrected, not rejected")
+
+
+func test_a_gitlab_tree_url_handles_the_dash_segment() -> void:
+	# GitLab's own namespace puts a "-/" in front of "tree/"; GitHub has no equivalent.
+	var fix := REQUEST.diagnose_source_shape("https://gitlab.com/o/r/-/tree/develop/subdir")
+
+	runner.equal(fix.url, "https://gitlab.com/o/r", "the -/ segment is stripped along with tree/")
+	runner.equal(fix.branch, "develop", "the branch is recovered")
+	runner.equal(fix.path, "subdir", "the subtree is recovered")
+
+
+func test_a_tree_url_with_no_subtree_still_recovers_the_branch() -> void:
+	var fix := REQUEST.diagnose_source_shape("https://github.com/o/r/tree/main")
+
+	runner.equal(fix.url, "https://github.com/o/r", "the repository URL is recovered")
+	runner.equal(fix.branch, "main", "the branch is recovered")
+	runner.equal(fix.path, "", "a link to a branch root names no subtree")
+
+
+func test_a_plain_git_url_needs_no_fix() -> void:
+	var fix := REQUEST.diagnose_source_shape(URL)
+
+	runner.check(not fix.has_fix(), "an ordinary clone URL is left alone")
+	runner.check(not fix.blocks_submit, "an ordinary clone URL never blocks submission")
+	runner.equal(fix.explanation, "", "there is nothing to say about a plain URL")
+
+
+func test_a_dot_git_suffix_is_acknowledged_but_not_rewritten() -> void:
+	# P1-8: ".git suffix (fine, say so)" — the URL is already correct, so nothing is rewritten, but
+	# the hint should say the suffix isn't a problem rather than staying silent about it.
+	var fix := REQUEST.diagnose_source_shape(URL + ".git")
+
+	runner.check(not fix.has_fix(), "a .git suffix needs no correction")
+	runner.check(not fix.explanation.is_empty(), "the form acknowledges the suffix is fine")
+
+
+func test_add_form_rejects_bare_owner_repo_with_a_hint() -> void:
+	var fix := REQUEST.diagnose_source_shape("nathanhoad/godot_dialogue_manager")
+
+	runner.check(fix.blocks_submit, "a bare owner/repo names no host to clone from")
+	runner.check(not fix.has_fix(), "there is no URL to guess a host for")
+	runner.check(fix.explanation.contains("nathanhoad/godot_dialogue_manager"),
+		"the hint repeats what was typed back: %s" % fix.explanation)
+
+
+func test_a_nuget_package_id_is_never_treated_as_a_bare_shorthand() -> void:
+	for source in ["Newtonsoft.Json", "Microsoft.Extensions.Logging", "System.Text.Json"]:
+		var fix := REQUEST.diagnose_source_shape(source)
+		runner.check(not fix.blocks_submit, "%s has no slash, so it can't be a shorthand" % source)
+
+
+func test_a_blank_source_is_diagnosed_as_nothing_to_fix() -> void:
+	var fix := REQUEST.diagnose_source_shape("   ")
+
+	runner.check(not fix.has_fix(), "nothing typed yet is not a shape problem")
+	runner.check(not fix.blocks_submit, "nothing typed yet does not block anything on its own")

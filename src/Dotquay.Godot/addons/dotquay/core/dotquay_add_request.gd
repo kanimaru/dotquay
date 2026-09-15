@@ -33,6 +33,95 @@ var path: String = ""
 var install_as: String = ""
 
 
+## What [method diagnose_source_shape] found in a pasted string that isn't a plain clone URL.
+##
+## A user reliably pastes three things into the source field that aren't `git clone` addresses: a
+## GitHub/GitLab "tree" browser URL pointing at one folder on one branch, the bare `owner/repo`
+## shorthand GitHub prints next to its own "Code" button, and — this one's actually fine — a URL with
+## an explicit `.git` suffix. Diagnosing the shape once, as data instead of UI logic, is what lets the
+## dialog both auto-correct the first case and explain the second without ever handing `add` either.
+class ShapeFix extends RefCounted:
+	## The corrected git URL to write into the source field. Empty means nothing needed rewriting.
+	var url: String = ""
+	## The branch parsed out of a tree URL. Empty when there wasn't one to parse.
+	var branch: String = ""
+	## The subtree parsed out of a tree URL. Empty when there wasn't one, or the link named no folder.
+	var path: String = ""
+	## One line for the form's hint label explaining what was found. Empty means there's nothing to
+	## say beyond the ordinary hint text.
+	var explanation: String = ""
+	## True when the typed text can't become a request as-is and the dialog should keep OK disabled
+	## over it — the bare `owner/repo` shorthand, which names no host to clone from. Rewriting one
+	## host onto it would be a guess the form has no basis for; the fix here is telling the user what
+	## to add, not guessing it for them.
+	var blocks_submit: bool = false
+
+	## True when [member url] has a replacement worth writing back into the field.
+	func has_fix() -> bool:
+		return not url.is_empty()
+
+
+## Matches a GitHub or GitLab "tree" browser URL — the address bar's contents when someone is looking
+## at one folder of a repo on one branch, e.g. `.../owner/repo/tree/main/addons/foo` (GitHub) or
+## `.../owner/repo/-/tree/main/addons/foo` (GitLab's `-/` namespace). `repo` is matched lazily so a
+## `.git` suffix on the repo segment itself is stripped rather than swallowed into the name.
+##
+## Compiled on each call rather than cached in a static var: this runs at most once per keystroke in
+## one dialog, so there is nothing to gain from caching that's worth a static regex's initialization
+## order depending on when the engine first loads this script.
+static func _tree_url_regex() -> RegEx:
+	return RegEx.create_from_string(
+		"^(?<repo>https?://(?:www\\.)?(?:github\\.com|gitlab\\.com)/[^/]+/[^/]+?)(?:\\.git)?/(?:-/)?"
+		+ "tree/(?<branch>[^/]+)(?:/(?<path>.+?))?/?$")
+
+
+## Matches the bare `owner/repo` shorthand: exactly one slash, no scheme, no `.git`. Anything reaching
+## this check has already failed [method looks_like_git], so a NuGet ID (which never contains a `/`)
+## can't land here by accident.
+static func _bare_owner_repo_regex() -> RegEx:
+	return RegEx.create_from_string("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
+## Inspects [param text] for the three pasted-URL shapes described on [ShapeFix], so the dialog can
+## auto-correct a tree URL, explain a `.git` suffix is fine, or block submission on a bare shorthand
+## with a reason instead of leaving the user to discover any of it from a hard error out of `add`.
+static func diagnose_source_shape(text: String) -> ShapeFix:
+	var fix := ShapeFix.new()
+	var trimmed := text.strip_edges()
+
+	if trimmed.is_empty():
+		return fix
+
+	var tree_match := _tree_url_regex().search(trimmed)
+	if tree_match:
+		fix.url = tree_match.get_string("repo")
+		fix.branch = tree_match.get_string("branch")
+		fix.path = tree_match.get_string("path")
+
+		var where := "branch '%s'" % fix.branch
+		if not fix.path.is_empty():
+			where += ", folder '%s'" % fix.path
+
+		fix.explanation = (
+			"That's a link into the repository's file browser, not the repository itself. Using the "
+			+ "repository URL instead, pinned to %s." % where)
+		return fix
+
+	if looks_like_git(trimmed):
+		if trimmed.ends_with(".git"):
+			fix.explanation = "Ends in .git — that's a valid clone URL as-is."
+		return fix
+
+	if _bare_owner_repo_regex().search(trimmed):
+		fix.blocks_submit = true
+		fix.explanation = (
+			"'%s' looks like a GitHub/GitLab shorthand ('owner/repo'), not a full URL. dotquay needs "
+			+ "the whole address, e.g. https://github.com/%s") % [trimmed, trimmed]
+		return fix
+
+	return fix
+
+
 static func for_git(git_url: String) -> DotquayAddRequest:
 	var request := DotquayAddRequest.new()
 	request.source = git_url

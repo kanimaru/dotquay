@@ -122,3 +122,18 @@ theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
 theme_override_font_sizes/font_size = 11
 text = "hint"
 autowrap_mode = 3
+
+; Hidden by default (add_dependency_dialog.gd only shows this from reopen_after_failure, P1-9) — a
+; blank error label sitting above the buttons on a fresh, never-submitted dialog would look like a
+; render glitch rather than nothing.
+
+[node name="Error" type="Label" parent="Root"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.32, 0.32, 1)
+theme_override_font_sizes/font_size = 11
+text = "error"
+autowrap_mode = 3

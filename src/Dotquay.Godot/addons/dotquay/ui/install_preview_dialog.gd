@@ -55,7 +55,9 @@ func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
 	_request = request
 	_pending_cards.clear()
 
-	title = "Install '%s'?" % preview.name
+	# "Add", not "Install": the toolbar already has an unrelated Install button (re-runs the lockfile),
+	# and this dialog is the confirmation step for Add, not for that (P1-14).
+	title = "Add '%s'?" % preview.name
 	_summary.text = preview.summarize()
 
 	_render_addons()
@@ -122,7 +124,7 @@ func _add_source_card(source: DotquayPreview.Source, needs_approval: bool) -> Do
 
 
 ## The OK button is the enforcement point: a refused feed makes the add fail on the CLI side anyway,
-## and letting the user press "Install" into a guaranteed failure teaches them the dialog is noise.
+## and letting the user press "Add" into a guaranteed failure teaches them the dialog is noise.
 func _update_ok_state() -> void:
 	var unapproved := _pending_cards.filter(
 		func(card: DotquayPreviewSourceCard) -> bool: return not card.is_approved())

@@ -229,7 +229,8 @@ func _on_add_pressed() -> void:
 func _on_add_requested(request: DotquayAddRequest) -> void:
 	if not request.is_git:
 		_log_line("Adding %s..." % request.describe())
-		_run(DotquayWire.COMMAND_ADD, request.to_args(), true)
+		var ticket := _run(DotquayWire.COMMAND_ADD, request.to_args(), true)
+		_pending_requests[ticket] = request
 		return
 
 	_log_line("Resolving what adding %s would install..." % request.describe())
@@ -253,7 +254,11 @@ func _on_install_confirmed(request: DotquayAddRequest, adopt_source_urls: Packed
 	for url in adopt_source_urls:
 		_log_line("  adopting NuGet feed %s" % url)
 
-	_run(DotquayWire.COMMAND_ADD, args, true)
+	var ticket := _run(DotquayWire.COMMAND_ADD, args, true)
+	# Kept under the plain request, not the one carrying --adopt-source: a failure here re-opens the
+	# add dialog (P1-9), which only ever collects what this request already holds — the adopted feeds
+	# are the preview dialog's business, and re-approving them is what re-previewing is for.
+	_pending_requests[ticket] = request
 
 
 func _on_install_pressed() -> void:
@@ -513,13 +518,23 @@ func _on_cli_finished(result: DotquayResult) -> void:
 	for warning in result.warnings:
 		_log_warning(warning)
 
+	# Read once and forgotten here, on both outcomes, rather than at each of the three call sites that
+	# populate it: a plain `add`, an `add --preview`, and the `add` a confirmed preview runs must all
+	# stop being "pending" the moment this result comes back, or a later run could pick up a stale one.
+	var tracked_request: DotquayAddRequest = _pending_requests.get(result.ticket)
+	_pending_requests.erase(result.ticket)
+
 	if not result.ok:
 		_log_error(result.error_message)
-
-		# Whatever this run was waiting for, it isn't coming; a stale request must not be picked up
-		# by a later preview.
-		_pending_requests.erase(result.ticket)
 		_pending_explains.erase(result.ticket)
+
+		# A failed add or preview closed the dialog for nothing (P1-9): the values the user typed, and
+		# the error that says what to fix, would otherwise only be findable by scrolling back through
+		# the log. Reopening with both intact turns "fix and resubmit" back into an edit.
+		if tracked_request != null and (
+			result.command == DotquayWire.COMMAND_ADD
+			or result.command == DotquayWire.COMMAND_ADD_PREVIEW):
+			_add_dialog.reopen_after_failure(tracked_request, result.error_message)
 
 		# A conflict is still a full graph payload — the whole point is to show it rather than stop
 		# at the error line.
@@ -533,7 +548,7 @@ func _on_cli_finished(result: DotquayResult) -> void:
 		DotquayWire.COMMAND_GRAPH:
 			_apply_graph(result.data)
 		DotquayWire.COMMAND_ADD_PREVIEW:
-			_show_preview(result)
+			_show_preview(result, tracked_request)
 		DotquayWire.COMMAND_STATUS:
 			_show_explanation(result)
 		DotquayWire.COMMAND_OUTDATED:
@@ -570,16 +585,16 @@ func _finish_refresh_cycle(ticket: int) -> void:
 		refresh()
 
 
-## Matched back to its request by the ticket of the run that produced it.
-func _show_preview(result: DotquayResult) -> void:
+## [param request] is looked up by the caller from the ticket that produced this result, since it was
+## already read out of [member _pending_requests] once (and erased) before the success/failure branch.
+func _show_preview(result: DotquayResult, request: DotquayAddRequest) -> void:
 	var preview := DotquayPreview.from_payload(result.data)
 
 	# A preview whose request is gone (a reloaded plugin) still deserves its dialog: the graph is the
 	# part worth reading, and the arguments it can't recover are the two optional ones.
-	var request: DotquayAddRequest = _pending_requests.get(result.ticket, DotquayAddRequest.for_git(preview.git))
-	_pending_requests.erase(result.ticket)
+	var effective_request := request if request != null else DotquayAddRequest.for_git(preview.git)
 
-	_preview_dialog.show_preview(preview, request)
+	_preview_dialog.show_preview(preview, effective_request)
 
 
 ## `status --explain` reports every addon; the ticket is what says which one the user asked about.

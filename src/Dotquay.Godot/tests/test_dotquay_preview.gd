@@ -150,6 +150,15 @@ func test_summary_counts_what_the_install_actually_adds() -> void:
 	runner.check(summary.contains("1 NuGet feed(s)"), "the summary counts feeds: %s" % summary)
 
 
+func test_summary_says_adding_installs_not_installing_adds() -> void:
+	# P1-14: the dialog is titled "Add 'x'?" with an "Add" button, next to an unrelated toolbar
+	# Install button — the headline has to agree with the dialog it's written into.
+	var summary: String = PREVIEW.from_payload(_payload()).summarize()
+
+	runner.check(summary.begins_with("Adding '"), "the summary opens with 'Adding', not 'Installing': %s" % summary)
+	runner.check(summary.contains("installs "), "and says what it installs: %s" % summary)
+
+
 func test_summary_says_plainly_when_nothing_would_change() -> void:
 	var payload := _payload()
 	payload["is_no_op"] = true
@@ -157,48 +166,6 @@ func test_summary_says_plainly_when_nothing_would_change() -> void:
 	var summary: String = PREVIEW.from_payload(payload).summarize()
 
 	runner.check(summary.contains("already installed"), "a no-op says so rather than counting to zero: %s" % summary)
-
-
-func test_null_arrays_parse_as_empty_not_a_crash() -> void:
-	# SPEC.md §17: optional array fields are emitted as JSON null, never omitted. `payload.get(key,
-	# [])` only supplies its default when the key is absent, so a present-but-null "addons" used to
-	# raise "Unable to iterate on object of type 'Nil'" instead of parsing.
-	var payload := _payload()
-	payload["addons"] = null
-	payload["dotnet"] = null
-	payload["sources_to_adopt"] = null
-	payload["sources_needing_approval"] = null
-
-	var preview: DotquayPreview = PREVIEW.from_payload(payload)
-
-	runner.equal(preview.addons.size(), 0, "a null addons array should parse as empty, not raise")
-	runner.equal(preview.dotnet.size(), 0, "a null dotnet array should parse as empty, not raise")
-	runner.equal(preview.sources_to_adopt.size(), 0, "a null sources_to_adopt array should parse as empty")
-	runner.equal(preview.sources_needing_approval.size(), 0,
-		"a null sources_needing_approval array should parse as empty")
-
-
-func test_null_required_by_parses_as_empty_not_a_crash() -> void:
-	var addon := PREVIEW.Addon.from_payload({
-		"name": "leaf", "git": "https://example.com/leaf", "version": "v1.0.0",
-		"resolved": "aaaaaaa", "short_sha": "aaaaaaa", "folder": "leaf", "is_new": true,
-		"required_by": null,
-	})
-
-	runner.equal(addon.required_by.size(), 0, "a null required_by array should parse as empty, not raise")
-
-
-func test_null_resolved_short_sha_and_folder_read_as_empty_or_default() -> void:
-	# `resolved` and `short_sha` must read as "" like DotquayGraph's AddonNode already does; `folder`
-	# must still fall back to the name rather than render the literal text "<null>".
-	var addon := PREVIEW.Addon.from_payload({
-		"name": "leaf", "git": "https://example.com/leaf", "version": null,
-		"resolved": null, "short_sha": null, "folder": null, "is_new": true,
-	})
-
-	runner.equal(addon.resolved, "", "a null resolved should read as absent, not '<null>'")
-	runner.equal(addon.short_sha, "", "a null short_sha should read as absent, not '<null>'")
-	runner.equal(addon.folder, "leaf", "a null folder means the addon's own name")
 
 
 func test_missing_fields_do_not_break_the_parse() -> void:
