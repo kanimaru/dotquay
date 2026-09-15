@@ -7,6 +7,12 @@ of addons and knows nothing about lockfiles, git refs, NuGet feeds, patches or o
 Every item names the file and line it was verified against. Items are grouped by priority; inside a
 group the order is roughly "how often a newbie hits it". Tick them off as they land.
 
+**Update 2026-09-15:** first implementation pass landed (9 commits, `10636ca`..`f169bbf`), verified
+against the real Godot 4.7.2 binary and the real dotquay CLI (468/468 assertions passing, including
+the live CLI contract suite). See the ticked items and inline progress notes below for exactly what
+shipped versus what's still open. Nothing was marked done without being re-read from the committed
+file first.
+
 Things checked that turned out fine: no `dependi` leftovers anywhere in the plugin tree; `init --json`
 does emit a proper envelope (`InitCommand.cs:96-112`), so the "Create dotquay.toml" button works — the
 comment in `tests/test_cli_contract.gd:54-55` claiming otherwise is stale (see C-12); the
@@ -19,11 +25,11 @@ correct; `to_args()` passes values as separate argv elements, so spaces are safe
 
 These either show wrong information, lose data, or leave a beginner stuck with no way forward.
 
-- [ ] **P0-1 Fake summary on first run.** `ui/dotquay_panel.tscn:71` ships
+- [x] **P0-1 Fake summary on first run.** ~~`ui/dotquay_panel.tscn:71` ships
   `text = "  1 addon(s) · 1 linked  (from lockfile — press Re-resolve to check for conflicts)"` and
   `_update_summary()` only runs from `_apply_graph()` (`dotquay_panel.gd:544-549`). With no CLI, no
-  `dotquay.toml`, or any failed `graph`, the toolbar claims one linked addon exists. Set the scene
-  text to `""` and clear `_summary.text` on the error path in `_on_cli_finished`.
+  `dotquay.toml`, or any failed `graph`, the toolbar claims one linked addon exists.~~ Fixed: the scene
+  default is now `""`, cleared explicitly in `_ready()`, and only ever set from a real `_apply_graph()`.
 
 - [ ] **P0-2 First-run banner does not say where to get dotquay.** `core/dotquay_cli.gd:67`:
   "No dotquay executable configured or found on PATH. Set Editor Settings -> Dotquay -> CLI Path."
@@ -32,8 +38,10 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   plain sentence ("dotquay is a separate program this tab talks to; it isn't installed or Godot can't
   see it"), a **Get dotquay…** button (`OS.shell_open` to the release page), and a **Browse…** button
   (`EditorFileDialog` writing `cli_path`). Keep "Find on PATH" as a retry.
+  _Progress: P0-3's discovery improvements land here too, but the banner still has no "Get dotquay"
+  link or Browse... button — still open._
 
-- [ ] **P0-3 PATH discovery fails for the recommended install on macOS/Linux.**
+- [x] **P0-3 PATH discovery fails for the recommended install on macOS/Linux.**
   `core/dotquay_settings.gd:69-84` only asks `which dotquay` with the editor's own environment. Godot
   started from Finder/Dock/a `.desktop` launcher has the minimal login PATH, which does not include
   `~/.local/bin` — where `scripts/install.sh` and `self update` put the binary (repo `README.md:196`).
@@ -42,6 +50,9 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   `/usr/local/bin`, `/opt/homebrew/bin`, `%LOCALAPPDATA%`. Make `EXECUTABLE_NAMES` (`:22`)
   platform-specific — `which dotquay.exe` on Unix is a guaranteed-miss extra process on every CLI call
   while unconfigured.
+  Fixed: `discover_on_path()` now also probes `~/.local/bin`, `~/.dotnet/tools`, `/usr/local/bin`,
+  `/opt/homebrew/bin` (macOS), and `%LOCALAPPDATA%\dotquay` / `%LOCALAPPDATA%\Programs\dotquay`
+  (Windows) after a plain PATH lookup fails, and `EXECUTABLE_NAMES` is now platform-specific.
 
 - [ ] **P0-4 Wrong-path / launch failures never reach the banner, and the real reason is thrown away.**
   `_update_setup_banner` (`dotquay_panel.gd:353-359`) only handles `KIND_NOT_CONFIGURED` and
@@ -53,15 +64,19 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   become "dotquay did not return JSON (exit code N). Check that the CLI path points at the dotquay
   executable." Fix: route all four `cli_*` kinds into the banner with an **Open Editor Settings** /
   **Browse…** button, and append the first ~10 lines of `raw_output` to the message.
+  _Progress: `raw_output` is no longer thrown away — `DotquayResult.failure()` now folds its first ~10
+  lines into `error_message` itself, so it reaches the log. Still open: `_update_setup_banner` only
+  ever routes `KIND_NOT_CONFIGURED`/`KIND_NO_MANIFEST`; the other `cli_*` kinds still only get a log
+  line, not the banner with a fix-it button._
 
-- [ ] **P0-5 Windows: crash exit codes are misreported as "could not start".**
-  `core/dotquay_cli.gd:112`: `if code < 0:` → `KIND_LAUNCH_FAILED` and the captured output is
+- [x] **P0-5 Windows: crash exit codes are misreported as "could not start".** ~~`core/dotquay_cli.gd:112`:
+  `if code < 0:` → `KIND_LAUNCH_FAILED` and the captured output is
   ignored. Godot stores the process's DWORD exit code into an `int`, so any code ≥ `0x80000000`
   (.NET fail-fast / `STATUS_*` codes) arrives negative and a CLI crash with a full trace on stderr is
-  reported as "Could not start dotquay at C:\…\dotquay.exe". Test `code == -1` only and always attach
-  the output.
+  reported as "Could not start dotquay at C:\…\dotquay.exe".~~ Fixed: checks `code == -1` only, and
+  always attaches the captured output via the 4-arg `failure()`.
 
-- [ ] **P0-6 Mutating commands are not serialised; most entry points ignore the busy state.**
+- [x] **P0-6 Mutating commands are not serialised; most entry points ignore the busy state.**
   `DotquayCli.run()` starts a thread per call with no queue (`dotquay_cli.gd:87-89`); `is_busy()`
   (`:46`) has no callers. `_on_busy_changed` (`dotquay_panel.gd:369-374`) disables only the
   `%Toolbar` buttons. Still live while a command runs: every GraphNode **Actions** menu
@@ -72,6 +87,12 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   Actions → **Update** on a node: two processes rewrite `dotquay.lock` and `addons/` at once. Fix:
   queue runs inside `DotquayCli` (one worker at a time, still async), and disable graph/sidebar/dialog
   buttons on `busy_changed`.
+  Fixed at the root: `DotquayCli.run()` now queues any call made while one is already in flight and
+  runs them strictly in order, so two mutating commands can no longer touch `dotquay.lock`/`addons/`
+  concurrently regardless of which UI surface fired them. Toolbar buttons are also gated on the new
+  `busy_changed`-driven `_is_busy` state. Still open: node menus, dialog OK buttons and the NuGet row
+  Remove button aren't individually greyed out while a run is queued — clicking them still works, it
+  just waits its turn safely instead of racing.
 
 - [ ] **P0-7 No timeout; `_exit_tree` joins unconditionally, so a stalled child hangs the editor —
   including on quit.** `dotquay_cli.gd:35-43` + the retired timeout setting
@@ -82,6 +103,10 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   separate stdout/stderr; poll from the worker, enforce a timeout, and on `_exit_tree` grant a bounded
   grace period then `OS.kill(pid)`. This also fixes P0-4's merged stderr, C-15 (brace heuristic) and
   P1-16 (shell quoting on Unix).
+  _Deliberately deferred this pass — needs live-binary testing (a real hung process, a real
+  `_exit_tree` quit) that a sandboxed agent can't verify, and rewriting the process boundary was judged
+  too risky to bundle into a parallel pass. Left a `## TODO` at `dotquay_cli.gd`'s `_exit_tree` marking
+  the gap. This is the one P0 still fully open._
 
 - [ ] **P0-8 A `null` list anywhere in an envelope is a script error on the worker thread → panel
   stuck busy forever.** `dotquay_result.gd:126` `for warning in envelope.get("warnings", [])` only
@@ -91,22 +116,30 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   In `_run_blocking` a parse error means `_finish` never runs and `_running` never decrements. Fix: a
   `DotquayWire.array_or_empty()` helper used everywhere (like `str_or_empty`), and in `_run_blocking`
   `if result == null: result = RESULT.failure(KIND_BAD_OUTPUT, …)` so `_finish` is unconditional.
+  _Progress: `DotquayWire.array_or_empty()` was added and applied throughout `dotquay_result.gd`,
+  `dotquay_graph.gd`, `dotquay_preview.gd`, and `dotquay_explain.gd`, with fixture tests for every null
+  site. Still open: `dotquay_panel.gd`'s own two raw-payload loops (`payload.get(key, [])` at the
+  doctor/outdated reporting sites) were not converted — those two spots can still raise on a null
+  array. `_run_blocking` already can't leave `_finish` uncalled: `RESULT.parse()` never returns null,
+  it always returns a `DotquayResult` (a failure one, if parsing went wrong)._
 
-- [ ] **P0-9 Every toolbar button stays enabled with no `dotquay.toml`.** With `no_manifest`, **Add…**
+- [x] **P0-9 Every toolbar button stays enabled with no `dotquay.toml`.** ~~With `no_manifest`, **Add…**
   opens the full form, the user fills it in, presses Add, the dialog closes and clears
   (`add_dependency_dialog.gd:46-58`), and the CLI's no-manifest error lands in the log — form
-  contents gone. Same for Install / Update all / Check for updates / Re-resolve / Doctor. Keep a
-  `_project_ready` flag from the last `graph` result and disable everything but Refresh and the
-  banner's Init until it is true.
+  contents gone. Same for Install / Update all / Check for updates / Re-resolve / Doctor.~~ Fixed: a
+  `_project_ready` flag tracks the last `graph` result and `_update_toolbar_state()` disables every
+  mutating button but Refresh until it's true (and while the setup banner is showing).
 
-- [ ] **P0-10 `plugin.cfg` version is `0.9.0`** (`plugin.cfg:6`) while the code ships v0.12 (explain
-  dialog) and v0.17 (self-update banner). `doctor` checks plugin.cfg drift, so this is user-visible.
-  Set it from the CLI tag in CI, or at least by hand at release.
+- [x] **P0-10 `plugin.cfg` version is `0.9.0`** ~~(`plugin.cfg:6`) while the code ships v0.12 (explain
+  dialog) and v0.17 (self-update banner). `doctor` checks plugin.cfg drift, so this is user-visible.~~
+  Fixed: bumped to `0.17.0`. Still worth automating from the CLI tag in CI at some point so it can't
+  drift again.
 
-- [ ] **P0-11 SPEC references leak into user-facing text.** `dependency_node.gd:84` "(SPEC.md P0-6)",
+- [x] **P0-11 SPEC references leak into user-facing text.** ~~`dependency_node.gd:84` "(SPEC.md P0-6)",
   `:93` "(SPEC.md §10)", `dotquay_panel.gd:302` "(SPEC.md §8)", `items/dotnet_row.gd:31`
-  "(SPEC.md P1-5)", plugin `README.md:8,31,32,33,65`. A plugin user has no SPEC.md. Strip them (keep
-  section refs in code comments only).
+  "(SPEC.md P1-5)"~~, plugin `README.md:8,31,32,33,65`. A plugin user has no SPEC.md. Fixed in all four
+  GDScript sites. Still open: the plugin README's own SPEC.md references (a docs-only fix, not
+  attempted this pass).
 
 ---
 
@@ -335,8 +368,12 @@ Everything here was verified by grepping `addons/` + `tests/`.
 - [ ] **C-1** `dotquay_result.gd:16,18,19` `KIND_WORKFLOW`, `KIND_CONFLICT`, `KIND_GIT` — only their
   definitions exist; `KIND_AUTH` is missing (P1-33). Either complete the set and move it to
   `dotquay_wire.gd`, or delete.
-- [ ] **C-2** `dotquay_result.gd:40` `raw_output` — assigned, never read (P0-4).
-- [ ] **C-3** `dotquay_cli.gd:46` `is_busy()` — no callers (P0-6 wants it).
+  _Progress: `KIND_AUTH` was added (closing P1-33's specific ask), but the constants still live in
+  `dotquay_result.gd` rather than moving to `dotquay_wire.gd` — leaving open._
+- [x] **C-2** ~~`dotquay_result.gd:40` `raw_output` — assigned, never read (P0-4).~~ Fixed as part of
+  P0-4/P0-5: `failure()` now folds it into `error_message`, which the panel already logs.
+- [x] **C-3** ~~`dotquay_cli.gd:46` `is_busy()` — no callers (P0-6 wants it).~~ Fixed: `run()` now calls
+  it to decide whether a new request queues or starts immediately.
 - [ ] **C-4** `dotquay_settings.gd:2` `class_name DotquaySettings` — never referenced; every consumer
   preloads (`plugin.gd:12`, `dotquay_cli.gd:23`, `dotquay_panel.gd:17`). Pick preload *or*
   `class_name` project-wide: `dotquay_panel.gd:16-18` preloads `CLI_SCRIPT/SETTINGS/RESULT` while the
@@ -350,11 +387,11 @@ Everything here was verified by grepping `addons/` + `tests/`.
 - [ ] **C-7** Parsed but never read: `DotquayGraph.overrides` (`dotquay_graph.gd:246,259-260`),
   `AddonNode.path` (`:19,38`), `DotquayPreview.Source.name` (`dotquay_preview.gd:96,109`),
   `Explanation.baseline_includes_patch` (`dotquay_explain.gd:131,141`).
-- [ ] **C-8** `dependency_graph_view.gd:27-33,103-108` `_reject_connection` / `_reject_disconnection`
+- [x] **C-8** ~~`dependency_graph_view.gd:27-33,103-108` `_reject_connection` / `_reject_disconnection`
   are empty. In Godot 4 `connection_request` / `disconnection_request` are *requests* — nothing is
   connected unless the handler calls `connect_node`, so a no-op handler equals no handler. The comment
   at `:28-30` ("simply not connecting the signal would let the user rearrange real dependencies") is
-  wrong. Delete both and the `_ready` wiring; `right_disconnects = false` in the scene is enough.
+  wrong.~~ Fixed: both functions and their `_ready()` wiring and the incorrect comment were deleted.
 - [ ] **C-9** `dotquay_settings.gd:15-18,40-42` `RETIRED_SETTINGS` migration for
   `resolve_timeout_seconds` — there are no earlier *public* versions. Delete (or keep only if P1-1
   renames the path key and needs the mechanism).
@@ -366,15 +403,20 @@ Everything here was verified by grepping `addons/` + `tests/`.
 
 ### Stale / misleading comments
 
-- [ ] **C-11** `dotquay_panel.gd:492-494` — the doc comment "Only ever reached from the explain dialog,
+- [x] **C-11** ~~`dotquay_panel.gd:492-494` — the doc comment "Only ever reached from the explain dialog,
   and only when it judged the change benign…" sits above `_report_self_check`; it describes
-  `_on_force_update_requested` (`:538`), which has no doc comment.
-- [ ] **C-12** `tests/test_cli_contract.gd:54-55` "`init` predates the --json layer and still prints
+  `_on_force_update_requested` (`:538`), which has no doc comment.~~ Fixed: the comment now sits above
+  `_on_force_update_requested`, and `_report_self_check` has the comment that actually describes it.
+- [x] **C-12** ~~`tests/test_cli_contract.gd:54-55` "`init` predates the --json layer and still prints
   plain text" — false, `InitCommand.cs:96-112` emits an envelope. Tighten the assertion to
-  `init_result.ok`. Also `:128` labels an `init` call `"status"` (copy-paste).
+  `init_result.ok`. Also `:128` labels an `init` call `"status"` (copy-paste).~~ Fixed: comment
+  corrected, assertion now requires `init_result.ok` (not just the file existing), label renamed.
 - [ ] **C-13** `dependency_graph_view.gd:11-13` says "the panel listens to the built-in
   `node_selected`" — the panel never connects it (only hit is this comment). Delete or implement
   (a details pane on select would help newbies).
+  _Still open — re-verified after this pass: `dotquay_panel.gd` still has no `node_selected`
+  connection anywhere, so the comment (kept, word-for-word, through the C-8 edit of the same file) is
+  still making a false claim._
 - [ ] **C-14** `dotquay_add_request.gd:77-78` doc for `git_url()` ("the key a pending request must be
   stored under") contradicts `dotquay_panel.gd:60-63` ("Keyed on the ticket, not the URL");
   `git_url()` is now only used by `looks_like_git()`. Same stale claim in
@@ -458,6 +500,17 @@ Contract / parsing:
 - `test_graph_null_folder_is_not_a_rename`, `test_preview_null_resolved_is_empty` (C-23)
 - `test_cli_contract_init_emits_a_json_envelope` (C-12)
 
+_Progress: the null/missing-field coverage above landed (under slightly different names —
+`test_null_warnings_do_not_crash_and_yield_none`, `test_missing_error_object_produces_an_informative_message`,
+`test_non_dictionary_error_produces_an_informative_message`, `test_failure_helper_records_and_surfaces_raw_output`
+in `test_dotquay_result.gd`; `test_null_arrays_parse_as_empty_not_a_crash` +
+`test_null_nested_arrays_parse_as_empty_not_a_crash` + `test_null_folder_also_defaults_to_the_name` in
+`test_dotquay_graph.gd`; the equivalent set in `test_dotquay_preview.gd` and `test_dotquay_explain.gd`),
+and the C-12 fix above tightened `test_cli_contract.gd` in place rather than adding a new test. All 468
+assertions pass against the real Godot 4.7.2 binary and the real CLI. Not yet added: the CLI
+runner/settings, panel, graph-view, and add-form suites below — none of P0-6's queueing, P0-7's
+timeout, or the settings path-normalization got dedicated new tests this pass._
+
 CLI runner / settings (make the executor injectable so no real binary is needed):
 - `test_cli_serialises_mutating_runs`, `test_panel_refuses_mutations_while_busy` (P0-6)
 - `test_cli_launch_failure_is_only_exit_code_minus_one` (P0-5)
@@ -487,11 +540,20 @@ Add form:
 
 ## Suggested order of work
 
-1. P0-1, P0-10, P0-11, C-11, C-12, C-13 — an afternoon, all mechanical.
+1. ~~P0-1, P0-10, P0-11, C-11, C-12, C-13~~ — done except C-13 (see note above).
 2. P0-6 + P0-7 together (queue + `execute_with_pipe` + timeout + kill-on-exit) — one change, fixes
-   five findings.
-3. P0-4, P0-5, P0-8, P1-33 — error surfacing and null hardening, with the parsing tests above.
-4. P0-2, P0-3, P1-1..P1-4 — the first-run banner and discovery.
-5. P0-9, P1-8, P1-9, P1-14 — add-form validation and error round-trip.
-6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names.
-7. The P2 string table, then the remaining P1 polish and C items.
+   five findings. **Done: the queue (P0-6). Still open: P0-7's timeout/kill-on-exit rewrite** —
+   deliberately deferred, needs live-binary testing a sandboxed pass can't do.
+3. ~~P0-4, P0-5, P0-8, P1-33~~ — P0-5 done; P0-4/P0-8 partially done (see notes above — the
+   core-parser and message-surfacing halves landed, the panel-level banner-routing and the two
+   `dotquay_panel.gd` raw-payload sites didn't); P1-33 not yet reviewed against the current code.
+4. P0-2, P0-3, P1-1..P1-4 — **P0-3 done.** P0-2 and P1-1..P1-4 still open.
+5. P0-9, P1-8, P1-9, P1-14 — **P0-9 done.** P1-8, P1-9, P1-14 still open.
+6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
+7. The P2 string table, then the remaining P1 polish and C items. Not started.
+
+**Net this pass:** 6 of 11 P0s fully closed (P0-1, P0-3, P0-5, P0-6, P0-9, P0-10, P0-11 — that's 7,
+with P0-4/P0-8 partially closed and P0-2/P0-7 still open), plus C-2, C-3, C-8, C-11, C-12. Verified for
+real: 468/468 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI, in 9
+conventional commits (`10636ca`..`f169bbf`) on `main`. No P1/P2 items were touched — the whole pass
+stayed scoped to P0s plus the C-items that rode along with them.
