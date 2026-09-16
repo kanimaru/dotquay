@@ -262,30 +262,52 @@ These either show wrong information, lose data, or leave a beginner stuck with n
 
 ### Graph and node menus
 
-- [ ] **P1-17** No legend for badges anywhere in the panel. `conflict / modified / missing / linked /
+- [x] **P1-17** ~~No legend for badges anywhere in the panel. `conflict / modified / missing / linked /
   patched / override / orphan / → folder` (`dependency_node.gd:79-106`) are explained only by hover
   tooltips, two of which tell a GUI user to open a terminal (`:91` "Run 'dotquay link --remove'").
   README's table (`README.md:29-36`) is unreachable from the editor and omits `linked` and the rename
   badge. Add a **?** / Legend (toolbar button or sidebar tab): one sentence + recommended action per
-  badge.
-- [ ] **P1-18** "Pin to a version..." on a healthy addon opens a dialog that claims a conflict:
+  badge.~~ Fixed: a new hand-authored `legend_dialog.tscn` (script-less — per the plugin's own
+  scenes-not-code convention, since these eight rows are static content, not runtime state) lists every
+  badge — conflict/modified/missing/linked/patched/override/orphan/renamed — each with one sentence and
+  its recommended action, opened from a new **?** toolbar button. On a closer re-read only one tooltip
+  actually told a GUI user to open a terminal (the linked badge's, `:91`), not two; it now defers to
+  the legend instead of naming a command.
+- [x] **P1-18** ~~"Pin to a version..." on a healthy addon opens a dialog that claims a conflict:
   synthetic `Conflict` with `kind = ""` (`dotquay_panel.gd:291-310`) → headline "'x' could not be
   resolved." (`dotquay_graph.gd:213-214`), title "Resolve dependency conflict", heading "Pick a version
   to force", OK "Apply override" (`conflict_dialog.tscn:7,64,12`), candidates "dotquay found no
   published version to offer." (`conflict_dialog.gd:84`). Give the dialog a pin mode: "Pin 'x' to a
   version" / "Choose the version dotquay should always use" / OK "Pin"; hide empty sections (the
-  100 px "Who needs it" block, `conflict_dialog.tscn:56`).
-- [ ] **P1-19** Disabled menu items give no reason — **Update** for transitive addons, **Remove** for
+  100 px "Who needs it" block, `conflict_dialog.tscn:56`).~~ Fixed: `DotquayGraph.Conflict` gained an
+  explicit `is_manual_pin` flag, set by the panel itself rather than inferred from a blank `kind` — an
+  inference would have misclassified a genuine but unrecognised conflict kind as a pin.
+  `headline()`/`dialog_title()`/`candidates_heading()`/`ok_button_label()` all branch on it, so a pin
+  now reads "Pin 'x' to a version" / "Choose the version dotquay should always use" / OK "Pin", while a
+  real conflict keeps its existing vocabulary untouched. The "Who needs it" block now hides whenever
+  `requirements` is empty, pin or not, rather than only for pins.
+- [x] **P1-19** ~~Disabled menu items give no reason — **Update** for transitive addons, **Remove** for
   transitive/orphan, **Open repository** without a URL (`dependency_node.gd:138,153,154`). Use
-  `popup.set_item_tooltip()`: "Brought in by <requirer>; update/remove that one instead."
+  `popup.set_item_tooltip()`: "Brought in by <requirer>; update/remove that one instead."~~ Fixed:
+  `_add_menu_item()` now takes a `disabled_reason` and sets it via `popup.set_item_tooltip()`, backed by
+  pure static functions (`requirer_summary()`, `brought_in_by_reason()`, `remove_disabled_reason()`) so
+  the wording is unit-tested without a live `GraphNode`. Update and Remove on a transitive addon both
+  name the requirer to act on instead; Open repository explains there's no URL because it's likely a
+  NuGet package; an orphan's Remove explains it isn't a root manifest entry — deliberately without
+  claiming anything would auto-prune it, since nothing in SPEC.md or P1-20 (still open) confirms that.
 - [ ] **P1-20** Orphans are a dead end: badge says "Locked but no longer required by anything." (`:99`)
   and **Remove** is disabled for them (`is_removable()` requires root origin). State the remedy the CLI
   actually offers, or enable it.
-- [ ] **P1-21** Menu wording is jargon: "Pin to a version...", "Clear override", "Capture edits as a
+- [x] **P1-21** ~~Menu wording is jargon: "Pin to a version...", "Clear override", "Capture edits as a
   patch" (`:139,142,149`). Suggest "Always use a specific version…", "Stop forcing a version", "Keep
   my edits (save as patch)". Consider an **Advanced** submenu for pin/override. Node detail prints wire
   literals: `"%s %s" % [source_kind, constraint]` → "rev 3fa9c…" (`:113`); map `rev` → "commit" (also
-  `dotquay_graph.gd:107,145`, `dotquay_panel.gd:324`, `conflict_dialog.tscn:93-97`).
+  `dotquay_graph.gd:107,145`, `dotquay_panel.gd:324`, `conflict_dialog.tscn:93-97`).~~ Fixed: the three
+  menu labels now read exactly as suggested. A new `DotquayWire.display_source_kind()` maps the wire
+  literal `rev` to "commit" everywhere it reaches the user — node detail, `Requirement.describe()`,
+  `Candidate.display_label()`, the override log line, and the conflict dialog's custom-kind picker
+  caption — while the wire value the CLI actually receives is untouched. Not done: the optional
+  **Advanced** submenu for pin/override — a "consider", not required, and left alone this pass.
 - [ ] **P1-22** Every refresh discards manual node positions: `render()` frees all nodes and sets
   `position_offset` unconditionally (`dependency_graph_view.gd:41-46,64`), and `refresh()` runs on every
   return to the tab. Keep a `name → position_offset` map across renders; add an "Auto-arrange" action.
@@ -300,10 +322,16 @@ These either show wrong information, lose data, or leave a beginner stuck with n
 
 ### Toolbar, log, feedback
 
-- [ ] **P1-25** "Re-resolve" vs "Refresh" is opaque (`dotquay_panel.tscn:51-59`), and "Check for
+- [x] **P1-25** ~~"Re-resolve" vs "Refresh" is opaque (`dotquay_panel.tscn:51-59`), and "Check for
   updates" (addons) sits above the "Update dotquay" banner (the tool). Suggest "Reload" (or drop it —
   `refresh_on_focus` exists), "Check for conflicts (online)", "Check addons for updates"; move
-  Re-resolve/Doctor into a **Tools** overflow.
+  Re-resolve/Doctor into a **Tools** overflow.~~ Fixed: Refresh is now "Reload" (kept rather than
+  dropped, since `refresh_on_focus` covers the common case but not an explicit manual reload), "Check
+  for updates" is now "Check addons for updates", and Re-resolve/Doctor moved into a new **Tools**
+  `MenuButton` overflow. "Check for conflicts (online)" for Re-resolve's own label was folded into the
+  Tools menu item text rather than kept as a separate always-visible button. Reload keeps its existing
+  exemption from the busy/readiness gate (P0-9/P0-6), extended to the new Legend button (P1-17) since
+  neither needs a project to already be loaded.
 - [ ] **P1-26** "Update all" has no confirmation or preview (`dotquay_panel.gd:219-221`) while Add has
   both and Remove has one. A beginner cannot tell it may move every addon to a new commit.
 - [ ] **P1-27** Commands that change nothing end silently: `_report_operation` (`:660-672`) skips every
@@ -592,13 +620,13 @@ Add form:
 3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
 4. ~~P0-2, P0-3, P1-1..P1-4~~ — done.
 5. ~~P0-9, P1-8, P1-9, P1-14~~ — done.
-6. P1-17, P1-18, P1-19, P1-21, P1-25 — legend, pin mode, menu wording, toolbar names. Not started.
+6. ~~P1-17, P1-18, P1-19, P1-21, P1-25~~ — legend, pin mode, menu wording, toolbar names. Done.
 7. The P2 string table, then the remaining P1 polish and C items. Not started.
 
-**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, P1-8, P1-9, P1-14, C-2, C-3,
-C-8, C-11, C-12.
-Verified for real: 546/546 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
-across 16 conventional commits (`10636ca`..`178c9e6`) on `main`. Everything a first-time Godot user
+**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, P1-8, P1-9, P1-14, P1-17,
+P1-18, P1-19, P1-21, P1-25, C-2, C-3, C-8, C-11, C-12.
+Verified for real: 621/621 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 17 conventional commits (`10636ca`..`342628e`) on `main`. Everything a first-time Godot user
 would hit trying to add, update, or remove an addon through this tab is now either fixed or has a
 working, discoverable path forward — the remaining P1/P2/C backlog above is wording, ergonomics, and
 hygiene,
