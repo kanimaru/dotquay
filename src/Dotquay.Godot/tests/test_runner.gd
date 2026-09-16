@@ -13,7 +13,13 @@ extends SceneTree
 
 const SUITES := [
 	preload("res://tests/test_dotquay_result.gd"),
+	# Wire-literal display translations (P1-21) — read by DotquayGraph's own describe()/display_label()
+	# below, so it comes first.
+	preload("res://tests/test_dotquay_wire.gd"),
 	preload("res://tests/test_dotquay_graph.gd"),
+	# The dependency-node menu's disabled-item explanations (P1-19), pulled out as static functions of
+	# plain data so they're testable without a GraphNode in a tree.
+	preload("res://tests/test_dependency_node.gd"),
 	preload("res://tests/test_dotquay_preview.gd"),
 	preload("res://tests/test_dotquay_explain.gd"),
 	preload("res://tests/test_dotquay_add_request.gd"),

@@ -27,19 +27,43 @@ const CUSTOM_KIND_BY_ID := {
 const CANDIDATE_ROW := preload("res://addons/dotquay/ui/items/candidate_row.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-@onready var _headline: Label = %Headline
-@onready var _detail: RichTextLabel = %Detail
-@onready var _requirement_list: VBoxContainer = %Requirements
-@onready var _candidate_list: VBoxContainer = %Candidates
-@onready var _custom_radio: CheckBox = %CustomRadio
-@onready var _custom_kind: OptionButton = %CustomKind
-@onready var _custom_value: LineEdit = %CustomValue
+## Bound on first use rather than with `@onready` — see [method DotquayExplainDialog._bind] for why:
+## `@onready` only fires once the node is in a running [SceneTree], which a scene loaded and shown
+## the way [code]test_scenes.gd[/code] does never is. Binding lazily makes the dialog behave
+## identically either way, and is what lets [method show_conflict]'s pin-vs-conflict wording be a
+## test rather than a code review (P1-18).
+var _headline: Label
+var _detail: RichTextLabel
+var _requirements_heading: Label
+var _requirement_list: VBoxContainer
+var _candidates_heading: Label
+var _candidate_list: VBoxContainer
+var _custom_radio: CheckBox
+var _custom_kind: OptionButton
+var _custom_value: LineEdit
 
 var _conflict: DotquayGraph.Conflict
 var _candidate_group: ButtonGroup
 
 
 func _ready() -> void:
+	_bind()
+
+
+func _bind() -> void:
+	if _headline != null:
+		return
+
+	_headline = %Headline
+	_detail = %Detail
+	_requirements_heading = %RequirementsHeading
+	_requirement_list = %Requirements
+	_candidates_heading = %CandidatesHeading
+	_candidate_list = %Candidates
+	_custom_radio = %CustomRadio
+	_custom_kind = %CustomKind
+	_custom_value = %CustomValue
+
 	# Typing into the free-text field is itself a choice; making the user also click the radio is a
 	# step that only ever produces a wrong-looking dialog.
 	_custom_value.text_changed.connect(func(_text: String) -> void:
@@ -47,13 +71,15 @@ func _ready() -> void:
 		_update_ok_state())
 	_custom_radio.set_meta("candidate_index", CUSTOM_ID)
 
-	for label in [%RequirementsHeading, %CandidatesHeading]:
-		(label as Label).add_theme_color_override("font_color", DotquayPalette.MUTED)
+	for label in [_requirements_heading, _candidates_heading]:
+		label.add_theme_color_override("font_color", DotquayPalette.MUTED)
 
-	confirmed.connect(_on_confirmed)
+	if not confirmed.is_connected(_on_confirmed):
+		confirmed.connect(_on_confirmed)
 
 
 func show_conflict(conflict: DotquayGraph.Conflict) -> void:
+	_bind()
 	_conflict = conflict
 
 	# A fresh group per showing: reusing one would keep every radio from the previous conflict
@@ -64,8 +90,14 @@ func show_conflict(conflict: DotquayGraph.Conflict) -> void:
 	_custom_radio.button_pressed = false
 	_custom_value.text = ""
 
+	# Title, headline, heading, and OK label all follow the same real-conflict/manual-pin split
+	# (P1-18) — a version picker opened on an addon that was never in trouble must not borrow a
+	# conflict's own vocabulary ("resolve", "force", "override") for a choice nobody was forced into.
+	title = conflict.dialog_title()
 	_headline.text = conflict.headline()
 	_detail.text = conflict.message
+	_candidates_heading.text = conflict.candidates_heading()
+	get_ok_button().text = conflict.ok_button_label()
 
 	DotquayNodes.clear_children(_requirement_list)
 
@@ -73,6 +105,12 @@ func show_conflict(conflict: DotquayGraph.Conflict) -> void:
 		var label: DotquayStatusLabel = STATUS_LABEL.instantiate()
 		_requirement_list.add_child(label)
 		label.setup("  • " + requirement.describe(), DotquayPalette.MUTED, requirement.git)
+
+	# Nothing to show for a brand-new pin on a lockfile-sourced graph, where no --resolve walk has
+	# ever populated who needs what — an empty "Who needs it" block just wastes 100px on nothing.
+	var has_requirements := not conflict.requirements.is_empty()
+	_requirements_heading.visible = has_requirements
+	_requirement_list.visible = has_requirements
 
 	DotquayNodes.clear_children(_candidate_list)
 
@@ -94,7 +132,12 @@ func show_conflict(conflict: DotquayGraph.Conflict) -> void:
 			(_candidate_list.get_child(0) as DotquayCandidateRow).radio.button_pressed = true
 
 	_update_ok_state()
-	popup_centered()
+
+	# Guarded so the same call is valid on a detached instance, matching
+	# [DotquayExplainDialog._bind]'s own doc comment — it's what lets this method's rendering
+	# (P1-18's pin-vs-conflict wording, in particular) be asserted without a SceneTree.
+	if is_inside_tree():
+		popup_centered()
 
 
 ## Whether confirming right now would actually emit a choice: a candidate is selected, or the custom

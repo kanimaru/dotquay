@@ -94,7 +94,7 @@ popup/item_0/text = "version"
 popup/item_0/id = 0
 popup/item_1/text = "branch"
 popup/item_1/id = 1
-popup/item_2/text = "rev"
+popup/item_2/text = "commit"
 popup/item_2/id = 2
 
 [node name="CustomValue" type="LineEdit" parent="Root/CustomRow" unique_id=430464816]

@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://pe8o3qdtfv8i" path="res://addons/dotquay/ui/add_dependency_dialog.tscn" id="4_add_dialog"]
 [ext_resource type="PackedScene" uid="uid://bb8pb0afhvlsv" path="res://addons/dotquay/ui/install_preview_dialog.tscn" id="5_preview_dialog"]
 [ext_resource type="PackedScene" path="res://addons/dotquay/ui/explain_dialog.tscn" id="6_explain_dialog"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/legend_dialog.tscn" id="7_legend_dialog"]
 
 [node name="DotquayPanel" type="Control" unique_id=861563337]
 layout_mode = 3
@@ -43,25 +44,27 @@ text = "Update all"
 [node name="OutdatedButton" type="Button" parent="Root/Toolbar" unique_id=797377060]
 layout_mode = 2
 tooltip_text = "Ask each upstream what's newer, without cloning."
-text = "Check for updates"
+text = "Check addons for updates"
 
 [node name="ToolbarSeparator" type="VSeparator" parent="Root/Toolbar" unique_id=1034535236]
 layout_mode = 2
 
-[node name="ResolveButton" type="Button" parent="Root/Toolbar" unique_id=1024051142]
-layout_mode = 2
-tooltip_text = "Re-walk the live dependency graph and report conflicts."
-text = "Re-resolve"
-
 [node name="RefreshButton" type="Button" parent="Root/Toolbar" unique_id=1840824544]
 layout_mode = 2
 tooltip_text = "Reload the graph from the lockfile."
-text = "Refresh"
+text = "Reload"
 
-[node name="DoctorButton" type="Button" parent="Root/Toolbar" unique_id=1875222859]
+; Re-resolve and Doctor moved off the main toolbar into this overflow (P1-25) — neither is something
+; a beginner reaches for on the first, tenth, or hundredth click, and losing them into one "Tools"
+; button leaves room for the two things that are. Populated in code (dotquay_panel.gd _wire_toolbar)
+; rather than as popup/item_N properties here, so the ids the handler switches on and the items this
+; menu shows can never drift apart from being edited in two different files.
+
+[node name="ToolsButton" type="MenuButton" parent="Root/Toolbar" unique_id=2044113611]
 layout_mode = 2
-tooltip_text = "Run dotquay's sanity checks."
-text = "Doctor"
+tooltip_text = "Re-walk the live dependency graph for conflicts, or run dotquay's sanity checks."
+text = "Tools"
+switch_on_hover = true
 
 [node name="Summary" type="Label" parent="Root/Toolbar" unique_id=182279228]
 unique_name_in_owner = true
@@ -76,6 +79,11 @@ visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.71, 0.24, 1)
 text = "working..."
+
+[node name="LegendButton" type="Button" parent="Root/Toolbar" unique_id=2044113612]
+layout_mode = 2
+tooltip_text = "What do the badges next to an addon mean?"
+text = "?"
 
 [node name="SetupBanner" type="PanelContainer" parent="Root" unique_id=872528431]
 unique_name_in_owner = true
@@ -218,6 +226,10 @@ unique_name_in_owner = true
 visible = false
 
 [node name="ExplainDialog" parent="." instance=ExtResource("6_explain_dialog")]
+unique_name_in_owner = true
+visible = false
+
+[node name="LegendDialog" parent="." instance=ExtResource("7_legend_dialog")]
 unique_name_in_owner = true
 visible = false
 

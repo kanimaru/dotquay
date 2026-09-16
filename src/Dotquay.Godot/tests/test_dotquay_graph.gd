@@ -193,6 +193,65 @@ func test_requirement_describes_itself() -> void:
 	runner.equal(requirement.describe(), "a wants version ~1", "requirement lines feed both the dialog and the sidebar")
 
 
+func test_requirement_describes_a_rev_pin_as_a_commit() -> void:
+	# P1-21: 'rev' is the wire's own word for a commit, not one a person reading the sidebar should
+	# have to translate themselves.
+	var requirement := DotquayGraph.Requirement.from_payload(
+		{"requirer": "a", "kind": "rev", "constraint": "3fa9c1d", "git": "https://example.com/core"})
+
+	runner.equal(requirement.describe(), "a wants commit 3fa9c1d", "'rev' reads as 'commit'")
+
+
+# -- manual pin vs. a real conflict (P1-18) ---------------------------------------------------
+
+func test_a_real_conflict_keeps_the_generic_dialog_chrome() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_conflicted())
+	var conflict := graph.conflict_for("core")
+
+	runner.check(not conflict.is_manual_pin, "a payload-parsed conflict is never a manual pin")
+	runner.equal(conflict.dialog_title(), "Resolve dependency conflict",
+		"a real conflict's title stays generic — the headline underneath names the specifics")
+	runner.equal(conflict.candidates_heading(), "Pick a version to force",
+		"forcing a version is exactly what overriding a real conflict does")
+	runner.equal(conflict.ok_button_label(), "Apply override", "the CLI operation really is an override")
+
+
+func test_a_manual_pin_gets_its_own_headline_title_and_button() -> void:
+	# DotquayPanel._open_conflict_dialog builds exactly this shape for "Always use a specific
+	# version..." on an addon with no real conflict.
+	var conflict := DotquayGraph.Conflict.new()
+	conflict.name = "gut"
+	conflict.is_manual_pin = true
+
+	runner.equal(conflict.headline(), "Pin 'gut' to a version",
+		"a pin on a healthy addon isn't described as something that 'could not be resolved'")
+	runner.equal(conflict.dialog_title(), conflict.headline(),
+		"the window title and the headline say the same thing — there's no separate problem to name")
+	runner.equal(conflict.candidates_heading(), "Choose the version dotquay should always use",
+		"'force' implies duress; nothing forced this pin")
+	runner.equal(conflict.ok_button_label(), "Pin", "'Apply override' is CLI vocabulary, not UI vocabulary")
+
+
+func test_an_unrecognised_real_conflict_kind_is_not_mistaken_for_a_pin() -> void:
+	# is_manual_pin is a fact set explicitly by the caller, not inferred from a blank/unknown kind —
+	# a genuine conflict the plugin doesn't recognise must still read as a conflict.
+	var conflict := DotquayGraph.Conflict.new()
+	conflict.name = "core"
+	conflict.kind = "some_future_conflict_kind"
+
+	runner.equal(conflict.headline(), "'core' could not be resolved.",
+		"an unrecognised real conflict falls back to the generic headline, not a pin's")
+	runner.equal(conflict.dialog_title(), "Resolve dependency conflict",
+		"and keeps the generic conflict title")
+
+
+func test_candidate_display_label_shows_a_rev_as_a_commit() -> void:
+	var candidate := DotquayGraph.Candidate.from_payload(
+		{"kind": "rev", "value": "3fa9c1d", "git": "https://example.com/core"})
+
+	runner.equal(candidate.display_label(), "commit 3fa9c1d", "the picker's radio label uses the same word")
+
+
 func test_project_requirer_is_named_readably() -> void:
 	var requirement := DotquayGraph.Requirement.from_payload(
 		{"requirer": "<project>", "kind": "version", "constraint": "~1.0", "git": "https://example.com/a"})

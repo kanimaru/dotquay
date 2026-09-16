@@ -55,6 +55,7 @@ var _cli_path_dialog: EditorFileDialog
 @onready var _add_dialog: DotquayAddDependencyDialog = %AddDialog
 @onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
 @onready var _explain_dialog: DotquayExplainDialog = %ExplainDialog
+@onready var _legend_dialog: AcceptDialog = %LegendDialog
 @onready var _confirm_remove: ConfirmationDialog = %ConfirmRemove
 @onready var _confirm_overwrite_cli_path: ConfirmationDialog = %ConfirmOverwriteCliPath
 
@@ -165,6 +166,13 @@ func _process(_delta: float) -> void:
 	set_process(_rescan.pump())
 
 
+## Ids for the Tools overflow menu (P1-25) — Re-resolve and Doctor moved here off the main toolbar,
+## since neither is a first-click action. Positional like [DotquayDependencyNode]'s own menu, and for
+## the same reason: the action a click means must survive the menu being reordered or relabelled.
+const TOOLS_ITEM_RESOLVE := 0
+const TOOLS_ITEM_DOCTOR := 1
+
+
 ## The toolbar's buttons live in the scene, so the binding is by node name rather than by a builder
 ## that would have to duplicate the scene's ordering to stay readable.
 func _wire_toolbar() -> void:
@@ -173,13 +181,29 @@ func _wire_toolbar() -> void:
 		"InstallButton": _on_install_pressed,
 		"UpdateAllButton": _on_update_all_pressed,
 		"OutdatedButton": _on_outdated_pressed,
-		"ResolveButton": resolve,
 		"RefreshButton": refresh,
-		"DoctorButton": _on_doctor_pressed,
+		"LegendButton": _on_legend_pressed,
 	}
 
 	for node_name in handlers:
 		(_toolbar.get_node(node_name) as Button).pressed.connect(handlers[node_name])
+
+	var tools_popup := (_toolbar.get_node("ToolsButton") as MenuButton).get_popup()
+	tools_popup.add_item("Check for conflicts (online)", TOOLS_ITEM_RESOLVE)
+	tools_popup.add_item("Run doctor", TOOLS_ITEM_DOCTOR)
+	tools_popup.id_pressed.connect(_on_tools_menu_id_pressed)
+
+
+func _on_tools_menu_id_pressed(id: int) -> void:
+	match id:
+		TOOLS_ITEM_RESOLVE:
+			resolve()
+		TOOLS_ITEM_DOCTOR:
+			_on_doctor_pressed()
+
+
+func _on_legend_pressed() -> void:
+	_legend_dialog.popup_centered()
 
 
 ## Reloads the graph from the lockfile — fast, offline, and safe to call on every panel focus.
@@ -347,7 +371,7 @@ func _open_conflict_dialog(addon_name: String) -> void:
 	if conflict == null:
 		conflict = DotquayGraph.Conflict.new()
 		conflict.name = addon_name
-		conflict.kind = ""
+		conflict.is_manual_pin = true
 		conflict.message = (
 			"No conflict was reported for '%s'. Pinning it here writes an [overrides] entry that wins over every other constraint."
 			% addon_name)
@@ -371,7 +395,7 @@ func _on_override_chosen(addon_name: String, kind: String, value: String, git: S
 		args.append(install_as)
 
 	if install_as.is_empty():
-		_log_line("Pinning %s to %s %s..." % [addon_name, kind, value])
+		_log_line("Pinning %s to %s %s..." % [addon_name, DotquayWire.display_source_kind(kind), value])
 	else:
 		_log_line("Pinning %s to addons/%s..." % [addon_name, install_as])
 
@@ -481,17 +505,22 @@ func _on_busy_changed(is_busy: bool) -> void:
 	_update_toolbar_state()
 
 
+## Buttons exempt from the readiness half of the gate below: the only controls that must stay
+## reachable even when nothing else is. RefreshButton is the one that can retry after the setup
+## banner's fix; LegendButton opens a static reference dialog that reads nothing from the project, so
+## gating it on a graph having loaded would be withholding a help screen for no reason.
+const TOOLBAR_ALWAYS_READY := ["RefreshButton", "LegendButton"]
+
+
 ## Every mutating button is disabled while busy OR before the project is known to be ready — combined
 ## here rather than at each call site, since both [method _on_busy_changed] and a change to
-## [member _project_ready] need the same two conditions applied together. RefreshButton is exempt from
-## the readiness half of that: it is the only control that can retry after the setup banner's fix, so
-## it must stay reachable even when nothing else is.
+## [member _project_ready] need the same two conditions applied together.
 func _update_toolbar_state() -> void:
 	for button in _toolbar.get_children():
 		if not (button is Button):
 			continue
 
-		if button.name == "RefreshButton":
+		if TOOLBAR_ALWAYS_READY.has(button.name):
 			button.disabled = _is_busy
 		else:
 			button.disabled = _is_busy or not _project_ready

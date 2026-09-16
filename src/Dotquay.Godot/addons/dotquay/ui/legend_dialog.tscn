@@ -1,0 +1,190 @@
+[gd_scene format=3]
+
+; The badge legend (P1-17). No script: every row here is static text that never depends on CLI
+; state, unlike the badges themselves — those are rendered from live data in dependency_node.gd, and
+; belong in code for exactly that reason. This dialog has nothing to compute, so it stays a plain
+; scene, the same way the panel's own static labels do.
+
+[node name="LegendDialog" type="AcceptDialog" unique_id=2044113587]
+oversampling_override = 1.0
+title = "Badge legend"
+position = Vector2i(0, 36)
+size = Vector2i(600, 520)
+visible = true
+wrap_controls = false
+ok_button_text = "Close"
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -49.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Intro" type="Label" parent="Root"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
+theme_override_font_sizes/font_size = 12
+text = "Badges next to an addon in the graph flag its current state. Hover any badge there for the exact detail — this is the short version of all of them in one place."
+autowrap_mode = 3
+
+[node name="Scroll" type="ScrollContainer" parent="Root"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="Root/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="ConflictRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/ConflictRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.32, 0.32, 1)
+text = "conflict"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/ConflictRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Two things need this addon but disagree — a different repository, incompatible commits, or no released version that satisfies both. Action: open the node's menu and choose Resolve conflict… to pick a version."
+autowrap_mode = 3
+
+[node name="ModifiedRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/ModifiedRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.32, 0.32, 1)
+text = "modified"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/ModifiedRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "The installed files were hand-edited and no patch has captured the change yet — install and update will refuse to overwrite it. Action: choose \"Why is this modified?\" to see what changed, then \"Keep my edits (save as patch)\" if you want to keep it."
+autowrap_mode = 3
+
+[node name="MissingRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/MissingRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.71, 0.24, 1)
+text = "missing"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/MissingRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Locked in dotquay.lock, but its folder isn't on disk. Action: press Install."
+autowrap_mode = 3
+
+[node name="LinkedRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/LinkedRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.47, 0.62, 0.94, 1)
+text = "linked"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/LinkedRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Pointed at a folder on this machine instead of an installed copy of the locked commit — edits there are live, no update needed. Action: to put it back, run \"dotquay link --remove <name>\" from a terminal; there's no in-editor button for this yet."
+autowrap_mode = 3
+
+[node name="PatchedRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/PatchedRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.36, 0.72, 0.44, 1)
+text = "patched"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/PatchedRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "A captured patch exists for this addon and is re-applied automatically on every install or update. No action needed."
+autowrap_mode = 3
+
+[node name="OverrideRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/OverrideRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.47, 0.62, 0.94, 1)
+text = "override"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/OverrideRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Pinned by an [overrides] entry in dotquay.toml, which wins over every other constraint. Action: choose \"Stop forcing a version\" from the node's menu to remove the pin."
+autowrap_mode = 3
+
+[node name="OrphanRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/OrphanRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.71, 0.24, 1)
+text = "orphan"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/OrphanRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Still locked in dotquay.lock, but nothing in the project requires it any more. Action: none from here yet — it isn't a root entry, so Remove has nothing to act on."
+autowrap_mode = 3
+
+[node name="RenamedRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/RenamedRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.47, 0.62, 0.94, 1)
+text = "→ folder"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/RenamedRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Installed under a different folder name than the addon itself (install_as in dotquay.toml) — usually because another addon preloads it by an absolute path that needs a specific name. No action needed unless the folder name is a surprise."
+autowrap_mode = 3

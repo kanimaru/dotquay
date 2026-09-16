@@ -107,7 +107,8 @@ class Requirement extends RefCounted:
 		return requirement
 
 	func describe() -> String:
-		return "%s wants %s %s" % [DotquayWire.display_requirer(requirer), kind, constraint]
+		return "%s wants %s %s" % [
+			DotquayWire.display_requirer(requirer), DotquayWire.display_source_kind(kind), constraint]
 
 
 class Candidate extends RefCounted:
@@ -145,7 +146,8 @@ class Candidate extends RefCounted:
 
 	## What to show on the picker's radio button.
 	func display_label() -> String:
-		return "install as addons/%s" % install_as if is_folder_choice() else "%s %s" % [kind, value]
+		return ("install as addons/%s" % install_as if is_folder_choice()
+			else "%s %s" % [DotquayWire.display_source_kind(kind), value])
 
 	func describe_satisfies() -> String:
 		if satisfies_all:
@@ -166,6 +168,14 @@ class Conflict extends RefCounted:
 	var message: String = ""
 	var requirements: Array = []   ## Array[Requirement]
 	var candidates: Array = []     ## Array[Candidate]
+
+	## True for a synthetic conflict built by "Always use a specific version..." on an addon that has
+	## no real conflict (DotquayPanel._open_conflict_dialog picking this addon's own version picker),
+	## as opposed to one parsed from a real `graph --resolve` payload. Kept as its own flag rather than
+	## inferred from a blank [member kind]: a genuine conflict can arrive with a kind this plugin
+	## doesn't recognise too, and that case deserves the generic "could not be resolved" headline, not
+	## a dialog that quietly relabels itself as something the user never asked for (P1-18).
+	var is_manual_pin: bool = false
 
 	static func from_payload(payload: Dictionary) -> Conflict:
 		var conflict := Conflict.new()
@@ -202,6 +212,9 @@ class Conflict extends RefCounted:
 	## A short, plain-language headline. The CLI's own [member message] is the full explanation and is
 	## always shown underneath; this is what fits on a dialog's title line.
 	func headline() -> String:
+		if is_manual_pin:
+			return "Pin '%s' to a version" % name
+
 		match kind:
 			DotquayWire.CONFLICT_DIFFERENT_GIT_URLS:
 				return "'%s' is required from two different repositories." % name
@@ -215,6 +228,25 @@ class Conflict extends RefCounted:
 				return "'%s' is wanted in two different folders under addons/." % name
 			_:
 				return "'%s' could not be resolved." % name
+
+
+	## The dialog's window title (P1-18). A real conflict keeps one fixed, generic title, since
+	## [method headline] already names the specific problem in the dialog body; a manual pin has
+	## nothing else worth calling itself, so its title and headline say the same thing.
+	func dialog_title() -> String:
+		return headline() if is_manual_pin else "Resolve dependency conflict"
+
+
+	## The heading over the candidate list — "force" reads as an escape hatch you reach for under
+	## duress, which is wrong for a pin chosen on an addon that was never in trouble (P1-18).
+	func candidates_heading() -> String:
+		return "Choose the version dotquay should always use" if is_manual_pin else "Pick a version to force"
+
+
+	## The dialog's OK button. "Apply override" is accurate CLI vocabulary and unhelpful UI vocabulary
+	## on a healthy addon that was never overridden until this click (P1-18).
+	func ok_button_label() -> String:
+		return "Pin" if is_manual_pin else "Apply override"
 
 
 class DotnetEntry extends RefCounted:

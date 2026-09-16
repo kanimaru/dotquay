@@ -115,3 +115,11 @@ static func array_or_empty(value: Variant) -> Array:
 ## Turns a wire requirer name into something worth showing a person.
 static func display_requirer(requirer: String) -> String:
 	return "this project" if requirer == PROJECT_NODE else requirer
+
+
+## Turns a wire source-kind literal ("version"/"branch"/"rev") into the word a person would use
+## (P1-21). "version" and "branch" are already plain English; "rev" is git's own jargon for a commit,
+## so it's the one substitution this makes — everywhere a kind is shown, not just one label, or the
+## wording would drift the next time a new display site is added.
+static func display_source_kind(kind: String) -> String:
+	return "commit" if kind == SOURCE_REV else kind

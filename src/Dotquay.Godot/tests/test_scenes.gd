@@ -22,6 +22,7 @@ const SCENES := [
 	"res://addons/dotquay/ui/conflict_dialog.tscn",
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
 	"res://addons/dotquay/ui/explain_dialog.tscn",
+	"res://addons/dotquay/ui/legend_dialog.tscn",
 	"res://addons/dotquay/ui/items/status_label.tscn",
 	"res://addons/dotquay/ui/items/conflict_card.tscn",
 	"res://addons/dotquay/ui/items/candidate_row.tscn",
@@ -35,7 +36,7 @@ const SCENES := [
 ## a dictionary of handlers and so never appear as literals a scan could find.
 const PANEL_TOOLBAR_BUTTONS := [
 	"AddButton", "InstallButton", "UpdateAllButton", "OutdatedButton",
-	"ResolveButton", "RefreshButton", "DoctorButton",
+	"RefreshButton", "ToolsButton", "LegendButton",
 ]
 
 
@@ -142,6 +143,7 @@ const DIALOGS := [
 	"res://addons/dotquay/ui/conflict_dialog.tscn",
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
 	"res://addons/dotquay/ui/explain_dialog.tscn",
+	"res://addons/dotquay/ui/legend_dialog.tscn",
 ]
 
 
@@ -251,6 +253,41 @@ static func _explanation_payload(verdict: String, change_class: String, count: i
 		"counts": {change_class: count, "total": count},
 		"changes": [{"path": "a.gd", "kind": "changed", "class": change_class}],
 	})
+
+
+## The conflict dialog's pin/conflict-mode wiring (P1-18): title, headline, candidates heading, and
+## OK button label all follow whether [DotquayGraph.Conflict] is a real one or a manual pin, and the
+## "Who needs it" block must disappear when there is nothing in it to show.
+func test_conflict_dialog_uses_pin_wording_and_hides_empty_requirements() -> void:
+	var dialog: Window = load("res://addons/dotquay/ui/conflict_dialog.tscn").instantiate()
+
+	var pin := DotquayGraph.Conflict.new()
+	pin.name = "gut"
+	pin.is_manual_pin = true
+	pin.message = "No conflict was reported for 'gut'."
+
+	dialog.show_conflict(pin)
+	runner.equal(dialog.title, "Pin 'gut' to a version", "the window title uses pin wording")
+	runner.equal(dialog.get_ok_button().text, "Pin", "the OK button says Pin, not Apply override")
+	runner.check(not dialog.get_node("%RequirementsHeading").visible,
+		"nothing was passed in requirements, so the 'Who needs it' block should hide")
+	runner.check(not dialog.get_node("%Requirements").visible, "and its body along with it")
+
+	var real := DotquayGraph.Conflict.from_payload({
+		"name": "core", "kind": "no_common_version", "message": "no tag satisfies everyone",
+		"requirements": [{"requirer": "a", "kind": "version", "constraint": "~1", "git": ""}],
+		"candidates": [],
+	})
+
+	# Reused rather than re-instantiated, matching how the panel actually owns one long-lived dialog.
+	dialog.show_conflict(real)
+	runner.equal(dialog.title, "Resolve dependency conflict", "a real conflict keeps the generic title")
+	runner.equal(dialog.get_ok_button().text, "Apply override", "and the CLI's own operation name")
+	runner.check(dialog.get_node("%RequirementsHeading").visible,
+		"a real conflict with requirements should show who needs it")
+	runner.check(dialog.get_node("%Requirements").visible, "and its body")
+
+	dialog.free()
 
 
 ## Pulls `%Name` tokens out of GDScript source.
