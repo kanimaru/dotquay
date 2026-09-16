@@ -7,6 +7,9 @@
 **Amended:** 2026-09-03 — the `.csproj` is no longer mutated; the swap became a gitignored MSBuild
 overlay (see *Decision* and *How the overlay works*). Generator/analyzer support added as a
 first-class case.
+**Amended:** 2026-09-16 — an `analyzer = true` link's overlay now also carries the
+`DotquayStageLinkedAnalyzers` target, without which a linked generator cannot be rebuilt while any
+Roslyn host has it loaded (see *The analyzer lock, and why the overlay carries a build target*).
 
 Motivating case: developing a shared C# library (say `Kani.Core`, or a package like `VBeami.Core`
 already referenced in `dotquay.toml`) that a Godot project also consumes via `[dotnet.<id>]`, without
@@ -178,6 +181,73 @@ its `dotquay.toml`.** dotquay then writes a `<PackageReference>` beside the hand
 types, running together. Two ways out: keep it out of that project's manifest, or link it, which is
 exactly what the overlay's `<PackageReference Remove>` is for. The second is why this design matters
 for a generator and not only for a shared library.
+
+### The analyzer lock, and why the overlay carries a build target
+
+Amendment, 2026-09-16. Wiring a linked generator up correctly is necessary and not sufficient: once
+it *is* wired up correctly, it cannot be rebuilt.
+
+Every Roslyn host — Rider, an IDE, a Roslyn MCP server such as `CWM.RoslynNavigator` or
+`MadQ.RoslynMcp` — loads an analyzer assembly **in place** and holds a file lock on it for as long as
+the host lives. For an analyzer out of `~/.nuget/packages` that costs nothing, because nobody
+rebuilds a restored package. For a linked one the lock lands on the generator's own build output, and
+the generator's next build fails:
+
+```
+MSB3061: Unable to delete file "…\dev.kani.godot.generator.dll".
+         The file is locked by: CWM.RoslynNavigator (676)
+MSB3026/MSB3027: Could not copy "obj\…\…dll" to "bin\…\…dll" … Exceeded retry count of 10.
+```
+
+Because the consuming project references that project, its build fails too. So the developer loop
+this whole feature exists to shorten stops working entirely, from the moment an editor opens the
+workspace — the failure appears *after* the link is set up correctly, which is the worst possible
+time for it.
+
+Reproduced in `F:\projects\godot\BotV2` with `Dev.Kani.Godot.Generator` linked to
+`F:\projects\godot\BlackHaul\dev.kani.godot.generator`: with a Roslyn MCP server running,
+`dotnet build dev.kani.godot.generator.csproj -t:Rebuild` fails with MSB3021.
+
+**Decision: the generated overlay carries an MSBuild target that compiles against a copy.**
+`DotquayStageLinkedAnalyzers` runs after `ResolveReferences` and before `CoreCompile`, takes every
+`@(Analyzer)` that is not under `$(NuGetPackageRoot)` or `$(NetCoreRoot)`, copies it and its
+neighbours into `$(IntermediateOutputPath)linked-analyzers\<name>-<sha256>\`, and swaps the
+`Analyzer` item for the copy. Only the copy is ever locked, so the original is always free to be
+rebuilt.
+
+Four details are load-bearing, each of which fails silently if it is wrong:
+
+- **The file name is unchanged.** Roslyn resolves an analyzer by its assembly name, so a copy renamed
+  to carry its hash yields `warning CS8034: Unable to load Analyzer assembly` — a *warning*, so the
+  build succeeds while emitting less code than it should. The hash goes in the directory name.
+- **The hash is in the directory name.** One fixed staging folder would inherit the problem it was
+  built to solve: the host locks the copy, and the next generator build cannot overwrite it. Content
+  addressing means a rebuilt generator lands somewhere nothing has had the chance to lock yet.
+- **Design-time builds stage too.** The target is not conditioned on a real compilation, deliberately
+  — a design-time build is exactly how an IDE or an MCP server is told which analyzer to load, so
+  that is the build whose answer has to be the copy. Stage only for real compilations and the host
+  goes on locking the original, which is the whole bug.
+- **Scope is every locally built analyzer, not only dotquay's links.** A hand-written
+  `<ProjectReference OutputItemType="Analyzer">` in the same project carries exactly the same lock.
+  `DisableDotquayAnalyzerStaging=true` opts out.
+
+**Why in the overlay and not in the `.csproj`.** Same reasoning as the swap itself: the staging is a
+consequence of a link that exists on one machine. In the tracked `.csproj` it would ask a whole team
+to carry one person's development setup, and it would outlive the link, since unlinking only deletes
+the overlay. A `<Target>`'s position in the evaluation order does not matter the way
+`<PackageReference Remove>`'s does — targets are collected across the whole evaluation — so the late
+import that the swap *requires* costs the target nothing.
+
+**Sweeping stale directories.** Every generator build leaves one staged directory behind, so `obj\`
+grows for as long as the link lives. The target removes every staged directory that is not one of
+this build's. It does so through `rmdir`/`rm` under `IgnoreExitCode`, not with `RemoveDir`: the
+directory a host still has open cannot be deleted, and that is the *normal* state while a generator
+is being developed, not a fault — but `RemoveDir` reports it as `warning MSB3231` on **every** build.
+Measured, with a process holding the staged assembly open: `RemoveDir` prunes the free directories
+and warns about the held one; the shell sweep prunes the free ones, strips the held one down to the
+locked file alone, and says nothing. The remainder goes on a later build, once that host has exited.
+Unlinking removes the overlay, and with it the sweep, so a stale directory left at that moment stays
+until `obj\` is cleaned — which is what `obj\` is for.
 
 ## Options Considered
 

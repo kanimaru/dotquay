@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Dotquay.Core.Dotnet;
 using Dotquay.Core.Local;
 using Dotquay.Core.Workflows;
@@ -277,6 +278,209 @@ public class LocalTargetsTests
         // A GDScript-only project must not be asked for a .csproj it has no reason to have.
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, new Dictionary<string, DotnetLink>());
 
+        Assert.False(fileSystem.FileExists(OverlayPath(fileSystem)));
+    }
+
+    // ---- analyzer staging -------------------------------------------------
+
+    private static XElement Overlay(InMemoryFileSystem fileSystem) =>
+        XDocument.Parse(fileSystem.ReadAllText(OverlayPath(fileSystem))).Root!;
+
+    private static XElement? StagingTarget(InMemoryFileSystem fileSystem) =>
+        Overlay(fileSystem).Elements("Target").SingleOrDefault(
+            t => (string?)t.Attribute("Name") == LocalTargetsWriter.AnalyzerStagingTarget);
+
+    /// <summary>Every attribute value in the staging target, which is where all of its behaviour
+    /// lives — there is no element text anywhere in it.</summary>
+    private static string StagingAttributes(InMemoryFileSystem fileSystem) =>
+        string.Join(
+            "\n",
+            StagingTarget(fileSystem)!.DescendantsAndSelf()
+                .SelectMany(e => e.Attributes().Select(a => a.Value).Append(e.Value)));
+
+    [Fact]
+    public void Sync_AnAnalyzerLink_CarriesTheStagingTarget()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // A Roslyn host holds a file lock on every analyzer it loads, for as long as it lives. Point
+        // one at a generator's own build output and that generator can never be rebuilt again
+        // (MSB3061/MSB3026) — which takes the consuming project's build down with it.
+        var target = StagingTarget(fileSystem);
+        Assert.NotNull(target);
+        Assert.Equal("ResolveReferences", (string?)target.Attribute("AfterTargets"));
+        Assert.Equal("CoreCompile", (string?)target.Attribute("BeforeTargets"));
+    }
+
+    [Fact]
+    public void Sync_APlainLibraryLink_HasNoStagingTarget()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: false));
+
+        // Nothing loads an ordinary library reference the way Roslyn loads an analyzer, so there is no
+        // lock to dodge and no reason to put a build-time copy in anyone's way.
+        Assert.Null(StagingTarget(fileSystem));
+    }
+
+    [Fact]
+    public void Sync_OneAnalyzerAmongPlainLinks_StillEmitsExactlyOneTarget()
+    {
+        var fileSystem = Build();
+        var links = new LocalLinks(fileSystem);
+        links.SetDotnet(ProjectDirectory, PackageId, GeneratorDirectory, analyzer: true);
+        links.SetDotnet(ProjectDirectory, "Kani.Core", GeneratorDirectory, analyzer: false);
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, links.ReadDotnet(ProjectDirectory));
+
+        // The target operates on @(Analyzer) wholesale, so it is emitted per overlay and not per link.
+        // SingleOrDefault in the helper is the assertion that a second copy would trip.
+        Assert.NotNull(StagingTarget(fileSystem));
+    }
+
+    [Fact]
+    public void Sync_TheStagedCopy_KeepsTheAnalyzersOwnFileName()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // Roslyn resolves an analyzer by its assembly name. A copy renamed to carry its hash loads as
+        // nothing at all — CS8034, a *warning*, so the build goes on quietly emitting less code than
+        // it should. The hash has to sit in the directory name, and a fresh directory per content hash
+        // is also what makes a rebuilt generator land somewhere nothing has locked yet.
+        Assert.Contains(
+            "%(Filename)-%(FileHash)\\%(Filename)%(Extension)",
+            StagingAttributes(fileSystem));
+    }
+
+    [Fact]
+    public void Sync_TheStagedCopy_TakesTheAnalyzersNeighboursWithIt()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // An analyzer resolves its own dependencies out of the directory it was loaded from, so
+        // copying the assembly alone would strand it.
+        Assert.Contains(
+            "%(_DotquayHashedAnalyzer.RootDir)%(_DotquayHashedAnalyzer.Directory)*",
+            StagingAttributes(fileSystem));
+    }
+
+    [Fact]
+    public void Sync_PackageAndSdkAnalyzers_AreLeftWhereTheyAre()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // Nothing rebuilds an analyzer out of the NuGet cache or out of the SDK, so nothing is waiting
+        // on its lock — copying those would be pure build cost for no benefit.
+        var attributes = StagingAttributes(fileSystem);
+        Assert.Contains("StartsWith('$(NuGetPackageRoot)')", attributes);
+        Assert.Contains("StartsWith('$(NetCoreRoot)')", attributes);
+    }
+
+    [Fact]
+    public void Sync_TheStagingTarget_SwapsTheAnalyzerItemForTheCopy()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // Staging that does not reach @(Analyzer) is a directory of copied files nobody compiles
+        // against — the lock stays on the original and the whole target does nothing.
+        var analyzers = StagingTarget(fileSystem)!.Descendants("Analyzer").ToList();
+        Assert.Contains(analyzers, a => (string?)a.Attribute("Remove") == "@(_DotquayLinkedAnalyzer)");
+        Assert.Contains(analyzers, a => (string?)a.Attribute("Include") == "@(_DotquayStagedAnalyzer)");
+    }
+
+    [Fact]
+    public void Sync_TheStageRoot_IsResolvedInsideTheTarget()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // IntermediateOutputPath is defined by the SDK's .targets, which are imported after this
+        // overlay. Read at overlay-evaluation time it is empty, and the staging directory would land
+        // beside the .csproj instead of under obj/ — with nothing said about it.
+        Assert.Empty(Overlay(fileSystem).Elements("PropertyGroup"));
+        Assert.Contains(
+            "$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'linked-analyzers'))",
+            StagingAttributes(fileSystem));
+    }
+
+    [Fact]
+    public void Sync_StaleStagedDirectories_AreSweptButNotTheCurrentOnes()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // One directory per generator build, so obj/ grows for as long as the link lives unless they
+        // are swept — and sweeping the one this build just staged into would delete what is about to
+        // be compiled against.
+        var stale = StagingTarget(fileSystem)!.Descendants("_DotquayStaleStage").Single();
+        Assert.Contains("System.IO.Directory]::GetDirectories", (string?)stale.Attribute("Include"));
+        Assert.Contains("%(Filename)-%(FileHash)", (string?)stale.Attribute("Exclude"));
+    }
+
+    [Fact]
+    public void Sync_TheSweep_SaysNothingAboutADirectoryAHostStillHolds()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        var target = StagingTarget(fileSystem)!;
+
+        // A staged directory a Roslyn host still has open cannot be deleted, and that is the normal
+        // state while a generator is being developed — not a fault. RemoveDir reports it as warning
+        // MSB3231 on every single build, which is why the sweep goes through the shell instead.
+        Assert.Empty(target.Descendants("RemoveDir"));
+        Assert.Empty(target.Descendants("Delete"));
+
+        var sweeps = target.Descendants("Exec").ToList();
+        Assert.Equal(2, sweeps.Count);
+        Assert.All(sweeps, e => Assert.Equal("true", (string?)e.Attribute("IgnoreExitCode")));
+        Assert.All(sweeps, e => Assert.Equal("low", (string?)e.Attribute("StandardErrorImportance")));
+
+        // One branch per shell, and each guarded so a build with nothing to sweep spawns no process.
+        Assert.Contains(sweeps, e => ((string?)e.Attribute("Command"))!.StartsWith("rmdir", StringComparison.Ordinal));
+        Assert.Contains(sweeps, e => ((string?)e.Attribute("Command"))!.StartsWith("rm -rf", StringComparison.Ordinal));
+        Assert.All(sweeps, e => Assert.Contains("'@(_DotquayStaleStage)' != ''", (string?)e.Attribute("Condition")));
+    }
+
+    [Fact]
+    public void Sync_TheStagingTarget_StaysOutOfTheCommittedCsproj()
+    {
+        var fileSystem = Build();
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        // The staging exists because of a link on one machine. In the tracked .csproj it would ask a
+        // whole team to carry one person's development setup — and it would outlive the link, since
+        // unlinking only deletes the overlay.
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        Assert.DoesNotContain(LocalTargetsWriter.AnalyzerStagingTarget, csproj);
+    }
+
+    [Fact]
+    public void Sync_UnlinkingTheAnalyzer_TakesTheStagingWithIt()
+    {
+        var fileSystem = Build();
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        new LocalLinks(fileSystem).RemoveDotnet(ProjectDirectory, PackageId);
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, new LocalLinks(fileSystem).ReadDotnet(ProjectDirectory));
+
+        // Nothing is left behind to shadow-copy analyzers for a link that no longer exists — the
+        // overlay is the only place the target was ever written.
         Assert.False(fileSystem.FileExists(OverlayPath(fileSystem)));
     }
 
