@@ -1,7 +1,8 @@
 # DESIGN v0.18 — dotquay as an MCP server
 
-Status: proposed, not implemented. Decisions in §1 were taken with kani on 2026-09-16; everything
-after that is the plan those decisions imply and is open to revision until Phase 0 (§9) has run.
+Status: proposed, not implemented. Decisions in §1 were taken with kani on 2026-09-16. Phase 0 (§9)
+ran the same day: the verdict in §3.1 is measured, not proposed, and §3/§3.2/§8/§10 below already
+reflect it. Everything else is still a plan open to revision once Phase 1 starts.
 
 ## The problem
 
@@ -57,12 +58,15 @@ does not offer is a gap in Core, filled there, exactly as the plugin rule in SPE
                                     │
   Dotquay.Cli  ──  McpCommand  ─────┼──────────────────────────────────────────────
                                     ▼
-  Dotquay.Mcp    StdioTransport : IMcpTransport            (framing; the only thing touching stdout)
-                 McpServer                                 (initialize, ping, dispatch, cancellation)
-                 ├── ToolRegistry  : IToolRegistry         (tools/list, tools/call)
+  Dotquay.Mcp    Generic Host (Host.CreateApplicationBuilder, logging cleared — §3.2)
+                 .AddMcpServer(...).WithListToolsHandler(...).WithCallToolHandler(...)
+                   .WithListResourcesHandler(...) .WithReadResourceHandler(...)
+                   .WithListPromptsHandler(...) .WithGetPromptHandler(...)
+                   .WithStdioServerTransport()          [ModelContextProtocol 2.2.0 — §3.1]
+                 ├── ToolRegistry  : IToolRegistry         (backs the ListTools/CallTool handlers)
                  │     └── one IMcpTool per operation      (schema + annotations + handler)
-                 ├── ResourceRegistry : IResourceRegistry  (resources/list, resources/read, templates)
-                 ├── PromptRegistry : IPromptRegistry      (prompts/list, prompts/get)
+                 ├── ResourceRegistry : IResourceRegistry  (backs the resource handlers)
+                 ├── PromptRegistry : IPromptRegistry      (backs the prompt handlers)
                  ├── ProjectScope  : IProjectScope         (which directories a call may name)
                  ├── WriteGuard    : IWriteGuard           (the "would this have prompted?" policy chain)
                  └── ProjectGate                           (one operation in flight per project)
@@ -70,47 +74,64 @@ does not offer is a gap in Core, filled there, exactly as the plugin rule in SPE
   Dotquay.Core   DependencyWorkflow / OverrideWorkflow / SourceWorkflow / JsonMapper / *Json payloads
 ```
 
-Three layers, each replaceable behind an interface and each tested on its own:
-
-**Protocol** (`Dotquay.Mcp.Protocol`): JSON-RPC 2.0 message types, the MCP handshake, request
-dispatch, `notifications/cancelled`, `notifications/progress`, `notifications/message`. Knows nothing
-about dotquay. Serialized through its own `McpJsonContext` — **not** added to `DotquayJsonContext`,
-which is the plugin's wire contract and should not grow types the plugin will never see.
+Two layers, each replaceable behind an interface and each tested on its own — Phase 0 (§3.1) removed
+the third: there is no hand-rolled protocol layer, because the SDK's own handshake, framing,
+cancellation, and progress plumbing measured clean.
 
 **Catalogue** (`Dotquay.Mcp.Tools`, `.Resources`, `.Prompts`): one class per tool, each declaring its
-name, description, input schema, annotations, and a handler that takes typed arguments and returns a
-`ToolResult`. Knows dotquay; knows nothing about stdin.
+name, description, input schema (a JSON Schema literal, never inferred — §3.1), annotations, and a
+handler that takes an `ModelContextProtocol.Server.RequestContext<TParams>` and returns the matching
+SDK result type. Knows dotquay; knows nothing about stdin — the registries are plain classes the
+`McpServerBuilder` (§10) wires into the SDK's `With*Handler` delegates, not SDK types themselves.
 
 **Host** (`Dotquay.Cli.Commands.McpCommand`): parses `dotquay mcp [--project <dir>]...
 [--log <file>]`, builds the real `DependencyWorkflow` through `WorkflowFactory` exactly as every other
-command does, wires a `StdioTransport`, and runs the server until stdin closes.
+command does, and calls `McpServerBuilder.Run` (§10), which assembles the Generic Host above and
+blocks until stdin closes.
 
-### 3.1 Why a hand-rolled protocol layer is the default, and what would change that
+### 3.1 Verdict: adopt the official SDK, on its low-level handler API
 
-The official `ModelContextProtocol` package is the obvious choice and is the wrong default *for this
-project* until proven otherwise. Its tool discovery (`WithToolsFromAssembly`) is reflection-based,
-its schema inference goes through `Microsoft.Extensions.AI`, and this codebase has already lost
-Spectre.Console.Cli and NuGet.Protocol to exactly the failure mode that implies: green under JIT,
-dead in the published NativeAOT binary (docs/SPRINT-01.md; SPEC.md §12 OQ-1/OQ-6). The SDK has an
-AOT publish test in its own CI now (csharp-sdk#131 / #1246), which is encouraging and not evidence
-about *our* payload types.
+**Measured 2026-09-16 (Phase 0 spike, not merged).** Two throwaway console apps — one on
+`ModelContextProtocol` 2.2.0, one hand-rolling newline-delimited JSON-RPC directly — each published
+under real NativeAOT (`win-x64`, the vcvars64 recipe) and each driven through a real child process:
+`initialize` → `notifications/initialized` → `tools/list` → `tools/call` returning a
+`JsonEnvelope<StatusPayload>`-shaped payload with a non-null `Explanation`, raw stdout bytes inspected
+for BOM and stray output. **Both published with zero trim/AOT warnings and produced byte-identical,
+correct, three-line JSON-RPC exchanges with no BOM.** The SDK's own build log had not one IL2026/IL3050
+line — `TrimmerSingleWarn=false` so nothing was hidden. Full logs: `sdk-build.log`, `hand-build.log`
+(not committed; the spike itself stays out of the repo per phase 0's own rule).
 
-The surface a stdio tool server actually needs is small — `initialize`, `notifications/initialized`,
-`ping`, `tools/list`, `tools/call`, `resources/list`, `resources/templates/list`, `resources/read`,
-`prompts/list`, `prompts/get`, `notifications/cancelled`, `notifications/progress`,
-`notifications/message`. Thirteen message shapes, one framing rule, zero reflection if the input
-schemas are written as literal JSON rather than inferred from C# parameter types. That is a few
-hundred lines we own completely, serialize through a source-generated context we already know how to
-write, and can test with an in-memory transport pair the way the rest of the suite tests everything
-else.
+The reason the SDK measured clean is *how* it was used, and that "how" is now load-bearing for
+everything downstream: **the low-level handler API, not attribute/DI tool discovery.**
+`WithToolsFromAssembly` and `[McpServerTool]` go through `Microsoft.Extensions.AI`'s reflection-based
+schema inference — the exact failure mode that already cost this project Spectre.Console.Cli and
+NuGet.Protocol (docs/SPRINT-01.md; SPEC.md §12 OQ-1/OQ-6) — and the spike does not exercise it and
+does not vouch for it. Instead: `AddMcpServer(options => options.ServerInfo = ...)` then
+`.WithListToolsHandler(...)`/`.WithCallToolHandler(...)`/`.WithListResourcesHandler(...)`/etc. register
+plain delegates (`McpRequestHandler<TParams, TResult>` — `ValueTask<TResult> (RequestContext<TParams>,
+CancellationToken)`), each building its `Tool`/`ListToolsResult`/`CallToolResult` by hand. Tool input
+schemas are written as JSON literals via `JsonDocument.Parse(...).RootElement` (no reflection-based
+schema exporter involved). Every dotquay payload serializes through `DotquayMcpJsonContext`, our own
+source-generated `JsonSerializerContext` covering exactly the `JsonEnvelope<T>` closures the MCP layer
+emits — mirroring `DotquayJsonContext`'s own discipline, kept separate from it (§3, "Catalogue"). This
+is what `Dotquay.Mcp` actually calls: `WithTools`/`WithToolsFromAssembly` and the `[McpServerTool]`
+attribute are not referenced anywhere in the codebase, so there is nothing for a future contributor to
+accidentally widen into.
 
-So: **Phase 0 is a measurement, not a debate** (project rule: probe, don't recall). A throwaway
-console app publishes under real NativeAOT twice — once on the official SDK with an explicit
-`JsonSerializerContext` and a hand-written schema, once on the hand-rolled layer — and each is driven
-through `initialize` → `tools/list` → `tools/call` returning a real `JsonEnvelope<StatusJson>` with a
-non-null `Explanation`. The SDK is adopted only if it passes that with **zero** trim/AOT warnings
-attributable to it. Otherwise the hand-rolled layer ships, `IMcpTransport`/`McpServer` stay as the
-seam, and the SDK can be revisited when its AOT story is measured rather than promised.
+Adopting the SDK over the hand-rolled layer buys real things the measurement doesn't show: `roots`
+capability negotiation, `notifications/cancelled` plumbing, `logging/setLevel`, and the resources/
+prompts primitives (§7) all come from the SDK's `McpServer` rather than something we would have had to
+write and test ourselves — and every one of those is now *only* as reflection-safe as our own handler
+code, which is the discipline §3.2 and §8 enforce. The one hand-rolled-layer advantage that doesn't
+survive contact with the measurement — "a few hundred lines we own completely" — was true, but owning
+protocol-framing code nobody outside this repo has stress-tested is a cost, not a feature, once the
+alternative is proven to work.
+
+**What would reopen this decision:** a future SDK release that regresses the AOT story (re-run this
+exact spike before upgrading past 2.2.0 — pin the version, don't float it); or `WithListToolsHandler`
+et al. being deprecated in favour of an API that isn't low-level. Nothing else in this doc needs a
+hand-rolled fallback plan — there is no `IMcpTransport`/`McpServer` seam to keep warm, because the SDK
+*is* that seam now.
 
 ### 3.2 stdout is the wire — everything else must be silent
 
@@ -124,15 +145,25 @@ in dotquay write to stdout today and each needs an explicit answer:
    `IsEligible` exclusions next to `--json` (DESIGN-v0.17), for quiet rather than for safety.
 2. **`ConsoleProgressReporter`** draws spinners. `McpCommand` never constructs it — it passes an
    `McpProgressReporter` (§6) that forwards to `notifications/progress` instead.
-3. **`Console.Out` itself.** `StdioTransport` writes to `Console.OpenStandardOutput()` wrapped in a
-   `StreamWriter(new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))`, never to `Console.Out`,
-   and reads `Console.OpenStandardInput()` the same way. This is the BOM lesson from the v0.7
-   credential store applied pre-emptively: on Windows, `Console.Out`'s encoding follows the codepage
-   and a BOM glued onto the first frame is exactly the kind of bug 551 passing tests cannot see.
+3. **`Host.CreateApplicationBuilder`'s own default logging.** Measured in the Phase 0 spike (§3.1):
+   the Generic Host registers a console logger provider by default, and the SDK's own `McpServer` and
+   `StdioServerTransport` log at `Information`/`Debug`/`Trace` on every message — with logging left at
+   its default, that lands on stdout and corrupts the wire on the very first request. `McpCommand`
+   calls `builder.Logging.ClearProviders()` before anything else, confirmed empty-stdout in the spike
+   (`sdk-out3.bin`: 1791 bytes, three JSON-RPC lines, zero bytes of anything else). If a future change
+   wants console logging for `--log`'s stderr fallback (§6), it must go through
+   `AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace)`, never bare `AddConsole()` — the
+   spike confirmed the threshold option is what routes it to stderr instead of stdout, and skipping it
+   silently reintroduces the exact corruption `ClearProviders()` was added to prevent.
+4. **The SDK's own stdio transport writes the actual frames**, via `WithStdioServerTransport()`
+   (`Console.OpenStandardInput()`/`OpenStandardOutput()` under the hood — not `Console.Out`/`Console.In`,
+   which the Generic Host's logging can repoint). The spike's raw-byte check (§3.1) found no BOM and no
+   stray bytes on either variant, so this is not a place dotquay's own code needs to intervene — it is
+   listed here because it is the thing item 3's `ClearProviders()` call is protecting.
 
 A guard test (§8) starts the server with a fake `Console.Out` swapped in via `Console.SetOut` and
-asserts that nothing reached it — so any future `Console.WriteLine` added to a Core path the server
-calls fails a test instead of a user's session.
+asserts that nothing reached it — so any future `Console.WriteLine`, or a reverted `ClearProviders()`
+call, fails a test instead of a user's session.
 
 ## 4. Tool catalogue
 
@@ -338,11 +369,15 @@ radius. If `Dotquay.Mcp` ever grows a second host, that extraction is the moment
 
 Layers, each independent:
 
-1. **Protocol conformance** — `InMemoryTransportPair` (two linked `IMcpTransport`s, no pipes) drives
-   `McpServer` through golden JSON-RPC exchanges checked byte-for-byte: handshake and capability
-   negotiation, unknown method → `-32601`, malformed frame → `-32700`, `tools/list` shape,
-   `notifications/cancelled` mid-call, progress token round-trip, a request arriving before
-   `initialized`.
+1. **Handler conformance** — `WithStreamServerTransport(Stream, Stream)` (the SDK's own low-level
+   entry point, in place of a hand-rolled in-memory transport pair — §3.1) wires two linked
+   `MemoryStream`/`Pipe` pairs to a real `Dotquay.Mcp` server in-process and drives it through golden
+   JSON-RPC exchanges checked against expected results: `initialize` capability negotiation,
+   `tools/list` shape matches the registry exactly, an unknown tool name in `tools/call`, a
+   `notifications/cancelled` mid-call. Handshake framing, malformed-JSON handling, and message
+   dispatch are the SDK's own tested surface (§3.1) and are not re-tested here — this layer verifies
+   *our* handlers behave correctly once the SDK calls them, not that the SDK's protocol plumbing
+   works.
 2. **Catalogue against fakes** — every tool exercised the way the equivalent command's tests already
    are, plus the MCP-specific paths: feed adoption refused without approvals and accepted with them;
    `force` refused without `confirm_discard`, refused with a partial list, accepted with a full one,
@@ -367,8 +402,8 @@ Layers, each independent:
 
 | Phase | Ships | Exit criterion |
 |---|---|---|
-| **0 — spike** | Throwaway console app, two variants (§3.1), *not merged* | Written verdict in this doc's §3.1: SDK or hand-rolled, with the AOT publish log attached to the MR. Half a day to a day. |
-| **1 — read-only server** | `Dotquay.Mcp` protocol + registry, the eight read tools, resources, `dotquay mcp`, `UpdateNotice` quiet list, `JsonErrorClassifier` move | Inspector shows all eight tools; Claude Code can call `dotquay_status` and `dotquay_doctor` on a real project from the AOT binary. Test layers 1, 3, 5 green. Releasable on its own. |
+| **0 — spike** | Throwaway console app, two variants (§3.1), *not merged* | **Done, 2026-09-16.** Verdict: adopt `ModelContextProtocol` 2.2.0 on its low-level handler API — both variants published AOT-clean, SDK chosen for the primitives it gives for free (§3.1). |
+| **1 — read-only server** | `Dotquay.Mcp` registries + `McpServerBuilder`, the eight read tools, resources, `dotquay mcp`, `UpdateNotice` quiet list, `JsonErrorClassifier` move | Inspector shows all eight tools; Claude Code can call `dotquay_status` and `dotquay_doctor` on a real project from the AOT binary. Test layers 1, 3, 5 green. Releasable on its own. |
 | **2 — guarded writes** | The eleven write tools, `IWriteGuard` with three policies, `ProjectGate`, progress, cancellation | Test layer 2 green; a real private-feed refusal/approval loop and a real `confirm_discard` loop walked on the AOT binary. |
 | **3 — prompts + roots** | Three prompts, client `roots` integration, `--log` | Test layer 4 green; each prompt walked once in Claude Code. |
 | **4 — docs** | SPEC.md §20 "MCP server (v0.18)", TUTORIAL section, README status line, version bump to 0.18 | Docs merged in the same MR as Phase 3 so the shipped binary and its description agree. |
@@ -379,13 +414,17 @@ at command lines.
 
 ## 10. Code changes by project
 
-**`src/Dotquay.Mcp/`** (new; `Dotquay.Mcp` namespace; `IsAotCompatible=true`, `PublishAot`
-inherited by the host): `Protocol/` (JSON-RPC types, `McpJsonContext`, `McpServer`,
-`IMcpTransport`, `StdioTransport`), `Tools/` (`IMcpTool`, `ToolRegistry`, one file per tool,
-`ToolResult`), `Guards/` (`IWriteGuard`, `IWritePolicy`, `SourceApprovalPolicy`,
-`GeneratorPrivacyPolicy`, `ForceConfirmationPolicy`), `Scope/` (`IProjectScope`, `ProjectScope`,
-`ProjectGate`), `Resources/`, `Prompts/` (+ embedded `.md`), `McpProgressReporter.cs`,
-`McpServerBuilder.cs` (the one place that assembles all of it, mirroring `WorkflowFactory`'s role).
+**`src/Dotquay.Mcp/`** (new; `Dotquay.Mcp` namespace; `PackageReference` on `ModelContextProtocol`
+2.2.0 — pinned, not floated, per §3.1 — and `Microsoft.Extensions.Hosting`; `PublishAot` inherited
+from the host): `Json/DotquayMcpJsonContext.cs` (our own source-generated context for every
+`JsonEnvelope<T>` closure the MCP layer emits — separate from `DotquayJsonContext`, per §3), `Tools/`
+(`IMcpTool`, `ToolRegistry`, one file per tool, each producing a `Tool`/`CallToolResult` by hand —
+no `[McpServerTool]`, no `WithToolsFromAssembly`, per §3.1), `Guards/` (`IWriteGuard`, `IWritePolicy`,
+`SourceApprovalPolicy`, `GeneratorPrivacyPolicy`, `ForceConfirmationPolicy`), `Scope/`
+(`IProjectScope`, `ProjectScope`, `ProjectGate`), `Resources/`, `Prompts/` (+ embedded `.md`),
+`McpProgressReporter.cs`, `McpServerBuilder.cs` (the one place that calls `AddMcpServer` and every
+`With*Handler`, mirroring `WorkflowFactory`'s role — and the place a future SDK version bump gets
+re-verified against the Phase 0 spike before the pin moves).
 
 **`src/Dotquay.Cli/`**: `Commands/McpCommand.cs` (new, ~60 lines); `Program.cs` registers it;
 `UpdateNotice.IsEligible` excludes `mcp`; `InspectorFactory` and `WorkflowFactory` become
