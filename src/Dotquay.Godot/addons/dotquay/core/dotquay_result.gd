@@ -68,6 +68,14 @@ static func failure(kind: String, message: String, command_name: String, raw_out
 	return result
 
 
+## A one-line nudge for [constant KIND_AUTH], blank for every other kind so a caller can append it
+## unconditionally. The CLI's own [member error_message] for an auth failure names what git or the
+## registry rejected (SPEC.md §17, `GitErrorClassifier`) — not what to do about it, which is exactly
+## what the login flow it's paired with (SPEC.md §17: "lets a UI offer a login prompt") is for (P1-33).
+static func auth_hint(error_kind: String) -> String:
+	return "Run 'dotquay login <host>' at a terminal, then retry." if error_kind == KIND_AUTH else ""
+
+
 ## Cuts diagnostic output down to its first few lines, for folding into an error message without
 ## drowning the actual cause (a shell "Permission denied", a .NET crash trace, a Gatekeeper block)
 ## under everything printed after it.

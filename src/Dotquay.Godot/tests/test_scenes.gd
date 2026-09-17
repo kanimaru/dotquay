@@ -227,6 +227,8 @@ func test_dialogs_do_not_resize_themselves_to_their_contents() -> void:
 func test_explain_dialog_renders_and_gates_its_force_button() -> void:
 	var safe := _explanation_payload(DotquayWire.VERDICT_SAFE_TO_FORCE, "uid_only", 1)
 	var unsafe := _explanation_payload(DotquayWire.VERDICT_REVIEW_NEEDED, "content", 1)
+	var unavailable := DotquayExplain.Explanation.from_payload({"verdict": DotquayWire.VERDICT_UNAVAILABLE,
+		"unavailable_reason": "offline"})
 
 	# Detached on purpose. A node added during `SceneTree._initialize` never reaches `_ready`, so an
 	# `@onready`-bound dialog would null out here — which is exactly why this one binds lazily.
@@ -236,6 +238,8 @@ func test_explain_dialog_renders_and_gates_its_force_button() -> void:
 	runner.equal(dialog.get_node("%ChangeList").get_child_count(), 1, "one change should render one row")
 	runner.check(not dialog.get_ok_button().disabled, "a safe_to_force verdict should enable Force update")
 	runner.check(not dialog.get_node("%Blocker").visible, "and should show no blocker")
+	runner.check(not dialog._patch_button.visible,
+		"nothing risky to capture when force is already safe — no patch button needed (P1-32)")
 
 	# Reused rather than re-instantiated: the dialog is a long-lived child of the panel, so "shown a
 	# second time with different data" is the normal case and the one a stale row would survive into.
@@ -243,6 +247,18 @@ func test_explain_dialog_renders_and_gates_its_force_button() -> void:
 	runner.equal(dialog.get_node("%ChangeList").get_child_count(), 1, "reopening must not accumulate rows")
 	runner.check(dialog.get_ok_button().disabled, "a real content change must disable Force update")
 	runner.check(dialog.get_node("%Blocker").visible, "and must say why")
+	runner.check(dialog._patch_button.visible,
+		"a real content change offers 'Keep my edits (save as patch)' directly, not just prose (P1-32)")
+
+	# The unavailable case gets neither: dotquay never established what would actually be lost, so
+	# offering to capture a patch would be acting on a guess (P1-32).
+	dialog.show_explanation("gut", unavailable)
+	runner.check(dialog.get_ok_button().disabled, "an unchecked comparison must not enable Force update")
+	runner.check(dialog.get_node("%Blocker").visible, "and must say why")
+	runner.check(not dialog._patch_button.visible,
+		"nothing is known to be worth capturing when the comparison itself never ran")
+	runner.check(dialog.get_node("%Blocker").text.contains("retry"),
+		"the unavailable case must name a next step, not just state the problem")
 
 	dialog.free()
 

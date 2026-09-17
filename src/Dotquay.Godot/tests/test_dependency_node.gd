@@ -59,7 +59,31 @@ func test_remove_disabled_reason_for_a_transitive_addon_points_at_its_requirer()
 		"a transitive addon's Remove points at the same fix as its Update")
 
 
-func test_remove_disabled_reason_for_an_orphan_explains_without_promising_a_fix() -> void:
+func test_remove_disabled_reason_for_an_orphan_names_update_all_as_the_fix() -> void:
+	# P1-20: `SyncAddonGraphAsync` (Dotquay.Core) deletes any lockfile addon a fresh manifest-rooted
+	# walk doesn't reach, so any Update — not just this addon's own, which it doesn't have — clears an
+	# orphan. Verified by reading the workflow, not assumed: this review used to leave the remedy
+	# unstated for exactly that reason.
 	var reason := NODE.remove_disabled_reason(false, false, true, [])
 	runner.check(reason.contains("root entry"),
 		"an orphan's Remove is disabled because it isn't a root entry, not because of anything CLI-side: %s" % reason)
+	runner.check(reason.contains("Update all"), "should name the actual remedy: %s" % reason)
+
+
+func test_update_disabled_reason_is_blank_for_a_root_addon() -> void:
+	runner.equal(NODE.update_disabled_reason(false, false, []), "",
+		"an addon with its own manifest entry can always be updated by name")
+
+
+func test_update_disabled_reason_for_a_transitive_addon_points_at_its_requirer() -> void:
+	var reason := NODE.update_disabled_reason(true, false, [_requirement("core")])
+	runner.equal(reason, "Brought in by core; update that instead.",
+		"a transitive addon's Update points at the same fix as its Remove")
+
+
+func test_update_disabled_reason_for_an_orphan_names_update_all() -> void:
+	# `dotquay update <orphan-name>` throws "not declared in dotquay.toml" (DependencyWorkflow.cs) —
+	# an orphan is exactly the addon that was never a manifest root, so Update-by-name would always
+	# fail for it. Update is disabled for the same reason Remove is, but the explanation differs.
+	var reason := NODE.update_disabled_reason(false, true, [])
+	runner.check(reason.contains("Update all"), "should name the actual remedy: %s" % reason)

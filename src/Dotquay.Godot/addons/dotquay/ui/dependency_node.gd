@@ -96,7 +96,9 @@ func _render_status_row() -> void:
 		_badge("override", DotquayPalette.OVERRIDE, "Forced by an [overrides] entry in dotquay.toml.")
 
 	if _model.is_orphan():
-		_badge("orphan", DotquayPalette.WARN, "Locked but no longer required by anything.")
+		_badge("orphan", DotquayPalette.WARN,
+			"Locked but no longer required by anything. Running \"Update all\" removes it automatically "
+			+ "— a full update re-walks the graph and prunes anything unreachable.")
 
 	# The folder is only worth showing when it isn't the name — that difference is precisely when
 	# someone goes looking for the addon and can't find it.
@@ -135,9 +137,10 @@ func _render_menu() -> void:
 		_add_menu_item(popup, "Resolve conflict...", ACTION_RESOLVE)
 
 	# A transitive addon has no manifest entry to re-resolve on its own; updating it means updating
-	# whatever requires it.
-	_add_menu_item(popup, "Update", ACTION_UPDATE, _is_transitive(),
-		brought_in_by_reason(_is_transitive(), _model.requirements, "update"))
+	# whatever requires it. An orphan has no manifest entry either — `dotquay update <name>` throws
+	# "not declared in dotquay.toml" for one, since it was never a root to begin with (P1-20).
+	_add_menu_item(popup, "Update", ACTION_UPDATE, _is_transitive() or _model.is_orphan(),
+		update_disabled_reason(_is_transitive(), _model.is_orphan(), _model.requirements))
 	_add_menu_item(popup, "Always use a specific version...", ACTION_OVERRIDE)
 
 	if _model.is_overridden:
@@ -186,6 +189,18 @@ static func brought_in_by_reason(is_transitive: bool, requirements: Array, verb:
 	return "Brought in by %s; %s that instead." % [requirer_summary(requirements), verb]
 
 
+## Explains a disabled Update on an orphan: it has no manifest entry to update either (P1-20) —
+## `dotquay update <name>` refuses one outright — so the tooltip names the command that actually
+## clears it instead of just saying "no".
+static func update_disabled_reason(is_transitive: bool, is_orphan: bool, requirements: Array) -> String:
+	if is_transitive:
+		return brought_in_by_reason(true, requirements, "update")
+	if is_orphan:
+		return ("Nothing requires this any more, so it has no manifest entry to update. Running "
+			+ "\"Update all\" removes it instead.")
+	return ""
+
+
 static func remove_disabled_reason(
 	is_removable: bool, is_transitive: bool, is_orphan: bool, requirements: Array
 ) -> String:
@@ -195,7 +210,7 @@ static func remove_disabled_reason(
 		return brought_in_by_reason(true, requirements, "remove")
 	if is_orphan:
 		return ("Nothing requires this any more, but it isn't a root entry, so Remove has nothing to "
-			+ "act on here.")
+			+ "act on here. Running \"Update all\" removes it automatically instead.")
 	return ""
 
 

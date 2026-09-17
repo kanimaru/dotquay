@@ -58,6 +58,7 @@ var _cli_path_dialog: EditorFileDialog
 @onready var _legend_dialog: AcceptDialog = %LegendDialog
 @onready var _confirm_remove: ConfirmationDialog = %ConfirmRemove
 @onready var _confirm_overwrite_cli_path: ConfirmationDialog = %ConfirmOverwriteCliPath
+@onready var _confirm_update_all: ConfirmationDialog = %ConfirmUpdateAll
 
 var _cli: DotquayCli
 var _graph: DotquayGraph
@@ -102,6 +103,17 @@ var _log_buffer := DotquayLogBuffer.new(MAX_LOG_ENTRIES)
 ## network on each of those would be a worse habit than the one this feature is fixing.
 var _self_checked := false
 
+## The banner text a real "update available" self-check last set, kept so a failed self-*update* can
+## restore it instead of leaving "Updating dotquay..." on screen forever (P1-7). Empty whenever the
+## banner isn't showing an update offer at all.
+var _update_available_message := ""
+
+## The ticket of the most recently issued `graph` read. Several call sites can each trigger one (tab
+## focus, the refresh tracker, Locate, a self-update, the explain fallback), and results can land out
+## of order — this is what lets [method _on_cli_finished] ignore a reply that arrived after a newer
+## read was already asked for (P1-30).
+var _latest_graph_ticket := -1
+
 ## Whether the last graph result implied a working CLI and an existing manifest. Buttons that mutate
 ## the project are gated on this rather than just on busy state, so a fresh, unconfigured project
 ## can't be told to `install` or `update` before there is anything for those commands to act on.
@@ -129,8 +141,11 @@ func _ready() -> void:
 	_conflict_dialog.override_chosen.connect(_on_override_chosen)
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
 	_confirm_overwrite_cli_path.confirmed.connect(_on_overwrite_cli_path_confirmed)
+	_confirm_update_all.confirmed.connect(_on_update_all_confirmed)
 	_get_dotquay_button.pressed.connect(_on_get_dotquay_pressed)
 	_browse_button.pressed.connect(_on_browse_pressed)
+	_explain_dialog.capture_patch_requested.connect(
+		func(name: String) -> void: _on_node_action(DotquayDependencyNode.ACTION_CAPTURE_PATCH, name))
 
 	_cli_path_dialog = EditorFileDialog.new()
 	_cli_path_dialog.title = "Select the dotquay executable"
@@ -159,6 +174,12 @@ func _ready() -> void:
 	# text, but the script owning the truth means a bad scene default can't put a fake summary on
 	# screen before a real graph ever comes back.
 	_summary.text = ""
+
+	# Both render their own "nothing here yet" state when [member _graph] is null, so calling them
+	# before the first graph ever arrives replaces a blank sidebar with that message instead of
+	# leaving it empty until the tab's first `_apply_graph` (P1-6).
+	_render_conflicts()
+	_render_dotnet()
 
 
 ## Only ever running while [member _rescan] is waiting for the editor to finish a scan of its own.
@@ -213,7 +234,7 @@ func _on_legend_pressed() -> void:
 
 ## Reloads the graph from the lockfile — fast, offline, and safe to call on every panel focus.
 func refresh() -> void:
-	_run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph"]))
+	_latest_graph_ticket = _run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph"]))
 	_check_for_cli_update()
 
 
@@ -234,7 +255,7 @@ func _check_for_cli_update() -> void:
 ## that costs network time — so it is always an explicit action, never automatic.
 func resolve() -> void:
 	_log_line("Checking repositories online for the newest allowed versions... (this can take a moment)")
-	_run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph", "--resolve"]))
+	_latest_graph_ticket = _run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph", "--resolve"]))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -295,7 +316,13 @@ func _on_install_pressed() -> void:
 	_run(DotquayWire.COMMAND_INSTALL, PackedStringArray(["install"]), true)
 
 
+## Update all has no undo — it can move every addon and NuGet package to a new commit or version in
+## one click — so it gets the same confirm-first treatment Remove already had (P1-26).
 func _on_update_all_pressed() -> void:
+	_confirm_update_all.popup_centered()
+
+
+func _on_update_all_confirmed() -> void:
 	_log_line("Updating everything...")
 	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update"]), true)
 
@@ -568,6 +595,11 @@ func _on_cli_finished(result: DotquayResult) -> void:
 		# noise repeating what's already the biggest thing on screen, not new information (P1-5).
 		if not banner_decision.visible:
 			_log_error(result.error_message)
+			# The CLI's own message names what git or the registry rejected, not what to do about it
+			# (P1-33) — a one-line nudge is blank for every kind but an auth failure.
+			var hint := RESULT.auth_hint(result.error_kind)
+			if not hint.is_empty():
+				_log_line(hint)
 		_pending_explains.erase(result.ticket)
 
 		# A failed add or preview closed the dialog for nothing (P1-9): the values the user typed, and
@@ -579,8 +611,11 @@ func _on_cli_finished(result: DotquayResult) -> void:
 			_add_dialog.reopen_after_failure(tracked_request, result.error_message)
 
 		# A conflict is still a full graph payload — the whole point is to show it rather than stop
-		# at the error line.
-		if result.command == DotquayWire.COMMAND_GRAPH and not result.data.is_empty():
+		# at the error line. Still subject to the same staleness check as the success path (P1-30): a
+		# failing `graph --resolve` that lands after a newer read was already asked for must not flash
+		# its conflict over whatever that newer read is about to show.
+		if (result.command == DotquayWire.COMMAND_GRAPH and not result.data.is_empty()
+			and should_apply_graph_result(result, _latest_graph_ticket)):
 			_apply_graph(result.data)
 
 		_finish_refresh_cycle(result.ticket)
@@ -588,7 +623,8 @@ func _on_cli_finished(result: DotquayResult) -> void:
 
 	match result.command:
 		DotquayWire.COMMAND_GRAPH:
-			_apply_graph(result.data)
+			if should_apply_graph_result(result, _latest_graph_ticket):
+				_apply_graph(result.data)
 		DotquayWire.COMMAND_ADD_PREVIEW:
 			_show_preview(result, tracked_request)
 		DotquayWire.COMMAND_STATUS:
@@ -670,6 +706,11 @@ func _show_explanation(result: DotquayResult) -> void:
 func _report_self_check(result: DotquayResult) -> void:
 	if not result.ok:
 		_update_banner.visible = false
+		# A not-configured or launch-failed CLI never actually reached the release channel, so this
+		# was not a real check — resetting the flag lets the next refresh (after the path is fixed)
+		# try again instead of the update notice staying dark for the rest of the session (P1-7).
+		if result.error_kind == RESULT.KIND_NOT_CONFIGURED or result.error_kind == RESULT.KIND_LAUNCH_FAILED:
+			_self_checked = false
 		return
 
 	var latest := String(result.data.get("latest_version", ""))
@@ -677,8 +718,9 @@ func _report_self_check(result: DotquayResult) -> void:
 		_update_banner.visible = false
 		return
 
-	_update_message.text = "dotquay %s is available — you have %s." % [
+	_update_available_message = "dotquay %s is available — you have %s." % [
 		latest, String(result.data.get("current_version", ""))]
+	_update_message.text = _update_available_message
 	_update_banner.visible = true
 
 
@@ -691,7 +733,9 @@ func _report_self_update(result: DotquayResult) -> void:
 	if not result.ok:
 		_log_error(result.error_message)
 		# Left visible on purpose: the update is still available, and hiding the one control that
-		# retries it would make a transient network failure look like a permanent one.
+		# retries it would make a transient network failure look like a permanent one. The message is
+		# restored too, rather than left reading "Updating dotquay..." forever (P1-7).
+		_update_message.text = _update_available_message
 		return
 
 	_update_banner.visible = false
@@ -843,18 +887,26 @@ func _report_operation(payload: Dictionary) -> void:
 	# `payload.get("messages", [])` only supplies its default when the key is absent; SPEC.md §17
 	# emits an absent optional array as JSON null, not an omitted key, so an ordinary no-message
 	# operation used to raise "Unable to iterate on object of type 'Nil'" on the worker thread.
-	for message in DotquayWire.array_or_empty(payload.get("messages")):
+	var messages := DotquayWire.array_or_empty(payload.get("messages"))
+	for message in messages:
 		_log_line(String(message))
 
+	var changed_count := 0
 	for change in _dictionaries_in(payload, "changes"):
 		var action := String(change.get("action", ""))
 		if action == DotquayWire.ACTION_UNCHANGED:
 			continue
 
+		changed_count += 1
 		_log_line("  %s: %s %s" % [
 			change.get("name", "?"),
 			action,
 			DotquayWire.str_or_empty(change.get("to"))])
+
+	# A command that touched nothing (everything already `unchanged`, no messages of its own) used to
+	# end silently right after its opening log line, reading like it had hung rather than finished
+	# (P1-27).
+	_log_line("Done." if not messages.is_empty() or changed_count > 0 else "Done — nothing needed changing.")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -908,6 +960,17 @@ static func _dictionaries_in(payload: Dictionary, key: String) -> Array:
 
 static func _is_web_url(url: String) -> bool:
 	return url.begins_with("https://") or url.begins_with("http://")
+
+
+## Whether [param result] is worth acting on: a non-graph result always is, and a graph result only if
+## nothing newer has been asked for since. Several call sites can each trigger a `graph` read (tab
+## focus, the refresh tracker, Locate, a self-update, the explain fallback) and their replies can land
+## out of order — applying a stale one would flash old data over what a newer, still-pending read is
+## about to correct (P1-30). Pulled out as a static function of plain data, mirroring
+## [DotquayDependencyNode]'s own disabled-reason helpers, so the ordering rule is a test rather than
+## something only provable by racing two real CLI calls.
+static func should_apply_graph_result(result: DotquayResult, latest_graph_ticket: int) -> bool:
+	return result.command != DotquayWire.COMMAND_GRAPH or result.ticket == latest_graph_ticket
 
 
 func _clear(container: Node) -> void:

@@ -17,7 +17,14 @@ extends ConfirmationDialog
 ## Emitted when the user confirms a force update from here.
 signal force_update_requested(addon_name: String)
 
+## Emitted from the "Keep my edits (save as patch)" button (P1-32) — the same `dotquay patch <name>`
+## a real content change's blocker used to only describe in prose, telling a GUI user to run it "at a
+## terminal" instead of just doing it.
+signal capture_patch_requested(addon_name: String)
+
 const CHANGE_ROW := preload("res://addons/dotquay/ui/items/explain_change_row.tscn")
+
+const ACTION_CAPTURE_PATCH := "capture_patch"
 
 ## Bound on first use rather than with `@onready`.
 ##
@@ -33,6 +40,12 @@ var _change_list: VBoxContainer
 var _truncated: Label
 var _patch_note: Label
 var _blocker: Label
+
+## Not scene-owned like the labels above: `add_button()` is how [ConfirmationDialog] itself grows an
+## extra action (its own OK/Cancel are not ordinary scene children either), so adding this one in code
+## is consistent with the dialog's own built-in buttons rather than an exception to the
+## scenes-not-code convention the rest of the panel follows.
+var _patch_button: Button
 
 var _addon_name := ""
 
@@ -54,6 +67,10 @@ func _bind() -> void:
 
 	if not confirmed.is_connected(_on_confirmed):
 		confirmed.connect(_on_confirmed)
+
+	if _patch_button == null:
+		_patch_button = add_button("Keep my edits (save as patch)", true, ACTION_CAPTURE_PATCH)
+		custom_action.connect(_on_custom_action)
 
 
 func show_explanation(addon_name: String, explanation: DotquayExplain.Explanation) -> void:
@@ -118,19 +135,31 @@ func _render_notes(explanation: DotquayExplain.Explanation) -> void:
 ## warning (SPEC.md requirement P0-6).
 func _update_ok_state(explanation: DotquayExplain.Explanation) -> void:
 	var safe := explanation.is_safe_to_force()
+	var unavailable := explanation.is_unavailable()
 
 	get_ok_button().disabled = not safe
 	_blocker.visible = not safe
 
-	if explanation.is_unavailable():
+	# Only shown when there's something real to capture and dotquay actually knows it (P1-32): a safe
+	# verdict has nothing worth patching, and an unavailable comparison hasn't established that
+	# anything differs at all — offering the button there would be acting on a guess.
+	_patch_button.visible = not safe and not unavailable
+
+	if unavailable:
 		_blocker.text = ("dotquay could not reach the locked commit, so it cannot say what would be lost:\n%s"
-			% explanation.unavailable_reason)
+			% explanation.unavailable_reason
+			+ "\n\nCheck your connection, then choose \"Why is this modified?\" again to retry.")
 	else:
-		_blocker.text = ("Capture these edits first with 'Capture edits as a patch' in this addon's menu — "
-			+ "dotquay then re-applies them on every update. If you meant to discard them, run "
-			+ "'dotquay update %s --force' at a terminal." % _addon_name)
+		_blocker.text = ("Keep my edits (save as patch) below captures these first — dotquay then "
+			+ "re-applies them on every future update automatically.")
 
 
 func _on_confirmed() -> void:
 	if not _addon_name.is_empty():
 		force_update_requested.emit(_addon_name)
+
+
+func _on_custom_action(action: StringName) -> void:
+	if String(action) == ACTION_CAPTURE_PATCH and not _addon_name.is_empty():
+		capture_patch_requested.emit(_addon_name)
+		hide()

@@ -172,3 +172,17 @@ func test_failure_helper_records_and_surfaces_raw_output() -> void:
 	runner.equal(result.raw_output, "some raw output", "failure() should store the raw output it was given")
 	runner.check(result.error_message.contains("some raw output"),
 		"the error message should surface the raw output, not just the lead sentence")
+
+
+## P1-33: the CLI's own message for `kind = "auth"` names what git or the registry rejected, not what
+## to do about it — SPEC.md §17 says that kind is "what lets a UI offer a login prompt", which nothing
+## in the plugin did until this hint existed.
+func test_auth_hint_names_the_login_command() -> void:
+	runner.check(RESULT.auth_hint(RESULT.KIND_AUTH).contains("dotquay login"),
+		"an auth failure should point at the command that actually fixes it")
+
+
+func test_auth_hint_is_blank_for_every_other_kind() -> void:
+	runner.equal(RESULT.auth_hint(RESULT.KIND_GIT), "", "a plain git failure needs no login hint")
+	runner.equal(RESULT.auth_hint(RESULT.KIND_WORKFLOW), "", "an ordinary workflow failure needs no login hint")
+	runner.equal(RESULT.auth_hint(""), "", "a successful result's blank error_kind needs no login hint")

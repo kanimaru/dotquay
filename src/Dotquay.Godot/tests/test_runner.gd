@@ -24,6 +24,9 @@ const SUITES := [
 	# The dependency-node menu's disabled-item explanations (P1-19), pulled out as static functions of
 	# plain data so they're testable without a GraphNode in a tree.
 	preload("res://tests/test_dependency_node.gd"),
+	# The panel's own pure static helper (P1-30) — see the suite's own header for why this doesn't
+	# instantiate the panel itself.
+	preload("res://tests/test_dotquay_panel.gd"),
 	preload("res://tests/test_dotquay_preview.gd"),
 	preload("res://tests/test_dotquay_explain.gd"),
 	preload("res://tests/test_dotquay_add_request.gd"),

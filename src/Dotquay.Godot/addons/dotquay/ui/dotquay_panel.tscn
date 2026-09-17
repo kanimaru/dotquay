@@ -244,3 +244,10 @@ unique_name_in_owner = true
 oversampling_override = 1.0
 title = "Replace the configured dotquay path?"
 ok_button_text = "Replace"
+
+[node name="ConfirmUpdateAll" type="ConfirmationDialog" parent="." unique_id=1900000010]
+unique_name_in_owner = true
+oversampling_override = 1.0
+title = "Update all"
+ok_button_text = "Update all"
+dialog_text = "Move every addon and NuGet package to its newest allowed version and reinstall?\n\nThis can move any of them to a new commit or version. A hand-edited addon without a captured patch refuses to update rather than lose the edit."
