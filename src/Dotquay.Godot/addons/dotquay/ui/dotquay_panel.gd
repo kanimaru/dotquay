@@ -13,15 +13,9 @@ extends Control
 ## container or sets an anchor, which is what keeps a change to the panel's shape out of the code that
 ## talks to the CLI.
 
-const CLI_SCRIPT := preload("res://addons/dotquay/core/dotquay_cli.gd")
-const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
-const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
-
 const CONFLICT_CARD := preload("res://addons/dotquay/ui/items/conflict_card.tscn")
 const DOTNET_ROW := preload("res://addons/dotquay/ui/items/dotnet_row.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
-
-const MAX_LOG_ENTRIES := 200
 
 @onready var _graph_view: DotquayDependencyGraphView = %GraphView
 @onready var _summary: Label = %Summary
@@ -85,29 +79,32 @@ var _pending_locate_path := ""
 ## the URL: several previews can be in flight, a failed one must not leave its request behind to be
 ## picked up by the next preview of the same URL (with the old `--path`/`--install-as`), and the
 ## ticket is the one thing a result carries that names exactly the call it answers.
-var _pending_requests: Dictionary = {}
+var _pending_requests: Dictionary[int, DotquayAddRequest] = {}
 
 ## CLI ticket to the addon name that run's `status --explain` was opened about. Keyed on the ticket
 ## for the same reason as [member _pending_requests]: `status` reports every addon, so the reply alone
 ## does not say which one the user asked about.
-var _pending_explains: Dictionary = {}
+var _pending_explains: Dictionary[int, String] = {}
 
 ## Which in-flight runs must be followed by a graph refresh. A tracker rather than a flag, because a
 ## flag is consumed by whichever command finishes first — see [DotquayRefreshTracker].
 var _refresh_tracker := DotquayRefreshTracker.new()
 
 ## The log's contents, in message units. The [RichTextLabel] is a view of this, rebuilt on change.
-var _log_buffer := DotquayLogBuffer.new(MAX_LOG_ENTRIES)
+## No capacity passed (C-22): [constant DotquayLogBuffer.DEFAULT_CAPACITY] is exactly this panel's own
+## 200-entry cap, and repeating that number here as a second constant is how the two used to drift.
+var _log_buffer := DotquayLogBuffer.new()
 
 ## Ticket -> [method busy_label] for every run the CLI hasn't reported back on yet (P1-29). A
 ## dictionary rather than a single "current command" string because several runs can be in flight
 ## together — the startup self-check racing the first graph load is the common case — and the busy
 ## indicator should say all of them, not whichever happened to be tracked last.
-var _running_commands: Dictionary = {}
+var _running_commands: Dictionary[int, String] = {}
 
-## Whether this editor session has already asked the release channel about the CLI (v0.17). Once,
-## not once per panel focus: [method refresh] runs every time the tab is shown, and reaching the
-## network on each of those would be a worse habit than the one this feature is fixing.
+## Whether this editor session has already asked the release channel about the CLI (SPEC.md §17's
+## `self-check` command). Once, not once per panel focus: [method refresh] runs every time the tab is
+## shown, and reaching the network on each of those would be a worse habit than the one this feature
+## is fixing.
 var _self_checked := false
 
 ## The banner text a real "update available" self-check last set, kept so a failed self-*update* can
@@ -128,7 +125,7 @@ var _project_ready := false
 
 
 func _ready() -> void:
-	_cli = CLI_SCRIPT.new()
+	_cli = DotquayCli.new()
 	_cli.name = "DotquayCli"
 	_cli.finished.connect(_on_cli_finished)
 	_cli.busy_changed.connect(_on_busy_changed)
@@ -153,7 +150,7 @@ func _ready() -> void:
 	_get_dotquay_button.pressed.connect(_on_get_dotquay_pressed)
 	_browse_button.pressed.connect(_on_browse_pressed)
 	_explain_dialog.capture_patch_requested.connect(
-		func(name: String) -> void: _on_node_action(DotquayDependencyNode.ACTION_CAPTURE_PATCH, name))
+		func(name: String) -> void: _on_node_action(DotquayDependencyNode.MENU_CAPTURE_PATCH, name))
 
 	_cli_path_dialog = EditorFileDialog.new()
 	_cli_path_dialog.title = "Select the dotquay executable"
@@ -243,36 +240,51 @@ func _on_legend_pressed() -> void:
 
 ## Reloads the graph from the lockfile — fast, offline, and safe to call on every panel focus.
 func refresh() -> void:
-	_latest_graph_ticket = _run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph"]))
+	_latest_graph_ticket = _run(DotquayWire.COMMAND_GRAPH, PackedStringArray())
 	_check_for_cli_update()
 
 
 ## Asks the CLI whether a newer one exists, at most once per editor session.
 ##
 ## The plugin is asking on behalf of a binary it does not own: the thing being replaced is the
-## `dotquay` executable this panel shells out to, not the plugin, so nothing here needs a restart -
+## `dotquay` executable this panel shells out to, not the plugin, so nothing here needs a restart —
 ## only a re-read of the version, which the next envelope carries anyway.
 func _check_for_cli_update() -> void:
 	if _self_checked:
 		return
 
 	_self_checked = true
-	_run(DotquayWire.COMMAND_SELF_CHECK, PackedStringArray(["self", "check"]))
+	_run(DotquayWire.COMMAND_SELF_CHECK, PackedStringArray())
 
 
 ## Re-walks live git refs. The only mode that can discover a conflict (SPEC.md §8), and the only one
 ## that costs network time — so it is always an explicit action, never automatic.
 func resolve() -> void:
 	_log_line("Checking repositories online for the newest allowed versions... (this can take a moment)")
-	_latest_graph_ticket = _run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph", "--resolve"]))
+	_latest_graph_ticket = _run(DotquayWire.COMMAND_GRAPH, PackedStringArray([DotquayWire.FLAG_RESOLVE]))
 
 
 # ---------------------------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------------------------
 
+## [param extra_args] is everything after the CLI subcommand word(s) themselves — [method
+## DotquayWire.cli_command_words] supplies those from [param command_name], so a call site no longer
+## repeats "install" as both the label and the first element of a literal array (C-20).
+##
 ## Returns the run's ticket so a caller can key state on it (see [member _pending_requests]).
-func _run(command_name: String, args: PackedStringArray, refresh_after: bool = false) -> int:
+func _run(command_name: String, extra_args: PackedStringArray, refresh_after: bool = false) -> int:
+	var args := DotquayWire.cli_command_words(command_name)
+	args.append_array(extra_args)
+	return _run_raw(command_name, args, refresh_after)
+
+
+## The exception to [method _run]'s "just the extra args" contract: the `add`/`add --preview` call
+## sites build their complete argument list, `add` included, through [method
+## DotquayAddRequest.to_args] instead — which has its own reason to own the whole command line (see
+## that method's doc comment) — so prepending [method DotquayWire.cli_command_words] on top of it here
+## would double the leading "add".
+func _run_raw(command_name: String, args: PackedStringArray, refresh_after: bool = false) -> int:
 	var ticket := _cli.run(command_name, args)
 
 	_running_commands[ticket] = busy_label(command_name)
@@ -293,15 +305,15 @@ func _on_add_pressed() -> void:
 func _on_add_requested(request: DotquayAddRequest) -> void:
 	if not request.is_git:
 		_log_line("Adding %s..." % request.describe())
-		var ticket := _run(DotquayWire.COMMAND_ADD, request.to_args(), true)
+		var ticket := _run_raw(DotquayWire.COMMAND_ADD, request.to_args(), true)
 		_pending_requests[ticket] = request
 		return
 
 	_log_line("Resolving what adding %s would install..." % request.describe())
 
 	var args := request.to_args()
-	args.append("--preview")
-	var ticket := _run(DotquayWire.COMMAND_ADD_PREVIEW, args)
+	args.append(DotquayWire.FLAG_PREVIEW)
+	var ticket := _run_raw(DotquayWire.COMMAND_ADD_PREVIEW, args)
 	_pending_requests[ticket] = request
 
 
@@ -318,7 +330,7 @@ func _on_install_confirmed(request: DotquayAddRequest, adopt_source_urls: Packed
 	var args := request.to_args()
 
 	for url in adopt_source_urls:
-		args.append("--adopt-source")
+		args.append(DotquayWire.FLAG_ADOPT_SOURCE)
 		args.append(url)
 
 	_log_line("Adding %s..." % request.describe())
@@ -326,7 +338,7 @@ func _on_install_confirmed(request: DotquayAddRequest, adopt_source_urls: Packed
 	for url in adopt_source_urls:
 		_log_line("  adopting NuGet feed %s" % url)
 
-	var ticket := _run(DotquayWire.COMMAND_ADD, args, true)
+	var ticket := _run_raw(DotquayWire.COMMAND_ADD, args, true)
 	# Kept under the plain request, not the one carrying --adopt-source: a failure here re-opens the
 	# add dialog (P1-9), which only ever collects what this request already holds — the adopted feeds
 	# are the preview dialog's business, and re-approving them is what re-previewing is for.
@@ -335,7 +347,7 @@ func _on_install_confirmed(request: DotquayAddRequest, adopt_source_urls: Packed
 
 func _on_install_pressed() -> void:
 	_log_line("Installing from the lockfile...")
-	_run(DotquayWire.COMMAND_INSTALL, PackedStringArray(["install"]), true)
+	_run(DotquayWire.COMMAND_INSTALL, PackedStringArray(), true)
 
 
 ## Update all has no undo — it can move every addon and NuGet package to a new commit or version in
@@ -346,24 +358,24 @@ func _on_update_all_pressed() -> void:
 
 func _on_update_all_confirmed() -> void:
 	_log_line("Updating everything...")
-	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update"]), true)
+	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(), true)
 
 
 func _on_outdated_pressed() -> void:
-	_run(DotquayWire.COMMAND_OUTDATED, PackedStringArray(["outdated"]))
+	_run(DotquayWire.COMMAND_OUTDATED, PackedStringArray())
 
 
 func _on_doctor_pressed() -> void:
-	_run(DotquayWire.COMMAND_DOCTOR, PackedStringArray(["doctor"]))
+	_run(DotquayWire.COMMAND_DOCTOR, PackedStringArray())
 
 
 func _on_node_action(action: String, addon_name: String) -> void:
 	match action:
-		DotquayDependencyNode.ACTION_UPDATE:
+		DotquayDependencyNode.MENU_UPDATE:
 			_log_line("Updating %s..." % addon_name)
-			_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update", addon_name]), true)
+			_run(DotquayWire.COMMAND_UPDATE, PackedStringArray([addon_name]), true)
 
-		DotquayDependencyNode.ACTION_REMOVE:
+		DotquayDependencyNode.MENU_REMOVE:
 			_pending_removal = addon_name
 			# Shared by addons and NuGet packages, so it names what `remove` does for both rather than
 			# promising a NuGet package will disappear from addons/.
@@ -372,25 +384,30 @@ func _on_node_action(action: String, addon_name: String) -> void:
 				% addon_name)
 			_confirm_remove.popup_centered()
 
-		DotquayDependencyNode.ACTION_RESOLVE, DotquayDependencyNode.ACTION_OVERRIDE:
+		# Both a real conflict's "Resolve" and a healthy addon's "Always use a specific version..." open
+		# the same picker (C-22) — deliberately, not a menu that forgot to grow a second dialog:
+		# [method _open_conflict_dialog] already builds a synthetic manual-pin conflict when there is no
+		# real one, and [DotquayGraph.Conflict.is_manual_pin] is what the dialog itself reads to tell the
+		# two apart in its own wording (P1-18).
+		DotquayDependencyNode.MENU_RESOLVE, DotquayDependencyNode.MENU_OVERRIDE:
 			_open_conflict_dialog(addon_name)
 
-		DotquayDependencyNode.ACTION_CLEAR_OVERRIDE:
+		DotquayDependencyNode.MENU_CLEAR_OVERRIDE:
 			_log_line("Clearing the override on %s..." % addon_name)
-			_run(DotquayWire.COMMAND_OVERRIDE, PackedStringArray(["override", addon_name, "--clear"]), true)
+			_run(DotquayWire.COMMAND_OVERRIDE, PackedStringArray([addon_name, DotquayWire.FLAG_CLEAR]), true)
 
-		DotquayDependencyNode.ACTION_CAPTURE_PATCH:
+		DotquayDependencyNode.MENU_CAPTURE_PATCH:
 			_log_line("Capturing edits to %s as a patch..." % addon_name)
-			_run(DotquayWire.COMMAND_PATCH, PackedStringArray(["patch", addon_name]), true)
+			_run(DotquayWire.COMMAND_PATCH, PackedStringArray([addon_name]), true)
 
-		DotquayDependencyNode.ACTION_EXPLAIN:
+		DotquayDependencyNode.MENU_EXPLAIN:
 			# `--explain` compares against the locked commit, which can mean a fetch — so it is said
 			# out loud rather than leaving the panel silently busy.
 			_log_line("Comparing %s against its locked commit..." % addon_name)
-			var ticket := _run(DotquayWire.COMMAND_STATUS, PackedStringArray(["status", "--explain"]))
+			var ticket := _run(DotquayWire.COMMAND_STATUS, PackedStringArray([DotquayWire.FLAG_EXPLAIN]))
 			_pending_explains[ticket] = addon_name
 
-		DotquayDependencyNode.ACTION_OPEN_REPO:
+		DotquayDependencyNode.MENU_OPEN_REPO:
 			var node := _graph.find(addon_name) if _graph != null else null
 			if node == null or node.git.is_empty():
 				return
@@ -409,7 +426,7 @@ func _on_remove_confirmed() -> void:
 		return
 
 	_log_line("Removing %s..." % _pending_removal)
-	_run(DotquayWire.COMMAND_REMOVE, PackedStringArray(["remove", _pending_removal]), true)
+	_run(DotquayWire.COMMAND_REMOVE, PackedStringArray([_pending_removal]), true)
 	_pending_removal = ""
 
 
@@ -439,13 +456,13 @@ func _open_conflict_dialog(addon_name: String) -> void:
 
 
 func _on_override_chosen(addon_name: String, kind: String, value: String, git: String, install_as: String) -> void:
-	var args := PackedStringArray(["override", addon_name, "--" + kind, value])
+	var args := PackedStringArray([addon_name, DotquayWire.flag_for_source_kind(kind), value])
 	if not git.is_empty():
-		args.append("--git")
+		args.append(DotquayWire.FLAG_GIT)
 		args.append(git)
 
 	if not install_as.is_empty():
-		args.append("--install-as")
+		args.append(DotquayWire.FLAG_INSTALL_AS)
 		args.append(install_as)
 
 	if install_as.is_empty():
@@ -458,14 +475,14 @@ func _on_override_chosen(addon_name: String, kind: String, value: String, git: S
 
 func _on_init_pressed() -> void:
 	_log_line("Creating dotquay.toml...")
-	_run(DotquayWire.COMMAND_INIT, PackedStringArray(["init"]), true)
+	_run(DotquayWire.COMMAND_INIT, PackedStringArray(), true)
 
 
 ## Feedback goes to the banner itself, not only the log (P1-4): the log is 120px tall and easy to
 ## miss, and this button exists specifically because the banner is already telling the user something
 ## is wrong — the answer belongs where the question was asked.
 func _on_locate_pressed() -> void:
-	var found := SETTINGS.discover_on_path()
+	var found := DotquaySettings.discover_on_path()
 	if found.is_empty():
 		_setup_message.text = "Could not find dotquay on PATH either. Use Get dotquay or Browse instead."
 		_log_error("Could not find dotquay on PATH.")
@@ -473,8 +490,8 @@ func _on_locate_pressed() -> void:
 
 	var editor_settings := EditorInterface.get_editor_settings()
 	var configured := ""
-	if editor_settings.has_setting(SETTINGS.CLI_PATH_SETTING):
-		configured = String(editor_settings.get_setting(SETTINGS.CLI_PATH_SETTING)).strip_edges()
+	if editor_settings.has_setting(DotquaySettings.CLI_PATH_SETTING):
+		configured = String(editor_settings.get_setting(DotquaySettings.CLI_PATH_SETTING)).strip_edges()
 
 	# A blank setting (the common case: nothing configured yet) is never worth confirming — there is
 	# nothing to lose. A non-blank one that differs was set on purpose by someone, even if it's
@@ -500,7 +517,7 @@ func _on_overwrite_cli_path_confirmed() -> void:
 
 
 func _apply_located_path(found: String) -> void:
-	EditorInterface.get_editor_settings().set_setting(SETTINGS.CLI_PATH_SETTING, found)
+	EditorInterface.get_editor_settings().set_setting(DotquaySettings.CLI_PATH_SETTING, found)
 	_setup_message.text = "Found dotquay at %s. Refreshing..." % found
 	_log_line("Found dotquay at %s." % found)
 	refresh()
@@ -511,7 +528,7 @@ func _apply_located_path(found: String) -> void:
 ## refresh that picks up a newly-installed binary is whatever the user presses next (Browse, Find on
 ## PATH, or Refresh).
 func _on_get_dotquay_pressed() -> void:
-	OS.shell_open(SETTINGS.RELEASES_URL)
+	OS.shell_open(DotquaySettings.RELEASES_URL)
 
 
 func _on_browse_pressed() -> void:
@@ -519,7 +536,7 @@ func _on_browse_pressed() -> void:
 
 
 func _on_cli_path_selected(path: String) -> void:
-	EditorInterface.get_editor_settings().set_setting(SETTINGS.CLI_PATH_SETTING, path)
+	EditorInterface.get_editor_settings().set_setting(DotquaySettings.CLI_PATH_SETTING, path)
 	_log_line("dotquay path set to %s." % path)
 	refresh()
 
@@ -636,7 +653,7 @@ func _on_cli_finished(result: DotquayResult) -> void:
 			_log_error(result.error_message)
 			# The CLI's own message names what git or the registry rejected, not what to do about it
 			# (P1-33) — a one-line nudge is blank for every kind but an auth failure.
-			var hint := RESULT.auth_hint(result.error_kind)
+			var hint := DotquayResult.auth_hint(result.error_kind)
 			if not hint.is_empty():
 				_log_line(hint)
 		_pending_explains.erase(result.ticket)
@@ -748,17 +765,16 @@ func _report_self_check(result: DotquayResult) -> void:
 		# A not-configured or launch-failed CLI never actually reached the release channel, so this
 		# was not a real check — resetting the flag lets the next refresh (after the path is fixed)
 		# try again instead of the update notice staying dark for the rest of the session (P1-7).
-		if result.error_kind == RESULT.KIND_NOT_CONFIGURED or result.error_kind == RESULT.KIND_LAUNCH_FAILED:
+		if result.error_kind == DotquayResult.KIND_NOT_CONFIGURED or result.error_kind == DotquayResult.KIND_LAUNCH_FAILED:
 			_self_checked = false
 		return
 
-	var latest := String(result.data.get("latest_version", ""))
-	if latest.is_empty() or not bool(result.data.get("update_available", false)):
+	var check := DotquaySelfCheck.from_payload(result.data)
+	if not check.has_available_update():
 		_update_banner.visible = false
 		return
 
-	_update_available_message = "dotquay %s is available — you have %s." % [
-		latest, String(result.data.get("current_version", ""))]
+	_update_available_message = check.describe_update()
 	_update_message.text = _update_available_message
 	_update_banner.visible = true
 
@@ -766,8 +782,10 @@ func _report_self_check(result: DotquayResult) -> void:
 func _report_self_update(result: DotquayResult) -> void:
 	_update_button.disabled = false
 
-	for message in result.data.get("messages", []):
-		_log_line(String(message))
+	# Reads through DotquayOperation (C-24) rather than its own parser: self-update reports "messages"
+	# in the identical shape every other mutating command does, and never reports "changes".
+	for message in DotquayOperation.from_payload(result.data).messages:
+		_log_line(message)
 
 	if not result.ok:
 		_log_error(result.error_message)
@@ -787,7 +805,7 @@ func _report_self_update(result: DotquayResult) -> void:
 func _on_self_update_pressed() -> void:
 	_update_button.disabled = true
 	_update_message.text = "Updating dotquay..."
-	_run(DotquayWire.COMMAND_SELF_UPDATE, PackedStringArray(["self", "update"]))
+	_run(DotquayWire.COMMAND_SELF_UPDATE, PackedStringArray())
 
 
 func _on_self_update_dismissed() -> void:
@@ -799,7 +817,7 @@ func _on_self_update_dismissed() -> void:
 func _on_force_update_requested(addon_name: String) -> void:
 	_log_warning("Force-updating %s, discarding the editor-generated changes listed in the dialog."
 		% addon_name)
-	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray(["update", addon_name, "--force"]), true)
+	_run(DotquayWire.COMMAND_UPDATE, PackedStringArray([addon_name, DotquayWire.FLAG_FORCE]), true)
 
 
 func _apply_graph(payload: Dictionary) -> void:
@@ -854,7 +872,7 @@ func _update_summary() -> void:
 
 
 func _render_conflicts() -> void:
-	_clear(_conflict_list)
+	DotquayNodes.clear_children(_conflict_list)
 
 	if _graph == null or _graph.conflicts.is_empty():
 		var empty: DotquayStatusLabel = STATUS_LABEL.instantiate()
@@ -874,7 +892,7 @@ func _render_conflicts() -> void:
 
 
 func _render_dotnet() -> void:
-	_clear(_dotnet_list)
+	DotquayNodes.clear_children(_dotnet_list)
 
 	if _graph == null or _graph.dotnet.is_empty():
 		var empty: DotquayStatusLabel = STATUS_LABEL.instantiate()
@@ -886,66 +904,51 @@ func _render_dotnet() -> void:
 		var row: DotquayDotnetRow = DOTNET_ROW.instantiate()
 		_dotnet_list.add_child(row)
 		row.setup(entry)
-		# Not `_on_node_action.bind(ACTION_REMOVE)`: bind *appends*, so the handler would receive
+		# Not `_on_node_action.bind(MENU_REMOVE)`: bind *appends*, so the handler would receive
 		# (package_name, "remove") — action and name swapped — and the match would fall through
 		# silently. The lambda puts the arguments where the handler expects them.
 		row.remove_requested.connect(
 			func(package_name: String) -> void:
-				_on_node_action(DotquayDependencyNode.ACTION_REMOVE, package_name))
+				_on_node_action(DotquayDependencyNode.MENU_REMOVE, package_name))
 
 
 func _report_outdated(payload: Dictionary) -> void:
-	var count := int(payload.get("outdated_count", 0))
-	if count == 0:
+	var outdated := DotquayOutdated.from_payload(payload)
+	if outdated.is_all_up_to_date():
 		_log_line("Everything is up to date.")
 		return
 
-	_log_warning(DotquayText.plural(count,
+	_log_warning(DotquayText.plural(outdated.outdated_count,
 		"Newer versions are available for %d addon/package:",
 		"Newer versions are available for %d addons/packages:"))
 
-	for group in ["addons", "dotnet"]:
-		for entry in _dictionaries_in(payload, group):
-			if bool(entry.get("is_outdated", false)):
-				_log_line("  %s  %s -> %s" % [
-					entry.get("name", "?"),
-					entry.get("current", "?"),
-					DotquayWire.str_or_empty(entry.get("latest"))])
+	for entry in outdated.outdated_entries():
+		_log_line("  %s  %s -> %s" % [entry.name, entry.current, entry.latest])
 
 
 func _report_doctor(payload: Dictionary) -> void:
-	if bool(payload.get("healthy", false)):
+	var doctor := DotquayDoctor.from_payload(payload)
+	if doctor.healthy:
 		_log_line("Doctor found no issues.")
 		return
 
-	for issue in _dictionaries_in(payload, "issues"):
-		_log_warning("  " + String(issue.get("message", "")))
+	for issue in doctor.issues:
+		_log_warning("  " + issue.describe())
 
 
 func _report_operation(payload: Dictionary) -> void:
-	# `payload.get("messages", [])` only supplies its default when the key is absent; SPEC.md §17
-	# emits an absent optional array as JSON null, not an omitted key, so an ordinary no-message
-	# operation used to raise "Unable to iterate on object of type 'Nil'" on the worker thread.
-	var messages := DotquayWire.array_or_empty(payload.get("messages"))
-	for message in messages:
-		_log_line(String(message))
+	var operation := DotquayOperation.from_payload(payload)
 
-	var changed_count := 0
-	for change in _dictionaries_in(payload, "changes"):
-		var action := String(change.get("action", ""))
-		if action == DotquayWire.ACTION_UNCHANGED:
-			continue
+	for message in operation.messages:
+		_log_line(message)
 
-		changed_count += 1
-		_log_line("  %s: %s %s" % [
-			change.get("name", "?"),
-			action,
-			DotquayWire.str_or_empty(change.get("to"))])
+	for change in operation.meaningful_changes():
+		_log_line("  %s: %s %s" % [change.name, change.action, change.to])
 
 	# A command that touched nothing (everything already `unchanged`, no messages of its own) used to
 	# end silently right after its opening log line, reading like it had hung rather than finished
 	# (P1-27).
-	_log_line("Done." if not messages.is_empty() or changed_count > 0 else "Done — nothing needed changing.")
+	_log_line("Done — nothing needed changing." if operation.did_nothing() else "Done.")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1029,17 +1032,6 @@ func _render_log() -> void:
 # Helpers
 # ---------------------------------------------------------------------------------------------
 
-## The dictionary entries of the array at [param key], skipping anything else. Every `from_payload`
-## guards its arrays this way; the ad-hoc reports here read raw payloads and need the same guard, or
-## a single malformed entry is a script error in the middle of a log line.
-static func _dictionaries_in(payload: Dictionary, key: String) -> Array:
-	var entries: Variant = payload.get(key, [])
-	if not (entries is Array):
-		return []
-
-	return (entries as Array).filter(func(entry: Variant) -> bool: return entry is Dictionary)
-
-
 static func _is_web_url(url: String) -> bool:
 	return url.begins_with("https://") or url.begins_with("http://")
 
@@ -1053,7 +1045,3 @@ static func _is_web_url(url: String) -> bool:
 ## something only provable by racing two real CLI calls.
 static func should_apply_graph_result(result: DotquayResult, latest_graph_ticket: int) -> bool:
 	return result.command != DotquayWire.COMMAND_GRAPH or result.ticket == latest_graph_ticket
-
-
-func _clear(container: Node) -> void:
-	DotquayNodes.clear_children(container)

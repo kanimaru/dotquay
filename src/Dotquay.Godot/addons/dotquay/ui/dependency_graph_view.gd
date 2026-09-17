@@ -9,8 +9,11 @@ extends GraphEdit
 ## node menus, which map to real CLI commands.
 
 ## Note: [GraphEdit] already defines `node_selected(node)`, so this view deliberately does not
-## declare a same-named signal of its own — the panel listens to the built-in one and reads
-## [member DotquayDependencyNode.addon_name] off the node it hands over.
+## declare a same-named signal of its own. Nothing connects to it today (C-13) — every action a node
+## offers goes through its own right-click menu, which emits [signal node_action_requested] instead —
+## but a future details pane that wants to react to a plain click, without that click being an action
+## on its own, would read [member DotquayDependencyNode.addon_name] off the node the built-in signal
+## hands over rather than this view growing a second, redundant selection signal of its own.
 signal node_action_requested(action: String, addon_name: String)
 
 const NODE_SCENE := preload("res://addons/dotquay/ui/dependency_node.tscn")

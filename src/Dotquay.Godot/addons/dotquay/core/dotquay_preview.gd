@@ -11,6 +11,11 @@ extends RefCounted
 ## Nothing here is computed by the plugin. Every field is something the resolver actually said, which
 ## is the point: a confirmation dialog that guessed at the consequences would be worse than no dialog,
 ## because the user would have agreed to the guess.
+##
+## Every optional field goes through [method DotquayWire.str_or_empty] or
+## [method DotquayWire.array_or_empty] rather than a plain [method String] or [code]get(key, [])[/code]
+## default (C-23) — SPEC.md §17 emits an absent optional value as JSON `null`, never by omitting the
+## key, so a bare default only ever fires for a schema this plugin has never seen.
 
 
 class Addon extends RefCounted:
@@ -28,16 +33,23 @@ class Addon extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> Addon:
 		var addon := Addon.new()
-		addon.name = String(payload.get("name", ""))
-		addon.git = String(payload.get("git", ""))
+		addon.name = DotquayWire.str_or_empty(payload.get("name"))
+		addon.git = DotquayWire.str_or_empty(payload.get("git"))
 		addon.version = DotquayWire.str_or_empty(payload.get("version"))
-		addon.resolved = String(payload.get("resolved", ""))
-		addon.short_sha = String(payload.get("short_sha", ""))
-		addon.folder = String(payload.get("folder", addon.name))
+		# str_or_empty, not plain String() (C-23): "resolved" and "short_sha" are the same wire keys
+		# DotquayGraph.AddonNode already treats as nullable — a preview for an addon pinned to a branch
+		# with no reachable commit yet sends these as null, not omitted.
+		addon.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
+		addon.short_sha = DotquayWire.str_or_empty(payload.get("short_sha"))
+		# Falls back to the name — both when the key is absent and when it is present but null
+		# (SPEC.md §17: emitted as null, not omitted, when it equals the name). Matches
+		# DotquayGraph.AddonNode's identical handling of the same wire key.
+		var folder := DotquayWire.str_or_empty(payload.get("folder"))
+		addon.folder = folder if not folder.is_empty() else addon.name
 		addon.is_new = bool(payload.get("is_new", false))
 		addon.previous_resolved = DotquayWire.str_or_empty(payload.get("previous_resolved"))
 
-		for requirer in payload.get("required_by", []):
+		for requirer in DotquayWire.array_or_empty(payload.get("required_by")):
 			addon.required_by.append(String(requirer))
 
 		return addon
@@ -81,7 +93,7 @@ class DotnetPackage extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> DotnetPackage:
 		var package := DotnetPackage.new()
-		package.name = String(payload.get("name", ""))
+		package.name = DotquayWire.str_or_empty(payload.get("name"))
 		package.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
 		package.declared_by_addon = DotquayWire.str_or_empty(payload.get("declared_by_addon"))
 		package.is_new = bool(payload.get("is_new", false))
@@ -93,12 +105,8 @@ class DotnetPackage extends RefCounted:
 
 
 class Source extends RefCounted:
-	var name: String = ""
 	var url: String = ""
 	var declared_by_addon: String = ""
-	## True when [nuget] trusted_hosts already covers this host, so adoption is automatic. A UI must
-	## say so rather than offer a checkbox that changes nothing.
-	var is_trusted_host: bool = false
 	## The package ID patterns this feed would own — the concrete scope of what adopting it grants.
 	var packages: PackedStringArray = PackedStringArray()
 	## The declaring addon's own [dotnet] packages, i.e. what actually depends on the answer.
@@ -106,15 +114,15 @@ class Source extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> Source:
 		var source := Source.new()
-		source.name = String(payload.get("name", ""))
-		source.url = String(payload.get("url", ""))
-		source.declared_by_addon = String(payload.get("declared_by_addon", ""))
-		source.is_trusted_host = bool(payload.get("is_trusted_host", false))
+		source.url = DotquayWire.str_or_empty(payload.get("url"))
+		# str_or_empty, not a plain String() default (C-23): the same wire key as DotnetPackage's
+		# declared_by_addon just above, which already treats it as nullable.
+		source.declared_by_addon = DotquayWire.str_or_empty(payload.get("declared_by_addon"))
 
-		for pattern in payload.get("packages", []):
+		for pattern in DotquayWire.array_or_empty(payload.get("packages")):
 			source.packages.append(String(pattern))
 
-		for package_id in payload.get("package_ids", []):
+		for package_id in DotquayWire.array_or_empty(payload.get("package_ids")):
 			source.package_ids.append(String(package_id))
 
 		return source
@@ -144,24 +152,24 @@ var is_no_op: bool = false
 
 static func from_payload(payload: Dictionary) -> DotquayPreview:
 	var preview := DotquayPreview.new()
-	preview.name = String(payload.get("name", ""))
-	preview.git = String(payload.get("git", ""))
+	preview.name = DotquayWire.str_or_empty(payload.get("name"))
+	preview.git = DotquayWire.str_or_empty(payload.get("git"))
 	preview.needs_approval = bool(payload.get("needs_approval", false))
 	preview.is_no_op = bool(payload.get("is_no_op", false))
 
-	for entry in payload.get("addons", []):
+	for entry in DotquayWire.array_or_empty(payload.get("addons")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.addons.append(Addon.from_payload(entry))
 
-	for entry in payload.get("dotnet", []):
+	for entry in DotquayWire.array_or_empty(payload.get("dotnet")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.dotnet.append(DotnetPackage.from_payload(entry))
 
-	for entry in payload.get("sources_to_adopt", []):
+	for entry in DotquayWire.array_or_empty(payload.get("sources_to_adopt")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.sources_to_adopt.append(Source.from_payload(entry))
 
-	for entry in payload.get("sources_needing_approval", []):
+	for entry in DotquayWire.array_or_empty(payload.get("sources_needing_approval")):
 		if typeof(entry) == TYPE_DICTIONARY:
 			preview.sources_needing_approval.append(Source.from_payload(entry))
 

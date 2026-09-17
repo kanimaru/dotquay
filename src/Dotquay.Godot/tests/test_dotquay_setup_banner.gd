@@ -21,7 +21,7 @@ func test_not_configured_shows_get_dotquay_browse_and_locate() -> void:
 
 
 func test_no_manifest_only_offers_init() -> void:
-	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayResult.KIND_NO_MANIFEST)
+	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayWire.KIND_NO_MANIFEST)
 
 	runner.check(decision.visible, "no manifest should show the banner")
 	runner.check(decision.show_init, "no manifest should offer Create dotquay.toml")
@@ -33,7 +33,7 @@ func test_no_manifest_only_offers_init() -> void:
 func test_no_manifest_message_names_the_file_in_plain_language() -> void:
 	# P1-5: a first-time user has never heard the word "manifest" — the message has to say what
 	# dotquay.toml actually is, by name, rather than describing it with jargon.
-	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayResult.KIND_NO_MANIFEST)
+	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayWire.KIND_NO_MANIFEST)
 
 	runner.check(decision.message.contains("dotquay.toml"), "the message should name the file: %s" % decision.message)
 	runner.check(not decision.message.to_lower().contains("manifest"),
@@ -73,7 +73,7 @@ func test_ordinary_cli_errors_do_not_show_any_banner() -> void:
 	# A conflict, an auth failure, a git error and so on are normal operational outcomes reported in
 	# the log — not a "the CLI itself is unusable" state, and showing the setup banner for one of
 	# these would hide the graph/sidebar for no reason.
-	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayResult.KIND_WORKFLOW)
+	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayWire.KIND_WORKFLOW)
 
 	runner.check(not decision.visible, "an ordinary CLI-reported error should not show the setup banner")
 	runner.check(not decision.show_get_dotquay, "hidden state should not offer any of its buttons")

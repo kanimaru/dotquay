@@ -46,7 +46,7 @@ static func payload_touched_disk(payload: Dictionary) -> bool:
 		return true
 
 	for change in changes:
-		if not (change is Dictionary):
+		if typeof(change) != TYPE_DICTIONARY:
 			return true
 		if String(change.get("action", "")) != DotquayWire.ACTION_UNCHANGED:
 			return true

@@ -46,7 +46,7 @@ func test_parses_a_failure_envelope() -> void:
 	var result: DotquayResult = RESULT.parse(json, 1, "graph")
 
 	runner.check(not result.ok, "a failure envelope should not parse as ok")
-	runner.equal(result.error_kind, RESULT.KIND_NO_MANIFEST, "error kind should be carried through verbatim")
+	runner.equal(result.error_kind, DotquayWire.KIND_NO_MANIFEST, "error kind should be carried through verbatim")
 	runner.equal(result.exit_code, 1, "the process exit code should be recorded")
 
 
@@ -67,7 +67,7 @@ func test_recovers_from_leading_noise() -> void:
 
 func test_recovers_from_trailing_noise() -> void:
 	# The runner folds stderr into the same buffer as stdout, so a .NET runtime or git warning can land
-	# *after* the envelope. That used to fail the parse outright.
+	# *after* the envelope and must not fail the parse.
 	var result: DotquayResult = RESULT.parse(
 		_envelope() + "\nwarning: redirecting to https://github.com/x/y.git/\n", 0, "graph")
 
@@ -86,6 +86,32 @@ func test_extract_json_object_leaves_braceless_input_alone() -> void:
 		"a buffer with no object should be returned untouched so the caller can show the real bytes")
 	runner.equal(RESULT.extract_json_object("} {"), "} {",
 		"a closing brace before the opening one is not an object and must not be cut into one")
+
+
+## C-15: pairing the first `{` with the buffer's *last* `}` used to let a trailing stderr line that
+## itself contains a `}` (a NuGet registry's own error JSON body, say) swallow past the CLI's own
+## envelope. Depth-tracking stops at the first balanced close instead.
+func test_extract_json_object_stops_at_the_first_balanced_close() -> void:
+	var envelope := "{\"tool\":\"dotquay\",\"ok\":true}"
+	var trailer := "\nunauthorized: {\"errors\":[{\"code\":\"DENIED\"}]}\n"
+
+	runner.equal(RESULT.extract_json_object(envelope + trailer), envelope,
+		"trailing text that itself contains a balanced brace pair must not extend the match")
+
+
+## The same depth-tracking must not be confused by a `}` that appears inside a *string* within the
+## real envelope — an error message the CLI itself quoted back, say.
+func test_extract_json_object_ignores_braces_inside_strings() -> void:
+	var envelope := "{\"tool\":\"dotquay\",\"error\":{\"message\":\"malformed table: [addons.x}\"}}"
+
+	runner.equal(RESULT.extract_json_object(envelope + "\ntrailer }"), envelope,
+		"a brace quoted inside a JSON string must not be counted as closing the object")
+
+
+func test_extract_json_object_still_handles_a_single_clean_envelope() -> void:
+	var envelope := _envelope()
+	runner.equal(RESULT.extract_json_object(envelope), envelope,
+		"an envelope with nothing around it should come back unchanged")
 
 
 func test_ticket_defaults_to_zero_outside_the_runner() -> void:
@@ -178,11 +204,11 @@ func test_failure_helper_records_and_surfaces_raw_output() -> void:
 ## to do about it — SPEC.md §17 says that kind is "what lets a UI offer a login prompt", which nothing
 ## in the plugin did until this hint existed.
 func test_auth_hint_names_the_login_command() -> void:
-	runner.check(RESULT.auth_hint(RESULT.KIND_AUTH).contains("dotquay login"),
+	runner.check(RESULT.auth_hint(DotquayWire.KIND_AUTH).contains("dotquay login"),
 		"an auth failure should point at the command that actually fixes it")
 
 
 func test_auth_hint_is_blank_for_every_other_kind() -> void:
-	runner.equal(RESULT.auth_hint(RESULT.KIND_GIT), "", "a plain git failure needs no login hint")
-	runner.equal(RESULT.auth_hint(RESULT.KIND_WORKFLOW), "", "an ordinary workflow failure needs no login hint")
+	runner.equal(RESULT.auth_hint(DotquayWire.KIND_GIT), "", "a plain git failure needs no login hint")
+	runner.equal(RESULT.auth_hint(DotquayWire.KIND_WORKFLOW), "", "an ordinary workflow failure needs no login hint")
 	runner.equal(RESULT.auth_hint(""), "", "a successful result's blank error_kind needs no login hint")

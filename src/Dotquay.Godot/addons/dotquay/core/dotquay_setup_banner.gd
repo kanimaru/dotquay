@@ -42,7 +42,7 @@ static func decide(error_kind: String) -> Decision:
 	var decision := Decision.new()
 
 	var not_configured := error_kind == DotquayResult.KIND_NOT_CONFIGURED
-	var no_manifest := error_kind == DotquayResult.KIND_NO_MANIFEST
+	var no_manifest := error_kind == DotquayWire.KIND_NO_MANIFEST
 	# A wrong or stale CLI path — pointed at nothing, at something that isn't dotquay, or at a
 	# crashed process — produces one of these three kinds. Burying that in the 140px log leaves the
 	# graph and sidebar blank with no visible explanation, same as an unconfigured path (P0-4).

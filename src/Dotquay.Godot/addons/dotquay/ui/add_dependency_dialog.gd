@@ -26,7 +26,6 @@ enum SourceKind { GIT, NUGET }
 ## one.
 var _kind: OptionButton
 var _source: LineEdit
-var _mode_row: HBoxContainer
 var _mode: OptionButton
 var _value: LineEdit
 var _path_row: HBoxContainer
@@ -65,7 +64,6 @@ func _bind() -> void:
 
 	_kind = %Kind
 	_source = %Source
-	_mode_row = %ModeRow
 	_mode = %SourceMode
 	_value = %SourceValue
 	_path_row = %PathRow

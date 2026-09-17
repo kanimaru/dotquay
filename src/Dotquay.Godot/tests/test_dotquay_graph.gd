@@ -44,8 +44,6 @@ func _diamond() -> Dictionary:
 			{"name": "Serilog", "constraint": null, "resolved": "3.1.1", "declared_by_project": false},
 		],
 		"conflicts": [],
-		"overrides": [],
-		"has_conflicts": false,
 	}
 
 
@@ -65,6 +63,57 @@ func test_null_optional_fields_become_empty_strings() -> void:
 
 	runner.equal(core.source_kind, "", "a null source_kind should read as absent")
 	runner.equal(core.constraint, "", "a null constraint should read as absent")
+
+
+func test_null_name_git_and_origin_do_not_render_as_the_literal_null() -> void:
+	# C-23: these three used a plain String() default, which only fires when the key is *absent* — a
+	# present-but-null "origin" rendered as the literal text "<null>", which is neither ORIGIN_ROOT nor
+	# ORIGIN_ORPHAN, so is_removable() silently read a perfectly normal root addon as unremovable.
+	var node := DotquayGraph.AddonNode.from_payload({
+		"name": null, "git": null, "origin": null,
+	})
+
+	runner.equal(node.name, "", "a null name parses as empty, not '<null>'")
+	runner.equal(node.git, "", "a null git parses as empty, not '<null>'")
+	runner.equal(node.origin, DotquayWire.ORIGIN_ROOT, "a null origin falls back to root, not '<null>'")
+	runner.check(node.is_removable(), "a root addon stays removable even when origin arrived as null")
+
+
+func test_null_candidate_kind_falls_back_to_version() -> void:
+	var candidate := DotquayGraph.Candidate.from_payload({"kind": null, "value": null, "git": null})
+
+	runner.equal(candidate.kind, DotquayWire.SOURCE_VERSION, "a null candidate kind falls back to version")
+	runner.equal(candidate.value, "", "a null candidate value parses as empty, not '<null>'")
+	runner.equal(candidate.git, "", "a null candidate git parses as empty, not '<null>'")
+
+
+func test_null_conflict_and_requirement_and_dotnet_fields_parse_as_empty() -> void:
+	var conflict := DotquayGraph.Conflict.from_payload({"name": null, "kind": null, "message": null})
+	runner.equal(conflict.name, "", "a null conflict name parses as empty, not '<null>'")
+	runner.equal(conflict.kind, "", "a null conflict kind parses as empty, not '<null>'")
+	runner.equal(conflict.message, "", "a null conflict message parses as empty, not '<null>'")
+
+	var requirement := DotquayGraph.Requirement.from_payload({
+		"requirer": null, "kind": null, "constraint": null, "git": null,
+	})
+	runner.equal(requirement.requirer, "", "a null requirer parses as empty, not '<null>'")
+	runner.equal(requirement.kind, "", "a null requirement kind parses as empty, not '<null>'")
+	runner.equal(requirement.git, "", "a null requirement git parses as empty, not '<null>'")
+
+	var entry := DotquayGraph.DotnetEntry.from_payload({"name": null})
+	runner.equal(entry.name, "", "a null dotnet entry name parses as empty, not '<null>'")
+
+
+func test_null_graph_level_fields_parse_as_empty_or_fall_back() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload({
+		"source": null, "project_directory": null,
+		"edges": [{"from": null, "to": null}],
+	})
+
+	runner.equal(graph.source, DotquayWire.GRAPH_SOURCE_LOCKFILE, "a null source falls back to lockfile")
+	runner.equal(graph.project_directory, "", "a null project_directory parses as empty, not '<null>'")
+	runner.equal(graph.edges[0]["from"], "", "a null edge 'from' parses as empty, not '<null>'")
+	runner.equal(graph.edges[0]["to"], "", "a null edge 'to' parses as empty, not '<null>'")
 
 
 func test_display_version_falls_back_to_short_sha() -> void:
@@ -133,7 +182,6 @@ func test_dotnet_entries_distinguish_their_origin() -> void:
 func _conflicted() -> Dictionary:
 	var payload := _diamond()
 	payload["addons"] = [payload["addons"][0], payload["addons"][1]]
-	payload["has_conflicts"] = true
 	payload["conflicts"] = [{
 		"name": "core",
 		"kind": "no_common_version",
@@ -155,8 +203,7 @@ func _conflicted() -> Dictionary:
 func test_parses_a_conflict() -> void:
 	var graph: DotquayGraph = GRAPH.from_payload(_conflicted())
 
-	runner.check(graph.has_conflicts, "the payload's conflict flag should be carried through")
-	runner.check(graph.has_conflict("core"), "the conflicted name should be findable")
+	runner.check(graph.conflict_for("core") != null, "the conflicted name should be findable")
 	runner.equal(graph.conflict_for("core").requirements.size(), 2, "both requirers should be listed")
 
 
@@ -175,7 +222,10 @@ func test_candidate_maps_to_a_cli_flag() -> void:
 	var graph: DotquayGraph = GRAPH.from_payload(_conflicted())
 	var candidate: DotquayGraph.Candidate = graph.conflict_for("core").ranked_candidates()[0]
 
-	runner.equal(candidate.override_flag(), "--version", "a candidate should map straight onto `dotquay override`")
+	# The flag itself is [method DotquayWire.flag_for_source_kind]'s job now (C-10) — this just pins
+	# that a candidate's own [member kind] is what the panel feeds it.
+	runner.equal(DotquayWire.flag_for_source_kind(candidate.kind), "--version",
+		"a candidate's kind should map straight onto `dotquay override`'s flag")
 
 
 func test_conflict_headline_is_plain_language() -> void:
@@ -284,16 +334,13 @@ func test_project_requirer_is_named_readably() -> void:
 	runner.equal(requirement.describe(), "this project wants version ~1.0", "'<project>' is wire syntax, not a name to show")
 
 
-func test_linked_addon_is_healthy_not_broken() -> void:
+func test_linked_addon_is_recognised_as_linked() -> void:
 	var node := DotquayGraph.AddonNode.from_payload({
-		"name": "my-addon", "git": "https://example.com/m", "path": ".", "folder": "my-addon",
+		"name": "my-addon", "git": "https://example.com/m", "folder": "my-addon",
 		"origin": "root", "status": "linked",
 	})
 
 	runner.check(node.is_linked(), "a linked addon should be recognisable")
-	# A link's contents are a live working copy, so it will never match the lockfile. Treating that
-	# as unhealthy would leave every linked addon badged as a problem for as long as it's linked.
-	runner.check(node.is_healthy(), "a linked addon is not in a bad state")
 
 
 func test_counts_include_links() -> void:
@@ -341,7 +388,6 @@ func test_null_folder_also_defaults_to_the_name() -> void:
 
 func _folder_conflict() -> Dictionary:
 	var payload := _diamond()
-	payload["has_conflicts"] = true
 	payload["conflicts"] = [{
 		"name": "mtoon-shader",
 		"kind": "disagreeing_install_folders",
@@ -396,12 +442,10 @@ func test_null_arrays_parse_as_empty_not_a_crash() -> void:
 	# raise "Unable to iterate on object of type 'Nil'" instead of parsing.
 	var payload := _diamond()
 	payload["conflicts"] = null
-	payload["overrides"] = null
 
 	var graph: DotquayGraph = GRAPH.from_payload(payload)
 
 	runner.equal(graph.conflicts.size(), 0, "a null conflicts array should parse as empty, not raise")
-	runner.equal(graph.overrides.size(), 0, "a null overrides array should parse as empty, not raise")
 
 
 func test_null_nested_arrays_parse_as_empty_not_a_crash() -> void:
@@ -422,6 +466,18 @@ func test_null_nested_arrays_parse_as_empty_not_a_crash() -> void:
 
 	runner.equal(conflict.requirements.size(), 0, "a null requirements array should parse as empty")
 	runner.equal(conflict.candidates.size(), 0, "a null candidates array should parse as empty")
+
+
+func test_requirement_constraint_null_parses_as_empty_not_the_literal_null() -> void:
+	# C-23: "constraint" is the same wire key AddonNode and DotnetEntry already treat as nullable via
+	# str_or_empty. Requirement used a plain String() default instead, which only fires when the key
+	# is absent — a present-but-null constraint (a plain `git` requirement with no version range)
+	# rendered as the literal text "<null>".
+	var requirement := DotquayGraph.Requirement.from_payload({
+		"requirer": "core", "kind": "git", "constraint": null, "git": "https://example.com/core",
+	})
+
+	runner.equal(requirement.constraint, "", "a null constraint parses as empty, not '<null>'")
 
 
 func test_empty_payload_parses_cleanly() -> void:

@@ -4,10 +4,12 @@ extends RefCounted
 
 ## Remembers which in-flight CLI runs must be followed by a graph refresh.
 ##
-## The panel used to keep one boolean, "refresh after the current command". That is wrong the moment
-## two commands overlap: switching back to the tab mid-`update` fires a `graph` read, that read
-## finishes first, consumes the flag, and the `update` — the one that actually changed the project —
-## completes without ever refreshing. The graph on screen is then stale until the next click.
+## A single "refresh after the current command" flag is wrong the moment two commands overlap:
+## switching back to the tab mid-`update` fires a `graph` read, that read finishes first, consumes
+## the flag, and the `update` — the one that actually changed the project — completes without ever
+## refreshing. The graph on screen is then stale until the next click. Tracking a set of tickets
+## instead means each run's own "does this need a refresh?" answer survives independently of whatever
+## else happens to finish first.
 ##
 ## Keyed on the ticket [method DotquayCli.run] returns, not on the command name: the envelope reports
 ## "override" for both a pin and a `--clear`, and two `update <name>` runs can overlap.

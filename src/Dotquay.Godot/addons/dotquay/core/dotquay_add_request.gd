@@ -163,8 +163,10 @@ func is_complete() -> bool:
 	return names_a_source() or has_inline_ref()
 
 
-## The URL with any `#ref` fragment removed — the form the CLI echoes back in a preview payload, and
-## therefore the key a pending request must be stored under.
+## The URL with any `#ref` fragment removed — the form the CLI echoes back in a preview payload
+## (C-14). Not a lookup key itself: [DotquayPanel] keys its own pending-request tracking on the CLI
+## call's ticket, not on this URL, because several previews of the same URL can be in flight at once
+## and only the ticket names exactly which call a given result answers.
 func git_url() -> String:
 	var index := _ref_index()
 	return source if index < 0 else source.substr(0, index)
@@ -188,7 +190,7 @@ func names_a_source() -> bool:
 
 ## The complete argument list, `add` included, ready for [method DotquayCli.run].
 func to_args() -> PackedStringArray:
-	var args := PackedStringArray(["add", source])
+	var args := PackedStringArray([DotquayWire.COMMAND_ADD, source])
 
 	# An inline ref and an explicit flag are the same statement made twice, and the CLI rejects the
 	# pair outright rather than picking one. The URL wins here because the user typed it into the
@@ -203,11 +205,11 @@ func to_args() -> PackedStringArray:
 	# accepting them silently, so sending them would turn a hidden field into a hard error.
 	if is_git:
 		if not path.strip_edges().is_empty():
-			args.append("--path")
+			args.append(DotquayWire.FLAG_PATH)
 			args.append(path.strip_edges())
 
 		if not install_as.strip_edges().is_empty():
-			args.append("--install-as")
+			args.append(DotquayWire.FLAG_INSTALL_AS)
 			args.append(install_as.strip_edges())
 
 	return args
@@ -232,13 +234,13 @@ func describe() -> String:
 func _source_flag() -> String:
 	match source_mode:
 		Source.VERSION:
-			return "--version"
+			return DotquayWire.FLAG_VERSION
 		# Both are meaningless for a NuGet package, which has no branches or commits. Guarded here as
 		# well as in the form, so a request built any other way still can't produce a rejected command.
 		Source.BRANCH:
-			return "--branch" if is_git else ""
+			return DotquayWire.FLAG_BRANCH if is_git else ""
 		Source.REV:
-			return "--rev" if is_git else ""
+			return DotquayWire.FLAG_REV if is_git else ""
 		_:
 			return ""
 

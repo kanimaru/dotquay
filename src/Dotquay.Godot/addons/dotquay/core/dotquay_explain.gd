@@ -2,8 +2,7 @@
 class_name DotquayExplain
 extends RefCounted
 
-## A typed view over the `status --explain --json` payload
-## (docs/DESIGN-v0.12-MODIFIED-REASON.md).
+## A typed view over the `status --explain --json` payload.
 ##
 ## Same job as [DotquayPreview], for a different question. `graph` says what the project has and
 ## `add --preview` says what an add would change; this says why an addon reads as `modified`, and
@@ -128,17 +127,14 @@ class Explanation extends RefCounted:
 	var counts: Counts = null
 	var changes: Array = []   ## Array[Change]
 	var unavailable_reason: String = ""
-	var baseline_includes_patch: bool = false
 	## A patch was declared and could not be reconstructed, so [member changes] includes the patch's
-	## own edits. Distinct from [member baseline_includes_patch] being false, which is also just what
-	## an ordinary unpatched addon looks like.
+	## own edits, rather than just what's actually changed since the upstream commit.
 	var patch_could_not_be_applied: bool = false
 
 	static func from_payload(payload: Dictionary) -> Explanation:
 		var explanation := Explanation.new()
 		explanation.verdict = String(payload.get("verdict", ""))
 		explanation.unavailable_reason = DotquayWire.str_or_empty(payload.get("unavailable_reason"))
-		explanation.baseline_includes_patch = bool(payload.get("baseline_includes_patch", false))
 		explanation.patch_could_not_be_applied = bool(payload.get("patch_could_not_be_applied", false))
 
 		# Always constructed, even from an absent or malformed field: every caller reads

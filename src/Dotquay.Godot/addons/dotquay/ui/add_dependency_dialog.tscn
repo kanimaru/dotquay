@@ -7,7 +7,7 @@ oversampling_override = 1.0
 title = "Add a dependency"
 position = Vector2i(0, 36)
 size = Vector2i(620, 340)
-visible = true
+visible = false
 wrap_controls = false
 ok_button_text = "Add"
 script = ExtResource("1_add_dialog")
@@ -53,11 +53,15 @@ layout_mode = 2
 tooltip_text = "The git clone URL, or the NuGet package ID."
 text = "URL / ID"
 
+; No placeholder_text authored here (C-22): add_dependency_dialog.gd's _refresh() unconditionally
+; overwrites it — to the git example URL or "Newtonsoft.Json" depending on the Kind picker — every
+; single time it runs, which _bind() already guarantees happens before this dialog is ever shown. An
+; authored value here would only ever be dead weight, and a second place the git example URL could
+; drift from the one _refresh() actually uses.
 [node name="Source" type="LineEdit" parent="Root/SourceRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "https://github.com/nathanhoad/godot_dialogue_manager"
 
 ; The mode picker's items are rebuilt per source kind (branch and commit are meaningless for NuGet),
 ; so they carry ids rather than relying on their index — see add_dependency_dialog.gd.

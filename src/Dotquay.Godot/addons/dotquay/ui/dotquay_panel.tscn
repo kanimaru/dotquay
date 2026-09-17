@@ -232,26 +232,25 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
+; visible = false is no longer overridden per-instance below (C-25): each of these five dialogs now
+; defaults to invisible in its own scene, so an override here would just repeat what the base scene
+; already says. popup_centered() (or popup(), for LegendDialog) is what shows any of them.
+
 [node name="ConflictDialog" parent="." unique_id=1290198678 instance=ExtResource("3_conflict_dialog")]
 unique_name_in_owner = true
-visible = false
 
 [node name="AddDialog" parent="." unique_id=1108032224 instance=ExtResource("4_add_dialog")]
 unique_name_in_owner = true
 initial_position = 1
-visible = false
 
 [node name="PreviewDialog" parent="." unique_id=1513949963 instance=ExtResource("5_preview_dialog")]
 unique_name_in_owner = true
-visible = false
 
 [node name="ExplainDialog" parent="." instance=ExtResource("6_explain_dialog")]
 unique_name_in_owner = true
-visible = false
 
 [node name="LegendDialog" parent="." instance=ExtResource("7_legend_dialog")]
 unique_name_in_owner = true
-visible = false
 
 [node name="ConfirmRemove" type="ConfirmationDialog" parent="." unique_id=1572317390]
 unique_name_in_owner = true

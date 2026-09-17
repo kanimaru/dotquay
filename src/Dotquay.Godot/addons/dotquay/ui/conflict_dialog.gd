@@ -13,8 +13,6 @@ extends ConfirmationDialog
 ## [param install_as] is the folder to force, empty for "leave the folder alone".
 signal override_chosen(addon_name: String, kind: String, value: String, git: String, install_as: String)
 
-const CUSTOM_ID := -1
-
 ## Item id in the CustomKind [OptionButton] to the wire literal `override` expects. The scene's item
 ## *captions* happen to be the same words today, but a caption is something the editor invites you to
 ## retitle; a flag is not. The ids are what the scene must keep stable.
@@ -71,7 +69,9 @@ func _bind() -> void:
 	_custom_value.text_changed.connect(func(_text: String) -> void:
 		_custom_radio.button_pressed = true
 		_update_ok_state())
-	_custom_radio.set_meta("candidate_index", CUSTOM_ID)
+	# Not re-set here (C-5): the scene's own CustomRadio node already carries
+	# metadata/candidate_index = DotquayCandidateRow.CUSTOM_INDEX as its authored default, and nothing
+	# ever changes it afterwards — re-writing the same value on every _bind() was pure duplication.
 
 	for label in [_requirements_heading, _candidates_heading]:
 		label.add_theme_color_override("font_color", DotquayPalette.MUTED)
@@ -152,7 +152,7 @@ func _has_choice() -> bool:
 	if pressed == null:
 		return false
 
-	if int(pressed.get_meta("candidate_index", CUSTOM_ID)) == CUSTOM_ID:
+	if int(pressed.get_meta("candidate_index", DotquayCandidateRow.CUSTOM_INDEX)) == DotquayCandidateRow.CUSTOM_INDEX:
 		return not _custom_value.text.strip_edges().is_empty()
 
 	return true
@@ -173,9 +173,9 @@ func _on_confirmed() -> void:
 		return
 
 	var pressed := _candidate_group.get_pressed_button()
-	var index: int = int(pressed.get_meta("candidate_index", CUSTOM_ID))
+	var index: int = int(pressed.get_meta("candidate_index", DotquayCandidateRow.CUSTOM_INDEX))
 
-	if index == CUSTOM_ID:
+	if index == DotquayCandidateRow.CUSTOM_INDEX:
 		# The custom path has no candidate to inherit a repository from, so it relies on the CLI
 		# filling `git` in from the manifest or lockfile — the common case, since a version conflict
 		# is a disagreement about which release, not about which repo.

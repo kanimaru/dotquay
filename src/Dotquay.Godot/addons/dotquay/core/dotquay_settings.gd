@@ -22,12 +22,6 @@ const DEFAULT_COMMAND_TIMEOUT_SECONDS := 300
 ## of only the ones that are actually stuck.
 const MIN_COMMAND_TIMEOUT_SECONDS := 10
 
-## A now-meaningless setting from an earlier version, back when `OS.execute` truly had no timeout to
-## give it to — kept only so [method register] can erase it from an editor config that still carries
-## it. [constant COMMAND_TIMEOUT_SETTING] is its unrelated, working replacement, not a renamed
-## continuation of it: the two were never live at the same time, so there is nothing to migrate.
-const RETIRED_SETTINGS := ["dotquay/general/resolve_timeout_seconds"]
-
 ## Where the "Get dotquay…" button (P0-2) opens — this plugin's own repo's release page, the
 ## canonical place to download the CLI binary this tab needs.
 const RELEASES_URL := "https://gitlab.kemomi.de/wild-alliance/dotquay/-/releases"
@@ -105,10 +99,6 @@ static func register(editor_settings: EditorSettings) -> void:
 		"hint": PROPERTY_HINT_RANGE,
 		"hint_string": "%d,3600,1,suffix:s" % MIN_COMMAND_TIMEOUT_SECONDS,
 	})
-
-	for retired in RETIRED_SETTINGS:
-		if editor_settings.has_setting(retired):
-			editor_settings.erase(retired)
 
 
 static func _register_one(editor_settings: EditorSettings, key: String, default_value: Variant, info: Dictionary) -> void:

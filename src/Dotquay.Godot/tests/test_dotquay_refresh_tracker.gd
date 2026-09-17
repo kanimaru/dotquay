@@ -2,7 +2,7 @@ extends RefCounted
 
 ## Covers [DotquayRefreshTracker] — which finished CLI runs owe the panel a graph refresh.
 ##
-## The scenario that matters is the interleaving the old boolean got wrong: a read-only `graph`
+## The scenario that matters is the interleaving a single shared flag gets wrong: a read-only `graph`
 ## finishing while a mutating `update` is still running must not steal the update's refresh.
 
 const TRACKER := preload("res://addons/dotquay/core/dotquay_refresh_tracker.gd")

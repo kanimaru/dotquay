@@ -4,6 +4,11 @@ extends HBoxContainer
 
 ## One version the conflict picker offers, with the reason it is or isn't the right answer.
 
+## The `candidate_index` meta value [DotquayConflictDialog] uses for its own free-text radio, which is
+## not one of these rows at all (C-5). Declared here rather than duplicated there as a second `-1`
+## constant with the same meaning: `"candidate_index"` is this class's own meta key, set below for
+## every real candidate, so the one sentinel value that means "not a real candidate" belongs beside
+## the values that are.
 const CUSTOM_INDEX := -1
 
 @onready var radio: CheckBox = %Radio

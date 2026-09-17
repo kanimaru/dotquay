@@ -29,8 +29,6 @@ func _single_addon_graph() -> Dictionary:
 		"edges": [{"from": "<project>", "to": "a"}],
 		"dotnet": [],
 		"conflicts": [],
-		"overrides": [],
-		"has_conflicts": false,
 	}
 
 

@@ -13,14 +13,18 @@ extends GraphNode
 ## Emitted when the user picks something from this node's action menu.
 signal action_requested(action: String, addon_name: String)
 
-const ACTION_UPDATE := "update"
-const ACTION_REMOVE := "remove"
-const ACTION_RESOLVE := "resolve"
-const ACTION_OVERRIDE := "override"
-const ACTION_CLEAR_OVERRIDE := "clear_override"
-const ACTION_OPEN_REPO := "open_repo"
-const ACTION_CAPTURE_PATCH := "capture_patch"
-const ACTION_EXPLAIN := "explain"
+## Menu commands this node's own popup offers (C-25). Prefixed `MENU_`, not `ACTION_`, specifically to
+## stay clear of [DotquayWire]'s `ACTION_*` constants: those name what a wire `changes[].action`
+## already *did* ("updated"), these name what a person is *asking* this menu to do ("update") — two
+## different vocabularies that happened to collide on ACTION_UPDATED vs. ACTION_UPDATE before this.
+const MENU_UPDATE := "update"
+const MENU_REMOVE := "remove"
+const MENU_RESOLVE := "resolve"
+const MENU_OVERRIDE := "override"
+const MENU_CLEAR_OVERRIDE := "clear_override"
+const MENU_OPEN_REPO := "open_repo"
+const MENU_CAPTURE_PATCH := "capture_patch"
+const MENU_EXPLAIN := "explain"
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
@@ -142,30 +146,30 @@ func _render_menu() -> void:
 	popup.clear()
 
 	if _conflict != null:
-		_add_menu_item(popup, "Resolve conflict...", ACTION_RESOLVE)
+		_add_menu_item(popup, "Resolve conflict...", MENU_RESOLVE)
 
 	# A transitive addon has no manifest entry to re-resolve on its own; updating it means updating
 	# whatever requires it. An orphan has no manifest entry either — `dotquay update <name>` throws
 	# "not declared in dotquay.toml" for one, since it was never a root to begin with (P1-20).
-	_add_menu_item(popup, "Update", ACTION_UPDATE, _is_transitive() or _model.is_orphan(),
+	_add_menu_item(popup, "Update", MENU_UPDATE, _is_transitive() or _model.is_orphan(),
 		update_disabled_reason(_is_transitive(), _model.is_orphan(), _model.requirements))
-	_add_menu_item(popup, "Always use a specific version...", ACTION_OVERRIDE)
+	_add_menu_item(popup, "Always use a specific version...", MENU_OVERRIDE)
 
 	if _model.is_overridden:
-		_add_menu_item(popup, "Stop forcing a version", ACTION_CLEAR_OVERRIDE)
+		_add_menu_item(popup, "Stop forcing a version", MENU_CLEAR_OVERRIDE)
 
 	# Listed above "capture" on purpose: the honest order is find out what changed, then decide what to
 	# do about it. A user who already knows loses one menu position; a user who does not is handed the
 	# answer before the option that acts on it.
 	if _model.status == DotquayWire.STATUS_MODIFIED:
-		_add_menu_item(popup, "Why is this modified?", ACTION_EXPLAIN)
-		_add_menu_item(popup, "Keep my edits (save as patch)", ACTION_CAPTURE_PATCH)
+		_add_menu_item(popup, "Why is this modified?", MENU_EXPLAIN)
+		_add_menu_item(popup, "Keep my edits (save as patch)", MENU_CAPTURE_PATCH)
 
 	popup.add_separator()
 
-	_add_menu_item(popup, "Open repository", ACTION_OPEN_REPO, _model.git.is_empty(),
+	_add_menu_item(popup, "Open repository", MENU_OPEN_REPO, _model.git.is_empty(),
 		"This addon has no repository URL to open — it was likely declared as a NuGet package.")
-	_add_menu_item(popup, "Remove", ACTION_REMOVE, not _model.is_removable(),
+	_add_menu_item(popup, "Remove", MENU_REMOVE, not _model.is_removable(),
 		remove_disabled_reason(_model.is_removable(), _is_transitive(), _model.is_orphan(), _model.requirements))
 
 

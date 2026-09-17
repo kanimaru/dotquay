@@ -114,9 +114,10 @@ func test_an_inline_ref_suppresses_the_explicit_source() -> void:
 	runner.equal(_joined(request), "add %s#main" % URL, "the URL's ref wins and no flag is added")
 
 
-func test_git_url_strips_the_ref_so_a_preview_can_be_matched_back() -> void:
-	# The CLI reports the URL without the fragment in a preview payload, and the panel keys pending
-	# requests by it — a mismatch here loses the user's --path and --install-as on confirmation.
+func test_git_url_strips_the_ref_so_it_matches_what_the_cli_echoes_back() -> void:
+	# The CLI reports the URL without the fragment in a preview payload (C-14) — this is what a
+	# caller compares that payload's own "git" field against, not a key anything is stored under
+	# (the panel keys its pending requests on the CLI call's ticket instead).
 	var request := _git()
 	request.source = URL + "#main"
 
@@ -140,7 +141,7 @@ func test_the_last_hash_wins() -> void:
 	runner.equal(request.inline_ref(), "v1.0", "the ref is taken from the last '#'")
 
 
-func test_a_url_with_no_ref_is_its_own_key() -> void:
+func test_a_url_with_no_ref_is_unchanged() -> void:
 	runner.equal(_git().git_url(), URL, "a plain URL is unchanged")
 
 

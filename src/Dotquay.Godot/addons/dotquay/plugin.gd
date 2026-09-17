@@ -9,7 +9,6 @@ extends EditorPlugin
 ## exactly what a 200px-tall dock cannot show.
 
 const PANEL_SCENE := preload("res://addons/dotquay/ui/dotquay_panel.tscn")
-const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
 
 var _panel: DotquayPanel
 var _was_visible := false
@@ -20,7 +19,11 @@ var _shown_once := false
 
 
 func _enter_tree() -> void:
-	SETTINGS.register(get_editor_interface().get_editor_settings())
+	# EditorInterface is a global singleton (Godot 4.2+), same as every call site in DotquayPanel
+	# itself — get_editor_interface() is the older, still-working instance method every EditorPlugin
+	# also has, and mixing the two styles in the same addon is exactly what C-25 flags (P1-1's own
+	# breadcrumb helper already assumes callers reach EditorSettings the same way throughout).
+	DotquaySettings.register(EditorInterface.get_editor_settings())
 
 	_panel = PANEL_SCENE.instantiate()
 	_panel.name = "Dotquay"
@@ -28,7 +31,7 @@ func _enter_tree() -> void:
 
 	# Parented to the main screen container, not added as a dock: this is what makes Godot treat the
 	# plugin as a main-screen tab and drive it through _make_visible.
-	get_editor_interface().get_editor_main_screen().add_child(_panel)
+	EditorInterface.get_editor_main_screen().add_child(_panel)
 
 
 func _exit_tree() -> void:
@@ -48,7 +51,7 @@ func _get_plugin_name() -> String:
 func _get_plugin_icon() -> Texture2D:
 	# Borrowing an editor icon rather than shipping one: it inherits the current theme automatically,
 	# so the tab never looks out of place in light mode or at a non-default editor scale.
-	return get_editor_interface().get_base_control().get_theme_icon("NodeInfo", "EditorIcons")
+	return EditorInterface.get_base_control().get_theme_icon("NodeInfo", "EditorIcons")
 
 
 func _make_visible(visible: bool) -> void:
@@ -60,7 +63,7 @@ func _make_visible(visible: bool) -> void:
 	# Refresh on the transition into view, not on every call: switching tabs back and forth is
 	# common, and re-reading the lockfile each time is cheap but re-rendering the graph is not.
 	if visible and not _was_visible:
-		if not _shown_once or SETTINGS.refresh_on_focus(get_editor_interface().get_editor_settings()):
+		if not _shown_once or DotquaySettings.refresh_on_focus(EditorInterface.get_editor_settings()):
 			_panel.refresh()
 		_shown_once = true
 

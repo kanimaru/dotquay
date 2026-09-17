@@ -3,9 +3,9 @@ extends RefCounted
 ## Covers [DotquayPreview] — the typed view over `add --preview --json`, and the phrasing the
 ## confirmation dialog puts in front of a decision.
 ##
-## The fixture is the shape v0.8 was built for: one addon the user asked for, one it drags in, a
-## private NuGet package, and the feed that package needs. That is precisely the install where
-## pressing "Add" without a dialog would take on a feed nobody mentioned.
+## The fixture is the shape addon-declared feeds (SPEC.md §11.3) were built for: one addon the user
+## asked for, one it drags in, a private NuGet package, and the feed that package needs. That is
+## precisely the install where pressing "Add" without a dialog would take on a feed nobody mentioned.
 
 const PREVIEW := preload("res://addons/dotquay/core/dotquay_preview.gd")
 
@@ -42,8 +42,8 @@ func _payload() -> Dictionary:
 		],
 		"sources_to_adopt": [],
 		"sources_needing_approval": [
-			{"name": "vbeami", "url": FEED_URL, "declared_by_addon": "vbeami",
-			 "is_trusted_host": false, "packages": ["VBeami.*"], "package_ids": ["VBeami.Core"]},
+			{"url": FEED_URL, "declared_by_addon": "vbeami",
+			 "packages": ["VBeami.*"], "package_ids": ["VBeami.Core"]},
 		],
 		"needs_approval": true,
 		"is_no_op": false,
@@ -107,17 +107,16 @@ func test_source_states_the_scope_of_what_it_would_serve() -> void:
 
 	runner.equal(source.host(), "gitlab.example.com", "the host is extracted for a sentence about trust")
 	runner.equal(source.declared_by_addon, "vbeami", "the asking addon is named")
-	runner.check(not source.is_trusted_host, "an unapproved feed is not on a trusted host")
 	runner.equal(String(", ".join(source.owned_patterns())), "VBeami.*",
 		"declared patterns are what the feed would own")
 
 
 func test_source_falls_back_to_concrete_package_ids_when_no_patterns_are_declared() -> void:
-	# Mirrors the CLI's own default (SPEC.md §11.3 D7): absent `packages`, the feed owns exactly the
+	# Mirrors the CLI's own default (SPEC.md §11.3): absent `packages`, the feed owns exactly the
 	# IDs the addon declared. Showing nothing here would understate the scope.
 	var source: DotquayPreview.Source = PREVIEW.Source.from_payload({
-		"name": "vbeami", "url": FEED_URL, "declared_by_addon": "vbeami",
-		"is_trusted_host": false, "packages": [], "package_ids": ["VBeami.Core"]})
+		"url": FEED_URL, "declared_by_addon": "vbeami",
+		"packages": [], "package_ids": ["VBeami.Core"]})
 
 	runner.equal(String(", ".join(source.owned_patterns())), "VBeami.Core",
 		"package ids stand in for absent patterns")
@@ -126,15 +125,21 @@ func test_source_falls_back_to_concrete_package_ids_when_no_patterns_are_declare
 func test_trusted_feed_is_reported_as_automatic() -> void:
 	var payload := _payload()
 	payload["sources_to_adopt"] = [{
-		"name": "vbeami", "url": FEED_URL, "declared_by_addon": "vbeami",
-		"is_trusted_host": true, "packages": ["VBeami.*"], "package_ids": ["VBeami.Core"]}]
+		"url": FEED_URL, "declared_by_addon": "vbeami",
+		"packages": ["VBeami.*"], "package_ids": ["VBeami.Core"]}]
 	payload["sources_needing_approval"] = []
 	payload["needs_approval"] = false
 
 	var preview: DotquayPreview = PREVIEW.from_payload(payload)
 
 	runner.check(not preview.needs_approval, "a trusted host needs no approval")
-	runner.check(preview.sources_to_adopt[0].is_trusted_host, "the automatic adoption is flagged as such")
+
+	# "Trusted" isn't a flag on the source at all — it's which list the CLI put it in. A feed that
+	# needs no decision arrives already sorted into sources_to_adopt, never sources_needing_approval
+	# (install_preview_dialog.gd renders the two lists differently for exactly this reason).
+	runner.equal(preview.sources_to_adopt.size(), 1, "a trusted feed lands in sources_to_adopt")
+	runner.check(preview.sources_needing_approval.is_empty(),
+		"a trusted feed asks for no approval, so it is not also in sources_needing_approval")
 
 	# Still listed, because a feed being taken on silently is exactly the thing worth being able to
 	# see you agreed to.
@@ -177,3 +182,70 @@ func test_missing_fields_do_not_break_the_parse() -> void:
 	runner.equal(preview.name, "", "a missing name is empty, not <null>")
 	runner.equal(preview.addons.size(), 0, "missing arrays parse as empty")
 	runner.check(not preview.needs_approval, "a missing flag defaults to not needing approval")
+
+
+func test_null_optional_fields_parse_as_empty_not_the_literal_null() -> void:
+	# C-23: SPEC.md §17 emits an optional field as JSON null, never omits it. `String(payload.get(key,
+	# default))` only supplies its default when the key is absent, so a present-but-null "resolved" or
+	# "short_sha" used to render as the literal text "<null>" instead of empty.
+	var addon: DotquayPreview.Addon = PREVIEW.Addon.from_payload({
+		"name": "leaf", "git": "https://example.com/leaf",
+		"resolved": null, "short_sha": null, "folder": null,
+	})
+
+	runner.equal(addon.resolved, "", "a null resolved parses as empty, not '<null>'")
+	runner.equal(addon.short_sha, "", "a null short_sha parses as empty, not '<null>'")
+	runner.equal(addon.folder, "leaf", "a null folder falls back to the addon's own name")
+
+	var source: DotquayPreview.Source = PREVIEW.Source.from_payload({
+		"url": FEED_URL, "declared_by_addon": null,
+	})
+
+	runner.equal(source.declared_by_addon, "",
+		"a null declared_by_addon parses as empty, matching DotnetPackage's own handling of the same key")
+
+
+func test_null_name_and_git_parse_as_empty_not_the_literal_null() -> void:
+	# C-23: name/git used a plain String() default too, spread across Addon, DotnetPackage, Source, and
+	# the top-level preview.
+	var addon: DotquayPreview.Addon = PREVIEW.Addon.from_payload({"name": null, "git": null})
+	runner.equal(addon.name, "", "a null addon name parses as empty, not '<null>'")
+	runner.equal(addon.git, "", "a null addon git parses as empty, not '<null>'")
+
+	var package: DotquayPreview.DotnetPackage = PREVIEW.DotnetPackage.from_payload({"name": null})
+	runner.equal(package.name, "", "a null package name parses as empty, not '<null>'")
+
+	var source: DotquayPreview.Source = PREVIEW.Source.from_payload({"url": null})
+	runner.equal(source.url, "", "a null source url parses as empty, not '<null>'")
+
+	var preview: DotquayPreview = PREVIEW.from_payload({"name": null, "git": null})
+	runner.equal(preview.name, "", "a null top-level preview name parses as empty, not '<null>'")
+	runner.equal(preview.git, "", "a null top-level preview git parses as empty, not '<null>'")
+
+
+func test_null_arrays_parse_as_empty_not_a_crash() -> void:
+	# The same null-vs-absent trap one level down: every array field in this payload used a plain
+	# `payload.get(key, [])`, which only supplies its default when the key is *absent* — a
+	# present-but-null "addons" or "dotnet" raised "Unable to iterate on object of type 'Nil'" instead
+	# of parsing as empty.
+	var preview: DotquayPreview = PREVIEW.from_payload({
+		"name": "vbeami", "git": "https://example.com/vbeami",
+		"addons": null, "dotnet": null, "sources_to_adopt": null, "sources_needing_approval": null,
+	})
+
+	runner.equal(preview.addons.size(), 0, "a null addons array should parse as empty, not raise")
+	runner.equal(preview.dotnet.size(), 0, "a null dotnet array should parse as empty, not raise")
+	runner.equal(preview.sources_to_adopt.size(), 0, "a null sources_to_adopt should parse as empty")
+	runner.equal(preview.sources_needing_approval.size(), 0,
+		"a null sources_needing_approval should parse as empty")
+
+	var addon: DotquayPreview.Addon = PREVIEW.Addon.from_payload({
+		"name": "leaf", "git": "https://example.com/leaf", "required_by": null,
+	})
+	runner.equal(addon.required_by.size(), 0, "a null required_by should parse as empty, not raise")
+
+	var source: DotquayPreview.Source = PREVIEW.Source.from_payload({
+		"url": FEED_URL, "packages": null, "package_ids": null,
+	})
+	runner.equal(source.packages.size(), 0, "a null packages should parse as empty, not raise")
+	runner.equal(source.package_ids.size(), 0, "a null package_ids should parse as empty, not raise")

@@ -2,8 +2,7 @@
 class_name DotquayExplainDialog
 extends ConfirmationDialog
 
-## Why one addon reads as `modified`, and whether forcing an update over it would cost anything
-## (docs/DESIGN-v0.12-MODIFIED-REASON.md).
+## Why one addon reads as `modified`, and whether forcing an update over it would cost anything.
 ##
 ## The panel's `modified` badge states a fact and offers no way to act on it, which leaves exactly one
 ## move: force the update and hope. This dialog turns that into a decision — it lists what actually

@@ -1,14 +1,21 @@
 @tool
 extends SceneTree
 
-## A dependency-free headless test runner for the Dotquay plugin's pure logic.
+## A dependency-free headless test runner for the Dotquay plugin.
 ##
 ## Deliberately not GUT: this suite must run in CI next to `dotnet test` without adding a git
-## submodule or an addon download to the build, and it only ever tests parsing and layout — the
-## classes with no scene tree, no editor, and no CLI in them. Anything that genuinely needs the
-## editor is verified by hand against a real project (see docs/SPRINT-01.md's verification habit).
+## submodule or an addon download to the build. Mostly parsing and layout — the classes with no
+## scene tree, no editor, and no CLI in them — but not only that (C-19): [code]test_scenes.gd[/code]
+## loads every hand-written `.tscn` (they fail at load time, not compile time),
+## [code]test_dotquay_process_runner.gd[/code] spawns real short-lived OS processes to prove the
+## wall-clock timeout actually cuts one off, and [code]test_cli_contract.gd[/code] runs the real
+## published `dotquay` binary end to end when `DOTQUAY_TEST_CLI` is set. Anything that genuinely
+## needs a live editor is still verified by hand against a real project instead (that verification
+## habit predates this file and isn't automatable here).
 ##
-## Run with:
+## Run with `run_tests.ps1`, not this script directly — it does two things this header would
+## otherwise have to repeat: an `--import` pass first (skipping it makes every `class_name` global
+## below fail to resolve, since that cache only exists once Godot has scanned the project), then:
 ##   godot --headless --path src/Dotquay.Godot --script tests/test_runner.gd
 
 const SUITES := [
@@ -33,6 +40,12 @@ const SUITES := [
 	preload("res://tests/test_dotquay_panel.gd"),
 	preload("res://tests/test_dotquay_preview.gd"),
 	preload("res://tests/test_dotquay_explain.gd"),
+	# Typed views over the remaining raw payloads (C-24) — outdated/doctor/operation, matching the
+	# graph/preview/explain pattern above rather than the ad-hoc dict reads `dotquay_panel.gd` used to do.
+	preload("res://tests/test_dotquay_outdated.gd"),
+	preload("res://tests/test_dotquay_doctor.gd"),
+	preload("res://tests/test_dotquay_operation.gd"),
+	preload("res://tests/test_dotquay_self_check.gd"),
 	preload("res://tests/test_dotquay_add_request.gd"),
 	preload("res://tests/test_dotquay_rescan.gd"),
 	preload("res://tests/test_dotquay_log_buffer.gd"),

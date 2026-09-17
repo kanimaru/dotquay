@@ -19,15 +19,11 @@ signal finished(result: DotquayResult)
 ## tracking counts itself.
 signal busy_changed(is_busy: bool)
 
-const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
-const SETTINGS := preload("res://addons/dotquay/core/dotquay_settings.gd")
-const PROCESS_RUNNER := preload("res://addons/dotquay/core/dotquay_process_runner.gd")
-
 var _threads: Array[Thread] = []
 var _running := 0
 
 ## pid -> true, for every child process a worker thread is currently waiting on. Written from a
-## worker thread the moment [PROCESS_RUNNER] reports one has started, read from the main thread by
+## worker thread the moment [DotquayProcessRunner] reports one has started, read from the main thread by
 ## [method _exit_tree]; [member _pids_mutex] is what makes that safe. Existing rather than derived
 ## from [member _threads] because a [Thread] doesn't expose the pid of whatever it's blocked on.
 var _running_pids: Dictionary = {}
@@ -54,13 +50,13 @@ var _next_ticket := 1
 func _exit_tree() -> void:
 	# Joining rather than abandoning: a half-finished `dotquay update` is writing to addons/ and the
 	# lockfile, and letting the editor tear the script out from under it is how a project ends up in
-	# a state neither the lockfile nor disk describes. [PROCESS_RUNNER] already bounds every worker
+	# a state neither the lockfile nor disk describes. [DotquayProcessRunner] already bounds every worker
 	# thread to the configured command timeout on its own, so this join can no longer hang forever —
 	# but the configured timeout can legitimately be minutes, which is still an unacceptable wait for
 	# someone who just clicked "close editor". Killing every still-running child directly, here,
-	# first, is what makes the join fast instead of merely finite: [PROCESS_RUNNER]'s poll loop
+	# first, is what makes the join fast instead of merely finite: [DotquayProcessRunner]'s poll loop
 	# notices the kill within one poll interval and returns immediately afterwards (measured
-	# single-digit milliseconds on Windows — see [PROCESS_RUNNER]'s own doc comment).
+	# single-digit milliseconds on Windows — see [DotquayProcessRunner]'s own doc comment).
 	_pids_mutex.lock()
 	var pids: Array = _running_pids.keys()
 	_pids_mutex.unlock()
@@ -94,25 +90,25 @@ func run(command_name: String, args: PackedStringArray) -> int:
 	_next_ticket += 1
 
 	var editor_settings := EditorInterface.get_editor_settings()
-	var executable := SETTINGS.cli_path(editor_settings)
+	var executable := DotquaySettings.cli_path(editor_settings)
 	# Read here, on the main thread, alongside the executable path — EditorSettings is a main-thread
 	# API like the rest of the editor, so the resolved millisecond value (not the EditorSettings
 	# object itself) is what crosses into the worker thread.
-	var timeout_ms := SETTINGS.command_timeout_ms(editor_settings)
+	var timeout_ms := DotquaySettings.command_timeout_ms(editor_settings)
 
 	if executable.is_empty():
-		_emit_deferred(RESULT.failure(
-			RESULT.KIND_NOT_CONFIGURED,
+		_emit_deferred(DotquayResult.failure(
+			DotquayResult.KIND_NOT_CONFIGURED,
 			("dotquay isn't installed, or this editor can't find it. Set %s, or use the Get dotquay / "
-				+ "Browse buttons above.") % SETTINGS.breadcrumb(SETTINGS.CLI_PATH_SETTING),
+				+ "Browse buttons above.") % DotquaySettings.breadcrumb(DotquaySettings.CLI_PATH_SETTING),
 			command_name), ticket)
 		return ticket
 
 	# A folder, a .dll, or nothing at all — the mistakes a newbie commonly ends up with before ever
 	# spawning it (P1-2).
-	var problem := SETTINGS.path_problem(executable)
+	var problem := DotquaySettings.path_problem(executable)
 	if not problem.is_empty():
-		_emit_deferred(RESULT.failure(RESULT.KIND_NOT_CONFIGURED, problem, command_name), ticket)
+		_emit_deferred(DotquayResult.failure(DotquayResult.KIND_NOT_CONFIGURED, problem, command_name), ticket)
 		return ticket
 
 	var full_args := PackedStringArray(args)
@@ -151,9 +147,9 @@ func _start(executable: String, full_args: PackedStringArray, command_name: Stri
 	thread.start(_run_blocking.bind(executable, full_args, command_name, ticket, timeout_ms, thread))
 
 
-## The Godot project's directory on the real filesystem. The CLI has no idea what `res://` means,
-## and the editor's own working directory is not the project — this is why the CLI grew `--project`
-## (SPEC.md §17).
+## The Godot project's directory on the real filesystem. The CLI has no idea what `res://` means, and
+## the editor's own working directory is not the project, so every invocation passes `--project`
+## explicitly (SPEC.md §17) rather than relying on the CLI's cwd.
 func project_directory() -> String:
 	return ProjectSettings.globalize_path("res://").rstrip("/")
 
@@ -161,7 +157,7 @@ func project_directory() -> String:
 func _run_blocking(executable: String, args: PackedStringArray, command_name: String, ticket: int,
 		timeout_ms: int, thread: Thread) -> void:
 	# Registered the moment the child actually has a pid, so [method _exit_tree] can kill it even
-	# while this thread is still inside [method PROCESS_RUNNER.run]'s own wait loop. Unregistered
+	# while this thread is still inside [method DotquayProcessRunner.run]'s own wait loop. Unregistered
 	# again right below, once that loop returns for any reason — a pid [method _exit_tree] no longer
 	# needs to know about, whether it exited on its own, timed out, or was already killed.
 	#
@@ -175,7 +171,7 @@ func _run_blocking(executable: String, args: PackedStringArray, command_name: St
 		_running_pids[pid] = true
 		_pids_mutex.unlock()
 
-	var outcome: DotquayProcessRunner.Outcome = PROCESS_RUNNER.run(executable, args, timeout_ms, on_started)
+	var outcome: DotquayProcessRunner.Outcome = DotquayProcessRunner.run(executable, args, timeout_ms, on_started)
 
 	var started_pid: int = started_pid_box[0]
 	if started_pid != -1:
@@ -185,20 +181,20 @@ func _run_blocking(executable: String, args: PackedStringArray, command_name: St
 
 	var result: DotquayResult
 	if outcome.launch_failed:
-		result = RESULT.failure(
-			RESULT.KIND_LAUNCH_FAILED,
-			PROCESS_RUNNER.launch_failed_message(executable, OS.get_name()),
+		result = DotquayResult.failure(
+			DotquayResult.KIND_LAUNCH_FAILED,
+			DotquayProcessRunner.launch_failed_message(executable, OS.get_name()),
 			command_name,
 			outcome.output)
 	elif outcome.timed_out:
-		result = RESULT.failure(
-			RESULT.KIND_TIMEOUT,
+		result = DotquayResult.failure(
+			DotquayResult.KIND_TIMEOUT,
 			"dotquay did not finish within %ds and was stopped. If this keeps happening on a slow " % (timeout_ms / 1000)
-				+ "connection, raise the timeout in %s." % SETTINGS.breadcrumb(SETTINGS.COMMAND_TIMEOUT_SETTING),
+				+ "connection, raise the timeout in %s." % DotquaySettings.breadcrumb(DotquaySettings.COMMAND_TIMEOUT_SETTING),
 			command_name,
 			outcome.output)
 	else:
-		result = RESULT.parse(outcome.output, outcome.exit_code, command_name)
+		result = DotquayResult.parse(outcome.output, outcome.exit_code, command_name)
 
 	result.ticket = ticket
 	_finish.bind(result, thread).call_deferred()

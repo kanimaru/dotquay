@@ -12,15 +12,9 @@ extends RefCounted
 
 const SCHEMA_SUPPORTED := 1
 
-## Error kinds the CLI itself reports, mirroring JsonErrorKind in Dotquay.Core.
-const KIND_WORKFLOW := "workflow"
-const KIND_NO_MANIFEST := "no_manifest"
-const KIND_CONFLICT := "conflict"
-const KIND_GIT := "git"
-const KIND_AUTH := "auth"
-const KIND_UNEXPECTED := "unexpected"
-
-## Error kinds this addon synthesises for failures that never reached the CLI.
+## Error kinds this addon synthesises for failures that never reached the CLI. The kinds the CLI
+## itself reports (SPEC.md §17) live on [DotquayWire] instead (C-1) — those are wire literals like
+## every other constant there, and these six are specifically the ones that aren't.
 const KIND_NOT_CONFIGURED := "cli_not_configured"
 const KIND_LAUNCH_FAILED := "cli_launch_failed"
 const KIND_BAD_OUTPUT := "cli_bad_output"
@@ -68,12 +62,13 @@ static func failure(kind: String, message: String, command_name: String, raw_out
 	return result
 
 
-## A one-line nudge for [constant KIND_AUTH], blank for every other kind so a caller can append it
-## unconditionally. The CLI's own [member error_message] for an auth failure names what git or the
-## registry rejected (SPEC.md §17, `GitErrorClassifier`) — not what to do about it, which is exactly
-## what the login flow it's paired with (SPEC.md §17: "lets a UI offer a login prompt") is for (P1-33).
+## A one-line nudge for [constant DotquayWire.KIND_AUTH], blank for every other kind so a caller can
+## append it unconditionally. The CLI's own [member error_message] for an auth failure names what git
+## or the registry rejected (SPEC.md §17, `GitErrorClassifier`) — not what to do about it, which is
+## exactly what the login flow it's paired with (SPEC.md §17: "lets a UI offer a login prompt") is for
+## (P1-33).
 static func auth_hint(error_kind: String) -> String:
-	return "Run 'dotquay login <host>' at a terminal, then retry." if error_kind == KIND_AUTH else ""
+	return "Run 'dotquay login <host>' at a terminal, then retry." if error_kind == DotquayWire.KIND_AUTH else ""
 
 
 ## Cuts diagnostic output down to its first few lines, for folding into an error message without
@@ -90,15 +85,45 @@ static func _first_lines(text: String, max_lines: int) -> String:
 ##
 ## The runner captures stderr into the same buffer as stdout (a launch failure only ever writes
 ## there), so the envelope can be wrapped in noise on *both* sides: a shell profile's banner before
-## it, a .NET runtime or git warning after it. Trimming to the first `{` and the last `}` is a cheap
-## recovery for both, and the JSON parser still gets the final say on whether what's left is valid.
-## Anything without a brace pair is returned untouched so the caller reports the real bytes.
+## it, a .NET runtime or git warning after it. Scanning forward from the first `{` and tracking brace
+## depth finds the matching close for *that* `{` and stops there, rather than naively pairing the
+## first `{` with the buffer's *last* `}` (C-15) — a trailing stderr line that itself contains a `}`
+## (a NuGet registry's own error JSON body, say) would otherwise be swallowed into what should have
+## been just the CLI's own envelope. Depth-tracking skips over string literals (respecting `\"`
+## escapes), so a quoted `}` inside an error message embedded in the JSON itself can't miscount either.
+## Anything without a balanced brace pair is returned untouched so the caller reports the real bytes;
+## the JSON parser still gets the final say on whether what's left is valid.
 static func extract_json_object(buffer: String) -> String:
 	var open := buffer.find("{")
-	var close := buffer.rfind("}")
-	if open < 0 or close < open:
+	if open < 0:
 		return buffer
-	return buffer.substr(open, close - open + 1)
+
+	var depth := 0
+	var in_string := false
+	var escaped := false
+
+	for i in range(open, buffer.length()):
+		var character := buffer[i]
+
+		if in_string:
+			if escaped:
+				escaped = false
+			elif character == "\\":
+				escaped = true
+			elif character == "\"":
+				in_string = false
+			continue
+
+		if character == "\"":
+			in_string = true
+		elif character == "{":
+			depth += 1
+		elif character == "}":
+			depth -= 1
+			if depth == 0:
+				return buffer.substr(open, i - open + 1)
+
+	return buffer
 
 
 ## Parses a captured stdout buffer. Never throws: a caller that got here already has a problem and
@@ -173,13 +198,13 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 	var error_value: Variant = envelope.get("error")
 	if typeof(error_value) == TYPE_DICTIONARY:
 		var error_dict: Dictionary = error_value
-		result.error_kind = String(error_dict.get("kind", KIND_UNEXPECTED))
+		result.error_kind = String(error_dict.get("kind", DotquayWire.KIND_UNEXPECTED))
 		result.error_message = String(error_dict.get("message", ""))
 		result.ok = false
 	elif not result.ok:
 		# A failure envelope with no `error` object at all, or one where it isn't a dictionary (a
 		# bare string, say) — still a failure, so error_message must not be left empty.
-		result.error_kind = KIND_UNEXPECTED
+		result.error_kind = DotquayWire.KIND_UNEXPECTED
 		result.error_message = "dotquay reported a failure (exit code %d) but gave no details." % code
 
 	var data_value: Variant = envelope.get("data")

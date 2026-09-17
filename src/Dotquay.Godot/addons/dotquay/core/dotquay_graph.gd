@@ -16,7 +16,6 @@ class AddonNode extends RefCounted:
 	var version: String = ""
 	var resolved: String = ""
 	var short_sha: String = ""
-	var path: String = ""
 	## The folder under addons/ this addon installs into — its name unless install_as redirects it.
 	var folder: String = ""
 	var origin: String = DotquayWire.ORIGIN_ROOT
@@ -30,18 +29,25 @@ class AddonNode extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> AddonNode:
 		var node := AddonNode.new()
-		node.name = String(payload.get("name", ""))
-		node.git = String(payload.get("git", ""))
+		# str_or_empty throughout (C-23), not a plain String() default — SPEC.md §17 emits an absent
+		# optional value as JSON null, never by omitting the key, so a bare String() default only ever
+		# fires for a schema this plugin has never seen; a real, present-but-null value would otherwise
+		# render as the literal text "<null>".
+		node.name = DotquayWire.str_or_empty(payload.get("name"))
+		node.git = DotquayWire.str_or_empty(payload.get("git"))
 		node.version = DotquayWire.str_or_empty(payload.get("version"))
 		node.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
 		node.short_sha = DotquayWire.str_or_empty(payload.get("short_sha"))
-		node.path = String(payload.get("path", ""))
 		# Falls back to the name — both when the key is absent (a payload from a dotquay predating
 		# install_as) and when it is present but null (SPEC.md §17: emitted as null, not omitted, when
 		# it equals the name).
 		var folder := DotquayWire.str_or_empty(payload.get("folder"))
 		node.folder = folder if not folder.is_empty() else node.name
-		node.origin = String(payload.get("origin", DotquayWire.ORIGIN_ROOT))
+		# A null origin would otherwise render as the literal text "<null>", which is neither
+		# ORIGIN_ROOT nor ORIGIN_ORPHAN — is_removable() would then read a perfectly normal root addon
+		# as unremovable, with no error to explain why.
+		var origin := DotquayWire.str_or_empty(payload.get("origin"))
+		node.origin = origin if not origin.is_empty() else DotquayWire.ORIGIN_ROOT
 		node.source_kind = DotquayWire.str_or_empty(payload.get("source_kind"))
 		node.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
 		node.is_overridden = bool(payload.get("is_overridden", false))
@@ -65,12 +71,6 @@ class AddonNode extends RefCounted:
 		if not short_sha.is_empty():
 			return short_sha
 		return "unresolved"
-
-	func is_healthy() -> bool:
-		return (status.is_empty()
-			or status == DotquayWire.STATUS_CLEAN
-			or status == DotquayWire.STATUS_PATCHED
-			or status == DotquayWire.STATUS_LINKED)
 
 	## True when this addon is a live link into a folder on this machine rather than an installed
 	## copy of the locked commit.
@@ -100,10 +100,13 @@ class Requirement extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> Requirement:
 		var requirement := Requirement.new()
-		requirement.requirer = String(payload.get("requirer", ""))
-		requirement.kind = String(payload.get("kind", ""))
-		requirement.constraint = String(payload.get("constraint", ""))
-		requirement.git = String(payload.get("git", ""))
+		requirement.requirer = DotquayWire.str_or_empty(payload.get("requirer"))
+		requirement.kind = DotquayWire.str_or_empty(payload.get("kind"))
+		# str_or_empty, not a plain String() default (C-23): "constraint" is the same wire key AddonNode
+		# and DotnetEntry already treat as nullable below — a version-less requirement (a plain `git`
+		# dependency with no [dotnet]-style range) sends it as null, not omitted.
+		requirement.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
+		requirement.git = DotquayWire.str_or_empty(payload.get("git"))
 		return requirement
 
 	func describe() -> String:
@@ -124,9 +127,10 @@ class Candidate extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> Candidate:
 		var candidate := Candidate.new()
-		candidate.kind = String(payload.get("kind", DotquayWire.SOURCE_VERSION))
-		candidate.value = String(payload.get("value", ""))
-		candidate.git = String(payload.get("git", ""))
+		var kind := DotquayWire.str_or_empty(payload.get("kind"))
+		candidate.kind = kind if not kind.is_empty() else DotquayWire.SOURCE_VERSION
+		candidate.value = DotquayWire.str_or_empty(payload.get("value"))
+		candidate.git = DotquayWire.str_or_empty(payload.get("git"))
 		candidate.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
 
 		for requirer in DotquayWire.array_or_empty(payload.get("satisfies")):
@@ -135,10 +139,6 @@ class Candidate extends RefCounted:
 		candidate.satisfies_all = bool(payload.get("satisfies_all", false))
 		candidate.install_as = DotquayWire.str_or_empty(payload.get("install_as"))
 		return candidate
-
-	## The CLI flag this candidate maps to, so the picker never translates anything itself.
-	func override_flag() -> String:
-		return "--" + kind
 
 	## True when accepting this candidate means choosing a folder rather than a version.
 	func is_folder_choice() -> bool:
@@ -179,9 +179,9 @@ class Conflict extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> Conflict:
 		var conflict := Conflict.new()
-		conflict.name = String(payload.get("name", ""))
-		conflict.kind = String(payload.get("kind", ""))
-		conflict.message = String(payload.get("message", ""))
+		conflict.name = DotquayWire.str_or_empty(payload.get("name"))
+		conflict.kind = DotquayWire.str_or_empty(payload.get("kind"))
+		conflict.message = DotquayWire.str_or_empty(payload.get("message"))
 
 		for requirement in DotquayWire.array_or_empty(payload.get("requirements")):
 			if typeof(requirement) == TYPE_DICTIONARY:
@@ -257,7 +257,7 @@ class DotnetEntry extends RefCounted:
 
 	static func from_payload(payload: Dictionary) -> DotnetEntry:
 		var entry := DotnetEntry.new()
-		entry.name = String(payload.get("name", ""))
+		entry.name = DotquayWire.str_or_empty(payload.get("name"))
 		entry.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
 		entry.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
 		entry.declared_by_project = bool(payload.get("declared_by_project", true))
@@ -278,21 +278,16 @@ var addons: Array = []      ## Array[AddonNode]
 var edges: Array = []       ## Array of {from: String, to: String}
 var dotnet: Array = []      ## Array[DotnetEntry]
 var conflicts: Array = []   ## Array[Conflict]
-var overrides: PackedStringArray = PackedStringArray()
-var has_conflicts: bool = false
 
 
 static func from_payload(payload: Dictionary) -> DotquayGraph:
 	var graph := DotquayGraph.new()
-	graph.source = String(payload.get("source", DotquayWire.GRAPH_SOURCE_LOCKFILE))
-	graph.project_directory = String(payload.get("project_directory", ""))
-	graph.has_conflicts = bool(payload.get("has_conflicts", false))
+	var source := DotquayWire.str_or_empty(payload.get("source"))
+	graph.source = source if not source.is_empty() else DotquayWire.GRAPH_SOURCE_LOCKFILE
+	graph.project_directory = DotquayWire.str_or_empty(payload.get("project_directory"))
 
 	for root in DotquayWire.array_or_empty(payload.get("roots")):
 		graph.roots.append(String(root))
-
-	for name in DotquayWire.array_or_empty(payload.get("overrides")):
-		graph.overrides.append(String(name))
 
 	for entry in DotquayWire.array_or_empty(payload.get("addons")):
 		if typeof(entry) == TYPE_DICTIONARY:
@@ -300,7 +295,10 @@ static func from_payload(payload: Dictionary) -> DotquayGraph:
 
 	for entry in DotquayWire.array_or_empty(payload.get("edges")):
 		if typeof(entry) == TYPE_DICTIONARY:
-			graph.edges.append({"from": String(entry.get("from", "")), "to": String(entry.get("to", ""))})
+			graph.edges.append({
+				"from": DotquayWire.str_or_empty(entry.get("from")),
+				"to": DotquayWire.str_or_empty(entry.get("to")),
+			})
 
 	for entry in DotquayWire.array_or_empty(payload.get("dotnet")):
 		if typeof(entry) == TYPE_DICTIONARY:
@@ -329,10 +327,6 @@ func conflict_for(addon_name: String) -> Conflict:
 		if conflict.name == addon_name:
 			return conflict
 	return null
-
-
-func has_conflict(addon_name: String) -> bool:
-	return conflict_for(addon_name) != null
 
 
 func children_of(addon_name: String) -> PackedStringArray:

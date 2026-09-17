@@ -2,8 +2,8 @@ extends RefCounted
 
 ## Covers [DotquayLogBuffer] — the panel log's bounded store.
 ##
-## The two bugs it replaced are the two things asserted hardest here: the entry that trips the limit
-## must survive, and the limit must count messages rather than whatever a label thinks a line is.
+## What this suite asserts hardest: the entry that trips the limit must survive, and the limit must
+## count messages rather than whatever a label thinks a line is.
 
 const BUFFER := preload("res://addons/dotquay/core/dotquay_log_buffer.gd")
 

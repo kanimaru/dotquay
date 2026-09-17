@@ -1,6 +1,6 @@
 extends RefCounted
 
-## Fixtures for the `status --explain --json` parser (docs/DESIGN-v0.12-MODIFIED-REASON.md).
+## Fixtures for the `status --explain --json` parser.
 ##
 ## The invariant worth naming, because every test here is a face of it: an unrecognised value must
 ## read as *unsafe*. A newer CLI can add a change class or a verdict this build has never seen, and a
