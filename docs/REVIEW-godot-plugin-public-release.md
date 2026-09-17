@@ -206,14 +206,20 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   now returns its decision so `_on_cli_finished` can skip `_log_error` whenever the banner already
   shows the same message — closing the duplicate-red-line half of this item for every banner-handled
   kind, not just no-manifest.
-- [ ] **P1-6** Sidebar tabs are blank before the first graph — `_render_conflicts`/`_render_dotnet`
-  run only from `_apply_graph` (`dotquay_panel.gd:593-631`). Render the empty-state labels in `_ready`.
-- [ ] **P1-7** `_self_checked` is set to `true` before the run and even when the CLI is not configured
+- [x] **P1-6** ~~Sidebar tabs are blank before the first graph — `_render_conflicts`/`_render_dotnet`
+  run only from `_apply_graph` (`dotquay_panel.gd:593-631`). Render the empty-state labels in `_ready`.~~
+  Fixed: both are now also called from `_ready()` — each already renders its own "nothing here yet"
+  state when the graph is null, so no new branch was needed, just the earlier call.
+- [x] **P1-7** ~~`_self_checked` is set to `true` before the run and even when the CLI is not configured
   (`dotquay_panel.gd:151-156`); the deferred `KIND_NOT_CONFIGURED` failure hides the banner
   (`:495-497`). A user who opens the tab before configuring the path never gets an update notice
   that session. Reset the flag on `KIND_NOT_CONFIGURED`/`KIND_LAUNCH_FAILED`. Related: a failed
   self-update leaves `_update_message.text = "updating dotquay..."` (`:530`) while re-enabling the
-  button (`:510-519`) — restore the message.
+  button (`:510-519`) — restore the message.~~ Fixed both: `_report_self_check()` resets
+  `_self_checked` on those two kinds so a later refresh, after the path is fixed, gets a real check
+  instead of silence for the rest of the session; a new `_update_available_message` field remembers
+  the last real "update available" text so a failed self-update restores it instead of leaving
+  "Updating dotquay..." on screen.
 
 ### Add dialog
 
@@ -302,9 +308,16 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   name the requirer to act on instead; Open repository explains there's no URL because it's likely a
   NuGet package; an orphan's Remove explains it isn't a root manifest entry — deliberately without
   claiming anything would auto-prune it, since nothing in SPEC.md or P1-20 (still open) confirms that.
-- [ ] **P1-20** Orphans are a dead end: badge says "Locked but no longer required by anything." (`:99`)
+- [x] **P1-20** ~~Orphans are a dead end: badge says "Locked but no longer required by anything." (`:99`)
   and **Remove** is disabled for them (`is_removable()` requires root origin). State the remedy the CLI
-  actually offers, or enable it.
+  actually offers, or enable it.~~ Fixed: read `Dotquay.Core`'s `SyncAddonGraphAsync` to confirm the
+  actual remedy rather than guess at one, as this review's own P1-19 note had deliberately declined to
+  do — any `update` (all, or by name) re-walks the graph from every manifest root and deletes whatever
+  that walk doesn't reach, which prunes an orphan automatically. The badge tooltip and Remove's disabled
+  reason both now say so. Also found and fixed a real bug the same reading surfaced: `Update` on an
+  orphan node was *not* disabled (only transitive addons were), but `update <name>` throws "not declared
+  in dotquay.toml" for a name that was never a manifest root — exactly what an orphan is. Update is now
+  disabled for orphans too, with its own reason naming "Update all" as the actual fix.
 - [x] **P1-21** ~~Menu wording is jargon: "Pin to a version...", "Clear override", "Capture edits as a
   patch" (`:139,142,149`). Suggest "Always use a specific version…", "Stop forcing a version", "Keep
   my edits (save as patch)". Consider an **Advanced** submenu for pin/override. Node detail prints wire
@@ -322,10 +335,13 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   "No dependencies yet — use Add.", `dotquay_panel.gd:558`). Draw a centred placeholder inside the
   GraphEdit. Long addon names/folders overflow the fixed 240 px node (`dependency_node.tscn`, title
   at `dependency_node.gd:53`) into the next column — `TRIM_ELLIPSIS` on the title.
-- [ ] **P1-24** The lockfile view nags permanently: "(from lockfile — press Re-resolve to check for
+- [x] **P1-24** ~~The lockfile view nags permanently: "(from lockfile — press Re-resolve to check for
   conflicts)" in the summary (`:585`) and "Conflicts are only detected by a live re-resolve…" in the
   default sidebar tab (`:601`). Reword to "No conflicts known (Re-resolve checks online)" and drop the
-  summary suffix.
+  summary suffix.~~ Already fixed, as a side effect: P1-25's Tools-menu move (step 6) dropped the
+  summary suffix entirely (it no longer names a specific button, since Re-resolve isn't one any more)
+  and P1-24's own P2-table row reworded the sidebar tab's message to point at the Tools menu. Verified
+  by grepping the current source for the old phrasing — nothing left to fix here.
 
 ### Toolbar, log, feedback
 
@@ -339,12 +355,17 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   Tools menu item text rather than kept as a separate always-visible button. Reload keeps its existing
   exemption from the busy/readiness gate (P0-9/P0-6), extended to the new Legend button (P1-17) since
   neither needs a project to already be loaded.
-- [ ] **P1-26** "Update all" has no confirmation or preview (`dotquay_panel.gd:219-221`) while Add has
-  both and Remove has one. A beginner cannot tell it may move every addon to a new commit.
-- [ ] **P1-27** Commands that change nothing end silently: `_report_operation` (`:660-672`) skips every
+- [x] **P1-26** ~~"Update all" has no confirmation or preview (`dotquay_panel.gd:219-221`) while Add has
+  both and Remove has one. A beginner cannot tell it may move every addon to a new commit.~~ Fixed: a
+  new `ConfirmUpdateAll` dialog, wired the same way as Remove's own confirm, names what the command can
+  do (move any addon or package to a new commit or version) and that a hand-edited addon without a
+  captured patch refuses rather than losing the edit.
+- [x] **P1-27** ~~Commands that change nothing end silently: `_report_operation` (`:660-672`) skips every
   `unchanged` change and prints no closing line, so the log stops at "Installing from the lockfile...".
-  Add "Done." / "Done — nothing needed changing." Also "Check for updates" results are log-only and
-  not actionable (`:634-648`) — badge the node and/or offer "Update these".
+  Add "Done." / "Done — nothing needed changing."~~ Fixed the silent-ending half. _Deferred: "Check for
+  updates" results being log-only and not actionable (`:634-648` — badge the node and/or offer "Update
+  these") is a real cross-cutting UI addition (teaching the graph nodes about an "outdated" concept
+  they don't otherwise carry), not a wording fix, and needs its own pass rather than riding along here._
 - [x] **P1-28** ~~Warnings and errors differ only by colour (`:683-688`). Prefix "Warning: " / "Error:
   ". Log text is not BBCode-escaped: addon names, NuGet ranges like `[1.0,2.0)`, CLI messages quoting
   `[addons.x]` and TOML tables go straight into `[color]…[/color]` (`:679-701`,
@@ -362,26 +383,41 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   (first show runs `graph` and `self check` together, `:141-143`), no Clear button, 140 px tall. Add a
   rule/heading per command and a Clear button. Busy indicator is a lowercase "working..." at the far
   right (`dotquay_panel.tscn:78`) that never says *what* is running.
-- [ ] **P1-30** Overlapping `graph` reads can land out of order (refresh from tab focus, tracker,
+- [x] **P1-30** ~~Overlapping `graph` reads can land out of order (refresh from tab focus, tracker,
   Locate, self-update, explain fallback: `:141,344,452,485,525`); results apply in arrival order.
-  Remember the newest `graph` ticket and ignore older results (or serialise per P0-6).
+  Remember the newest `graph` ticket and ignore older results (or serialise per P0-6).~~ Fixed: a new
+  `_latest_graph_ticket` field and a static `should_apply_graph_result()` helper (pure function of
+  plain data, unit-tested in a new `tests/test_dotquay_panel.gd` without needing to race two real CLI
+  calls) gate both places a `graph` result gets applied — the success path and the still-render-a-
+  conflict-on-failure path alike.
 - [ ] **P1-31** Fixed dialog sizes with `wrap_controls = false` ignore editor scale
   (`add_dependency_dialog.tscn:9,11` 620×340, `install_preview_dialog.tscn` 680×460,
   `conflict_dialog.tscn` 620×520, `explain_dialog.tscn` 640×420). At 150–200 % the last form row / the
   blocker text is clipped behind the buttons. Multiply by `EditorInterface.get_editor_scale()` in
   `_ready`. Long labels without `text_overrun_behavior` push buttons out of view under scroll containers
   with `horizontal_scroll_mode = 0` (`items/dotnet_row.tscn:8-13`, `items/preview_addon_row.tscn:31-36`).
-- [ ] **P1-32** Explain dialog: the blocker tells a GUI user to run
+- [x] **P1-32** ~~Explain dialog: the blocker tells a GUI user to run
   `'dotquay update x --force' at a terminal` (`explain_dialog.gd:129-131`); add a "Keep my edits (save
   as patch)" button via `add_button()`. Its safe-verdict sentence is maintainer-speak: "The recorded
   hash predates the current hashing rules; a forced update rerecords it and discards nothing."
   (`dotquay_explain.gd:179-180`). The unavailable case (`:126-127`) disables the only button with no
-  next step.
-- [ ] **P1-33** `error_message` can be empty: `ok:false` with a missing/non-dict `error`
+  next step.~~ The maintainer-speak sentence was already gone — the P2-table pass (step 7) had already
+  reworded that exact spot to "the \"modified\" flag comes from an older way of checking" while this
+  item sat open, so re-reading the live file before touching it caught that half was moot. Fixed the
+  rest: a real `add_button()` action wired to a new `capture_patch_requested` signal (the panel runs
+  `dotquay patch <name>` from it, same as the node menu's own "Keep my edits" item) replaces the
+  terminal-command prose; the button only shows for a genuine blocked verdict, not for the unavailable
+  case, where nothing is actually known to be worth capturing; and the unavailable case's blocker text
+  now ends with a next step ("check your connection, then ask again") instead of stopping at the
+  problem.
+- [x] **P1-33** ~~`error_message` can be empty: `ok:false` with a missing/non-dict `error`
   (`dotquay_result.gd:139-144`) logs an empty red line (`dotquay_panel.gd:399,516`). Synthesize
   "dotquay reported a failure (exit code N) but gave no details." No `KIND_AUTH` constant exists
   although the CLI emits `auth` (`JsonOutput.cs:66-71`, SPEC §17) — at minimum hint "run `dotquay login
-  <host>`".
+  <host>`".~~ The first half and the `KIND_AUTH` constant were both already there (from an earlier pass
+  this review's own notes didn't catch up to) — re-read the live file rather than trusting the citation.
+  What was actually still missing: nothing used `KIND_AUTH` for anything. Added `DotquayResult.auth_hint()`
+  (blank for every kind but `auth`) and call it right after an auth failure's own red line.
 
 ---
 
@@ -450,10 +486,11 @@ that static scene text with `Conflict.candidates_heading()`/`ok_button_label()`,
 Not done: `dependency_node.gd`'s remaining status-row texts for modified/patched/override/orphan
 (`:82-85,93,96,99` in the table's own line numbers) — the linked-badge row was already fixed in the
 P1-17 pass, but these four still read close to their "Now" column, including the override badge's
-literal `[overrides]` bracket; left for the P1 polish pass alongside P1-20 (the orphan badge's actual
-remedy is still unverified). The log's `[indent]` formatting and the README's ellipsis/badge-table
-gaps are also still open — the README was already out of scope for every earlier pass in this review
-and stays that way here.
+literal `[overrides]` bracket; left for the P1 polish pass. _Update: P1-20 (step 7) has since verified
+and fixed the orphan badge's actual remedy — its tooltip now names "Update all" — so only the plain
+wording of the other three rows (modified/patched/override) is still open here._ The log's `[indent]`
+formatting and the README's ellipsis/badge-table gaps are also still open — the README was already out
+of scope for every earlier pass in this review and stays that way here.
 
 README (plugin): `README.md:3` links `../../../../README.md` (dead once copied into a project) → repo
 URL. `:57` heading "## …and shows you what you're agreeing to" is a fragment → "## Previewing before
@@ -626,12 +663,22 @@ CLI runner / settings (make the executor injectable so no real binary is needed)
 Panel (instantiate detached as `test_scenes` does; inject `_cli`/`_rescan` doubles via `set()`):
 - `test_panel_dispatches_every_command_to_its_handler`, `test_panel_error_path_applies_a_conflicted_graph`
 - `test_panel_ticket_keyed_pending_requests_survive_a_failed_preview`
-- `test_panel_self_check_retries_after_not_configured` (P1-7),
-  `test_panel_failed_self_update_restores_the_banner_message`
+- ~~`test_panel_self_check_retries_after_not_configured` (P1-7),
+  `test_panel_failed_self_update_restores_the_banner_message`~~ P1-7 itself is fixed (step 7), but not
+  via this suggested harness — `_cli` is created inside `_ready()` (`_cli = CLI_SCRIPT.new();
+  add_child(_cli)`), so injecting a double needs either a real `add_child`-ed panel in a tree or a
+  seam this pass didn't add. Verified instead by a full real-binary test run plus reading the two
+  branches by hand; the harness itself (inject `_cli`/`_rescan`, add the panel to a tree so `_ready()`
+  actually runs) is still worth doing, as its own follow-up rather than riding along on a wording pass.
 - `test_panel_summary_is_empty_until_a_graph_arrives` (P0-1)
 - ~~`test_log_text_with_bbcode_tags_is_escaped` (P1-28; needs an `escape_bbcode` helper in core)~~
   Added, as `tests/test_dotquay_palette.gd` (the helper itself needed no panel instance to test).
-- `test_update_all_asks_for_confirmation` (P1-26)
+- ~~`test_update_all_asks_for_confirmation` (P1-26)~~ The confirm dialog is fixed (step 7); the
+  suggested panel-instance test hits the same missing-harness gap as P1-7's two above, so it's
+  verified for real (655/655 assertions, real binary) rather than by this specific test name.
+- Added this pass, not originally suggested: `tests/test_dotquay_panel.gd`'s
+  `should_apply_graph_result()` coverage (P1-30) — a pure static function pulled out specifically so
+  the out-of-order-`graph`-reply rule didn't need the panel-instance harness at all.
 
 Graph view:
 - `test_graph_view_preserves_manual_positions_across_render` (P1-22)
@@ -653,22 +700,31 @@ Add form:
 2. P0-6 + P0-7 together (queue + `execute_with_pipe` + timeout + kill-on-exit) — one change, fixes
    five findings. **Done: both the queue (P0-6) and the timeout/kill-on-exit rewrite (P0-7)** — the
    latter verified against real hung and real fast processes on the actual Godot 4.7.2 binary.
-3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes; P1-33 not yet reviewed against the current code.
+3. ~~P0-4, P0-5, P0-8~~ — done, in two follow-up passes. ~~P1-33 not yet reviewed against the current
+   code~~ — reviewed and closed in step 7: both halves this note flagged as open (the empty-message
+   synthesis and the missing `KIND_AUTH` constant) turned out to already exist from an earlier pass;
+   what was actually still missing was a login hint that used `KIND_AUTH` for anything.
 4. ~~P0-2, P0-3, P1-1..P1-4~~ — done.
 5. ~~P0-9, P1-8, P1-9, P1-14~~ — done.
 6. ~~P1-17, P1-18, P1-19, P1-21, P1-25~~ — legend, pin mode, menu wording, toolbar names. Done.
-7. The P2 string table — **done**, folding in P1-5 (no-manifest banner wording, duplicate red log line)
-   and P1-28's escaping half (BBCode injection in the log). The remaining P1 polish and C items — not
-   started.
+7. ~~The P2 string table, P1-5, P1-28's escaping half, and P1-6/7/20/24/26/27/30/32/33~~ — **done**. The
+   remaining P1 polish (P1-10..13, P1-15, P1-16, P1-22, P1-23, P1-29, P1-31) and the C-1..C-25 items —
+   not started.
 
-**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, P1-5, P1-8, P1-9, P1-14,
-P1-17, P1-18, P1-19, P1-21, P1-25, P1-28 (escaping half), the full P2 string-table rewrite (~36 sites,
-plus the new `DotquayText.plural()` helper), C-2, C-3, C-8, C-11, C-12.
-Verified for real: 637/637 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
-across 22 conventional commits from this session (`081d141`..`863207f`) on `main` — three unrelated
-MCP-feature commits and one manual commit from other concurrent work in the repo sit interleaved in
-that range and were left untouched (verified via `git status --short` before every stage). Everything
-a first-time Godot user would hit trying to add, update, or remove an addon through this tab is now
-either fixed or has a working, discoverable path forward, and the panel's user-facing wording has had
-its first full plain-language editing pass — the remaining P1/P2/C backlog above is ergonomics and
-hygiene, not a beginner getting stuck or confused by what's on screen.
+**Net this pass:** 11 of 11 P0s fully closed, plus P1-1 through P1-9, P1-14, P1-17 through P1-21,
+P1-24 through P1-28, P1-30, P1-32, P1-33 (every P1 except P1-10..13, P1-15, P1-16, P1-22, P1-23, P1-29,
+P1-31), the full P2 string-table rewrite (~36 sites, plus the new `DotquayText.plural()` helper),
+C-2, C-3, C-8, C-11, C-12.
+Verified for real: 655/655 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 24 conventional commits from this session (`081d141`..`eeb56d0`) on `main` — interleaved with
+unrelated commits from other concurrent work in the repo (an MCP-server feature, one manual commit)
+that were left untouched throughout (verified via `git status --short` before every stage). Two P1-20
+findings came from reading `Dotquay.Core`'s actual pruning logic rather than guessing: orphans are
+already cleared by any `update`, and `update <name>` on an orphan was a live, previously-unnoticed bug
+(it always threw). Everything a first-time Godot user would hit trying to add, update, or remove an
+addon through this tab is now either fixed or has a working, discoverable path forward, the panel's
+user-facing wording has had its first full plain-language editing pass, and every dead end this review
+found (no legend, no pin mode, no disabled-item reasons, no orphan remedy, no confirmation before a
+project-wide update, a silently-ending command, an out-of-order graph race, a terminal-only patch
+escape hatch, an unused auth hint) now has a way through. What's left is ergonomics (dialog wording,
+layout, log structure) and code hygiene, not a beginner getting stuck or confused by what's on screen.
