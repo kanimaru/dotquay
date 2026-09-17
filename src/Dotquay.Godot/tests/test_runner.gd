@@ -24,6 +24,10 @@ const SUITES := [
 	# The dependency-node menu's disabled-item explanations (P1-19), pulled out as static functions of
 	# plain data so they're testable without a GraphNode in a tree.
 	preload("res://tests/test_dependency_node.gd"),
+	# The graph view's manual-position bookkeeping (P1-22) — driven against the real, detached scene
+	# rather than pulled apart into static functions, since what's under test is render()'s own
+	# stateful behaviour across two calls, not a pure mapping of plain data.
+	preload("res://tests/test_dependency_graph_view.gd"),
 	# The panel's own pure static helper (P1-30) — see the suite's own header for why this doesn't
 	# instantiate the panel itself.
 	preload("res://tests/test_dotquay_panel.gd"),
@@ -32,6 +36,7 @@ const SUITES := [
 	preload("res://tests/test_dotquay_add_request.gd"),
 	preload("res://tests/test_dotquay_rescan.gd"),
 	preload("res://tests/test_dotquay_log_buffer.gd"),
+	preload("res://tests/test_dotquay_nodes.gd"),
 	preload("res://tests/test_dotquay_refresh_tracker.gd"),
 	# Runs real (short-lived) OS processes to prove the wall-clock timeout in P0-7 actually cuts off
 	# a hung one rather than just being plumbing that looks right. Unlike test_cli_contract.gd below,

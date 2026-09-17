@@ -26,6 +26,7 @@ const MAX_LOG_ENTRIES := 200
 @onready var _graph_view: DotquayDependencyGraphView = %GraphView
 @onready var _summary: Label = %Summary
 @onready var _log: RichTextLabel = %Log
+@onready var _clear_log_button: Button = %ClearLogButton
 @onready var _conflict_list: VBoxContainer = %ConflictList
 @onready var _dotnet_list: VBoxContainer = %DotnetList
 @onready var _busy: Label = %Busy
@@ -98,6 +99,12 @@ var _refresh_tracker := DotquayRefreshTracker.new()
 ## The log's contents, in message units. The [RichTextLabel] is a view of this, rebuilt on change.
 var _log_buffer := DotquayLogBuffer.new(MAX_LOG_ENTRIES)
 
+## Ticket -> [method busy_label] for every run the CLI hasn't reported back on yet (P1-29). A
+## dictionary rather than a single "current command" string because several runs can be in flight
+## together — the startup self-check racing the first graph load is the common case — and the busy
+## indicator should say all of them, not whichever happened to be tracked last.
+var _running_commands: Dictionary = {}
+
 ## Whether this editor session has already asked the release channel about the CLI (v0.17). Once,
 ## not once per panel focus: [method refresh] runs every time the tab is shown, and reaching the
 ## network on each of those would be a worse habit than the one this feature is fixing.
@@ -159,6 +166,7 @@ func _ready() -> void:
 	_init_button.pressed.connect(_on_init_pressed)
 	_update_button.pressed.connect(_on_self_update_pressed)
 	_update_dismiss_button.pressed.connect(_on_self_update_dismissed)
+	_clear_log_button.pressed.connect(_log_buffer.clear)
 
 	_busy.add_theme_color_override("font_color", DotquayPalette.WARN)
 	_setup_message.add_theme_color_override("font_color", DotquayPalette.WARN)
@@ -266,6 +274,11 @@ func resolve() -> void:
 ## Returns the run's ticket so a caller can key state on it (see [member _pending_requests]).
 func _run(command_name: String, args: PackedStringArray, refresh_after: bool = false) -> int:
 	var ticket := _cli.run(command_name, args)
+
+	_running_commands[ticket] = busy_label(command_name)
+	_update_busy_label()
+	_log_heading(command_name)
+
 	if refresh_after:
 		_refresh_tracker.arm(ticket)
 	return ticket
@@ -550,6 +563,17 @@ func _on_busy_changed(is_busy: bool) -> void:
 	_update_toolbar_state()
 
 
+## Names what is actually running (P1-29) instead of the bare "Working..." the label used to be stuck
+## with regardless of which button was clicked. [member _running_commands] can hold more than one
+## label at once — shown together, oldest first, rather than picking one arbitrarily and hiding that
+## something else is also in flight.
+func _update_busy_label() -> void:
+	if _running_commands.is_empty():
+		_busy.text = "Working..."
+		return
+	_busy.text = ", ".join(_running_commands.values())
+
+
 ## Buttons exempt from the readiness half of the gate below: the only controls that must stay
 ## reachable even when nothing else is. RefreshButton is the one that can retry after the setup
 ## banner's fix; LegendButton opens a static reference dialog that reads nothing from the project, so
@@ -572,6 +596,12 @@ func _update_toolbar_state() -> void:
 
 
 func _on_cli_finished(result: DotquayResult) -> void:
+	# Every path below returns through here exactly once per ticket, so this is the one place that's
+	# guaranteed to run for every run this dialog started — the matching half of [method _run]'s own
+	# bookkeeping (P1-29).
+	_running_commands.erase(result.ticket)
+	_update_busy_label()
+
 	# Handled before the setup banner and before the shared error path. A self-check that could not
 	# reach the release channel says nothing about whether this project is set up, and must not be
 	# allowed to rewrite a banner about the project or to put a red line in the log: dotquay's
@@ -937,6 +967,49 @@ func _log_warning(text: String) -> void:
 
 func _log_error(text: String) -> void:
 	_append(DotquayPalette.bbcode(DotquayPalette.ERROR, DotquayPalette.escape_bbcode(text)))
+
+
+## One line marking where a command's own output begins (P1-29), so two runs that overlap in the log
+## — the startup self-check racing the first graph load is the common case — read as two blocks
+## instead of one interleaved wall of text.
+func _log_heading(command_name: String) -> void:
+	_append(DotquayPalette.bbcode(DotquayPalette.MUTED, "── %s ──" % busy_label(command_name).trim_suffix("...")))
+
+
+## A human-readable, present-tense label for [param command_name] — the same string [method _run]
+## hands to [method DotquayCli.run] — used by both the busy indicator and the log heading above it
+## (P1-29). A static function of plain data, matching [DotquayDependencyNode]'s own reason helpers, so
+## the mapping is a test rather than something only visible by clicking every button once.
+static func busy_label(command_name: String) -> String:
+	match command_name:
+		DotquayWire.COMMAND_ADD, DotquayWire.COMMAND_ADD_PREVIEW:
+			return "Adding..."
+		DotquayWire.COMMAND_GRAPH:
+			return "Checking dependencies..."
+		DotquayWire.COMMAND_OUTDATED:
+			return "Checking for updates..."
+		DotquayWire.COMMAND_DOCTOR:
+			return "Running doctor..."
+		DotquayWire.COMMAND_STATUS:
+			return "Checking status..."
+		DotquayWire.COMMAND_SELF_CHECK:
+			return "Checking dotquay version..."
+		DotquayWire.COMMAND_SELF_UPDATE:
+			return "Updating dotquay..."
+		DotquayWire.COMMAND_INSTALL:
+			return "Installing..."
+		DotquayWire.COMMAND_UPDATE:
+			return "Updating..."
+		DotquayWire.COMMAND_OVERRIDE:
+			return "Pinning..."
+		DotquayWire.COMMAND_PATCH:
+			return "Patching..."
+		DotquayWire.COMMAND_REMOVE:
+			return "Removing..."
+		DotquayWire.COMMAND_INIT:
+			return "Creating dotquay.toml..."
+		_:
+			return "Working..."
 
 
 func _append(bbcode: String) -> void:

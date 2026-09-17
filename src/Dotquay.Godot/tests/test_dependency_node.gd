@@ -87,3 +87,24 @@ func test_update_disabled_reason_for_an_orphan_names_update_all() -> void:
 	# fail for it. Update is disabled for the same reason Remove is, but the explanation differs.
 	var reason := NODE.update_disabled_reason(false, true, [])
 	runner.check(reason.contains("Update all"), "should name the actual remedy: %s" % reason)
+
+
+func test_truncate_title_leaves_short_names_alone() -> void:
+	runner.equal(NODE.truncate_title("gut"), "gut", "a short name needs no truncation")
+
+
+func test_truncate_title_leaves_a_name_exactly_at_the_limit_alone() -> void:
+	var exact_length_name := "a".repeat(NODE.TITLE_MAX_LENGTH)
+	runner.equal(NODE.truncate_title(exact_length_name), exact_length_name,
+		"a name exactly at the limit is not itself too long")
+
+
+func test_truncate_title_shortens_long_names_with_a_trailing_ellipsis() -> void:
+	var long_name := "a_very_long_addon_folder_name_indeed_longer_than_any_node_is_wide"
+	var truncated: String = NODE.truncate_title(long_name)
+
+	runner.check(truncated.length() <= NODE.TITLE_MAX_LENGTH,
+		"a truncated title must not exceed the configured max length: %s" % truncated)
+	runner.check(truncated.ends_with("…"), "a truncated title should end with an ellipsis: %s" % truncated)
+	runner.check(long_name.begins_with(truncated.substr(0, truncated.length() - 1)),
+		"the visible prefix should still be a real prefix of the original name: %s" % truncated)

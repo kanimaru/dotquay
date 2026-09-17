@@ -54,6 +54,8 @@ func _bind() -> void:
 	if _headline != null:
 		return
 
+	DotquayNodes.scale_dialog_size(self)
+
 	_headline = %Headline
 	_detail = %Detail
 	_requirements_heading = %RequirementsHeading

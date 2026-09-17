@@ -39,3 +39,17 @@ func test_a_non_graph_result_always_applies_regardless_of_the_graph_ticket() -> 
 
 	runner.check(PANEL.should_apply_graph_result(result, 999),
 		"the staleness rule only ever concerns graph reads — every other command has nothing to race against")
+
+
+func test_busy_label_names_known_commands_instead_of_a_bare_working() -> void:
+	runner.equal(PANEL.busy_label(WIRE.COMMAND_ADD), "Adding...",
+		"the busy indicator should say what's actually running (P1-29)")
+	runner.equal(PANEL.busy_label(WIRE.COMMAND_GRAPH), "Checking dependencies...",
+		"a graph read gets its own label, distinct from every other command")
+	runner.equal(PANEL.busy_label(WIRE.COMMAND_SELF_CHECK), "Checking dotquay version...",
+		"the startup self-check names itself too, not just user-triggered commands")
+
+
+func test_busy_label_falls_back_for_an_unrecognised_command() -> void:
+	runner.equal(PANEL.busy_label("something-new"), "Working...",
+		"a command this mapping hasn't been taught yet should still say something, not crash")

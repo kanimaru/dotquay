@@ -23,8 +23,26 @@ const MARGIN := Vector2(40, 40)
 
 var _nodes_by_name: Dictionary = {}
 
+## Addon name -> the [member GraphElement.position_offset] the user last dragged it to. Survives
+## across [method render] calls (P1-22) so a refresh — which runs on every return to the tab — never
+## undoes a layout the user already fixed up by hand. Forgotten only by [method auto_arrange].
+var _manual_positions: Dictionary = {}
+
+## True only while [method render] itself is assigning [member GraphElement.position_offset]. A drag
+## and a layout assignment both fire [signal GraphElement.position_offset_changed]; this is what tells
+## [method _on_position_offset_changed] apart which one just happened, so laying a node back onto its
+## own remembered spot is never mistaken for the user moving it again.
+var _rendering := false
+
+## The graph [method render] was last called with, kept only so [method auto_arrange] can re-render
+## without whoever clicks the button having to hand the graph back in.
+var _last_graph: DotquayGraph
+
 
 func render(graph: DotquayGraph) -> void:
+	_last_graph = graph
+	(%EmptyHint as Label).visible = graph == null or graph.is_empty()
+
 	clear_connections()
 
 	# Only GraphNodes: GraphEdit owns internal children (the connection layer, the minimap) that must
@@ -52,7 +70,13 @@ func render(graph: DotquayGraph) -> void:
 				continue
 
 			var node: DotquayDependencyNode = NODE_SCENE.instantiate()
-			node.position_offset = MARGIN + Vector2(column * COLUMN_WIDTH, row * ROW_HEIGHT)
+			var default_position := MARGIN + Vector2(column * COLUMN_WIDTH, row * ROW_HEIGHT)
+
+			_rendering = true
+			node.position_offset = _manual_positions.get(model.name, default_position)
+			_rendering = false
+
+			node.position_offset_changed.connect(_on_position_offset_changed.bind(model.name, node))
 			node.action_requested.connect(_on_node_action)
 			add_child(node)
 			node.setup(model, graph.conflict_for(model.name), roots.has(model.name))
@@ -89,3 +113,35 @@ func focus_addon(addon_name: String) -> void:
 
 func _on_node_action(action: String, addon_name: String) -> void:
 	node_action_requested.emit(action, addon_name)
+
+
+## Fires for both a real drag and [method render]'s own layout assignment; [member _rendering] is
+## what tells them apart. Only a drag is worth remembering — recording the layout's own placement
+## right back into [member _manual_positions] would make every render "manual" from the second one on.
+func _on_position_offset_changed(addon_name: String, node: GraphNode) -> void:
+	if _rendering:
+		return
+	_manual_positions[addon_name] = node.position_offset
+
+
+## Forgets every manually dragged position and re-renders the last graph from scratch, back onto its
+## computed layered layout (P1-22). The toolbar's own escape hatch for [member show_arrange_button]
+## being deliberately turned off: Godot's built-in generic arrange knows nothing about the
+## left-to-right column/row layout [method render] computes, so turning it back on would just replace
+## one layout the user fought with another.
+func auto_arrange() -> void:
+	_manual_positions.clear()
+	if _last_graph != null:
+		render(_last_graph)
+
+
+## The button lives here rather than in the scene: [method GraphEdit.get_menu_hbox] is the built-in
+## toolbar's own container, populated by the engine once this view enters a live [SceneTree], so it
+## isn't reachable at [method PackedScene.instantiate] time the way a scene-authored child would be —
+## unlike the rest of this file, this one genuinely needs [method _ready].
+func _ready() -> void:
+	var arrange_button := Button.new()
+	arrange_button.text = "Auto-arrange"
+	arrange_button.tooltip_text = "Forget any manually dragged positions and lay the graph out fresh."
+	arrange_button.pressed.connect(auto_arrange)
+	get_menu_hbox().add_child(arrange_button)

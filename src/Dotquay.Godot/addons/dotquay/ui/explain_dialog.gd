@@ -58,6 +58,8 @@ func _bind() -> void:
 	if _summary != null:
 		return
 
+	DotquayNodes.scale_dialog_size(self)
+
 	_summary = %Summary
 	_changes_heading = %ChangesHeading
 	_change_list = %ChangeList

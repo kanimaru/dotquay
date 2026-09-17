@@ -10,3 +10,24 @@ right_disconnects = false
 minimap_enabled = true
 show_arrange_button = false
 script = ExtResource("1_graph_view")
+
+[node name="EmptyHint" type="Label" parent="."]
+unique_name_in_owner = true
+mouse_filter = 2
+custom_minimum_size = Vector2(320, 0)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -20.0
+offset_right = 160.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+text = "No dependencies yet — use Add."

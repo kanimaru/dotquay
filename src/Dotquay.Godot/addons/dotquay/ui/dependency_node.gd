@@ -24,6 +24,11 @@ const ACTION_EXPLAIN := "explain"
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
+## [GraphNode]'s native title bar has no `text_overrun_behavior` of its own to lean on (P1-23), so a
+## long addon or folder name is truncated by hand instead of being left to push the fixed 240px node
+## wide enough to overlap the next column.
+const TITLE_MAX_LENGTH := 28
+
 var addon_name: String = ""
 
 @onready var _status_row: HBoxContainer = %StatusRow
@@ -50,7 +55,10 @@ func setup(model: DotquayGraph.AddonNode, conflict: DotquayGraph.Conflict, is_ro
 	_is_root = is_root
 
 	addon_name = model.name
-	title = model.name
+	title = truncate_title(model.name)
+	# The full name is still one hover away — truncation must never make it undiscoverable, only
+	# shorter on screen.
+	tooltip_text = model.name
 	name = "DotquayNode_" + model.name
 
 	if is_node_ready():
@@ -174,6 +182,15 @@ func _is_transitive() -> bool:
 ## Names who actually needs this addon, for a tooltip that names a specific thing to go do instead of
 ## just saying "not here". Falls back to something true but generic when the graph never populated
 ## [param requirements] — the lockfile-only view of the graph doesn't carry them.
+## Shortens [param addon_name] to [constant TITLE_MAX_LENGTH] with a trailing ellipsis (P1-23). A
+## plain string function of plain data, like every other reason below, so the cutoff length is a test
+## rather than something only visible by dragging a long-named addon onto the canvas.
+static func truncate_title(addon_name: String) -> String:
+	if addon_name.length() <= TITLE_MAX_LENGTH:
+		return addon_name
+	return addon_name.substr(0, TITLE_MAX_LENGTH - 1) + "…"
+
+
 static func requirer_summary(requirements: Array) -> String:
 	var names := PackedStringArray()
 	for requirement in requirements:

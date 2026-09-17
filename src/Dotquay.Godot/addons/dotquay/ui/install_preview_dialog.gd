@@ -48,6 +48,8 @@ func _bind() -> void:
 	if _summary != null:
 		return
 
+	DotquayNodes.scale_dialog_size(self)
+
 	_summary = %Summary
 	_addon_list = %AddonList
 	_dotnet_section = %DotnetSection

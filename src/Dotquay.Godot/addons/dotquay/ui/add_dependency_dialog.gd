@@ -61,6 +61,8 @@ func _bind() -> void:
 	if _kind != null:
 		return
 
+	DotquayNodes.scale_dialog_size(self)
+
 	_kind = %Kind
 	_source = %Source
 	_mode_row = %ModeRow
