@@ -623,6 +623,10 @@ Everything here was verified by grepping `addons/` + `tests/`.
   plain text" — false, `InitCommand.cs:96-112` emits an envelope. Tighten the assertion to
   `init_result.ok`. Also `:128` labels an `init` call `"status"` (copy-paste).~~ Fixed: comment
   corrected, assertion now requires `init_result.ok` (not just the file existing), label renamed.
+  **Re-applied 2026-09-17:** all three parts were silently undone when the C-1..C-25 sync wrote a
+  pre-fix copy of this file back over the device (the same stale-copy overwrite that cost SPEC.md
+  §20) and the box was ticked anyway. Verified live this time: `init --json` reports
+  `"command":"init"` with an operation payload.
 - [x] **C-13** ~~`dependency_graph_view.gd:11-13` says "the panel listens to the built-in
   `node_selected`" — the panel never connects it.~~ Fixed: rewrote the comment to state plainly that
   nothing connects it today, and what a future details-pane feature would do instead — no longer
