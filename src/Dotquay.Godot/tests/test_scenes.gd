@@ -306,6 +306,136 @@ func test_conflict_dialog_uses_pin_wording_and_hides_empty_requirements() -> voi
 	dialog.free()
 
 
+## Enter in any of the add-dialog's four fields must confirm it like clicking Add (P1-13) — previously
+## true of none of them, since `register_text_enter` was never called at all. `text_submitted` is a
+## real Godot signal, so a missing registration shows up as no connection on it, without needing to
+## drive an actual keypress.
+func test_add_dependency_dialog_registers_enter_to_confirm_on_every_field() -> void:
+	var dialog: ConfirmationDialog = load("res://addons/dotquay/ui/add_dependency_dialog.tscn").instantiate()
+	dialog._bind()
+
+	for field_name in ["_source", "_value", "_path", "_install_as"]:
+		var field: LineEdit = dialog.get(field_name)
+		runner.check(not field.get_signal_connection_list("text_submitted").is_empty(),
+			"%s has no register_text_enter binding, so Enter does nothing there (P1-13)" % field_name)
+
+	dialog.free()
+
+
+## P1-13: pasting a git URL while "NuGet" is selected switches Kind to Git — already true before this
+## pass. Editing that URL back down to something that no longer looks like git now switches Kind back
+## too, but only when the dialog made the original guess; a Git the user picked from the dropdown
+## themselves is never second-guessed by what they go on to type.
+func test_add_dependency_dialog_switches_kind_back_only_when_it_auto_switched() -> void:
+	var dialog: ConfirmationDialog = load("res://addons/dotquay/ui/add_dependency_dialog.tscn").instantiate()
+	dialog.open()
+
+	dialog._kind.select(DotquayAddDependencyDialog.SourceKind.NUGET)
+	dialog._on_source_changed("https://github.com/nathanhoad/godot_dialogue_manager.git")
+	runner.equal(dialog._kind.selected, DotquayAddDependencyDialog.SourceKind.GIT,
+		"a git-looking URL should switch Kind to Git")
+
+	dialog._on_source_changed("Newtonsoft.Json")
+	runner.equal(dialog._kind.selected, DotquayAddDependencyDialog.SourceKind.NUGET,
+		"editing the URL away from looking like git should switch Kind back, since the dialog made the original guess")
+
+	# Now the opposite: a Git the user picked themselves is never overridden by what they type next.
+	dialog._kind.select(DotquayAddDependencyDialog.SourceKind.GIT)
+	dialog._on_kind_selected(0)
+	dialog._on_source_changed("Newtonsoft.Json")
+	runner.equal(dialog._kind.selected, DotquayAddDependencyDialog.SourceKind.GIT,
+		"a Git the user picked manually from the dropdown must not be overridden by what they type next")
+
+	dialog.free()
+
+
+## P1-13: the NuGet hint used to say "latest stable" regardless of Pin mode, which is simply wrong
+## once "A specific version…" is selected.
+func test_add_dependency_dialog_nuget_hint_varies_with_pin_mode() -> void:
+	var dialog: ConfirmationDialog = load("res://addons/dotquay/ui/add_dependency_dialog.tscn").instantiate()
+	dialog.open()
+	dialog._kind.select(DotquayAddDependencyDialog.SourceKind.NUGET)
+	dialog._on_source_changed("Newtonsoft.Json")
+
+	dialog._select_mode(DotquayAddRequest.Source.LATEST)
+	dialog._refresh()
+	var latest_hint: String = dialog._hint.text
+
+	dialog._select_mode(DotquayAddRequest.Source.VERSION)
+	dialog._refresh()
+	var version_hint: String = dialog._hint.text
+
+	runner.check(latest_hint != version_hint,
+		"the NuGet hint must change with Pin mode instead of always saying 'latest stable' (P1-13)")
+	runner.check(version_hint.contains("exact version"),
+		"the Version hint should say what pinning a NuGet package to a version means")
+
+	dialog.free()
+
+
+## P1-12: a placeholder that reads like a real value ("13.0.3", "main") is indistinguishable from
+## something pre-filled once OK is disabled — prefixing "e.g." is what tells them apart.
+func test_add_dependency_dialog_value_placeholders_read_as_examples() -> void:
+	var dialog: ConfirmationDialog = load("res://addons/dotquay/ui/add_dependency_dialog.tscn").instantiate()
+	dialog.open()
+
+	dialog._kind.select(DotquayAddDependencyDialog.SourceKind.NUGET)
+	dialog._on_source_changed("Newtonsoft.Json")
+	dialog._select_mode(DotquayAddRequest.Source.VERSION)
+	dialog._refresh()
+	runner.check(dialog._value.placeholder_text.begins_with("e.g. "),
+		"a bare-looking NuGet version placeholder must read as an example (P1-12)")
+
+	dialog._kind.select(DotquayAddDependencyDialog.SourceKind.GIT)
+	dialog._on_source_changed("https://github.com/x/y.git")
+	dialog._select_mode(DotquayAddRequest.Source.BRANCH)
+	dialog._refresh()
+	runner.check(dialog._value.placeholder_text.begins_with("e.g. "),
+		"a bare branch placeholder like 'main' must read as an example too")
+
+	dialog.free()
+
+
+## P1-15: a preview that would change nothing on disk still offered an enabled Install, teaching a
+## user that clicking through it does something when it does not.
+func test_install_preview_dialog_disables_ok_for_a_no_op_preview() -> void:
+	var dialog: ConfirmationDialog = load("res://addons/dotquay/ui/install_preview_dialog.tscn").instantiate()
+	var preview := DotquayPreview.from_payload({"name": "gut", "is_no_op": true})
+	var request := DotquayAddRequest.for_git("https://github.com/bitwes/Gut.git")
+
+	dialog.show_preview(preview, request)
+
+	runner.check(dialog.get_ok_button().disabled,
+		"a no-op preview has nothing to add, so OK must stay disabled (P1-15)")
+	runner.check(not dialog.get_ok_button().tooltip_text.is_empty(),
+		"the disabled OK button should say why, the same way every other disabled OK in this plugin does")
+
+	dialog.free()
+
+
+## P1-16: a checkbox next to a URL and a mention of `trusted_hosts` explains nothing to someone who
+## has never had to know what a NuGet feed is. The card must say so in plain language, not just in a
+## tooltip nobody hovers.
+func test_preview_source_card_explains_what_a_feed_is() -> void:
+	var card: DotquayPreviewSourceCard = load("res://addons/dotquay/ui/items/preview_source_card.tscn").instantiate()
+	var source := DotquayPreview.Source.from_payload({
+		"name": "kemomi", "url": "https://gitlab.kemomi.de/api/v4/projects/1/packages/nuget/index.json",
+		"declared_by_addon": "gut",
+	})
+
+	card.setup(source, true)
+
+	var explained := false
+	for child in card.get_node("%Detail").get_children():
+		if (child as Label).text.contains("NuGet feed is a server"):
+			explained = true
+
+	runner.check(explained,
+		"the card must explain what a NuGet feed is in plain language, not rely on trusted_hosts jargon (P1-16)")
+
+	card.free()
+
+
 ## Pulls `%Name` tokens out of GDScript source.
 ##
 ## Requires an uppercase first letter, which is what separates a unique node name from a format

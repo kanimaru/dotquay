@@ -21,13 +21,16 @@ const ADDON_ROW := preload("res://addons/dotquay/ui/items/preview_addon_row.tscn
 const SOURCE_CARD := preload("res://addons/dotquay/ui/items/preview_source_card.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-@onready var _summary: Label = %Summary
-@onready var _addon_list: VBoxContainer = %AddonList
-@onready var _dotnet_section: VBoxContainer = %DotnetSection
-@onready var _dotnet_list: VBoxContainer = %DotnetList
-@onready var _source_section: VBoxContainer = %SourceSection
-@onready var _source_list: VBoxContainer = %SourceList
-@onready var _blocker: Label = %Blocker
+## Bound on first use rather than with `@onready` (matches [DotquayExplainDialog._bind]) — this is
+## what lets [method show_preview] be driven directly against a detached instance, the way P1-15's
+## no-op-preview OK-disable is asserted.
+var _summary: Label
+var _addon_list: VBoxContainer
+var _dotnet_section: VBoxContainer
+var _dotnet_list: VBoxContainer
+var _source_section: VBoxContainer
+var _source_list: VBoxContainer
+var _blocker: Label
 
 var _preview: DotquayPreview
 var _request: DotquayAddRequest
@@ -38,12 +41,27 @@ var _pending_cards: Array = []
 
 
 func _ready() -> void:
+	_bind()
+
+
+func _bind() -> void:
+	if _summary != null:
+		return
+
+	_summary = %Summary
+	_addon_list = %AddonList
+	_dotnet_section = %DotnetSection
+	_dotnet_list = %DotnetList
+	_source_section = %SourceSection
+	_source_list = %SourceList
+	_blocker = %Blocker
+
 	confirmed.connect(_on_confirmed)
 	_summary.add_theme_color_override("font_color", DotquayPalette.MUTED)
 	_blocker.add_theme_color_override("font_color", DotquayPalette.WARN)
 
-	for heading in [%AddonsHeading, %DotnetHeading, %SourcesHeading]:
-		(heading as Label).add_theme_color_override("font_color", DotquayPalette.MUTED)
+	for label in [%AddonsHeading, %MarkerLegend, %DotnetHeading, %SourcesHeading]:
+		(label as Label).add_theme_color_override("font_color", DotquayPalette.MUTED)
 
 
 ## [param request] is carried through untouched so the confirmed add uses exactly the arguments the
@@ -51,6 +69,7 @@ func _ready() -> void:
 ## wrong, and the payload does not carry every argument anyway (`--path` and `--install-as` are inputs
 ## the CLI has no reason to echo back).
 func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
+	_bind()
 	_preview = preview
 	_request = request
 	_pending_cards.clear()
@@ -65,7 +84,11 @@ func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
 	_render_sources()
 	_update_ok_state()
 
-	popup_centered()
+	# Rendering is the contract; popping up is what being in a tree adds on top of it — guarded so the
+	# same call is valid on a detached instance, which is how P1-15's no-op-preview OK-disable is
+	# asserted without a SceneTree.
+	if is_inside_tree():
+		popup_centered()
 
 
 func _render_addons() -> void:
@@ -125,11 +148,18 @@ func _add_source_card(source: DotquayPreview.Source, needs_approval: bool) -> Do
 
 ## The OK button is the enforcement point: a refused feed makes the add fail on the CLI side anyway,
 ## and letting the user press "Add" into a guaranteed failure teaches them the dialog is noise.
+##
+## A no-op preview (P1-15) gets the same treatment for the opposite reason — not a failure waiting to
+## happen, but nothing at all for "Add" to do. [method DotquayPreview.summarize] already says so in
+## the headline; disabling OK is what stops that sentence being decoration a user can click past.
 func _update_ok_state() -> void:
 	var unapproved := _pending_cards.filter(
 		func(card: DotquayPreviewSourceCard) -> bool: return not card.is_approved())
+	var no_op := _preview != null and _preview.is_no_op
 
-	get_ok_button().disabled = not unapproved.is_empty()
+	get_ok_button().disabled = no_op or not unapproved.is_empty()
+	get_ok_button().tooltip_text = (
+		"Nothing on disk would change, so there is nothing to add." if no_op else "")
 
 	_blocker.visible = not unapproved.is_empty()
 	var feed_phrase := DotquayText.plural(unapproved.size(), "%d feed above still needs", "%d feeds above still need")

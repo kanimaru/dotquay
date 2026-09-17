@@ -101,4 +101,4 @@ popup/item_2/id = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "~1.4, main, or a commit SHA"
+placeholder_text = "e.g. ~1.4, main, or a commit SHA"

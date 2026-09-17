@@ -62,6 +62,16 @@ theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
 theme_override_font_sizes/font_size = 12
 text = "Addons"
 
+; The legend for the `+ ~ =` markers each row below leads with (P1-15) — previously explained only by
+; a per-row tooltip, which nobody discovers just by looking at the list.
+
+[node name="MarkerLegend" type="Label" parent="Root/Scroll/Sections/AddonSection" unique_id=1782807590]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "+ arrives new     ~ moves to a different commit     = already installed, unchanged"
+
 [node name="AddonList" type="VBoxContainer" parent="Root/Scroll/Sections/AddonSection" unique_id=1782807589]
 unique_name_in_owner = true
 layout_mode = 2

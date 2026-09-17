@@ -18,17 +18,23 @@ signal add_requested(request: DotquayAddRequest)
 
 enum SourceKind { GIT, NUGET }
 
-@onready var _kind: OptionButton = %Kind
-@onready var _source: LineEdit = %Source
-@onready var _mode_row: HBoxContainer = %ModeRow
-@onready var _mode: OptionButton = %SourceMode
-@onready var _value: LineEdit = %SourceValue
-@onready var _path_row: HBoxContainer = %PathRow
-@onready var _path: LineEdit = %Path
-@onready var _install_as_row: HBoxContainer = %InstallAsRow
-@onready var _install_as: LineEdit = %InstallAs
-@onready var _hint: Label = %Hint
-@onready var _error: Label = %Error
+## Bound on first use rather than with `@onready` (matches [DotquayExplainDialog._bind]): a
+## scene-unique name only resolves once the instance has an owner, which `@onready` ties to entering
+## a live [SceneTree]. Binding lazily makes [method open] and [method reopen_after_failure] behave
+## identically whichever order they get relative to the tree — and, not incidentally, makes the
+## form's own wiring (P1-13's Enter-to-confirm registration, the Kind auto-switch) assertable without
+## one.
+var _kind: OptionButton
+var _source: LineEdit
+var _mode_row: HBoxContainer
+var _mode: OptionButton
+var _value: LineEdit
+var _path_row: HBoxContainer
+var _path: LineEdit
+var _install_as_row: HBoxContainer
+var _install_as: LineEdit
+var _hint: Label
+var _error: Label
 
 ## What [method DotquayAddRequest.diagnose_source_shape] made of the current [member _source] text.
 ## Recomputed only when that text changes, not on every [method _refresh] — a kind/mode change never
@@ -40,9 +46,34 @@ var _shape_fix := DotquayAddRequest.ShapeFix.new()
 ## as if the user had pasted the corrected URL a second time.
 var _applying_shape_fix := false
 
+## True when the current "Git" selection was this dialog's own guess (P1-13), not something the user
+## picked from the dropdown. It is what tells [method _on_source_changed] whether editing the URL back
+## down to plain text may switch Kind back to NuGet, or whether a deliberate manual choice of "Git"
+## must be left alone no matter what the text now looks like.
+var _kind_auto_selected := false
+
 
 func _ready() -> void:
-	_kind.item_selected.connect(func(_index: int) -> void: _refresh())
+	_bind()
+
+
+func _bind() -> void:
+	if _kind != null:
+		return
+
+	_kind = %Kind
+	_source = %Source
+	_mode_row = %ModeRow
+	_mode = %SourceMode
+	_value = %SourceValue
+	_path_row = %PathRow
+	_path = %Path
+	_install_as_row = %InstallAsRow
+	_install_as = %InstallAs
+	_hint = %Hint
+	_error = %Error
+
+	_kind.item_selected.connect(_on_kind_selected)
 	_mode.item_selected.connect(func(_index: int) -> void: _refresh())
 	_source.text_changed.connect(_on_source_changed)
 	# The pin value decides whether OK is allowed at all (a "Version" with nothing typed is not a
@@ -50,24 +81,38 @@ func _ready() -> void:
 	_value.text_changed.connect(func(_text: String) -> void: _refresh())
 	confirmed.connect(_on_confirmed)
 
+	# Enter in any of these confirms the dialog exactly like clicking Add (P1-13). Safe for all four:
+	# _on_confirmed already bails out silently on an incomplete request, the same guard that protects
+	# a click on a disabled OK button.
+	register_text_enter(_source)
+	register_text_enter(_value)
+	register_text_enter(_path)
+	register_text_enter(_install_as)
+
 	_rebuild_modes(true)
 	_refresh()
 
 
 func open() -> void:
+	_bind()
 	_source.text = ""
 	_value.text = ""
 	_path.text = ""
 	_install_as.text = ""
 	_kind.select(SourceKind.GIT)
+	_kind_auto_selected = false
 	_shape_fix = DotquayAddRequest.ShapeFix.new()
 
 	_rebuild_modes(true)
 	_select_mode(DotquayAddRequest.Source.LATEST)
 	_refresh()
 
-	popup_centered()
-	_source.grab_focus()
+	# Popping up and grabbing focus are what being in a tree adds on top of the form's own state — the
+	# same rendering-vs-tree split [DotquayExplainDialog.show_explanation] draws, and for the same
+	# reason: it's what lets [method open] be called on a detached instance in a test.
+	if is_inside_tree():
+		popup_centered()
+		_source.grab_focus()
 
 
 ## Re-opens the dialog after a failed `add` or `add --preview` (P1-9), with the request that failed
@@ -75,7 +120,9 @@ func open() -> void:
 ## are the thing worth preserving here — retyping a git URL, a branch, and a subtree from memory
 ## because one flag was wrong is a worse experience than the error itself.
 func reopen_after_failure(request: DotquayAddRequest, error_message: String) -> void:
+	_bind()
 	_kind.select(SourceKind.GIT if request.is_git else SourceKind.NUGET)
+	_kind_auto_selected = false
 	_rebuild_modes(request.is_git)
 
 	_source.text = request.source
@@ -92,8 +139,9 @@ func reopen_after_failure(request: DotquayAddRequest, error_message: String) -> 
 	_error.text = error_message
 	_error.visible = not error_message.is_empty()
 
-	popup_centered()
-	_source.grab_focus()
+	if is_inside_tree():
+		popup_centered()
+		_source.grab_focus()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -113,12 +161,12 @@ func _rebuild_modes(is_git: bool) -> void:
 	var previous := _selected_mode()
 
 	_mode.clear()
-	_mode.add_item("Latest release", DotquayAddRequest.Source.LATEST)
-	_mode.add_item("Version", DotquayAddRequest.Source.VERSION)
+	_mode.add_item("Newest release (recommended)", DotquayAddRequest.Source.LATEST)
+	_mode.add_item("A specific version…", DotquayAddRequest.Source.VERSION)
 
 	if is_git:
-		_mode.add_item("Branch", DotquayAddRequest.Source.BRANCH)
-		_mode.add_item("Commit", DotquayAddRequest.Source.REV)
+		_mode.add_item("Follow a branch…", DotquayAddRequest.Source.BRANCH)
+		_mode.add_item("An exact commit…", DotquayAddRequest.Source.REV)
 
 	_select_mode(previous)
 
@@ -137,23 +185,42 @@ func _selected_mode() -> DotquayAddRequest.Source:
 	return _mode.get_selected_id() as DotquayAddRequest.Source
 
 
+## Fires only for the user picking a Kind from the dropdown themselves — never for the auto-switch
+## below, which selects the item directly rather than going through this signal. A manual choice is
+## never something the dialog overrides on its own again (P1-13).
+func _on_kind_selected(_index: int) -> void:
+	_kind_auto_selected = false
+	_refresh()
+
+
 func _on_source_changed(text: String) -> void:
 	if _applying_shape_fix:
 		return
 
 	# Pasting a git URL while "NuGet" is selected is a near-certain mis-click, and dotquay would
 	# route it by shape anyway — switching the dropdown keeps the form honest about what will happen.
-	if DotquayAddRequest.looks_like_git(text) and not _is_git():
-		_kind.select(SourceKind.GIT)
+	# The reverse also holds (P1-13): editing that URL back down to something that no longer looks
+	# like git — clearing it to start a NuGet search instead, say — switches back, but only when this
+	# dialog made the original guess. A "Git" the user picked from the dropdown themselves is never
+	# second-guessed by what they go on to type.
+	if DotquayAddRequest.looks_like_git(text):
+		if not _is_git():
+			_kind.select(SourceKind.GIT)
+			_kind_auto_selected = true
+	elif _is_git() and _kind_auto_selected:
+		_kind.select(SourceKind.NUGET)
+		_kind_auto_selected = false
 
 	_shape_fix = DotquayAddRequest.diagnose_source_shape(text)
 
 	# A tree URL is corrected in place rather than merely explained (P1-8): the branch and subtree it
-	# names are exactly what the Pin-to and Subtree fields ask for, so filling them is the difference
-	# between the dialog doing the parsing and the user doing it by hand from the explanation text.
+	# names are exactly what "Which version?" and "Folder in repo" ask for, so filling them is the
+	# difference between the dialog doing the parsing and the user doing it by hand from the
+	# explanation text.
 	if _shape_fix.has_fix():
 		_applying_shape_fix = true
 		_kind.select(SourceKind.GIT)
+		_kind_auto_selected = true
 		_source.text = _shape_fix.url
 		_source.caret_column = _shape_fix.url.length()
 
@@ -223,9 +290,9 @@ func _refresh() -> void:
 func _value_placeholder() -> String:
 	match _selected_mode():
 		DotquayAddRequest.Source.VERSION:
-			return "~2.5 for a range, or 2.5.1 for one exact release" if _is_git() else "13.0.3"
+			return "~2.5 for a range, or 2.5.1 for one exact release" if _is_git() else "e.g. 13.0.3"
 		DotquayAddRequest.Source.BRANCH:
-			return "main"
+			return "e.g. main"
 		DotquayAddRequest.Source.REV:
 			return "a full commit SHA"
 		_:
@@ -234,6 +301,9 @@ func _value_placeholder() -> String:
 
 func _hint_text(is_git: bool, inline_ref: String) -> String:
 	if not is_git:
+		if _selected_mode() == DotquayAddRequest.Source.VERSION:
+			return ("Matched against the package's exact version on NuGet — 'Update' never moves it. "
+				+ "Written into your .csproj as a PackageReference and restored with dotnet.")
 		return ("The latest stable release is written into your .csproj as a PackageReference and "
 			+ "restored with dotnet.")
 
@@ -267,7 +337,7 @@ func _disabled_reason(request: DotquayAddRequest) -> String:
 	if request.source.strip_edges().is_empty():
 		return "Type a git URL or NuGet package ID first."
 
-	return "Enter a value to pin to, or set \"Pin to\" back to \"Latest release\"."
+	return "Enter a value to pin to, or set \"Which version?\" back to \"Newest release (recommended)\"."
 
 
 func _build_request() -> DotquayAddRequest:

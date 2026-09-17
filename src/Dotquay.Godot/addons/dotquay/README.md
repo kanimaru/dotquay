@@ -44,13 +44,13 @@ The **Add…** form covers everything `dotquay add` accepts:
 |---|---|
 | Source | Git repository or NuGet package — dotquay routes both through the same `add` |
 | URL / ID | The repository or the package ID. A `#ref` suffix (`…/repo#main`) asks the remote whether that's a branch, a tag, or a commit |
-| Pin to | **Latest release** (the default: newest tag, or the default branch's tip if there are none), **Version** (a range like `~2.5`, or one exact tag), **Branch**, or **Commit** |
-| Subtree | Git only. The folder inside the repo to extract, when the addon isn't at `addons/<repo name>` |
-| Install as | Git only. The folder under `addons/` to install into, when it shouldn't be the addon's own name — some addons are preloaded by an exact path |
+| Which version? | **Newest release** (the default: newest tag, or the default branch's tip if there are none), **A specific version…** (a range like `~2.5`, or one exact tag), **Follow a branch…**, or **An exact commit…** |
+| Folder in repo | Git only. The folder inside the repo to extract, when the addon isn't at `addons/<repo name>` |
+| Install to | Git only. The folder under `addons/` to install into, when it shouldn't be the addon's own name — some addons are preloaded by an exact path |
 
-Branch and Commit don't appear for a NuGet package, which has neither, and the subtree and install
-folder are hidden too. If the URL already carries a `#ref`, **Pin to** locks and says why: naming the
-source twice is a combination `add` refuses outright.
+"Follow a branch…" and "An exact commit…" don't appear for a NuGet package, which has neither, and
+the repo-folder and install-to fields are hidden too. If the URL already carries a `#ref`, **Which
+version?** locks and says why: naming the source twice is a combination `add` refuses outright.
 
 Tracking a branch still pins the resolved commit in `dotquay.lock`, so a teammate's `install` gets
 exactly what you tested. **Update** is what moves it forward.

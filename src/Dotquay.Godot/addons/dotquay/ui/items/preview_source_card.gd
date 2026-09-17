@@ -12,14 +12,28 @@ signal approval_changed()
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
-@onready var _approve: CheckBox = %Approve
-@onready var _url: Label = %Url
-@onready var _detail: VBoxContainer = %Detail
+## Bound on first use rather than with `@onready` (matches [DotquayExplainDialog._bind]) — lets
+## [method setup] be driven directly against a detached instance, which is how P1-16's plain-language
+## explanation is asserted without a SceneTree.
+var _approve: CheckBox
+var _url: Label
+var _detail: VBoxContainer
 
 var _source: DotquayPreview.Source
 
 
 func _ready() -> void:
+	_bind()
+
+
+func _bind() -> void:
+	if _approve != null:
+		return
+
+	_approve = %Approve
+	_url = %Url
+	_detail = %Detail
+
 	_approve.toggled.connect(func(_pressed: bool) -> void: approval_changed.emit())
 
 
@@ -27,6 +41,7 @@ func _ready() -> void:
 ## agree to — the card still appears, because a feed being adopted silently is exactly the thing a
 ## user should be able to see they agreed to earlier.
 func setup(source: DotquayPreview.Source, needs_approval: bool) -> void:
+	_bind()
 	_source = source
 
 	_url.text = source.url
@@ -41,6 +56,15 @@ func setup(source: DotquayPreview.Source, needs_approval: bool) -> void:
 		+ "host is not added to trusted_hosts, so the next addon that declares a feed will ask again.")
 
 	DotquayNodes.clear_children(_detail)
+
+	# What a "feed" even is, stated once in plain language rather than assumed (P1-16) — this card is
+	# the one security-relevant decision in the whole panel, and "trusted_hosts" means nothing to
+	# someone who has never had to know NuGet's own vocabulary for it.
+	_add_detail(
+		("A NuGet feed is a server that supplies C# packages — %s would be allowed to supply the "
+			% source.host())
+		+ "packages listed below to your project.",
+		DotquayPalette.MUTED)
 
 	if not needs_approval:
 		_add_detail(

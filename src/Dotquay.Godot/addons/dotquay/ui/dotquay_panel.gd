@@ -137,6 +137,7 @@ func _ready() -> void:
 	_graph_view.node_action_requested.connect(_on_node_action)
 	_add_dialog.add_requested.connect(_on_add_requested)
 	_preview_dialog.install_confirmed.connect(_on_install_confirmed)
+	_preview_dialog.canceled.connect(_on_preview_cancelled)
 	_explain_dialog.force_update_requested.connect(_on_force_update_requested)
 	_conflict_dialog.override_chosen.connect(_on_override_chosen)
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
@@ -289,6 +290,14 @@ func _on_add_requested(request: DotquayAddRequest) -> void:
 	args.append("--preview")
 	var ticket := _run(DotquayWire.COMMAND_ADD_PREVIEW, args)
 	_pending_requests[ticket] = request
+
+
+## The preview dialog's own Cancel button, or closing it via the titlebar, otherwise leaves the log
+## sitting on "Resolving what adding x would install..." forever (P1-15) — nothing else ever says the
+## add didn't happen. Never fires alongside [signal DotquayInstallPreviewDialog.install_confirmed]:
+## an [AcceptDialog] emits exactly one of `confirmed`/`canceled` per popup.
+func _on_preview_cancelled() -> void:
+	_log_line("Cancelled — nothing was added.")
 
 
 ## Runs the add the preview described, carrying the user's feed approvals as `--adopt-source`.

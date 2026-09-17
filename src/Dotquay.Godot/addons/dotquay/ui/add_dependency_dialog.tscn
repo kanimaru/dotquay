@@ -31,15 +31,16 @@ theme_override_constants/separation = 8
 [node name="KindLabel" type="Label" parent="Root/KindRow"]
 custom_minimum_size = Vector2(76, 0)
 layout_mode = 2
+tooltip_text = "Where this dependency comes from. dotquay routes both kinds through the same add."
 text = "Source"
 
 [node name="Kind" type="OptionButton" parent="Root/KindRow"]
 unique_name_in_owner = true
 layout_mode = 2
 item_count = 2
-popup/item_0/text = "Git repository (GDScript addon)"
+popup/item_0/text = "Addon from a git repository (GitHub, GitLab…)"
 popup/item_0/id = 0
-popup/item_1/text = "NuGet package (C#)"
+popup/item_1/text = "C# library from NuGet"
 popup/item_1/id = 1
 
 [node name="SourceRow" type="HBoxContainer" parent="Root"]
@@ -49,6 +50,7 @@ theme_override_constants/separation = 8
 [node name="SourceLabel" type="Label" parent="Root/SourceRow"]
 custom_minimum_size = Vector2(76, 0)
 layout_mode = 2
+tooltip_text = "The git clone URL, or the NuGet package ID."
 text = "URL / ID"
 
 [node name="Source" type="LineEdit" parent="Root/SourceRow"]
@@ -68,7 +70,8 @@ theme_override_constants/separation = 8
 [node name="ModeLabel" type="Label" parent="Root/ModeRow"]
 custom_minimum_size = Vector2(76, 0)
 layout_mode = 2
-text = "Pin to"
+tooltip_text = "Which release, branch, or commit to install."
+text = "Which version?"
 
 [node name="SourceMode" type="OptionButton" parent="Root/ModeRow"]
 unique_name_in_owner = true
@@ -88,13 +91,14 @@ theme_override_constants/separation = 8
 [node name="PathLabel" type="Label" parent="Root/PathRow"]
 custom_minimum_size = Vector2(76, 0)
 layout_mode = 2
-text = "Subtree"
+tooltip_text = "Optional. The folder inside the repository that holds the addon, when it isn't at addons/<repo name>. Use \".\" if the addon is the repo's own root."
+text = "Folder in repo"
 
 [node name="Path" type="LineEdit" parent="Root/PathRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "optional — defaults to addons/<repo name>; use \".\" if the addon is the repo root"
+placeholder_text = "e.g. addons/foo"
 
 [node name="InstallAsRow" type="HBoxContainer" parent="Root"]
 unique_name_in_owner = true
@@ -104,13 +108,14 @@ theme_override_constants/separation = 8
 [node name="InstallAsLabel" type="Label" parent="Root/InstallAsRow"]
 custom_minimum_size = Vector2(76, 0)
 layout_mode = 2
-text = "Install as"
+tooltip_text = "Optional. The folder name to use under addons/, if it shouldn't be the addon's own name."
+text = "Install to"
 
 [node name="InstallAs" type="LineEdit" parent="Root/InstallAsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "optional — folder under addons/, if it shouldn't be the addon's own name"
+placeholder_text = "e.g. my-addon"
 
 [node name="Hint" type="Label" parent="Root"]
 unique_name_in_owner = true
