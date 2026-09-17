@@ -34,13 +34,30 @@ public static class McpInfrastructure
     /// addon-declared NuGet feed (<see cref="DenyAllSourceApproval"/>) and never opts a source
     /// generator into being shared (<see cref="ShareGeneratorDecision"/>, the pre-v0.14 default) —
     /// there is no human on the other end of this process to ask, and no Phase 1 tool resolves a
-    /// package for the first time regardless.</summary>
-    public static DependencyWorkflow CreateWorkflow(IProgressReporter? progress = null)
+    /// package for the first time regardless. Phase 2's write tools that DO need to adopt a feed or
+    /// answer the generator question call <see cref="CreateWorkflow(IProgressReporter?, ISourceApproval?, IGeneratorAssetDecision?)"/>
+    /// instead, after the write guard (<see cref="Dotquay.Mcp.Guards.IWriteGuard"/>) has already
+    /// decided the call may proceed.</summary>
+    public static DependencyWorkflow CreateWorkflow(IProgressReporter? progress = null) =>
+        CreateWorkflow(progress, sourceApproval: null, generatorAssetDecision: null);
+
+    /// <summary>
+    /// The write-tool overload: takes the <see cref="ISourceApproval"/>/<see cref="IGeneratorAssetDecision"/>
+    /// a guard policy resolved from the call's arguments (<see cref="Dotquay.Mcp.Guards.SourceApprovalPolicy.Resolve"/>,
+    /// <see cref="Dotquay.Mcp.Guards.GeneratorPrivacyPolicy.Resolve"/>), mirroring
+    /// <c>Dotquay.Cli.Commands.WorkflowFactory.CreateWithProgress</c>'s own parameters for the same
+    /// two seams. Null falls back to the Phase 1 defaults above, so a write tool that never adopts
+    /// feeds or resolves generators (<c>dotquay_install</c>, <c>dotquay_remove</c>, …) can call this
+    /// exactly like <see cref="CreateWorkflow(IProgressReporter?)"/> without a caller having to know
+    /// the difference.
+    /// </summary>
+    public static DependencyWorkflow CreateWorkflow(
+        IProgressReporter? progress, ISourceApproval? sourceApproval, IGeneratorAssetDecision? generatorAssetDecision)
     {
         var workflow = new DependencyWorkflow(new SystemFileSystem(), new ProcessGitClient(), CacheRoot())
         {
-            SourceApproval = DenyAllSourceApproval.Instance,
-            GeneratorAssetDecision = ShareGeneratorDecision.Instance,
+            SourceApproval = sourceApproval ?? DenyAllSourceApproval.Instance,
+            GeneratorAssetDecision = generatorAssetDecision ?? ShareGeneratorDecision.Instance,
         };
 
         return progress is null ? workflow : workflow.WithProgress(progress);

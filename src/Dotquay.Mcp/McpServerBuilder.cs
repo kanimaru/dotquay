@@ -11,7 +11,7 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp;
 
 /// <summary>
-/// Assembles the Generic Host that hosts dotquay's MCP server: every read tool, the manifest/lockfile
+/// Assembles the Generic Host that hosts dotquay's MCP server: every tool, the manifest/lockfile
 /// resources, and the transport.
 /// </summary>
 /// <remarks>
@@ -21,7 +21,7 @@ namespace Dotquay.Mcp;
 /// stdio (design doc §8, test layer 1: "Handler conformance — WithStreamServerTransport"). Both share
 /// <see cref="Configure"/>, so a test that passes never means the stdio path was untested — it means
 /// the one difference between them (which <c>Stream</c>s the transport reads and writes) is the only
-/// thing not exercised without a real published binary, which is what Phase 1's exit criterion
+/// thing not exercised without a real published binary, which is what each phase's exit criterion
 /// (Inspector + a real AOT publish) covers instead (docs/DESIGN-v0.18-MCP.md §9).
 /// </remarks>
 public static class McpServerBuilder
@@ -76,10 +76,12 @@ public static class McpServerBuilder
         return builder.Build();
     }
 
-    /// <summary>The eight Phase 1 read tools (docs/DESIGN-v0.18-MCP.md §4.1). Adding a ninth is one
-    /// line here — <see cref="Tools.ToolRegistry"/> needs no other change.</summary>
+    /// <summary>The eight Phase 1 read tools plus Phase 2's eleven guarded write tools
+    /// (docs/DESIGN-v0.18-MCP.md §4.1/§4.2). Adding another is one line here —
+    /// <see cref="Tools.ToolRegistry"/> needs no other change.</summary>
     private static IReadOnlyList<IMcpTool> BuildTools(IProjectScope scope, ProjectGate gate) =>
     [
+        // Reads (Phase 1).
         new DotquayStatusTool(scope, gate),
         new DotquayListTool(scope, gate),
         new DotquayGraphTool(scope, gate),
@@ -88,5 +90,18 @@ public static class McpServerBuilder
         new DotquayAddPreviewTool(scope, gate),
         new DotquaySourceListTool(scope, gate),
         new DotquayOverrideListTool(scope, gate),
+
+        // Guarded writes (Phase 2).
+        new DotquayInitTool(scope, gate),
+        new DotquayAddTool(scope, gate),
+        new DotquayAddDotnetTool(scope, gate),
+        new DotquayInstallTool(scope, gate),
+        new DotquayUpdateTool(scope, gate),
+        new DotquayRemoveTool(scope, gate),
+        new DotquayPatchCaptureTool(scope, gate),
+        new DotquayPatchResolveTool(scope, gate),
+        new DotquayPatchAbandonTool(scope, gate),
+        new DotquayOverrideSetTool(scope, gate),
+        new DotquayOverrideClearTool(scope, gate),
     ];
 }

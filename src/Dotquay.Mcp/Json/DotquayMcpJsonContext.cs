@@ -35,6 +35,8 @@ namespace Dotquay.Mcp.Json;
 [JsonSerializable(typeof(JsonEnvelope<AddPreviewJson>))]
 [JsonSerializable(typeof(JsonEnvelope<SourceListJson>))]
 [JsonSerializable(typeof(JsonEnvelope<OperationJson>))]
+[JsonSerializable(typeof(McpRefusalJson<ForceConfirmationDetailJson>))]
+[JsonSerializable(typeof(McpRefusalJson<SourceApprovalDetailJson>))]
 public sealed partial class DotquayMcpJsonContext : JsonSerializerContext
 {
 }
@@ -67,4 +69,10 @@ public static class DotquayMcpJson
 
     public static string Write(JsonEnvelope<OperationJson> envelope) =>
         JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeOperationJson);
+
+    public static string Write(McpRefusalJson<ForceConfirmationDetailJson> refusal) =>
+        JsonSerializer.Serialize(refusal, DotquayMcpJsonContext.Default.McpRefusalJsonForceConfirmationDetailJson);
+
+    public static string Write(McpRefusalJson<SourceApprovalDetailJson> refusal) =>
+        JsonSerializer.Serialize(refusal, DotquayMcpJsonContext.Default.McpRefusalJsonSourceApprovalDetailJson);
 }

@@ -18,7 +18,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
         _harness ??= await McpTestHarness.StartAsync([_projectDirectory]);
 
     [Fact]
-    public async Task Tools_list_returns_exactly_the_eight_read_tools()
+    public async Task Tools_list_returns_exactly_the_eight_read_tools_and_eleven_write_tools()
     {
         var harness = await HarnessAsync();
 
@@ -27,6 +27,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
         Assert.Equal(
             new HashSet<string>(StringComparer.Ordinal)
             {
+                // Reads (Phase 1).
                 "dotquay_status",
                 "dotquay_list",
                 "dotquay_graph",
@@ -35,6 +36,19 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
                 "dotquay_add_preview",
                 "dotquay_source_list",
                 "dotquay_override_list",
+
+                // Guarded writes (Phase 2).
+                "dotquay_init",
+                "dotquay_add",
+                "dotquay_add_dotnet",
+                "dotquay_install",
+                "dotquay_update",
+                "dotquay_remove",
+                "dotquay_patch_capture",
+                "dotquay_patch_resolve",
+                "dotquay_patch_abandon",
+                "dotquay_override_set",
+                "dotquay_override_clear",
             },
             tools.Select(t => t.Name).ToHashSet(StringComparer.Ordinal));
     }
@@ -67,6 +81,52 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Add_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash()
+    {
+        // dotquay_add's write guard runs PreviewAddAsync first (SourceApprovalPolicy), which hits the
+        // same ReadManifestOrThrow as dotquay_add_preview — so the missing manifest is caught before
+        // AddAsync itself ever runs, and before anything is written.
+        var harness = await HarnessAsync();
+
+        var result = await harness.Client.CallToolAsync(
+            "dotquay_add",
+            new Dictionary<string, object?> { ["project"] = _projectDirectory, ["git_url"] = "https://example.com/addon.git" });
+
+        Assert.True(result.IsError);
+        AssertErrorKind(result, "no_manifest");
+    }
+
+    [Fact]
+    public async Task Add_with_a_nuget_source_argument_is_refused_before_touching_the_manifest()
+    {
+        var harness = await HarnessAsync();
+
+        var result = await harness.Client.CallToolAsync(
+            "dotquay_add",
+            new Dictionary<string, object?>
+            {
+                ["project"] = _projectDirectory,
+                ["git_url"] = "https://example.com/addon.git",
+                ["nuget_source"] = "some-feed",
+            });
+
+        Assert.True(result.IsError);
+        AssertErrorKind(result, "workflow");
+    }
+
+    [Fact]
+    public async Task Init_on_an_empty_directory_creates_a_project_manifest()
+    {
+        var harness = await HarnessAsync();
+
+        var result = await harness.Client.CallToolAsync(
+            "dotquay_init", new Dictionary<string, object?> { ["project"] = _projectDirectory });
+
+        Assert.False(result.IsError);
+        Assert.True(File.Exists(Path.Combine(_projectDirectory, "dotquay.toml")));
+    }
+
+    [Fact]
     public async Task A_project_path_outside_every_configured_root_is_refused_by_scope_not_read_from_disk()
     {
         var harness = await HarnessAsync();
@@ -79,6 +139,27 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
 
             Assert.True(result.IsError);
             AssertErrorKind(result, "scope");
+        }
+        finally
+        {
+            Directory.Delete(outsideDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task A_write_tool_is_also_refused_by_scope_before_it_can_write_anything()
+    {
+        var harness = await HarnessAsync();
+        var outsideDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-outside-").FullName;
+
+        try
+        {
+            var result = await harness.Client.CallToolAsync(
+                "dotquay_init", new Dictionary<string, object?> { ["project"] = outsideDirectory });
+
+            Assert.True(result.IsError);
+            AssertErrorKind(result, "scope");
+            Assert.False(File.Exists(Path.Combine(outsideDirectory, "dotquay.toml")));
         }
         finally
         {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dotquay.Core.Json;
+using Dotquay.Mcp.Guards;
 using Dotquay.Mcp.Json;
 using ModelContextProtocol.Protocol;
 
@@ -32,4 +33,37 @@ internal static class McpToolResults
     /// every tool rather than one per success schema.</summary>
     public static CallToolResult Failure(string toolName, string kind, string message) =>
         FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Failure(toolName, new JsonError(kind, message))), isError: true);
+
+    /// <summary>A <see cref="WriteGuardRefusal"/> turned into the <c>needs_confirmation</c> shape
+    /// (§5.4) — one overload per detail type a guard policy can produce, since the type is what
+    /// picks the right <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo{T}"/> under
+    /// AOT (see <see cref="FromJson"/>'s remarks).</summary>
+    public static CallToolResult FromRefusal(string toolName, WriteGuardRefusal refusal) => refusal.Detail switch
+    {
+        ForceConfirmationDetailJson detail => NeedsConfirmation(toolName, refusal.Message, detail),
+        SourceApprovalDetailJson detail => NeedsConfirmation(toolName, refusal.Message, detail),
+        _ => throw new InvalidOperationException(
+            $"Unhandled write-guard refusal detail type: {refusal.Detail.GetType()}. Add an overload of "
+            + $"{nameof(NeedsConfirmation)} and a case in {nameof(FromRefusal)}."),
+    };
+
+    public static CallToolResult NeedsConfirmation(string toolName, string message, ForceConfirmationDetailJson detail) =>
+        FromJson(DotquayMcpJson.Write(new McpRefusalJson<ForceConfirmationDetailJson>
+        {
+            Version = DotquayVersion.Current,
+            Command = toolName,
+            Ok = false,
+            Error = new JsonError(McpJsonErrorKind.NeedsConfirmation, message),
+            Detail = detail,
+        }), isError: true);
+
+    public static CallToolResult NeedsConfirmation(string toolName, string message, SourceApprovalDetailJson detail) =>
+        FromJson(DotquayMcpJson.Write(new McpRefusalJson<SourceApprovalDetailJson>
+        {
+            Version = DotquayVersion.Current,
+            Command = toolName,
+            Ok = false,
+            Error = new JsonError(McpJsonErrorKind.NeedsConfirmation, message),
+            Detail = detail,
+        }), isError: true);
 }
