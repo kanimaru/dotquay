@@ -252,6 +252,31 @@ func test_candidate_display_label_shows_a_rev_as_a_commit() -> void:
 	runner.equal(candidate.display_label(), "commit 3fa9c1d", "the picker's radio label uses the same word")
 
 
+func test_invalid_constraint_headline_points_at_the_manifest() -> void:
+	# P2 wording pass: "malformed" is a parser's word, not one that tells a newbie where to go fix it.
+	var conflict := DotquayGraph.Conflict.new()
+	conflict.name = "core"
+	conflict.kind = "invalid_constraint"
+
+	runner.equal(conflict.headline(), "'core' has a version requirement dotquay can't read. Check its entry in dotquay.toml.",
+		"the headline should point at dotquay.toml, not just name the defect")
+
+
+func test_describe_satisfies_names_who_a_partial_candidate_helps() -> void:
+	var helps_one := DotquayGraph.Candidate.from_payload(
+		{"kind": "version", "value": "v1.0", "satisfies": ["a"], "satisfies_all": false})
+	var helps_all := DotquayGraph.Candidate.from_payload(
+		{"kind": "version", "value": "v2.0", "satisfies": ["a", "b"], "satisfies_all": true})
+	var helps_none := DotquayGraph.Candidate.from_payload(
+		{"kind": "version", "value": "v0.1", "satisfies": [], "satisfies_all": false})
+
+	runner.equal(helps_all.describe_satisfies(), "works for everything that needs it",
+		"P1-21: 'satisfies' is resolver vocabulary, not a sentence a newbie reads unaided")
+	runner.equal(helps_one.describe_satisfies(), "works for a", "a partial candidate names who it actually helps")
+	runner.equal(helps_none.describe_satisfies(), "works for nothing on its own",
+		"a candidate nobody's requirement accepts still gets an honest, plain sentence")
+
+
 func test_project_requirer_is_named_readably() -> void:
 	var requirement := DotquayGraph.Requirement.from_payload(
 		{"requirer": "<project>", "kind": "version", "constraint": "~1.0", "git": "https://example.com/a"})

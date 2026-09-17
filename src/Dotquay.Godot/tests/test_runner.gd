@@ -16,6 +16,10 @@ const SUITES := [
 	# Wire-literal display translations (P1-21) — read by DotquayGraph's own describe()/display_label()
 	# below, so it comes first.
 	preload("res://tests/test_dotquay_wire.gd"),
+	# Generic text helpers (pluralisation, BBCode escaping) the P2 wording pass introduced — no wire
+	# or colour dependency of their own, so they come right after the two literal-translation suites.
+	preload("res://tests/test_dotquay_text.gd"),
+	preload("res://tests/test_dotquay_palette.gd"),
 	preload("res://tests/test_dotquay_graph.gd"),
 	# The dependency-node menu's disabled-item explanations (P1-19), pulled out as static functions of
 	# plain data so they're testable without a GraphNode in a tree.

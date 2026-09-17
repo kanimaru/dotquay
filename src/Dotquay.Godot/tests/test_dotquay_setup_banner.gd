@@ -30,6 +30,16 @@ func test_no_manifest_only_offers_init() -> void:
 	runner.check(not decision.show_locate, "the CLI path is not the problem here")
 
 
+func test_no_manifest_message_names_the_file_in_plain_language() -> void:
+	# P1-5: a first-time user has never heard the word "manifest" — the message has to say what
+	# dotquay.toml actually is, by name, rather than describing it with jargon.
+	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayResult.KIND_NO_MANIFEST)
+
+	runner.check(decision.message.contains("dotquay.toml"), "the message should name the file: %s" % decision.message)
+	runner.check(not decision.message.to_lower().contains("manifest"),
+		"the message should not rely on the word 'manifest': %s" % decision.message)
+
+
 func test_launch_failed_offers_browse_and_locate_but_not_get_dotquay() -> void:
 	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayResult.KIND_LAUNCH_FAILED)
 

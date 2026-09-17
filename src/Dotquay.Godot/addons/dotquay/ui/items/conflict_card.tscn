@@ -25,7 +25,7 @@ layout_mode = 2
 [node name="ResolveButton" type="Button" parent="Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Pick a version to force, writing an [overrides] entry that wins over every other constraint."
+tooltip_text = "Choose a version for this addon; it will be used even if other addons ask for something else."
 text = "Resolve..."
 
 [node name="FocusButton" type="Button" parent="Buttons"]

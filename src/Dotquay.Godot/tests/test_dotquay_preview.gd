@@ -144,10 +144,10 @@ func test_trusted_feed_is_reported_as_automatic() -> void:
 func test_summary_counts_what_the_install_actually_adds() -> void:
 	var summary: String = PREVIEW.from_payload(_payload()).summarize()
 
-	runner.check(summary.contains("3 addon(s)"), "the summary counts new addons: %s" % summary)
+	runner.check(summary.contains("3 addons"), "the summary counts new addons: %s" % summary)
 	runner.check(summary.contains("2 of them pulled in"), "the summary calls out unrequested addons: %s" % summary)
-	runner.check(summary.contains("1 NuGet package(s)"), "the summary counts new packages: %s" % summary)
-	runner.check(summary.contains("1 NuGet feed(s)"), "the summary counts feeds: %s" % summary)
+	runner.check(summary.contains("1 NuGet package"), "the summary counts new packages: %s" % summary)
+	runner.check(summary.contains("1 NuGet feed"), "the summary counts feeds: %s" % summary)
 
 
 func test_summary_says_adding_installs_not_installing_adds() -> void:

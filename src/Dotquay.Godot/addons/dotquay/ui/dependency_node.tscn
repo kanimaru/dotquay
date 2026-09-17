@@ -22,6 +22,6 @@ theme_override_constants/separation = 2
 [node name="ActionsButton" type="MenuButton" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Things you can do to this dependency."
+tooltip_text = "Actions for this addon."
 flat = false
 text = "Actions"

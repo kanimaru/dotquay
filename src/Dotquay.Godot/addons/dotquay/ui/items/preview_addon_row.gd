@@ -48,8 +48,8 @@ static func _color_for(addon: DotquayPreview.Addon) -> Color:
 
 static func _describe(addon: DotquayPreview.Addon) -> String:
 	if not addon.is_new:
-		return "Already installed at this commit — this add would leave it alone."
+		return "Already installed at this commit — adding won't change it."
 	if addon.is_move():
-		return "Already installed at %s, and this add would move it to %s." % [
+		return "Already installed at %s, and adding this would move it to %s." % [
 			addon.previous_resolved.substr(0, 7), addon.short_sha]
 	return "%s\nWould be installed into addons/%s at %s." % [addon.git, addon.folder, addon.short_sha]

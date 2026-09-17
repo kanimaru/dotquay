@@ -190,7 +190,12 @@ func _wire_toolbar() -> void:
 
 	var tools_popup := (_toolbar.get_node("ToolsButton") as MenuButton).get_popup()
 	tools_popup.add_item("Check for conflicts (online)", TOOLS_ITEM_RESOLVE)
+	tools_popup.set_item_tooltip(tools_popup.get_item_index(TOOLS_ITEM_RESOLVE),
+		"Contact each repository to work out the newest allowed versions and report conflicts. Needs "
+		+ "internet; nothing is installed.")
 	tools_popup.add_item("Run doctor", TOOLS_ITEM_DOCTOR)
+	tools_popup.set_item_tooltip(tools_popup.get_item_index(TOOLS_ITEM_DOCTOR),
+		"Check this project for problems such as missing folders or addons nothing needs any more.")
 	tools_popup.id_pressed.connect(_on_tools_menu_id_pressed)
 
 
@@ -228,7 +233,7 @@ func _check_for_cli_update() -> void:
 ## Re-walks live git refs. The only mode that can discover a conflict (SPEC.md §8), and the only one
 ## that costs network time — so it is always an explicit action, never automatic.
 func resolve() -> void:
-	_log_line("Re-resolving against live git refs — this can take a moment.")
+	_log_line("Checking repositories online for the newest allowed versions... (this can take a moment)")
 	_run(DotquayWire.COMMAND_GRAPH, PackedStringArray(["graph", "--resolve"]))
 
 
@@ -373,8 +378,8 @@ func _open_conflict_dialog(addon_name: String) -> void:
 		conflict.name = addon_name
 		conflict.is_manual_pin = true
 		conflict.message = (
-			"No conflict was reported for '%s'. Pinning it here writes an [overrides] entry that wins over every other constraint."
-			% addon_name)
+			"'%s' has no conflict right now. Pinning it here forces it to the version you choose, "
+			% addon_name + "overriding whatever other addons ask for.")
 
 		var node: DotquayGraph.AddonNode = _graph.find(addon_name)
 		if node != null:
@@ -478,7 +483,10 @@ func _on_cli_path_selected(path: String) -> void:
 ## leaves the CLI unusable, and offers exactly the buttons (if any) that fix what it's showing. Which
 ## buttons and which message is [DotquaySetupBanner]'s call, not this method's — pulled out as a pure
 ## function so those decisions are testable without a scene.
-func _update_setup_banner(result: DotquayResult) -> void:
+##
+## Returns the decision so [method _on_cli_finished] can skip the duplicate red log line for a
+## banner-handled kind (P1-5) — the banner already says it, in the same colour, right above.
+func _update_setup_banner(result: DotquayResult) -> DotquaySetupBanner.Decision:
 	var decision := DotquaySetupBanner.decide(result.error_kind)
 
 	_setup_banner.visible = decision.visible
@@ -488,7 +496,7 @@ func _update_setup_banner(result: DotquayResult) -> void:
 	_init_button.visible = decision.show_init
 
 	if not decision.visible:
-		return
+		return decision
 
 	# None of these states is one any mutating command should be offered against.
 	_project_ready = false
@@ -497,6 +505,7 @@ func _update_setup_banner(result: DotquayResult) -> void:
 	# An empty decision message means the CLI's own error_message is the one worth showing (a wrong
 	# path or a schema mismatch) — DotquaySetupBanner has no way to know that text, only the kind.
 	_setup_message.text = decision.message if not decision.message.is_empty() else result.error_message
+	return decision
 
 
 func _on_busy_changed(is_busy: bool) -> void:
@@ -542,7 +551,7 @@ func _on_cli_finished(result: DotquayResult) -> void:
 		_finish_refresh_cycle(result.ticket)
 		return
 
-	_update_setup_banner(result)
+	var banner_decision := _update_setup_banner(result)
 
 	for warning in result.warnings:
 		_log_warning(warning)
@@ -554,7 +563,11 @@ func _on_cli_finished(result: DotquayResult) -> void:
 	_pending_requests.erase(result.ticket)
 
 	if not result.ok:
-		_log_error(result.error_message)
+		# A banner-handled kind (not configured, no manifest, or the CLI unusable in some way) already
+		# said this, in the same colour, right above the graph — a second red line in the 140px log is
+		# noise repeating what's already the biggest thing on screen, not new information (P1-5).
+		if not banner_decision.visible:
+			_log_error(result.error_message)
 		_pending_explains.erase(result.ticket)
 
 		# A failed add or preview closed the dialog for nothing (P1-9): the values the user typed, and
@@ -664,7 +677,7 @@ func _report_self_check(result: DotquayResult) -> void:
 		_update_banner.visible = false
 		return
 
-	_update_message.text = "dotquay %s is available - this editor is running %s." % [
+	_update_message.text = "dotquay %s is available — you have %s." % [
 		latest, String(result.data.get("current_version", ""))]
 	_update_banner.visible = true
 
@@ -690,7 +703,7 @@ func _report_self_update(result: DotquayResult) -> void:
 
 func _on_self_update_pressed() -> void:
 	_update_button.disabled = true
-	_update_message.text = "updating dotquay..."
+	_update_message.text = "Updating dotquay..."
 	_run(DotquayWire.COMMAND_SELF_UPDATE, PackedStringArray(["self", "update"]))
 
 
@@ -731,10 +744,10 @@ func _update_summary() -> void:
 
 	var counts := _graph.counts()
 	var parts := PackedStringArray()
-	parts.append("%d addon(s)" % counts["addons"])
+	parts.append(DotquayText.plural(counts["addons"], "%d addon", "%d addons"))
 
 	if counts["dotnet"] > 0:
-		parts.append("%d NuGet" % counts["dotnet"])
+		parts.append(DotquayText.plural(counts["dotnet"], "%d NuGet package", "%d NuGet packages"))
 	if counts["patched"] > 0:
 		parts.append("%d patched" % counts["patched"])
 	if counts["linked"] > 0:
@@ -746,15 +759,12 @@ func _update_summary() -> void:
 	if counts["orphans"] > 0:
 		parts.append("%d orphaned" % counts["orphans"])
 	if counts["conflicts"] > 0:
-		parts.append("%d conflict(s)" % counts["conflicts"])
+		parts.append(DotquayText.plural(counts["conflicts"], "%d conflict", "%d conflicts"))
 
-	# The lockfile view can't see conflicts at all, so saying "no conflicts" there would be a claim
-	# the data doesn't support.
-	var suffix := (
-		"" if _graph.source == DotquayWire.GRAPH_SOURCE_RESOLVED
-		else "  (from lockfile — press Re-resolve to check for conflicts)")
-
-	_summary.text = "  " + " · ".join(parts) + suffix
+	# A lockfile-sourced graph never ran a live resolve, so it genuinely has nothing to say about
+	# conflicts (P1-24) — but "press Re-resolve" is no longer accurate wording once the action moved
+	# into the Tools menu (P1-25), so this no longer names a specific button.
+	_summary.text = "  " + " · ".join(parts)
 	_summary.add_theme_color_override(
 		"font_color",
 		DotquayPalette.ERROR if counts["conflicts"] > 0 or counts["modified"] > 0 else DotquayPalette.MUTED)
@@ -768,7 +778,7 @@ func _render_conflicts() -> void:
 		_conflict_list.add_child(empty)
 		empty.setup(
 			"No conflicts." if _graph != null and _graph.source == DotquayWire.GRAPH_SOURCE_RESOLVED
-			else "Conflicts are only detected by a live re-resolve. Press Re-resolve to check.",
+			else "No conflicts known. \"Check for conflicts (online)\" in the Tools menu checks for sure.",
 			DotquayPalette.MUTED, "", true)
 		return
 
@@ -807,7 +817,9 @@ func _report_outdated(payload: Dictionary) -> void:
 		_log_line("Everything is up to date.")
 		return
 
-	_log_warning("%d dependency/dependencies have newer versions:" % count)
+	_log_warning(DotquayText.plural(count,
+		"Newer versions are available for %d addon/package:",
+		"Newer versions are available for %d addons/packages:"))
 
 	for group in ["addons", "dotnet"]:
 		for entry in _dictionaries_in(payload, group):
@@ -849,16 +861,21 @@ func _report_operation(payload: Dictionary) -> void:
 # Log
 # ---------------------------------------------------------------------------------------------
 
+## Every log entry passes through here on its way into [member _log_buffer], which the log's
+## [RichTextLabel] renders as BBCode — so [param text] is escaped before it becomes part of that
+## buffer, not after, whether or not this particular line also gets a colour tag (P1-28). An addon
+## name, a NuGet range like `[1.0,2.0)`, or a `[addons.x]` TOML table the CLI quoted back in an error
+## would otherwise be read as markup instead of the text it actually is.
 func _log_line(text: String) -> void:
-	_append(text)
+	_append(DotquayPalette.escape_bbcode(text))
 
 
 func _log_warning(text: String) -> void:
-	_append(DotquayPalette.bbcode(DotquayPalette.WARN, text))
+	_append(DotquayPalette.bbcode(DotquayPalette.WARN, DotquayPalette.escape_bbcode(text)))
 
 
 func _log_error(text: String) -> void:
-	_append(DotquayPalette.bbcode(DotquayPalette.ERROR, text))
+	_append(DotquayPalette.bbcode(DotquayPalette.ERROR, DotquayPalette.escape_bbcode(text)))
 
 
 func _append(bbcode: String) -> void:

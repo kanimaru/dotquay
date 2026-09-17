@@ -44,7 +44,7 @@ func setup(source: DotquayPreview.Source, needs_approval: bool) -> void:
 
 	if not needs_approval:
 		_add_detail(
-			"Adopted automatically: %s is already in [nuget] trusted_hosts." % source.host(),
+			"Trusted automatically: %s is already in your project's trusted hosts (dotquay.toml)." % source.host(),
 			DotquayPalette.OK)
 
 	_add_detail("Declared by addon '%s'." % source.declared_by_addon, DotquayPalette.MUTED)

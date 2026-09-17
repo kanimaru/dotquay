@@ -33,17 +33,17 @@ text = "Add..."
 
 [node name="InstallButton" type="Button" parent="Root/Toolbar" unique_id=440829189]
 layout_mode = 2
-tooltip_text = "Make addons/ and .csproj match the lockfile exactly."
+tooltip_text = "Re-download the addons listed in dotquay.lock — use after cloning a project, or when an addon shows \"missing\"."
 text = "Install"
 
 [node name="UpdateAllButton" type="Button" parent="Root/Toolbar" unique_id=1317088792]
 layout_mode = 2
-tooltip_text = "Re-resolve every dependency and reinstall."
+tooltip_text = "Move every addon and package to its newest allowed version and reinstall."
 text = "Update all"
 
 [node name="OutdatedButton" type="Button" parent="Root/Toolbar" unique_id=797377060]
 layout_mode = 2
-tooltip_text = "Ask each upstream what's newer, without cloning."
+tooltip_text = "Check whether newer versions of your addons and packages exist. Nothing is changed."
 text = "Check addons for updates"
 
 [node name="ToolbarSeparator" type="VSeparator" parent="Root/Toolbar" unique_id=1034535236]
@@ -62,7 +62,7 @@ text = "Reload"
 
 [node name="ToolsButton" type="MenuButton" parent="Root/Toolbar" unique_id=2044113611]
 layout_mode = 2
-tooltip_text = "Re-walk the live dependency graph for conflicts, or run dotquay's sanity checks."
+tooltip_text = "More things dotquay can do — see each item's own tooltip."
 text = "Tools"
 switch_on_hover = true
 
@@ -78,7 +78,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.71, 0.24, 1)
-text = "working..."
+text = "Working..."
 
 [node name="LegendButton" type="Button" parent="Root/Toolbar" unique_id=2044113612]
 layout_mode = 2
@@ -128,7 +128,7 @@ text = "Find dotquay on PATH"
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-tooltip_text = "Scaffold a manifest in this Godot project, the same as running `dotquay init`."
+tooltip_text = "Create a dotquay.toml file in this project (the same as running dotquay init)."
 text = "Create dotquay.toml"
 
 [node name="UpdateBanner" type="PanelContainer" parent="Root" unique_id=1900000001]

@@ -103,7 +103,8 @@ func run(command_name: String, args: PackedStringArray) -> int:
 	if executable.is_empty():
 		_emit_deferred(RESULT.failure(
 			RESULT.KIND_NOT_CONFIGURED,
-			"No dotquay executable configured or found on PATH. Set %s." % SETTINGS.breadcrumb(SETTINGS.CLI_PATH_SETTING),
+			("dotquay isn't installed, or this editor can't find it. Set %s, or use the Get dotquay / "
+				+ "Browse buttons above.") % SETTINGS.breadcrumb(SETTINGS.CLI_PATH_SETTING),
 			command_name), ticket)
 		return ticket
 

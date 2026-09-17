@@ -151,15 +151,15 @@ class Candidate extends RefCounted:
 
 	func describe_satisfies() -> String:
 		if satisfies_all:
-			return "satisfies every requirer"
+			return "works for everything that needs it"
 		if satisfies.is_empty():
-			return "satisfies nothing on its own"
+			return "works for nothing on its own"
 
 		var names := PackedStringArray()
 		for requirer in satisfies:
 			names.append(DotquayWire.display_requirer(requirer))
 
-		return "satisfies " + ", ".join(names)
+		return "works for " + ", ".join(names)
 
 
 class Conflict extends RefCounted:
@@ -221,9 +221,9 @@ class Conflict extends RefCounted:
 			DotquayWire.CONFLICT_DISJOINT_PINS:
 				return "'%s' is pinned to incompatible commits." % name
 			DotquayWire.CONFLICT_NO_COMMON_VERSION:
-				return "No released version of '%s' satisfies every requirer." % name
+				return "No released version of '%s' works for everything that needs it." % name
 			DotquayWire.CONFLICT_INVALID_CONSTRAINT:
-				return "'%s' has a malformed version constraint." % name
+				return "'%s' has a version requirement dotquay can't read. Check its entry in dotquay.toml." % name
 			DotquayWire.CONFLICT_DISAGREEING_INSTALL_FOLDERS:
 				return "'%s' is wanted in two different folders under addons/." % name
 			_:

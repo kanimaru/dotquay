@@ -12,7 +12,9 @@ extends RefCounted
 const NOT_CONFIGURED_MESSAGE := (
 	"dotquay is a separate program this tab talks to — it isn't installed, or this editor can't "
 	+ "find it. Get it below, or point this tab at it if you already have it.")
-const NO_MANIFEST_MESSAGE := "This Godot project has no dotquay.toml yet, so there is nothing to show."
+const NO_MANIFEST_MESSAGE := (
+	"dotquay keeps the list of your addons and packages in a file called dotquay.toml. This project "
+	+ "doesn't have one yet.")
 
 
 ## One banner state. Plain fields rather than a signal or a Dictionary: [DotquayPanel] reads every one

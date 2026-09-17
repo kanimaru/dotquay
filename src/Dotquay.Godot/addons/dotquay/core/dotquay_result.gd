@@ -121,7 +121,7 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 	if typeof(parsed) != TYPE_DICTIONARY:
 		var bad := DotquayResult.failure(
 			KIND_BAD_OUTPUT,
-			"dotquay did not return JSON (exit code %d). Check that the CLI path points at the dotquay executable." % code,
+			"dotquay didn't answer as expected (exit code %d). Its output was:" % code,
 			for_command,
 			output)
 		bad.exit_code = code
@@ -155,7 +155,8 @@ static func parse(output: String, code: int, for_command: String) -> DotquayResu
 		result.ok = false
 		result.error_kind = KIND_SCHEMA_MISMATCH
 		result.error_message = (
-			"dotquay %s speaks payload schema %d, but this plugin understands %d. Update whichever is older."
+			("This plugin and dotquay %s are incompatible versions (schema %d vs %d). Update dotquay "
+				+ "(the \"Update dotquay\" button, if shown) or update this plugin.")
 			% [result.cli_version, result.schema, SCHEMA_SUPPORTED])
 		if not result.raw_output.is_empty():
 			result.error_message += "\n%s" % _first_lines(result.raw_output, 10)

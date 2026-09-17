@@ -67,7 +67,8 @@ static func path_problem(path: String) -> String:
 		return "The configured dotquay path is a folder, not the executable itself: %s. Pick dotquay (or dotquay.exe) inside it, not the folder." % path
 
 	if not FileAccess.file_exists(path):
-		return "The configured dotquay path does not exist: %s" % path
+		return ("The dotquay path in Editor Settings does not exist: %s. Fix it there, or press "
+			+ "\"Find dotquay on PATH\" below.") % path
 
 	if path.get_extension().to_lower() == "dll":
 		return "The configured dotquay path points at a .dll: %s. Point it at the dotquay executable (dotquay.exe on Windows, dotquay elsewhere) instead." % path

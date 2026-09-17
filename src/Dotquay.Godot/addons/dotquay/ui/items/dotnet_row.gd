@@ -28,5 +28,5 @@ func setup(entry: DotquayGraph.DotnetEntry) -> void:
 		return
 
 	_label.add_theme_color_override("font_color", DotquayPalette.MUTED)
-	_label.tooltip_text = "Required by an addon, not declared in this project's manifest."
+	_label.tooltip_text = "Needed by an addon, not listed in your dotquay.toml, so it cannot be removed from here."
 	_label.mouse_filter = Control.MOUSE_FILTER_STOP

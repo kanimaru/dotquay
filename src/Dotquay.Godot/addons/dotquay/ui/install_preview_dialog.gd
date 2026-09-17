@@ -132,10 +132,9 @@ func _update_ok_state() -> void:
 	get_ok_button().disabled = not unapproved.is_empty()
 
 	_blocker.visible = not unapproved.is_empty()
-	_blocker.text = (
-		"%d feed(s) above still need your approval. Without them, dotquay cannot find the NuGet "
-		% unapproved.size()
-		+ "packages this addon requires, and the install would fail.")
+	var feed_phrase := DotquayText.plural(unapproved.size(), "%d feed above still needs", "%d feeds above still need")
+	_blocker.text = ("%s your approval. Without them, dotquay cannot find the NuGet packages this "
+		% feed_phrase + "addon requires, and the install would fail.")
 
 
 func _on_confirmed() -> void:

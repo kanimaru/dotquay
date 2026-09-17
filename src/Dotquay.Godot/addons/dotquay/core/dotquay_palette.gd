@@ -20,5 +20,19 @@ const OVERRIDE := Color(0.47, 0.62, 0.94)
 
 ## The same colours as BBCode, for the log's [RichTextLabel]. Derived rather than retyped so a colour
 ## can only be changed in one place.
+##
+## [param text] is assumed already safe to embed — callers escape it themselves via
+## [method escape_bbcode] first, rather than this function escaping unconditionally, because a
+## caller that builds a whole colour-wrapped line from several already-escaped pieces must not have
+## its own `[color=...]`/`[/color]` markup mangled by a second escape pass.
 static func bbcode(color: Color, text: String) -> String:
 	return "[color=#%s]%s[/color]" % [color.to_html(false), text]
+
+
+## Neutralises BBCode markup in text that came from the user or the CLI, before it is appended to the
+## log or wrapped in a [method bbcode] colour tag. The log's [RichTextLabel] has BBCode parsing on, so
+## a known tag anywhere in that text — an addon name, a NuGet range like `[1.0,2.0)`, a `[addons.x]`
+## TOML table the CLI quoted back in an error — is otherwise interpreted as real markup, which at best
+## disappears and at worst corrupts everything appended after it (P1-28).
+static func escape_bbcode(text: String) -> String:
+	return text.replace("[", "[lb]")

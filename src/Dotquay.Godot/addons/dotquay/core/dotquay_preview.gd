@@ -197,7 +197,7 @@ func summarize() -> String:
 		return "'%s' is already installed at this commit — nothing on disk would change." % name
 
 	var parts := PackedStringArray()
-	parts.append("%d addon(s)" % new_addons().size())
+	parts.append(DotquayText.plural(new_addons().size(), "%d addon", "%d addons"))
 
 	var transitive := transitive_addons().size()
 	if transitive > 0:
@@ -205,11 +205,11 @@ func summarize() -> String:
 
 	var packages := new_packages().size()
 	if packages > 0:
-		parts.append("%d NuGet package(s)" % packages)
+		parts.append(DotquayText.plural(packages, "%d NuGet package", "%d NuGet packages"))
 
 	var feeds := all_sources().size()
 	if feeds > 0:
-		parts.append("%d NuGet feed(s)" % feeds)
+		parts.append(DotquayText.plural(feeds, "%d NuGet feed", "%d NuGet feeds"))
 
 	# "Adding … installs …", not "Installing … adds …" (P1-14) — matches the dialog's own "Add '%s'?"
 	# title, and stays clear of the toolbar's unrelated Install button.

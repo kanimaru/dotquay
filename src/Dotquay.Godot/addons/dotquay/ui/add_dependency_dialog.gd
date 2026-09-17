@@ -244,8 +244,8 @@ func _hint_text(is_git: bool, inline_ref: String) -> String:
 
 	match _selected_mode():
 		DotquayAddRequest.Source.VERSION:
-			return ("Matched against the repository's tags. A range like ~2.5 keeps up with patches; "
-				+ "an exact tag pins to it.")
+			return ("Matched against the repository's tags. A range like ~2.5 follows bug-fix releases "
+				+ "(2.5.1, 2.5.2…); an exact tag like 2.5.1 never moves.")
 		DotquayAddRequest.Source.BRANCH:
 			return ("Tracks a branch. The lockfile still pins the resolved commit, so teammates get "
 				+ "exactly what you tested — 'Update' is what moves it forward.")
