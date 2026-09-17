@@ -29,6 +29,28 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
+    public void AddOrUpdate_NoItemGroup_InsertsAboveTrailingImportsAndTheirComments()
+    {
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText("project/Game.csproj", """
+            <Project>
+              <PropertyGroup>
+                <TargetFramework>net8.0</TargetFramework>
+              </PropertyGroup>
+              <!-- explicit SDK targets -->
+              <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+            </Project>
+            """);
+
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+
+        var text = fileSystem.ReadAllText("project/Game.csproj");
+        var reference = text.IndexOf("<PackageReference", StringComparison.Ordinal);
+        Assert.True(reference > text.IndexOf("</PropertyGroup>", StringComparison.Ordinal));
+        Assert.True(reference < text.IndexOf("<!-- explicit SDK targets -->", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void AddOrUpdate_ExistingReference_UpdatesVersionInPlace()
     {
         var fileSystem = new InMemoryFileSystem();

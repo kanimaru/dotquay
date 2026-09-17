@@ -1,3 +1,4 @@
+using Dotquay.Core.Dotnet;
 using Dotquay.Core.Local;
 using Dotquay.Core.Workflows;
 using Dotquay.Tests.Support;
@@ -203,6 +204,35 @@ public class LocalTargetsTests
         // silent no-op against an item declared later — so an import placed above the ItemGroup would
         // leave the build using the published package with nothing said. If this ever fails, the
         // feature is broken in the one way that produces no error message.
+        Assert.True(
+            csproj.IndexOf("<Import", StringComparison.Ordinal)
+            > csproj.LastIndexOf("<PackageReference", StringComparison.Ordinal),
+            "the overlay import must come after the PackageReference items, or the Remove silently does nothing");
+    }
+
+    [Fact]
+    public void Install_AfterLink_KeepsTheImportHookBelowTheNewPackageReference()
+    {
+        // The other direction: link first, into a project with no PackageReference ItemGroup yet, then
+        // install writes the reference. The writer's new ItemGroup must not land below the hook.
+        var fileSystem = new InMemoryFileSystem();
+        var csprojPath = fileSystem.CombinePath(ProjectDirectory, "Game.csproj");
+        fileSystem.WriteAllText(csprojPath, """
+            <Project Sdk="Godot.NET.Sdk/4.3.0">
+              <PropertyGroup>
+                <TargetFramework>net8.0</TargetFramework>
+              </PropertyGroup>
+            </Project>
+            """);
+        fileSystem.WriteAllText(
+            fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, csprojPath, PackageId, "1.0.0");
+
+        var csproj = fileSystem.ReadAllText(csprojPath);
+
+        // Same load-bearing assertion as Sync_TheImportHook_ComesAfterThePackageReferences.
         Assert.True(
             csproj.IndexOf("<Import", StringComparison.Ordinal)
             > csproj.LastIndexOf("<PackageReference", StringComparison.Ordinal),

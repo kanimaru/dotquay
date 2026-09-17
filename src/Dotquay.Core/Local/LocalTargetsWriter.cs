@@ -157,9 +157,12 @@ public static class LocalTargetsWriter
     }
 
     /// <summary>Whether the project already imports the overlay, however the line was written.</summary>
-    public static bool HasHook(XElement project) =>
-        project.Descendants("Import").Any(i =>
-            string.Equals((string?)i.Attribute("Project"), FileName, StringComparison.OrdinalIgnoreCase));
+    public static bool HasHook(XElement project) => project.Descendants("Import").Any(IsHook);
+
+    /// <summary>Whether <paramref name="import"/> is the overlay's <c>&lt;Import&gt;</c>.</summary>
+    public static bool IsHook(XElement import) =>
+        import.Name.LocalName == "Import"
+        && string.Equals((string?)import.Attribute("Project"), FileName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether the project at <paramref name="projectDirectory"/> imports the overlay. Used by
     /// <c>doctor</c> to catch the overlay-without-hook case, which is a link that silently does

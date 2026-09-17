@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Local;
 using Dotquay.Core.Manifest;
 
 namespace Dotquay.Core.Dotnet;
@@ -60,7 +61,7 @@ public static class CsprojPackageReferenceWriter
             if (itemGroup is null)
             {
                 itemGroup = new XElement("ItemGroup");
-                project.Add(itemGroup);
+                AddBeforeTrailingImports(project, itemGroup);
             }
 
             existing = new XElement("PackageReference", new XAttribute("Include", packageId), new XAttribute("Version", version));
@@ -181,6 +182,49 @@ public static class CsprojPackageReferenceWriter
     {
         reference.Attribute(name)?.Remove();
         reference.Element(name)?.Remove();
+    }
+
+    /// <summary>
+    /// Adds a new <c>ItemGroup</c> at the end of <c>&lt;Project&gt;</c>, but above the dotquay overlay
+    /// hook and any other trailing <c>&lt;Import&gt;</c>s (with the comments sitting on them).
+    /// </summary>
+    /// <remarks>
+    /// Not cosmetic. <c>link</c> may already have appended the overlay hook as the last element, and
+    /// MSBuild evaluates in order: a <c>PackageReference</c> declared below it would survive the
+    /// overlay's <c>Remove</c>, leaving the build silently on the published package
+    /// (docs/DESIGN-v0.11-LOCAL-DOTNET-LINK.md, "How the overlay works"). The hook is looked for
+    /// explicitly as well, so a hand-edit that puts something after it still can't push the group below.
+    /// </remarks>
+    private static void AddBeforeTrailingImports(XElement project, XElement itemGroup)
+    {
+        XNode? anchor = project.Elements().FirstOrDefault(LocalTargetsWriter.IsHook);
+
+        if (anchor is null)
+        {
+            // Walk back over the trailing run of imports and comments; the earliest import is the anchor.
+            for (var node = project.LastNode; node is XElement { Name.LocalName: "Import" } or XComment; node = node.PreviousNode)
+            {
+                if (node is XElement)
+                {
+                    anchor = node;
+                }
+            }
+        }
+
+        if (anchor is null)
+        {
+            project.Add(itemGroup);
+            return;
+        }
+
+        // Keep a comment that annotates the import (the hook writes one) attached to it. Load parses
+        // without preserving whitespace, so comments are direct siblings.
+        while (anchor.PreviousNode is XComment comment)
+        {
+            anchor = comment;
+        }
+
+        anchor.AddBeforeSelf(itemGroup);
     }
 
     private static XElement? FindReference(XElement project, string packageId) =>
