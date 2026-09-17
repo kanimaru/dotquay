@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dotquay.Mcp</RootNamespace>
+    <AssemblyName>Dotquay.Mcp</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Hosted inside dotquay's own NativeAOT binary via `dotquay mcp` (docs/DESIGN-v0.18-MCP.md).
+         Every collaborator this project reaches for — the SDK's low-level handler API, the source
+         generation below — was chosen in Phase 0 specifically because it publishes clean under
+         `-p:PublishAot=true` with zero trim warnings (verified: docs/DESIGN-v0.18-MCP.md §3.1). -->
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned, not floated: Phase 0 measured this exact version's AOT/trim behaviour
+         (docs/DESIGN-v0.18-MCP.md §3.1) and a minor bump could change it silently. -->
+    <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Not Dotquay.Cli: that project references this one (for the `dotquay mcp` subcommand), and the
+         reverse would be circular. Real infrastructure (SystemFileSystem, ProcessGitClient, the shared
+         cache) is wired directly against Dotquay.Core in Infrastructure/McpInfrastructure.cs instead of
+         reusing Dotquay.Cli.Commands.WorkflowFactory, which is internal to that assembly anyway. -->
+    <ProjectReference Include="..\Dotquay.Core\Dotquay.Core.csproj" />
+  </ItemGroup>
+
+</Project>

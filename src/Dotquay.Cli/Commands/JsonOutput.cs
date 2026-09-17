@@ -1,10 +1,5 @@
 using System.CommandLine;
-using Dotquay.Core.Auth;
-using Dotquay.Core.Dotnet;
-using Dotquay.Core.Git;
 using Dotquay.Core.Json;
-using Dotquay.Core.Resolve;
-using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
@@ -51,50 +46,15 @@ internal static class JsonOutput
         return 1;
     }
 
-    /// <summary>Classifies an exception into a stable <see cref="JsonErrorKind"/>. Kept here rather
-    /// than at each catch site so every command reports the same category for the same failure.</summary>
-    public static int Fail(bool json, string command, Exception exception) => exception switch
+    /// <summary>Classifies the exception via <see cref="JsonErrorClassifier"/> and reports it. Kept as
+    /// a thin wrapper here — rather than inlining the switch — because the MCP server (Phase 1) needs
+    /// the identical classification without depending on <c>Dotquay.Cli</c>; <see cref="JsonErrorClassifier"/>
+    /// lives in <c>Dotquay.Core</c> so both callers get the same category for the same failure.</summary>
+    public static int Fail(bool json, string command, Exception exception)
     {
-        WorkflowException when exception.Message.Contains("Run 'dotquay init' first", StringComparison.Ordinal) =>
-            Fail(json, command, JsonErrorKind.NoManifest, exception.Message),
-        WorkflowException { InnerException: AddonResolutionException } =>
-            Fail(json, command, JsonErrorKind.Conflict, exception.Message),
-
-        // Auth is matched before the plain git/NuGet cases, and the ordering is the whole point: a
-        // credential failure is a git failure, and reporting it as one would leave a UI unable to
-        // tell "log in" from "the network is down" (SPEC.md §17).
-        WorkflowException { InnerException: GitCommandException { IsAuthenticationFailure: true } } =>
-            Fail(json, command, JsonErrorKind.Auth, exception.Message),
-        WorkflowException { InnerException: NuGetAuthenticationException } =>
-            Fail(json, command, JsonErrorKind.Auth, exception.Message),
-        WorkflowException { InnerException: CredentialException } =>
-            Fail(json, command, JsonErrorKind.Auth, exception.Message),
-
-        // A feed that is misconfigured, unreachable, or invisible to the current credential. Not
-        // "auth" — the credential may be perfectly fine and the URL simply wrong — but an expected,
-        // explained failure rather than a crash.
-        WorkflowException { InnerException: NuGetSourceException } =>
-            Fail(json, command, JsonErrorKind.Workflow, exception.Message),
-
-        WorkflowException { InnerException: GitCommandException } =>
-            Fail(json, command, JsonErrorKind.Git, exception.Message),
-        WorkflowException => Fail(json, command, JsonErrorKind.Workflow, exception.Message),
-        AddonResolutionException => Fail(json, command, JsonErrorKind.Conflict, exception.Message),
-        GitCommandException { IsAuthenticationFailure: true } =>
-            Fail(json, command, JsonErrorKind.Auth, exception.Message),
-        GitCommandException => Fail(json, command, JsonErrorKind.Git, exception.Message),
-        NuGetAuthenticationException => Fail(json, command, JsonErrorKind.Auth, exception.Message),
-        CredentialException => Fail(json, command, JsonErrorKind.Auth, exception.Message),
-        NuGetSourceException => Fail(json, command, JsonErrorKind.Workflow, exception.Message),
-
-        // Backstop. Anything HTTP that still reaches here is a feed problem, and the one thing it
-        // must not do is escape as an unhandled exception: that prints a stack trace and, under
-        // --json, emits no envelope at all, which breaks the plugin's contract (SPEC.md §17).
-        System.Net.Http.HttpRequestException =>
-            Fail(json, command, JsonErrorKind.Workflow, $"A NuGet source could not be reached: {exception.Message}"),
-
-        _ => Fail(json, command, JsonErrorKind.Unexpected, exception.Message),
-    };
+        var (kind, message) = JsonErrorClassifier.Classify(exception);
+        return Fail(json, command, kind, message);
+    }
 
     /// <summary>Success path for mutating commands, which all share
     /// <see cref="OperationJson"/>.</summary>

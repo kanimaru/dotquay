@@ -148,6 +148,12 @@ internal sealed class UpdateNotice
     /// notice starts before the command runs, and because a command that failed to parse still must
     /// not have a sentence appended to a machine-readable stream. The <c>self</c> group is excluded
     /// because it says the same thing better, in the command the user actually asked for.
+    /// <c>mcp</c> (v0.18) is excluded for a different reason: <c>Report()</c> only ever runs after
+    /// <c>rootCommand.Invoke()</c> returns, and for a server command that blocks until its client
+    /// disconnects, that could be hours away — <see cref="Settle"/>'s 500&#160;ms exit grace would
+    /// never be the thing that decides anything, so <see cref="Start"/>'s background fetch would just
+    /// be pointless network and file I/O kicked off, and left running, every time an editor spins the
+    /// server up.
     /// </remarks>
     private static bool IsEligible(string[] args)
     {
@@ -165,7 +171,8 @@ internal sealed class UpdateNotice
         {
             if (arg.Equals("--json", StringComparison.Ordinal)
                 || arg.Equals("self", StringComparison.Ordinal)
-                || arg.Equals("credential", StringComparison.Ordinal))
+                || arg.Equals("credential", StringComparison.Ordinal)
+                || arg.Equals("mcp", StringComparison.Ordinal))
             {
                 return false;
             }

@@ -21,6 +21,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dotquay.Core\Dotquay.Core.csproj" />
     <ProjectReference Include="..\..\src\Dotquay.Cli\Dotquay.Cli.csproj" />
+
+    <!-- Direct, not only transitive through Dotquay.Cli: the MCP handler-conformance and schema
+         tests (Mcp/) exercise Dotquay.Mcp's own public surface and shouldn't depend on Dotquay.Cli
+         continuing to reference it for that to keep compiling. -->
+    <ProjectReference Include="..\..\src\Dotquay.Mcp\Dotquay.Mcp.csproj" />
   </ItemGroup>
 
 </Project>

@@ -28,6 +28,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Dotquay.Core\Dotquay.Core.csproj" />
+
+    <!-- The `dotquay mcp` subcommand (docs/DESIGN-v0.18-MCP.md) hosts Dotquay.Mcp; that project does
+         not reference this one back, so this stays a one-directional edge. -->
+    <ProjectReference Include="..\Dotquay.Mcp\Dotquay.Mcp.csproj" />
   </ItemGroup>
 
 </Project>

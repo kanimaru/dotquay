@@ -6,21 +6,21 @@ using Dotquay.Core.IO;
 namespace Dotquay.Core.Git;
 
 /// <summary>
-/// Shells out to <c>git</c> on PATH (SPEC.md §12: real git handles SSH keys, credential helpers,
-/// and proxies for free — LibGit2Sharp auth is a known pain, pure-library is a later refinement).
+/// Shells out to <c>git</c> on PATH (SPEC.md Ã‚Â§12: real git handles SSH keys, credential helpers,
+/// and proxies for free Ã¢â‚¬â€ LibGit2Sharp auth is a known pain, pure-library is a later refinement).
 /// </summary>
 /// <remarks>
 /// Every child process gets the environment <see cref="GitEnvironment"/> builds: prompts disabled,
 /// and dotquay appended as a credential helper *after* whatever the machine already has, so an
 /// existing SSH agent or Git Credential Manager still answers first and dotquay only fills the gap
-/// (SPEC.md §11.2).
+/// (SPEC.md Ã‚Â§11.2).
 /// </remarks>
 public sealed class ProcessGitClient : IGitClient
 {
     private readonly IReadOnlyDictionary<string, string> _childEnvironment;
 
     /// <param name="childEnvironment">Extra variables for every git child process. Null builds the
-    /// real one from <see cref="Environment.ProcessPath"/> — the AOT-safe way to find dotquay's own
+    /// real one from <see cref="Environment.ProcessPath"/> Ã¢â‚¬â€ the AOT-safe way to find dotquay's own
     /// binary, since <c>Assembly.Location</c> is empty in a published NativeAOT image.</param>
     public ProcessGitClient(IReadOnlyDictionary<string, string>? childEnvironment = null)
     {
@@ -90,7 +90,7 @@ public sealed class ProcessGitClient : IGitClient
         await RunGitOrThrowAsync(destinationPath, ["init", "--quiet"], cancellationToken, "git init");
         await RunGitOrThrowAsync(destinationPath, ["remote", "add", "origin", repositoryUrl], cancellationToken, "git remote add");
 
-        // Shallow fetch by SHA is the baseline, not an optimization (SPEC.md §9 step 1, §12 OQ-4).
+        // Shallow fetch by SHA is the baseline, not an optimization (SPEC.md Ã‚Â§9 step 1, Ã‚Â§12 OQ-4).
         // Fall back to a full fetch only when the server refuses to shallow-fetch that exact commit
         // (older/self-hosted servers without uploadpack.allowReachableSHA1InWant).
         var shallow = await RunGitAsync(destinationPath, ["fetch", "--quiet", "--depth", "1", "origin", commitSha], cancellationToken);
@@ -113,7 +113,7 @@ public sealed class ProcessGitClient : IGitClient
         try
         {
             // RunGitAsync itself throws GitCommandException when the process can't even start
-            // (Win32Exception — "git" not found on PATH at all); a non-zero exit from a `git`
+            // (Win32Exception Ã¢â‚¬â€ "git" not found on PATH at all); a non-zero exit from a `git`
             // that DID start is vanishingly unlikely for `--version`, but treated the same way
             // either way, "not available" is "not available".
             var result = await RunGitAsync(workingDirectory: null, ["--version"], cancellationToken);
@@ -127,8 +127,8 @@ public sealed class ProcessGitClient : IGitClient
 
     /// <summary>
     /// Parses <c>git ls-remote</c> output into short-named refs. Annotated tags produce two lines
-    /// for the same ref — the tag-object line and a peeled <c>^{}</c> line pointing at the commit
-    /// it tags — and the peeled commit SHA is what callers actually want, so it always wins over
+    /// for the same ref Ã¢â‚¬â€ the tag-object line and a peeled <c>^{}</c> line pointing at the commit
+    /// it tags Ã¢â‚¬â€ and the peeled commit SHA is what callers actually want, so it always wins over
     /// the tag object's own SHA when both are present for the same name.
     /// </summary>
     internal static IReadOnlyList<GitRef> ParseRefs(string lsRemoteOutput)
@@ -185,7 +185,7 @@ public sealed class ProcessGitClient : IGitClient
     }
 
     /// <summary>Builds a <see cref="GitCommandException"/> that already knows whether git was
-    /// complaining about credentials, so the CLI doesn't have to re-read the prose (SPEC.md §17).</summary>
+    /// complaining about credentials, so the CLI doesn't have to re-read the prose (SPEC.md Ã‚Â§17).</summary>
     private static GitCommandException Failure(string message, string stderr) =>
         new(message, GitErrorClassifier.LooksLikeAuthenticationFailure(stderr));
 
@@ -206,6 +206,13 @@ public sealed class ProcessGitClient : IGitClient
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // Redirected even though git never reads it: leaving this false makes the child inherit
+            // dotquay's own stdin handle. Under dotquay mcp, that handle is the anonymous pipe the
+            // MCP host reads JSON-RPC requests from -- a console-less, fully-piped process spawning a
+            // console child that way deadlocks the child before it can even print --version, hanging
+            // every doctor/status/graph call that shells out to git. Closed immediately below so the
+            // child sees a clean EOF instead of an open, unread handle.
+            RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
@@ -215,7 +222,7 @@ public sealed class ProcessGitClient : IGitClient
             startInfo.ArgumentList.Add(arg);
         }
 
-        // Set on the child only. dotquay's own process environment is never mutated — several git
+        // Set on the child only. dotquay's own process environment is never mutated Ã¢â‚¬â€ several git
         // invocations can be in flight at once, and process-global state shared between them is the
         // bug class IEnvironmentReader exists to avoid.
         foreach (var (name, value) in _childEnvironment)
@@ -238,6 +245,8 @@ public sealed class ProcessGitClient : IGitClient
         {
             throw new GitCommandException("Could not start 'git'. Is it installed and on PATH?", ex);
         }
+
+        process.StandardInput.Close();
 
         var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);

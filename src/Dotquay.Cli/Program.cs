@@ -21,6 +21,7 @@ var rootCommand = new RootCommand("dotquay - a package manager for Godot project
     LoginCommand.Build(),
     LogoutCommand.Build(),
     SelfCommand.Build(),
+    McpCommand.Build(),
 
     // Hidden: git invokes this, people don't (SPEC.md §11.2).
     CredentialHelperCommand.Build(),

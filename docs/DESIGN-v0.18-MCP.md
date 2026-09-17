@@ -398,12 +398,24 @@ Layers, each independent:
    prompts end to end, including one refusal → approval → retry loop for a private feed. Each new
    payload type in `McpJsonContext` is a new closed generic and needs (a) at minimum.
 
+**(a) found a real bug on the first Phase 1 run** — `ProcessGitClient.RunGitAsync` redirected git's
+stdout/stderr but not its stdin, so a spawned `git` child inherited whatever handle dotquay's own stdin
+happened to be. Harmless under the CLI (a real console); under `dotquay mcp`, dotquay's own stdin is the
+anonymous pipe the stdio transport holds a pending read on, and a console child spawned that way with no
+console of its own deadlocked before it could even print `--version` — hanging every `doctor`/`status`/
+`graph` call that shells out to git, forever, with no response ever sent back to the MCP client. Fixed by
+redirecting git's stdin too and closing it immediately (clean EOF instead of an open, unread handle). Only
+reproduces over the real `mcp` stdio transport on a real OS process tree — neither the fakes-based suite
+nor the in-process handler-conformance harness (test layer 1) can see it, since the test host itself still
+has a real console. Regression test: `tests/Dotquay.Tests/Git/ProcessGitClientRealProcessTests.cs`, which
+spawns the real apphost exe's `mcp` subcommand over piped stdio and drives it with raw JSON-RPC.
+
 ## 9. Phasing
 
 | Phase | Ships | Exit criterion |
 |---|---|---|
 | **0 — spike** | Throwaway console app, two variants (§3.1), *not merged* | **Done, 2026-09-16.** Verdict: adopt `ModelContextProtocol` 2.2.0 on its low-level handler API — both variants published AOT-clean, SDK chosen for the primitives it gives for free (§3.1). |
-| **1 — read-only server** | `Dotquay.Mcp` registries + `McpServerBuilder`, the eight read tools, resources, `dotquay mcp`, `UpdateNotice` quiet list, `JsonErrorClassifier` move | Inspector shows all eight tools; Claude Code can call `dotquay_status` and `dotquay_doctor` on a real project from the AOT binary. Test layers 1, 3, 5 green. Releasable on its own. |
+| **1 — read-only server** | `Dotquay.Mcp` registries + `McpServerBuilder`, the eight read tools, resources, `dotquay mcp`, `UpdateNotice` quiet list, `JsonErrorClassifier` move | **Done, 2026-09-17.** Inspector (`--cli`) lists all eight tools against the published AOT binary; a raw JSON-RPC driver completed `initialize` -> `tools/list` -> `tools/call` (`dotquay_status`, `dotquay_doctor`) -> `resources/list` with byte-clean stdout (no BOM, no CRLF, every line valid JSON). Test layers 1, 3, 5 green (1057/1057, including a new real-process regression test for a git-subprocess-stdin deadlock the AOT run surfaced -- see below). Releasable on its own. |
 | **2 — guarded writes** | The eleven write tools, `IWriteGuard` with three policies, `ProjectGate`, progress, cancellation | Test layer 2 green; a real private-feed refusal/approval loop and a real `confirm_discard` loop walked on the AOT binary. |
 | **3 — prompts + roots** | Three prompts, client `roots` integration, `--log` | Test layer 4 green; each prompt walked once in Claude Code. |
 | **4 — docs** | SPEC.md §20 "MCP server (v0.18)", TUTORIAL section, README status line, version bump to 0.18 | Docs merged in the same MR as Phase 3 so the shipped binary and its description agree. |
