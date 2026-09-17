@@ -14,6 +14,9 @@ const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
 const GRAPH := preload("res://addons/dotquay/core/dotquay_graph.gd")
 const PREVIEW := preload("res://addons/dotquay/core/dotquay_preview.gd")
 const EXPLAIN := preload("res://addons/dotquay/core/dotquay_explain.gd")
+const DOCTOR := preload("res://addons/dotquay/core/dotquay_doctor.gd")
+const OUTDATED := preload("res://addons/dotquay/core/dotquay_outdated.gd")
+const OPERATION := preload("res://addons/dotquay/core/dotquay_operation.gd")
 
 var runner: Object
 
@@ -51,10 +54,11 @@ func test_real_cli_emits_a_graph_this_addon_can_parse() -> void:
 	var project := _make_project()
 
 	var init_result := _run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
-	# `init` predates the --json layer and still prints plain text, so its envelope is allowed to be
-	# unparseable here — what matters is that the manifest exists afterwards.
+	# `init` emits a --json envelope like every other command (`InitCommand.cs`), verified live against
+	# 0.18: it reports `"command":"init"` with an operation payload. Both halves must therefore hold —
+	# the manifest on disk *and* an envelope this addon could parse.
 	runner.check(
-		FileAccess.file_exists(project.path_join("dotquay.toml")) or init_result.ok,
+		FileAccess.file_exists(project.path_join("dotquay.toml")) and init_result.ok,
 		"`init` should leave a dotquay.toml behind")
 
 	var graph_result := _run(cli, PackedStringArray(["graph", "--project", project, "--json"]), "graph")
@@ -125,7 +129,7 @@ func test_real_cli_accepts_explain_and_emits_a_status_this_addon_can_parse() -> 
 		return
 
 	var project := _make_project()
-	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "status")
+	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
 
 	var result := _run(
 		cli, PackedStringArray(["status", "--explain", "--project", project, "--json"]), "status")
@@ -154,3 +158,84 @@ func test_real_cli_reports_a_missing_manifest_as_data() -> void:
 	runner.check(not result.ok, "an uninitialised directory is a failure, not an empty graph")
 	runner.equal(result.error_kind, DotquayWire.KIND_NO_MANIFEST,
 		"the CLI should categorise it as no_manifest so the panel can offer to initialise the project")
+
+## The three payloads C-24 gave typed views to had no live coverage at all — their field names were
+## only ever checked against fixtures this plugin wrote itself, which is precisely the gap this suite
+## exists to close: a renamed key passes every fixture test and empties a panel.
+##
+## [DotquaySelfCheck] is deliberately absent. `self check` needs the network *and* a release-read
+## credential for the update channel, so it would skip on most machines and fail on the rest for
+## reasons that say nothing about the wire contract. Its fixture suite is the honest limit there.
+func test_real_cli_emits_a_doctor_this_addon_can_parse() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var project := _make_project()
+	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
+
+	var result := _run(cli, PackedStringArray(["doctor", "--project", project, "--json"]), "doctor")
+
+	runner.check(result.ok, "`doctor` should succeed on an initialised project")
+	runner.equal(result.schema, RESULT.SCHEMA_SUPPORTED, "the doctor payload schema should match this addon's")
+
+	var doctor: DotquayDoctor = DOCTOR.from_payload(result.data)
+
+	# Asserted as an invariant rather than as `healthy == true`: this holds whatever the machine
+	# running it has installed, and it is the thing the panel actually depends on — `_report_doctor`
+	# returns early on `healthy`, so a true flag arriving alongside real issues would hide them.
+	runner.equal(doctor.healthy, doctor.issues.is_empty(),
+		"`healthy` must mirror whether any issues came back, or the panel's early return swallows them")
+
+	for issue in doctor.issues:
+		runner.check(not issue.describe().is_empty(), "every issue must render as something readable")
+
+
+func test_real_cli_emits_an_outdated_this_addon_can_parse() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var project := _make_project()
+	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
+
+	# No dependencies means no `git ls-remote` and no NuGet metadata query, so this stays offline and
+	# deterministic — the assertion is the payload's shape, not what any remote currently publishes.
+	var result := _run(cli, PackedStringArray(["outdated", "--project", project, "--json"]), "outdated")
+
+	runner.check(result.ok, "`outdated` should succeed on an initialised project")
+	runner.equal(result.schema, RESULT.SCHEMA_SUPPORTED, "the outdated payload schema should match this addon's")
+
+	var outdated: DotquayOutdated = OUTDATED.from_payload(result.data)
+
+	runner.check(outdated.is_all_up_to_date(), "a project with no dependencies has nothing to update")
+	runner.equal(outdated.reported_count(), 0, "and the count the panel announces agrees with that")
+	runner.check(outdated.outdated_entries().is_empty(), "leaving no rows to list")
+
+
+## `init` stands in for every mutating command: install/update/remove/override/patch all report
+## through the same operation payload, which is what the panel's `_:` fall-through parses. `init` is
+## the only one of them that needs neither a network fetch nor an existing lockfile.
+func test_real_cli_emits_an_operation_this_addon_can_parse() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var project := ProjectSettings.globalize_path("user://dotquay_contract_test_operation")
+	DirAccess.make_dir_recursive_absolute(project)
+
+	var result := _run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
+
+	runner.check(result.ok, "`init` should report success through the envelope")
+
+	var operation: DotquayOperation = OPERATION.from_payload(result.data)
+
+	# What matters is that `changes` round-trips into typed rows at all: a renamed `action` key would
+	# leave every row looking `unchanged` and the panel would report "nothing needed changing" for an
+	# operation that just wrote a file.
+	runner.check(not operation.changes.is_empty(), "`init` writes a manifest, so it reports a change")
+	runner.check(not operation.did_nothing(), "and a command that wrote something never reads as a no-op")
+
+	for change in operation.changes:
+		runner.check(not change.name.is_empty(), "every change row names what it touched")
+		runner.check(not change.action.is_empty(), "and says what it did to it")

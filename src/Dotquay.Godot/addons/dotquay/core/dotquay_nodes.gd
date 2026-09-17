@@ -9,9 +9,13 @@ extends RefCounted
 ##
 ## Both steps, always: `queue_free()` alone leaves the child in the tree until the end of the frame,
 ## so a render that runs twice in one frame lays out stale rows beside new ones, and a lookup by name
-## (the graph view's `connect_node`) can still find a node that is about to vanish. Every list-
-## rendering script in the plugin clears its container through here rather than writing this loop
-## itself, so the `remove_child` step can't quietly go missing from just one of them.
+## (the graph view's `connect_node`) can still find a node that is about to vanish. Every script that
+## empties a container wholesale routes through here rather than writing this loop itself, so the
+## `remove_child` step can't quietly go missing from just one of them.
+##
+## [DotquayDependencyGraphView] is the one deliberate exception, and not a candidate for this helper:
+## it must free only its own [GraphNode] children and leave the ones [GraphEdit] owns internally
+## alone, so it keeps a filtered loop of its own and cites this method for why both steps are there.
 static func clear_children(container: Node) -> void:
 	for child in container.get_children():
 		container.remove_child(child)

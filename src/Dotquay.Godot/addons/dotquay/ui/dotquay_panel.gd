@@ -918,12 +918,15 @@ func _report_outdated(payload: Dictionary) -> void:
 		_log_line("Everything is up to date.")
 		return
 
-	_log_warning(DotquayText.plural(outdated.outdated_count,
+	_log_warning(DotquayText.plural(outdated.reported_count(),
 		"Newer versions are available for %d addon/package:",
 		"Newer versions are available for %d addons/packages:"))
 
 	for entry in outdated.outdated_entries():
-		_log_line("  %s  %s -> %s" % [entry.name, entry.current, entry.latest])
+		_log_line("  %s  %s -> %s" % [
+			DotquayText.or_unknown(entry.name),
+			DotquayText.or_unknown(entry.current),
+			DotquayText.or_unknown(entry.latest)])
 
 
 func _report_doctor(payload: Dictionary) -> void:
@@ -943,7 +946,9 @@ func _report_operation(payload: Dictionary) -> void:
 		_log_line(message)
 
 	for change in operation.meaningful_changes():
-		_log_line("  %s: %s %s" % [change.name, change.action, change.to])
+		# Only the name gets a placeholder: `action` is required by the wire, and an empty `to` is
+		# correct for a removal rather than a field the CLI forgot to send.
+		_log_line("  %s: %s %s" % [DotquayText.or_unknown(change.name), change.action, change.to])
 
 	# A command that touched nothing (everything already `unchanged`, no messages of its own) used to
 	# end silently right after its opening log line, reading like it had hung rather than finished

@@ -46,8 +46,17 @@ static func from_payload(payload: Dictionary) -> DotquayOutdated:
 	return outdated
 
 
+## How many entries to announce. The CLI derives `outdated_count` from the same `is_outdated`
+## predicate [method outdated_entries] filters on, so for any compliant dotquay the two agree. If they
+## ever don't — an older CLI that sends the count without the per-entry flag, say — the larger wins:
+## announcing more than is listed reads as an obvious oddity someone can report, while announcing
+## fewer would silently hide a real entry from anyone scanning the list.
+func reported_count() -> int:
+	return maxi(outdated_count, outdated_entries().size())
+
+
 func is_all_up_to_date() -> bool:
-	return outdated_count == 0
+	return reported_count() == 0
 
 
 ## Every entry actually behind, addons before packages — what the panel logs, so no call site filters

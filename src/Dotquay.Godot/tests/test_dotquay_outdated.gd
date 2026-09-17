@@ -68,3 +68,35 @@ func test_missing_fields_do_not_break_the_parse() -> void:
 
 	runner.equal(outdated.outdated_count, 0, "a missing count defaults to zero")
 	runner.check(outdated.is_all_up_to_date(), "a missing count reads as up to date")
+
+func test_a_count_without_per_entry_flags_is_still_announced() -> void:
+	# `outdated_count` and `is_outdated` come from the same upstream predicate, so a real dotquay
+	# never disagrees with itself. An older one that sent the count alone must not read as up to date.
+	var outdated: DotquayOutdated = OUTDATED.from_payload({
+		"outdated_count": 2,
+		"addons": [{"name": "core", "current": "v1.0.0", "latest": "v1.2.0"}],
+		"dotnet": [],
+	})
+
+	runner.equal(outdated.reported_count(), 2, "the CLI's own larger count wins over unflagged entries")
+	runner.check(not outdated.is_all_up_to_date(), "a non-zero count is never reported as up to date")
+
+
+func test_flagged_entries_outvote_a_zero_count() -> void:
+	# The mirror case: a flagged entry is announced even if the count forgot to include it, so the
+	# header can never claim fewer than the list beneath it actually shows.
+	var outdated: DotquayOutdated = OUTDATED.from_payload({
+		"outdated_count": 0,
+		"addons": [{"name": "core", "current": "v1.0.0", "latest": "v1.2.0", "is_outdated": true}],
+		"dotnet": [],
+	})
+
+	runner.equal(outdated.reported_count(), 1, "an entry the CLI flagged is announced even at count 0")
+	runner.check(not outdated.is_all_up_to_date(), "and the panel must not claim everything is current")
+
+
+func test_the_announced_count_never_undercounts_the_listed_rows() -> void:
+	var outdated: DotquayOutdated = OUTDATED.from_payload(_payload())
+
+	runner.check(outdated.reported_count() >= outdated.outdated_entries().size(),
+		"the header count must never promise fewer rows than the list prints")
