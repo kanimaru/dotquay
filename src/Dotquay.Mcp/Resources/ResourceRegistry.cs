@@ -13,13 +13,20 @@ namespace Dotquay.Mcp.Resources;
 /// MCP resources (design doc §7): read-only views an agent can fetch by URI without a tool call.
 /// </summary>
 /// <remarks>
-/// Concrete resources, enumerated eagerly from the server's <c>--project</c> roots, rather than
+/// Concrete resources, enumerated eagerly from the server's scope roots, rather than
 /// <c>resources/templates/list</c>'s parameterized templates: the roots are exactly the set this
 /// server is scoped to (see <see cref="IProjectScope"/>), so there is nothing a template would add —
 /// every resource this server could ever serve is already knowable at list time. Template support can
 /// be added later without breaking anything here; nothing about this shape forecloses it.
 /// </remarks>
-public sealed class ResourceRegistry(IReadOnlyList<string> projectRoots, IFileSystem fileSystem, IProjectScope scope)
+/// <remarks>
+/// Reads <see cref="IProjectScope.Roots"/> live on every <see cref="ListAsync"/> call rather than
+/// caching the roots the server started with: a client that supplies roots via the MCP <c>roots</c>
+/// capability (design doc §4.3, folded in by <c>ClientRootsSync</c>) should see its own projects'
+/// files show up in <c>resources/list</c> too, not just be able to name them in a tool call's
+/// <c>project</c> argument.
+/// </remarks>
+public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope)
 {
     public ValueTask<ListResourcesResult> ListAsync(RequestContext<ListResourcesRequestParams> context, CancellationToken cancellationToken)
     {
@@ -27,7 +34,7 @@ public sealed class ResourceRegistry(IReadOnlyList<string> projectRoots, IFileSy
         var store = new ProjectFileStore(fileSystem);
         var localLinks = new LocalLinks(fileSystem);
 
-        foreach (var root in projectRoots)
+        foreach (var root in scope.Roots)
         {
             var label = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 

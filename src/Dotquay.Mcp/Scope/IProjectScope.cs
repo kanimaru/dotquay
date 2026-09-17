@@ -18,4 +18,17 @@ public interface IProjectScope
     /// <paramref name="requestedPath"/> — or the default root, if null — falls outside every
     /// configured root.</summary>
     string Resolve(string? requestedPath);
+
+    /// <summary>The roots this scope currently allows — the server's own <c>--project</c> roots plus
+    /// any a client has supplied via the MCP <c>roots</c> capability (design doc §4.3, see
+    /// <c>ClientRootsSync</c>) — for the tool descriptions, error messages, and <c>resources/list</c>
+    /// that need to reflect the live set, not just what the process started with.</summary>
+    IReadOnlyList<string> Roots { get; }
+
+    /// <summary>Widens the allowed set with <paramref name="paths"/>, normalizing each one and
+    /// silently skipping any already present. Never removes a root: the server's own
+    /// <c>--project</c> roots are permanent for the life of the process, and a client's roots only
+    /// ever grow what a call may name — narrowing scope mid-session is not a thing this server does,
+    /// so <c>ClientRootsSync</c> never has to reconcile a shrinking set.</summary>
+    void AddRoots(IEnumerable<string> paths);
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Infrastructure;
@@ -11,13 +11,13 @@ namespace Dotquay.Mcp.Tools;
 /// <summary>MCP mirror of <c>dotquay remove &lt;name&gt;</c>: drops a dependency from the manifest,
 /// lockfile, and disk. See <c>Dotquay.Cli.Commands.RemoveCommand</c>.</summary>
 /// <remarks>
-/// Destructive and unguarded by design (§4.2): it deletes <c>addons/&lt;folder&gt;</c> through
+/// Destructive and unguarded by design (Â§4.2): it deletes <c>addons/&lt;folder&gt;</c> through
 /// <c>InstallPaths</c> and the sync engine like every other caller, so it never follows a directory
 /// link, but nothing stops it from deleting an addon with uncaptured local edits — that is what
-/// "explained destruction" means here (§4.2's own reasoning): the agent can, and the
-/// <c>dotquay_diagnose_modified</c> prompt (§7, Phase 3) tells it to, run <c>dotquay_status</c> first.
+/// "explained destruction" means here (Â§4.2's own reasoning): the agent can, and the
+/// <c>dotquay_diagnose_modified</c> prompt (Â§7, Phase 3) tells it to, run <c>dotquay_status</c> first.
 /// </remarks>
-public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
+public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
 {
     public override string Name => "dotquay_remove";
 

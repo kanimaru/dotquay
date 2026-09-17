@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Progress;
@@ -12,10 +12,10 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay override &lt;name&gt;</c>: forces one addon to a specific
-/// version, branch, or commit — the conflict escape hatch (SPEC.md §7.1/§8). See
+/// version, branch, or commit — the conflict escape hatch (SPEC.md Â§7.1/Â§8). See
 /// <c>Dotquay.Cli.Commands.OverrideCommand</c>.</summary>
 /// <remarks>
-/// A pure manifest edit and nothing else — per the table (§4.2) this tool's Core call is
+/// A pure manifest edit and nothing else — per the table (Â§4.2) this tool's Core call is
 /// <c>OverrideWorkflow.Set</c> alone, not the CLI's follow-on resync (<c>DependencyWorkflow.ResyncAsync</c>).
 /// <c>OverrideWorkflow</c>'s own remarks explain why writing and applying an override are kept apart:
 /// a caller can write one, see a later <c>dotquay_update</c> fail, and clear it again without an
@@ -23,7 +23,7 @@ namespace Dotquay.Mcp.Tools;
 /// <c>dotquay_update</c> (or <c>dotquay_install</c>) itself, which is also where the write guard's
 /// force/confirm_discard check belongs — a plain manifest edit never discards anything on its own.
 /// </remarks>
-public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
+public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
 {
     public override string Name => "dotquay_override_set";
 

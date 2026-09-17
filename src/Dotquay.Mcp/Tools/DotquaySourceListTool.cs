@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Infrastructure;
@@ -9,8 +9,8 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay source list</c>: the NuGet feeds this project searches, in order
-/// (SPEC.md §7.1, §11.1). See <c>Dotquay.Cli.Commands.SourceCommand</c>.</summary>
-public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
+/// (SPEC.md Â§7.1, Â§11.1). See <c>Dotquay.Cli.Commands.SourceCommand</c>.</summary>
+public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
 {
     public override string Name => "dotquay_source_list";
 

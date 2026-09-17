@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Guards;
@@ -10,16 +10,16 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay update [name]</c>: re-resolves one dependency, or everything the
-/// manifest declares, fresh (SPEC.md §6). See <c>Dotquay.Cli.Commands.UpdateCommand</c>.</summary>
+/// manifest declares, fresh (SPEC.md Â§6). See <c>Dotquay.Cli.Commands.UpdateCommand</c>.</summary>
 /// <remarks>
-/// <see cref="Guards.SourceApprovalPolicy"/> has no dry run for <c>update</c> (§5.1 — there is no
+/// <see cref="Guards.SourceApprovalPolicy"/> has no dry run for <c>update</c> (Â§5.1 — there is no
 /// <c>PreviewUpdateAsync</c>), so <c>approved_source_urls</c> is wired straight into the real
 /// workflow's <see cref="Dotquay.Core.Abstractions.ISourceApproval"/> and never pre-checked; an
 /// unadopted feed a package actually needed surfaces the way it always has, as an ordinary Core
 /// exception naming the addon and feed. <see cref="Guards.ForceConfirmationPolicy"/> is pre-checked,
 /// same as <see cref="DotquayInstallTool"/>.
 /// </remarks>
-public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
+public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
 {
     public override string Name => "dotquay_update";
 

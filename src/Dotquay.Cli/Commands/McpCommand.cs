@@ -4,8 +4,8 @@ using Dotquay.Mcp;
 namespace Dotquay.Cli.Commands;
 
 /// <summary>
-/// <c>dotquay mcp</c> (v0.18, Phase 1) — runs dotquay as a Model Context Protocol server over stdio,
-/// exposing the eight read tools and the manifest/lockfile/local-links/patches resources
+/// <c>dotquay mcp</c> — runs dotquay as a Model Context Protocol server over stdio: the read tools
+/// (Phase 1), the guarded write tools (Phase 2), and prompts/client-roots/request logging (Phase 3)
 /// (docs/DESIGN-v0.18-MCP.md).
 /// </summary>
 /// <remarks>
@@ -13,23 +13,34 @@ namespace Dotquay.Cli.Commands;
 /// (<see cref="GlobalOptions"/>), not a separate flag: a second, differently-behaving <c>--project</c>
 /// on one command would be its own kind of bug, and <see cref="Dotquay.Mcp.Scope.ProjectScope"/> is
 /// built to take more than one root should a future <c>--project-root</c> (repeatable) ever need it —
-/// nothing here forecloses that, it's simply not what Phase 1 needs. All 8 tools resolve their own
-/// <c>project</c> argument against this one root, matching every other command's implicit "current
+/// nothing here forecloses that, it's simply not what this command exposes yet. Every tool resolves
+/// its own <c>project</c> argument against this one root (plus whatever the client's <c>roots</c>
+/// capability adds at runtime — design doc §4.3), matching every other command's implicit "current
 /// directory unless told otherwise" default (<see cref="GlobalOptions.Resolve"/>).
 /// </remarks>
 internal static class McpCommand
 {
     public static Command Build()
     {
+        var logOption = new Option<string?>("--log")
+        {
+            Description = "Append a plain-text request trace (id, method, duration, and the first line "
+                + "of any exception) to this file. Without it, the same lines go to stderr instead.",
+        };
+
         var command = new Command(
             "mcp",
-            "Run dotquay as a Model Context Protocol server over stdio: read-only tools and resources for the "
-                + "project at --project (or the current directory). Blocks until the client disconnects.");
+            "Run dotquay as a Model Context Protocol server over stdio: tools, resources, and prompts for the "
+                + "project at --project (or the current directory). Blocks until the client disconnects.")
+        {
+            logOption,
+        };
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             var projectDirectory = GlobalOptions.Resolve(parseResult);
-            await McpServerBuilder.RunStdioAsync([projectDirectory], cancellationToken);
+            var logFile = parseResult.GetValue(logOption);
+            await McpServerBuilder.RunStdioAsync([projectDirectory], logFile, cancellationToken);
             return 0;
         });
 

@@ -33,4 +33,12 @@
     <ProjectReference Include="..\Dotquay.Core\Dotquay.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Phase 3 (design doc §7): prompt prose lives as markdown, not C# string literals, so it can be
+         read and edited as prose. Plain data at publish time, not reflection-based discovery — see
+         Prompts/McpPromptText.cs's remarks for why this carries none of the AOT risk §3.1 rejected
+         attribute-based tool discovery for. -->
+    <EmbeddedResource Include="Prompts\*.md" />
+  </ItemGroup>
+
 </Project>

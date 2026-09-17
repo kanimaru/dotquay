@@ -22,6 +22,13 @@ namespace Dotquay.Mcp.Json;
 /// file the plugin's compatibility promise is about, for a change the plugin will never see. Owning
 /// this context from Phase 1 means that boundary never has to be crossed.
 /// </para>
+/// <para>
+/// <c>string</c> is registered too: Phase 3's <see cref="Dotquay.Mcp.Logging.RequestLog"/> wraps a
+/// bare error message as a <see cref="JsonElement"/> for the <c>notifications/message</c> push
+/// (design doc §6), and the reflection-based <c>JsonSerializer.SerializeToElement&lt;string&gt;</c>
+/// overload is exactly the kind of call the trimmer silently breaks under NativeAOT — the same reason
+/// every other type here goes through source generation instead.
+/// </para>
 /// </remarks>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
@@ -37,6 +44,7 @@ namespace Dotquay.Mcp.Json;
 [JsonSerializable(typeof(JsonEnvelope<OperationJson>))]
 [JsonSerializable(typeof(McpRefusalJson<ForceConfirmationDetailJson>))]
 [JsonSerializable(typeof(McpRefusalJson<SourceApprovalDetailJson>))]
+[JsonSerializable(typeof(string))]
 public sealed partial class DotquayMcpJsonContext : JsonSerializerContext
 {
 }

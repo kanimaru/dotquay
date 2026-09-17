@@ -13,12 +13,12 @@ namespace Dotquay.Tests.Mcp;
 /// </summary>
 /// <remarks>
 /// This is design doc §8 test layer 1, "handler conformance": <see cref="McpServerBuilder.BuildForStreams"/>
-/// is the exact same tool/resource wiring <c>dotquay mcp</c> uses over real stdio, so a test built on
-/// this harness exercises production's handlers end to end — the initialize handshake, tool/resource
-/// dispatch, JSON envelope serialization — without spawning a process or touching a real terminal.
-/// Also captures whatever the process under test writes to <see cref="Console.Out"/> (see
-/// <see cref="CapturedStdout"/>), separately from the pipe the transport itself uses, so a stdout-purity
-/// test can assert nothing ever landed there.
+/// is the exact same tool/resource/prompt wiring <c>dotquay mcp</c> uses over real stdio, so a test
+/// built on this harness exercises production's handlers end to end — the initialize handshake, tool/
+/// resource/prompt dispatch, roots capability negotiation, JSON envelope serialization — without
+/// spawning a process or touching a real terminal. Also captures whatever the process under test
+/// writes to <see cref="Console.Out"/> (see <see cref="CapturedStdout"/>), separately from the pipe the
+/// transport itself uses, so a stdout-purity test can assert nothing ever landed there.
 /// </remarks>
 internal sealed class McpTestHarness : IAsyncDisposable
 {
@@ -52,7 +52,15 @@ internal sealed class McpTestHarness : IAsyncDisposable
     /// MCP wire is corrupted under real stdio.</summary>
     public string CapturedStdout => _capturedStdout.ToString();
 
-    public static async Task<McpTestHarness> StartAsync(IReadOnlyList<string> projectRoots)
+    /// <param name="clientOptions">Lets a test configure the simulated client's own capabilities and
+    /// handlers — e.g. <c>Capabilities.Roots</c> plus <c>Handlers.RootsHandler</c>, to exercise the
+    /// server's client-roots sync (design doc §4.3) the same way a real client would answer
+    /// <c>roots/list</c>. Null (the default) matches every pre-Phase-3 test: a client that advertises
+    /// nothing beyond the SDK's own defaults.</param>
+    /// <param name="logFile">Forwarded to <see cref="McpServerBuilder.BuildForStreams"/> so a test can
+    /// exercise <c>--log</c> (design doc §6) against the same in-process server.</param>
+    public static async Task<McpTestHarness> StartAsync(
+        IReadOnlyList<string> projectRoots, McpClientOptions? clientOptions = null, string? logFile = null)
     {
         var originalStdout = Console.Out;
         var capturedStdout = new StringWriter();
@@ -67,7 +75,8 @@ internal sealed class McpTestHarness : IAsyncDisposable
             var host = McpServerBuilder.BuildForStreams(
                 projectRoots,
                 input: clientToServer.Reader.AsStream(),
-                output: serverToClient.Writer.AsStream());
+                output: serverToClient.Writer.AsStream(),
+                logFile);
 
             var hostTask = host.RunAsync(cancellation.Token);
 
@@ -76,7 +85,7 @@ internal sealed class McpTestHarness : IAsyncDisposable
                     serverInput: clientToServer.Writer.AsStream(),
                     serverOutput: serverToClient.Reader.AsStream(),
                     loggerFactory: NullLoggerFactory.Instance),
-                null,
+                clientOptions,
                 null,
                 cancellation.Token);
 

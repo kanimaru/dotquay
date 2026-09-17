@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Infrastructure;
@@ -9,8 +9,8 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay graph</c>: the dependency graph, who requires what, and where it
-/// conflicts (SPEC.md §8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
-public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
+/// conflicts (SPEC.md Â§8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
+public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
 {
     public override string Name => "dotquay_graph";
 

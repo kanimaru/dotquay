@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Infrastructure;
@@ -10,7 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay doctor</c>: sanity checks (git on PATH, dangling lockfile
 /// entries, plugin.cfg drift, trust). See <c>Dotquay.Cli.Commands.DoctorCommand</c>.</summary>
-public sealed class DotquayDoctorTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
+public sealed class DotquayDoctorTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
 {
     public override string Name => "dotquay_doctor";
 
