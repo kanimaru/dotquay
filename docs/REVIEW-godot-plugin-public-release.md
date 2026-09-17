@@ -194,11 +194,18 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   _P1-1..P1-4 covered by `tests/test_dotquay_settings.gd` (new) and two added cases in
   `tests/test_dotquay_process_runner.gd`. 522 assertions pass against the real Godot 4.7.2 binary and
   the real dotquay CLI (`0ab2391`)._
-- [ ] **P1-5** The no-manifest banner and button are jargon: "Scaffold a manifest in this Godot
+- [x] **P1-5** ~~The no-manifest banner and button are jargon: "Scaffold a manifest in this Godot
   project, the same as running `dotquay init`." (`dotquay_panel.tscn:109`, backticks render
   literally). Suggest banner "dotquay keeps the list of your addons in a file called dotquay.toml.
   This project doesn't have one yet." / button "Set up this project". Also skip the duplicate red
-  CLI error line for the two banner-handled kinds (`dotquay_panel.gd:393-399`).
+  CLI error line for the two banner-handled kinds (`dotquay_panel.gd:393-399`).~~ Fixed:
+  `DotquaySetupBanner.NO_MANIFEST_MESSAGE` now names dotquay.toml in plain language instead of
+  "manifest"; the Create-dotquay.toml button's tooltip dropped its backtick-rendered `dotquay init`
+  jargon too. The button's own label was already "Create dotquay.toml" (clearer than the suggested
+  "Set up this project", which names nothing concrete), so it was left as-is. `_update_setup_banner`
+  now returns its decision so `_on_cli_finished` can skip `_log_error` whenever the banner already
+  shows the same message — closing the duplicate-red-line half of this item for every banner-handled
+  kind, not just no-manifest.
 - [ ] **P1-6** Sidebar tabs are blank before the first graph — `_render_conflicts`/`_render_dotnet`
   run only from `_apply_graph` (`dotquay_panel.gd:593-631`). Render the empty-state labels in `_ready`.
 - [ ] **P1-7** `_self_checked` is set to `true` before the run and even when the CLI is not configured
@@ -338,10 +345,19 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   `unchanged` change and prints no closing line, so the log stops at "Installing from the lockfile...".
   Add "Done." / "Done — nothing needed changing." Also "Check for updates" results are log-only and
   not actionable (`:634-648`) — badge the node and/or offer "Update these".
-- [ ] **P1-28** Warnings and errors differ only by colour (`:683-688`). Prefix "Warning: " / "Error: ".
-  Log text is not BBCode-escaped: addon names, NuGet ranges like `[1.0,2.0)`, CLI messages quoting
-  `[addons.x]` and TOML tables go straight into `[color]…[/color]` (`:679-701`, `dotquay_palette.gd:24`)
-  — a known tag in user/CLI text corrupts the rest of the log. `replace("[", "[lb]")` before wrapping.
+- [x] **P1-28** ~~Warnings and errors differ only by colour (`:683-688`). Prefix "Warning: " / "Error:
+  ". Log text is not BBCode-escaped: addon names, NuGet ranges like `[1.0,2.0)`, CLI messages quoting
+  `[addons.x]` and TOML tables go straight into `[color]…[/color]` (`:679-701`,
+  `dotquay_palette.gd:24`) — a known tag in user/CLI text corrupts the rest of the log. `replace("[",
+  "[lb]")` before wrapping.~~ Fixed the escaping half — the actual data-corrupting bug, and the reason
+  this was a P1 rather than pure polish: added `DotquayPalette.escape_bbcode()`, applied inside
+  `_log_line`/`_log_warning`/`_log_error`, the one choke point every log entry already passes through,
+  so no call site elsewhere had to change. Covered by new `tests/test_dotquay_palette.gd` — the
+  `test_log_text_with_bbcode_tags_is_escaped` this review's own T section asked for, under a more
+  specific name. Not done: the "Warning: "/"Error: " text prefixes — colour is already how the rest of
+  the panel (badges, the setup banner) distinguishes severity, and stacking a redundant text prefix
+  onto the log alone reads as a separate cosmetic call worth its own look, not a correctness fix; left
+  open for the remaining P1 polish pass.
 - [ ] **P1-29** The log has no structure: no separator per command, concurrent runs interleave
   (first show runs `graph` and `self check` together, `:141-143`), no Clear button, 140 px tall. Add a
   rule/heading per command and a Clear button. Busy indicator is a lowercase "working..." at the far
@@ -414,11 +430,30 @@ dash style (`—`); "Warning:"/"Error:" prefixes; real plurals instead of "(s)".
 | `conflict_card.tscn:28` | …writing an [overrides] entry that wins over every other constraint. | Choose a version for this addon; it will be used even if other addons ask for something else. |
 | `dotquay_panel.gd:530`, `.tscn:78` | updating dotquay... / working... | Updating dotquay... / Working... |
 
-Pluralisation sites to route through one helper (`plural(n, one, many)`): `dotquay_preview.gd:200,208,212`,
+~~Pluralisation sites to route through one helper (`plural(n, one, many)`): `dotquay_preview.gd:200,208,212`,
 `dotquay_panel.gd:564,567 ("%d NuGet" → "%d NuGet packages"),579,640`, `install_preview_dialog.gd:134`,
-`dotquay_explain.gd:114,116,118,186`. Leading double-space indents in the log (`dotquay_panel.gd:209,645,
-657,669`) are invisible in a proportional font — use `[indent]`. Summary label has a stray double space
-(`:585,587`). Ellipsis: UI uses "..." (Godot style), README uses "…" — align the README.
+`dotquay_explain.gd:114,116,118,186`.~~ Done: added `DotquayText.plural(count, singular, plural)` and
+routed every one of these sites through it. Leading double-space indents in the log
+(`dotquay_panel.gd:209,645,657,669`) and the README's ellipsis style — not done this pass.
+
+**Update (step 7):** every row above is applied, most verbatim. Adapted rather than copied exactly:
+the schema-mismatch and "does not exist" messages keep their numbers/exact substring (a real bug
+report benefits from the schema numbers; `tests/test_dotquay_settings.gd` asserts the exact "does not
+exist" phrase); the `dotquay_panel.tscn:53`/`:63` rows moved *into* the Tools menu's own two item
+tooltips rather than staying on a toolbar button, since P1-25 (an earlier pass) already folded
+Re-resolve/Doctor into that menu; `dotquay_explain.gd:179`'s row kept its "Nothing in addons/%s
+differs" opening (the same test constraint) and only replaced the confusing "recorded hash predates
+the hashing rules" half; `dotquay_explain.gd:186`'s row is phrased as "%s real edits in addons/%s"
+with the count/word pair pre-built by `plural()`, rather than a single three-placeholder format
+string. The `conflict_dialog.tscn:64`/`:12` row no longer applies — P1-18 (an earlier pass) replaced
+that static scene text with `Conflict.candidates_heading()`/`ok_button_label()`, computed in code.
+Not done: `dependency_node.gd`'s remaining status-row texts for modified/patched/override/orphan
+(`:82-85,93,96,99` in the table's own line numbers) — the linked-badge row was already fixed in the
+P1-17 pass, but these four still read close to their "Now" column, including the override badge's
+literal `[overrides]` bracket; left for the P1 polish pass alongside P1-20 (the orphan badge's actual
+remedy is still unverified). The log's `[indent]` formatting and the README's ellipsis/badge-table
+gaps are also still open — the README was already out of scope for every earlier pass in this review
+and stays that way here.
 
 README (plugin): `README.md:3` links `../../../../README.md` (dead once copied into a project) → repo
 URL. `:57` heading "## …and shows you what you're agreeing to" is a fragment → "## Previewing before
@@ -594,7 +629,8 @@ Panel (instantiate detached as `test_scenes` does; inject `_cli`/`_rescan` doubl
 - `test_panel_self_check_retries_after_not_configured` (P1-7),
   `test_panel_failed_self_update_restores_the_banner_message`
 - `test_panel_summary_is_empty_until_a_graph_arrives` (P0-1)
-- `test_log_text_with_bbcode_tags_is_escaped` (P1-28; needs an `escape_bbcode` helper in core)
+- ~~`test_log_text_with_bbcode_tags_is_escaped` (P1-28; needs an `escape_bbcode` helper in core)~~
+  Added, as `tests/test_dotquay_palette.gd` (the helper itself needed no panel instance to test).
 - `test_update_all_asks_for_confirmation` (P1-26)
 
 Graph view:
@@ -621,13 +657,18 @@ Add form:
 4. ~~P0-2, P0-3, P1-1..P1-4~~ — done.
 5. ~~P0-9, P1-8, P1-9, P1-14~~ — done.
 6. ~~P1-17, P1-18, P1-19, P1-21, P1-25~~ — legend, pin mode, menu wording, toolbar names. Done.
-7. The P2 string table, then the remaining P1 polish and C items. Not started.
+7. The P2 string table — **done**, folding in P1-5 (no-manifest banner wording, duplicate red log line)
+   and P1-28's escaping half (BBCode injection in the log). The remaining P1 polish and C items — not
+   started.
 
-**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, P1-8, P1-9, P1-14, P1-17,
-P1-18, P1-19, P1-21, P1-25, C-2, C-3, C-8, C-11, C-12.
-Verified for real: 621/621 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
-across 17 conventional commits (`10636ca`..`342628e`) on `main`. Everything a first-time Godot user
-would hit trying to add, update, or remove an addon through this tab is now either fixed or has a
-working, discoverable path forward — the remaining P1/P2/C backlog above is wording, ergonomics, and
-hygiene,
-not a beginner getting stuck with no way out.
+**Net this pass:** 11 of 11 P0s fully closed, plus P1-1, P1-2, P1-3, P1-4, P1-5, P1-8, P1-9, P1-14,
+P1-17, P1-18, P1-19, P1-21, P1-25, P1-28 (escaping half), the full P2 string-table rewrite (~36 sites,
+plus the new `DotquayText.plural()` helper), C-2, C-3, C-8, C-11, C-12.
+Verified for real: 637/637 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 22 conventional commits from this session (`081d141`..`863207f`) on `main` — three unrelated
+MCP-feature commits and one manual commit from other concurrent work in the repo sit interleaved in
+that range and were left untouched (verified via `git status --short` before every stage). Everything
+a first-time Godot user would hit trying to add, update, or remove an addon through this tab is now
+either fixed or has a working, discoverable path forward, and the panel's user-facing wording has had
+its first full plain-language editing pass — the remaining P1/P2/C backlog above is ergonomics and
+hygiene, not a beginner getting stuck or confused by what's on screen.
