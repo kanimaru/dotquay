@@ -352,13 +352,29 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   `Candidate.display_label()`, the override log line, and the conflict dialog's custom-kind picker
   caption — while the wire value the CLI actually receives is untouched. Not done: the optional
   **Advanced** submenu for pin/override — a "consider", not required, and left alone this pass.
-- [ ] **P1-22** Every refresh discards manual node positions: `render()` frees all nodes and sets
+- [x] **P1-22** ~~Every refresh discards manual node positions: `render()` frees all nodes and sets
   `position_offset` unconditionally (`dependency_graph_view.gd:41-46,64`), and `refresh()` runs on every
-  return to the tab. Keep a `name → position_offset` map across renders; add an "Auto-arrange" action.
-- [ ] **P1-23** Empty graph canvas has no hint (only the muted toolbar text
+  return to the tab. Keep a `name → position_offset` map across renders; add an "Auto-arrange" action.~~
+  Fixed: a new `_manual_positions` dictionary (addon name → `Vector2`) survives across `render()` calls,
+  populated from `GraphElement.position_offset_changed` guarded by a `_rendering` flag so `render()`'s
+  own layout assignment is never mistaken for a drag. A new "Auto-arrange" button, added to the built-in
+  `GraphEdit` toolbar (`get_menu_hbox()`) from `_ready()`, clears the map and re-renders the last graph —
+  the plugin's own escape hatch now that `show_arrange_button` is deliberately off. Covered by a new
+  `tests/test_dependency_graph_view.gd`, driven against the real (detached) scene:
+  `test_graph_view_preserves_manual_positions_across_render`, matching this review's own suggested name,
+  plus an `auto_arrange` counterpart.
+- [x] **P1-23** ~~Empty graph canvas has no hint (only the muted toolbar text
   "No dependencies yet — use Add.", `dotquay_panel.gd:558`). Draw a centred placeholder inside the
   GraphEdit. Long addon names/folders overflow the fixed 240 px node (`dependency_node.tscn`, title
-  at `dependency_node.gd:53`) into the next column — `TRIM_ELLIPSIS` on the title.
+  at `dependency_node.gd:53`) into the next column — `TRIM_ELLIPSIS` on the title.~~ Fixed both halves. A
+  centred `%EmptyHint` label was added directly to `dependency_graph_view.tscn`, toggled by `render()`
+  from `graph == null or graph.is_empty()`, reusing the toolbar's own wording rather than inventing a
+  second phrasing. Godot's native `GraphNode` title bar has no `text_overrun_behavior` of its own to set
+  (confirmed against the real Godot 4 API, not assumed), so the title is truncated by hand instead: a
+  new static `DotquayDependencyNode.truncate_title()` shortens a name past a fixed length with a
+  trailing ellipsis, and the node's own `tooltip_text` is set to the untruncated name so it's still one
+  hover away rather than gone. Covered by new `truncate_title` tests in `tests/test_dependency_node.gd`
+  and the empty-hint visibility test in the new `tests/test_dependency_graph_view.gd`.
 - [x] **P1-24** ~~The lockfile view nags permanently: "(from lockfile — press Re-resolve to check for
   conflicts)" in the summary (`:585`) and "Conflicts are only detected by a live re-resolve…" in the
   default sidebar tab (`:601`). Reword to "No conflicts known (Re-resolve checks online)" and drop the
@@ -403,10 +419,18 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   the panel (badges, the setup banner) distinguishes severity, and stacking a redundant text prefix
   onto the log alone reads as a separate cosmetic call worth its own look, not a correctness fix; left
   open for the remaining P1 polish pass.
-- [ ] **P1-29** The log has no structure: no separator per command, concurrent runs interleave
+- [x] **P1-29** ~~The log has no structure: no separator per command, concurrent runs interleave
   (first show runs `graph` and `self check` together, `:141-143`), no Clear button, 140 px tall. Add a
   rule/heading per command and a Clear button. Busy indicator is a lowercase "working..." at the far
-  right (`dotquay_panel.tscn:78`) that never says *what* is running.
+  right (`dotquay_panel.tscn:78`) that never says *what* is running.~~ Fixed: `_run()` now logs a muted
+  heading line for every command (`busy_label()`, trimmed of its trailing "..."), a new `ClearLogButton`
+  above the log calls the already-existing `DotquayLogBuffer.clear()`, and the busy indicator names
+  every command still in flight ("Adding...", "Checking dependencies...", etc.) instead of a bare
+  "Working...", tracked in a `_running_commands` dictionary keyed by ticket — so two concurrent runs,
+  the startup self-check racing the first graph load being exactly the case this item names, are both
+  named at once rather than one hiding the other. `busy_label()` is a static function of plain data,
+  unit-tested in `tests/test_dotquay_panel.gd` without a real CLI run. The 140px log height itself was
+  left alone — nothing here argued a specific taller default, and the split is already user-resizable.
 - [x] **P1-30** ~~Overlapping `graph` reads can land out of order (refresh from tab focus, tracker,
   Locate, self-update, explain fallback: `:141,344,452,485,525`); results apply in arrival order.
   Remember the newest `graph` ticket and ignore older results (or serialise per P0-6).~~ Fixed: a new
@@ -414,12 +438,23 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   plain data, unit-tested in a new `tests/test_dotquay_panel.gd` without needing to race two real CLI
   calls) gate both places a `graph` result gets applied — the success path and the still-render-a-
   conflict-on-failure path alike.
-- [ ] **P1-31** Fixed dialog sizes with `wrap_controls = false` ignore editor scale
+- [x] **P1-31** ~~Fixed dialog sizes with `wrap_controls = false` ignore editor scale
   (`add_dependency_dialog.tscn:9,11` 620×340, `install_preview_dialog.tscn` 680×460,
   `conflict_dialog.tscn` 620×520, `explain_dialog.tscn` 640×420). At 150–200 % the last form row / the
   blocker text is clipped behind the buttons. Multiply by `EditorInterface.get_editor_scale()` in
   `_ready`. Long labels without `text_overrun_behavior` push buttons out of view under scroll containers
-  with `horizontal_scroll_mode = 0` (`items/dotnet_row.tscn:8-13`, `items/preview_addon_row.tscn:31-36`).
+  with `horizontal_scroll_mode = 0` (`items/dotnet_row.tscn:8-13`, `items/preview_addon_row.tscn:31-36`).~~
+  Fixed both halves. A new shared `DotquayNodes.scale_dialog_size()` multiplies a dialog's authored
+  `size` (and `min_size`, if one is ever set) by `EditorInterface.get_editor_scale()`, called once per
+  instance from each of the four dialogs' existing `_bind()` rather than `_ready()` — `_bind()`'s own
+  one-shot guard is what keeps this from re-multiplying on every reopen, and two of these dialogs
+  (`add_dependency_dialog.gd`, `install_preview_dialog.gd`) are opened directly on a detached instance in
+  their own tests, which never runs `_ready()` at all. It no-ops when `Engine.is_editor_hint()` is false,
+  since `EditorInterface` isn't fully bound outside a real running editor — found by the real headless
+  test run itself throwing "Nonexistent function 'get_editor_scale' in base 'EditorInterface'", not
+  assumed up front; covered by a new `tests/test_dotquay_nodes.gd`. Added `text_overrun_behavior` to
+  `PackageLabel` in `dotnet_row.tscn` and to `Origin`/`Folder` in `preview_addon_row.tscn`, the exact
+  labels this item cited.
 - [x] **P1-32** ~~Explain dialog: the blocker tells a GUI user to run
   `'dotquay update x --force' at a terminal` (`explain_dialog.gd:129-131`); add a "Keep my edits (save
   as patch)" button via `add_button()`. Its safe-verdict sentence is maintainer-speak: "The recorded
@@ -705,7 +740,9 @@ Panel (instantiate detached as `test_scenes` does; inject `_cli`/`_rescan` doubl
   the out-of-order-`graph`-reply rule didn't need the panel-instance harness at all.
 
 Graph view:
-- `test_graph_view_preserves_manual_positions_across_render` (P1-22)
+- ~~`test_graph_view_preserves_manual_positions_across_render` (P1-22)~~ Added, under this exact name,
+  in the new `tests/test_dependency_graph_view.gd`, alongside an `auto_arrange` counterpart and an
+  empty-hint visibility test (P1-23).
 - `test_depths_terminate_on_a_cycle`, `test_layers_with_fifty_nodes_are_stable_and_sorted`
 
 Add form:
@@ -735,13 +772,16 @@ Add form:
    remaining P1 polish (P1-10..13, P1-15, P1-16, P1-22, P1-23, P1-29, P1-31) and the C-1..C-25 items —
    not started.
 8. ~~P1-10, P1-11, P1-12, P1-13, P1-15, P1-16~~ — **done**: the add-dialog and install-preview-dialog
-   wording/UX pass. Remaining: P1-22, P1-23, P1-29, P1-31 (layout/scaling) and the C-1..C-25 hygiene
-   items — not started.
+   wording/UX pass.
+9. ~~P1-22, P1-23, P1-29, P1-31~~ — **done**: manual graph-layout persistence and an Auto-arrange
+   button, the empty-canvas hint and title truncation, per-command log headings with a Clear button and
+   a busy indicator that names what's running, and dialog sizes/labels that respect editor scale. This
+   closes every remaining P1. Remaining: the C-1..C-25 hygiene items — not started.
 
 **Net this pass:** 11 of 11 P0s fully closed, all 33 P1s (P1-1 through P1-33), the full P2 string-table
 rewrite (~36 sites, plus the new `DotquayText.plural()` helper), C-2, C-3, C-8, C-11, C-12.
-Verified for real: 670/670 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
-across 25 conventional commits from this session (`081d141`..`d3bbed9`) on `main` — interleaved with
+Verified for real: 690/690 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 26 conventional commits from this session (`081d141`..`ede78f6`) on `main` — interleaved with
 unrelated commits from other concurrent work in the repo (an MCP-server feature, one manual commit)
 that were left untouched throughout (verified via `git status --short` before every stage). Two P1-20
 findings came from reading `Dotquay.Core`'s actual pruning logic rather than guessing: orphans are
@@ -761,5 +801,8 @@ its first full plain-language editing pass including every remaining dialog, and
 review found (no legend, no pin mode, no disabled-item reasons, no orphan remedy, no confirmation before
 a project-wide update, a silently-ending command, an out-of-order graph race, a terminal-only patch
 escape hatch, an unused auth hint, a no-op install offered as if it would do something) now has a way
-through. What's left is layout/scaling polish and code hygiene, not a beginner getting stuck or confused
-by what's on screen.
+through. Step 9 closed the last of the layout/scaling polish too: a graph the user rearranges by hand
+stays rearranged, an empty canvas and a long name both say something rather than nothing or overflowing,
+the log reads as a sequence of commands instead of one interleaved stream, and every dialog now scales
+with the editor instead of clipping at high UI scale. What's left is code hygiene (C-1..C-25), not a
+beginner getting stuck or confused by what's on screen.
