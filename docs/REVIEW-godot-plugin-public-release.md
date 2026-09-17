@@ -567,41 +567,51 @@ Everything here was verified by grepping `addons/` + `tests/`.
 
 ### Dead / unreferenced
 
-- [ ] **C-1** `dotquay_result.gd:16,18,19` `KIND_WORKFLOW`, `KIND_CONFLICT`, `KIND_GIT` — only their
+- [x] **C-1** ~~`dotquay_result.gd:16,18,19` `KIND_WORKFLOW`, `KIND_CONFLICT`, `KIND_GIT` — only their
   definitions exist; `KIND_AUTH` is missing (P1-33). Either complete the set and move it to
-  `dotquay_wire.gd`, or delete.
-  _Progress: `KIND_AUTH` was added (closing P1-33's specific ask), but the constants still live in
-  `dotquay_result.gd` rather than moving to `dotquay_wire.gd` — leaving open._
+  `dotquay_wire.gd`, or delete.~~ Fixed: all six wire-reported kinds (`KIND_WORKFLOW`,
+  `KIND_NO_MANIFEST`, `KIND_CONFLICT`, `KIND_GIT`, `KIND_AUTH`, `KIND_UNEXPECTED`) now live on
+  `DotquayWire`; `dotquay_result.gd` only references them through it, and keeps just the kinds it
+  synthesizes itself (`KIND_NOT_CONFIGURED`, `KIND_LAUNCH_FAILED`, `KIND_BAD_OUTPUT`,
+  `KIND_SCHEMA_MISMATCH`, `KIND_TIMEOUT`) — those never come from the wire, so they stay put.
 - [x] **C-2** ~~`dotquay_result.gd:40` `raw_output` — assigned, never read (P0-4).~~ Fixed as part of
   P0-4/P0-5: `failure()` now folds it into `error_message`, which the panel already logs.
 - [x] **C-3** ~~`dotquay_cli.gd:46` `is_busy()` — no callers (P0-6 wants it).~~ Fixed: `run()` now calls
   it to decide whether a new request queues or starts immediately.
-- [ ] **C-4** `dotquay_settings.gd:2` `class_name DotquaySettings` — never referenced; every consumer
-  preloads (`plugin.gd:12`, `dotquay_cli.gd:23`, `dotquay_panel.gd:17`). Pick preload *or*
-  `class_name` project-wide: `dotquay_panel.gd:16-18` preloads `CLI_SCRIPT/SETTINGS/RESULT` while the
-  same file uses `DotquayCli`, `DotquayResult`, `DotquayRescan`, `DotquayRefreshTracker`,
-  `DotquayLogBuffer` by class name. The class-cache concern applies to typed references too, so the
-  preloads buy nothing.
-- [ ] **C-5** `items/candidate_row.gd:7` `CUSTOM_INDEX := -1` unused; the `-1` sentinel is also in
-  `conflict_dialog.gd:16` and `conflict_dialog.tscn:86` (metadata) and re-set in `_ready` (`:48`).
-  Keep one.
-- [ ] **C-6** `add_dependency_dialog.gd:23` `_mode_row` declared, never used.
-- [ ] **C-7** Parsed but never read: `DotquayGraph.overrides` (`dotquay_graph.gd:246,259-260`),
-  `AddonNode.path` (`:19,38`), `DotquayPreview.Source.name` (`dotquay_preview.gd:96,109`),
-  `Explanation.baseline_includes_patch` (`dotquay_explain.gd:131,141`).
+- [x] **C-4** ~~`dotquay_settings.gd:2` `class_name DotquaySettings` — never referenced; every consumer
+  preloads.~~ Fixed for every production file the review named: `dotquay_panel.gd`, `dotquay_cli.gd`,
+  and `plugin.gd` now use the global `class_name`s (`DotquayCli`, `DotquayResult`,
+  `DotquaySettings`, `DotquayProcessRunner`, `EditorInterface`) instead of local `preload` aliases.
+  Deliberately left as-is: the ~15 test files' own local `preload` aliases (`const RESULT :=
+  preload(...)` and similar). That's a reasoned exception, not an oversight — a test suite always runs
+  after `run_tests.ps1`'s `--import` pass has already built the class cache, so the class-cache concern
+  the review raised for production code doesn't apply there, and the short local alias keeps fixture
+  code terse.
+- [x] **C-5** ~~`items/candidate_row.gd:7` `CUSTOM_INDEX := -1` unused; the `-1` sentinel is also in
+  `conflict_dialog.gd:16` and `conflict_dialog.tscn:86` (metadata) and re-set in `_ready` (`:48`).~~
+  Fixed: `DotquayCandidateRow.CUSTOM_INDEX` is now the single source of truth; `conflict_dialog.gd`'s
+  duplicate `CUSTOM_ID` constant is gone, and the redundant `set_meta("candidate_index", CUSTOM_ID)`
+  re-set in `_bind()` was removed — the scene's own authored `metadata/candidate_index = -1` on
+  `CustomRadio` already supplies that value at instantiation time, before `_bind()` ever runs.
+- [x] **C-6** ~~`add_dependency_dialog.gd:23` `_mode_row` declared, never used.~~ Fixed: deleted.
+- [x] **C-7** ~~Parsed but never read: `DotquayGraph.overrides`, `AddonNode.path`,
+  `DotquayPreview.Source.name`, `Explanation.baseline_includes_patch`.~~ Fixed: all four deleted after
+  re-verifying each against the current source (not the review's own line numbers, which had drifted) —
+  confirmed dead via a full read of every call site.
 - [x] **C-8** ~~`dependency_graph_view.gd:27-33,103-108` `_reject_connection` / `_reject_disconnection`
   are empty. In Godot 4 `connection_request` / `disconnection_request` are *requests* — nothing is
   connected unless the handler calls `connect_node`, so a no-op handler equals no handler. The comment
   at `:28-30` ("simply not connecting the signal would let the user rearrange real dependencies") is
   wrong.~~ Fixed: both functions and their `_ready()` wiring and the incorrect comment were deleted.
-- [ ] **C-9** `dotquay_settings.gd:15-18,40-42` `RETIRED_SETTINGS` migration for
-  `resolve_timeout_seconds` — there are no earlier *public* versions. Delete (or keep only if P1-1
-  renames the path key and needs the mechanism).
-- [ ] **C-10** Production-dead, test-only: `Candidate.override_flag()` (`dotquay_graph.gd:136-137` — the
-  panel re-derives `"--" + kind` by hand at `dotquay_panel.gd:314`; use one), `AddonNode.is_healthy()`
-  (`:66-70`, sole user of `DotquayWire.STATUS_CLEAN`), `has_conflict()` (`:299-300`), `has_conflicts`
-  (`:247,254` — UI uses `conflicts.is_empty()`), `Source.is_trusted_host` (`dotquay_preview.gd:101,112` —
-  the dialog decides by which *list* a source is in, `install_preview_dialog.gd:100-110`). Use or drop.
+- [x] **C-9** ~~`dotquay_settings.gd:15-18,40-42` `RETIRED_SETTINGS` migration for
+  `resolve_timeout_seconds` — there are no earlier *public* versions.~~ Fixed: deleted the constant and
+  its erasure loop — confirmed no earlier public release ever shipped that setting name, so there was
+  nothing to migrate, and no test covered it.
+- [x] **C-10** ~~Production-dead, test-only: `Candidate.override_flag()`, `AddonNode.is_healthy()`,
+  `has_conflict()`, `has_conflicts`, `Source.is_trusted_host`.~~ Fixed: all five deleted after
+  confirming each is genuinely dead in production; the override-flag logic they duplicated is now one
+  function, `DotquayWire.flag_for_source_kind()`, used by both `dotquay_add_request.gd` and
+  `dotquay_panel.gd`.
 
 ### Stale / misleading comments
 
@@ -613,73 +623,117 @@ Everything here was verified by grepping `addons/` + `tests/`.
   plain text" — false, `InitCommand.cs:96-112` emits an envelope. Tighten the assertion to
   `init_result.ok`. Also `:128` labels an `init` call `"status"` (copy-paste).~~ Fixed: comment
   corrected, assertion now requires `init_result.ok` (not just the file existing), label renamed.
-- [ ] **C-13** `dependency_graph_view.gd:11-13` says "the panel listens to the built-in
-  `node_selected`" — the panel never connects it (only hit is this comment). Delete or implement
-  (a details pane on select would help newbies).
-  _Still open — re-verified after this pass: `dotquay_panel.gd` still has no `node_selected`
-  connection anywhere, so the comment (kept, word-for-word, through the C-8 edit of the same file) is
-  still making a false claim._
-- [ ] **C-14** `dotquay_add_request.gd:77-78` doc for `git_url()` ("the key a pending request must be
-  stored under") contradicts `dotquay_panel.gd:60-63` ("Keyed on the ticket, not the URL");
-  `git_url()` is now only used by `looks_like_git()`. Same stale claim in
-  `tests/test_dotquay_add_request.gd:117-119` (test name) and SPEC §18.2.
-- [ ] **C-15** `dotquay_result.gd:65-70` brace trimming cuts first `{` to *last* `}` — a trailing stderr
-  line containing `}` (NuGet HTTP error bodies are JSON) turns a successful run into "did not return
-  JSON". Fixed properly by P0-7 (separate stderr); until then parse line-by-line.
-- [ ] **C-16** `dotquay_wire.gd:5` "Every literal that crosses the CLI boundary, in one place." — false:
-  error kinds and envelope keys live in `dotquay_result.gd:13-26,109-146`; command names and flags in
-  `dotquay_panel.gd`; flags in `dotquay_add_request.gd:117,121,146,150,152`. `dotquay_graph.gd:7` "The
-  UI never touches the raw dictionaries." — false: `_report_outdated/_report_doctor/_report_operation/
-  _report_self_*` (`dotquay_panel.gd:494-513,634-672`) read raw payloads, which is why
-  `_dictionaries_in` (`:708-716`) exists. Either make the claims true or scope them.
-- [ ] **C-17** Unfollowable references: `docs/DESIGN-v0.12-MODIFIED-REASON.md` (`dotquay_wire.gd:47`,
-  `dotquay_explain.gd:6`, `explain_dialog.gd:6`, `tests/test_dotquay_explain.gd:3`), `docs/SPRINT-01.md`
-  (`tests/test_runner.gd:9`), version tags "(v0.17)" (`dotquay_panel.gd:78`, `dotquay_wire.gd:86`),
-  "v0.8" (`tests/test_dotquay_preview.gd:6`), IDs `OQ-2`/`D7`/`P0-6`/`P1-5` in code comments. Replace
-  with SPEC section numbers or inline the one sentence that matters.
-- [ ] **C-18** Commit-message-style history in doc comments — rewrite as present-tense rationale:
-  `dotquay_log_buffer.gd:7-12` "used to be the RichTextLabel itself", `dotquay_refresh_tracker.gd:7-10`
-  "used to keep one boolean", `dotquay_nodes.gd:12-14` "Four scripts had grown their own copies… this is
-  the one that is right", `dotquay_cli.gd:94-95` "this is why the CLI grew --project",
-  `README.md:89` "used to look like it did nothing", `tests/test_dotquay_result.gd:70`,
-  `tests/test_dotquay_log_buffer.gd:5`, `tests/test_dotquay_refresh_tracker.gd:5`.
-- [ ] **C-19** `dotquay_cli.gd:102-104` "(missing .NET runtime, a wrong architecture)" — the shipped
-  CLI is NativeAOT; a missing runtime is not a user failure mode. `tests/test_runner.gd:4-12` header
-  says the suite "only ever tests parsing and layout" yet includes `test_scenes.gd` and
-  `test_cli_contract.gd`, and its "Run with:" line omits the mandatory `--import` pass.
-  `dotquay_panel.gd:148-150` has a dangling " -" line break.
+- [x] **C-13** ~~`dependency_graph_view.gd:11-13` says "the panel listens to the built-in
+  `node_selected`" — the panel never connects it.~~ Fixed: rewrote the comment to state plainly that
+  nothing connects it today, and what a future details-pane feature would do instead — no longer
+  claims a wiring that doesn't exist.
+- [x] **C-14** ~~`dotquay_add_request.gd:77-78` doc for `git_url()` ("the key a pending request must be
+  stored under") contradicts `dotquay_panel.gd:60-63` ("Keyed on the ticket, not the URL"); same stale
+  claim in `tests/test_dotquay_add_request.gd` (test name) and SPEC §18.2.~~ Fixed in all three places:
+  `git_url()`'s doc comment now explains it's only used by `looks_like_git()` to classify pasted text
+  (confirmed via grep — its one production caller); the two test names were renamed to match; SPEC.md
+  §18.2 was rewritten to describe the real ticket-based keying instead of the stale "keyed back... by
+  the git URL" claim (re-checked `git status`/`git diff` on `docs/SPEC.md` immediately before editing
+  it, per the concurrent-session caution below).
+- [x] **C-15** ~~`dotquay_result.gd:65-70` brace trimming cuts first `{` to *last* `}` — a trailing
+  stderr line containing `}` turns a successful run into "did not return JSON".~~ Fixed properly, not
+  just worked around: `extract_json_object()` now does a forward-scanning, string-aware,
+  brace-depth-tracking walk from the first `{`, so it stops at that object's own matching close and
+  ignores braces inside quoted strings. Three new regression tests.
+- [x] **C-16** ~~`dotquay_wire.gd:5` "Every literal that crosses the CLI boundary, in one place." —
+  false. `dotquay_graph.gd:7` "The UI never touches the raw dictionaries." — false:
+  `_report_outdated`/`_report_doctor`/`_report_operation`/`_report_self_*` read raw payloads directly.~~
+  Fixed both: `dotquay_wire.gd`'s header now explicitly excepts `--json`/`--project` (added by
+  `DotquayCli` itself, not chosen per call). `dotquay_graph.gd`'s claim is now actually true rather than
+  just re-scoped — C-24 gave outdated/doctor/operation/self-check their own typed views, so every one of
+  those report methods reads through a typed object now; there are zero remaining `result.data.get(...)`
+  calls anywhere in `dotquay_panel.gd`.
+- [x] **C-17** ~~Unfollowable references: `docs/DESIGN-v0.12-MODIFIED-REASON.md`, `docs/SPRINT-01.md`,
+  version tags "(v0.17)"/"v0.8", IDs `OQ-2`/`D7`/`P0-6`/`P1-5`.~~ Fixed, with one caveat: the
+  `DESIGN-v0.12-MODIFIED-REASON.md` citation was dropped from all four sites — in every case the
+  surrounding prose already inlined the one sentence that mattered, so nothing needed replacing. "v0.8"
+  became "SPEC.md §11.3" (confirmed that section exists and covers addon-declared feeds); the dangling
+  "D7" sub-id was dropped (grepped SPEC.md — no such ID exists anywhere in it). Two parts of this item
+  were already stale before this pass and needed no code change: `docs/SPRINT-01.md`'s citation
+  (`test_runner.gd:9`) was already gone — that header was rewritten earlier in this same pass (C-19);
+  and "(v0.17)" was already removed from both cited sites. The caveat: `OQ-2`/`P0-6`/`P1-5` were
+  re-checked against SPEC.md's own requirements table and turned out to be genuinely followable (each
+  has a real, grep-able entry there) — the review bundled them with the one ID that truly wasn't
+  followable ("D7"), so they were left as-is rather than "fixed" into something worse.
+- [x] **C-18** ~~Commit-message-style history in doc comments — rewrite as present-tense rationale.~~
+  Fixed in `dotquay_refresh_tracker.gd`, `dotquay_nodes.gd`, `dotquay_cli.gd`'s `project_directory()`
+  comment, and the three named test files (`test_dotquay_result.gd`, `test_dotquay_log_buffer.gd`,
+  `test_dotquay_refresh_tracker.gd`). Two parts were already stale: `dotquay_log_buffer.gd`'s own
+  citation no longer matches its current comment, which already reads as present-tense rationale, not
+  history — left untouched. `README.md:89`'s "used to look like it did nothing" no longer exists
+  anywhere in `README.md` (checked live on the device with `Select-String`, since a concurrent session
+  edits that file — see the caution at the top of this section); left untouched rather than risk a
+  collision with that session over a citation that was already resolved.
+- [x] **C-19** ~~`dotquay_cli.gd:102-104` "(missing .NET runtime, a wrong architecture)"... `tests/
+  test_runner.gd:4-12` header says the suite "only ever tests parsing and layout"... `dotquay_panel.gd:
+  148-150` has a dangling " -" line break.~~ Fixed the two real sub-items: the dangling em-dash line
+  break, and `test_runner.gd`'s header (no longer claims a narrower scope than the suite actually has,
+  and its "Run with:" section now says `run_tests.ps1` is mandatory, not the raw `godot --script` line).
+  The "(missing .NET runtime...)" comment was already stale — grepped the full repo and it no longer
+  exists anywhere in the actual source; this sub-item needed a note, not a code change.
 
 ### Parallel mechanisms / wire fragility
 
-- [ ] **C-20** Half the envelope-command vocabulary is inline: `_run("install"|"update"|"override"|
-  "patch"|"remove"|"init", …)` at `dotquay_panel.gd:216,221,236,252,256,284,328,333,541` while the rest
-  use `DotquayWire.COMMAND_*`. Add the six constants. Every call also repeats the command as label
-  *and* `args[0]` — derive one from the other (the two exceptions `self-check`/`add-preview` can live in
-  the wire file).
-- [ ] **C-21** CLI flags as literals across files: `--preview`, `--adopt-source`, `--resolve`,
-  `--explain`, `--clear`, `--force`, `--git`, `--install-as`, `--path`, `--version/--branch/--rev`,
-  `"--" + kind` (twice). `DotquayWire.FLAG_*`.
-- [ ] **C-22** `MAX_LOG_ENTRIES := 200` (`dotquay_panel.gd:24`) duplicates
-  `DotquayLogBuffer.DEFAULT_CAPACITY := 200` (`dotquay_log_buffer.gd:17`). Two `_clear()` wrappers
-  (`dotquay_panel.gd:723`, `install_preview_dialog.gd:150`) around `DotquayNodes.clear_children`, which
-  five other scripts call directly. `ACTION_RESOLVE` and `ACTION_OVERRIDE` route to the same handler.
-  `add_dependency_dialog.tscn:58` placeholder is unconditionally overwritten by `_refresh()`.
-- [ ] **C-23** Null handling is inconsistent: `dotquay_graph.gd:35-46` uses `str_or_empty` for some
-  fields but `String()` for `name/git/path/folder/origin`; `dotquay_preview.gd:34-36` uses `String()`
-  for `resolved/short_sha/folder`. A JSON `null` renders as `"<null>"`, a null `folder` yields a
-  "→ <null>" rename badge, a null `origin` makes an addon non-removable. `str_or_empty` everywhere.
-  Default values for the same key differ (`entry.get("name", "?")` vs `payload.get("name", "")`).
-- [ ] **C-24** Raw payloads for outdated/doctor/operation/self-check have no typed view and no fixture
-  test, unlike graph/preview/explain. Doctor's `issues[].kind` is ignored. Small parsers + fixtures.
-- [ ] **C-25** Style: `plugin.gd` uses `get_editor_interface()` (pre-4.2) while the panel uses the
-  `EditorInterface` singleton; `typeof(x) == TYPE_DICTIONARY` vs `x is Dictionary` guards; untyped
-  `_pending_requests: Dictionary` (typed dictionaries exist since 4.4); `DotquayWire.ACTION_UPDATED`
-  (change action) vs `DotquayDependencyNode.ACTION_UPDATE` (menu action) — near-identical names for
-  different vocabularies, prefix menu actions `MENU_*`. `.tscn` provenance is mixed (some have
-  `uid=`/`unique_id`, `explain_dialog.tscn`, `dependency_*.tscn`, `items/*.tscn` have neither;
-  `dotquay_panel.tscn:206` ExplainDialog lacks `unique_id`) — open and re-save every scene in 4.7 once.
-  Dialog scenes set `visible = true` on the root and the panel overrides to `false`; set `false` in the
-  dialog scenes.
+- [x] **C-20** ~~Half the envelope-command vocabulary is inline... Add the six constants.~~ Already done
+  before this pass — `DotquayWire.COMMAND_*` and `DotquayWire.cli_command_words()` cover every call
+  site; re-verified via grep, no remaining inline command-name literals in `dotquay_panel.gd`.
+- [x] **C-21** ~~CLI flags as literals across files: `--preview`, `--adopt-source`, `--resolve`,
+  `--explain`, `--clear`, `--force`, `--git`, `--install-as`, `--path`,
+  `--version/--branch/--rev`, `"--" + kind`.~~ Fixed: added `DotquayWire.FLAG_*` for all of them plus
+  `DotquayWire.flag_for_source_kind()` for the `"--" + kind` pattern, and threaded them through every
+  remaining literal call site in `dotquay_panel.gd` and `dotquay_add_request.gd`.
+- [x] **C-22** ~~`MAX_LOG_ENTRIES := 200` duplicates `DotquayLogBuffer.DEFAULT_CAPACITY`. Two `_clear()`
+  wrappers around `DotquayNodes.clear_children`. `ACTION_RESOLVE`/`ACTION_OVERRIDE` route to the same
+  handler. `add_dependency_dialog.tscn` placeholder is unconditionally overwritten.~~ Fixed: deleted
+  `MAX_LOG_ENTRIES` (the log buffer now relies on its own default capacity); deleted both redundant
+  `_clear()` wrappers, every call site now calls `DotquayNodes.clear_children()` directly like the five
+  other scripts already did; added a comment documenting the shared-handler routing is deliberate;
+  replaced the dead placeholder text with a comment explaining `_refresh()` always overwrites it first.
+- [x] **C-23** ~~Null handling is inconsistent: `str_or_empty` for some fields but `String()` for
+  others. A JSON `null` renders as `"<null>"`, a null `folder` yields a "→ <null>" rename badge, a null
+  `origin` makes an addon non-removable. Default values for the same key differ.~~ Fixed comprehensively
+  — every optional string field in `dotquay_graph.gd` and `dotquay_preview.gd` now goes through
+  `str_or_empty` (including `name`/`git`/`origin`/`kind`/`value`/`message`/`requirer`, previously plain
+  `String()`), with defaults for the same wire key now matching across call sites (`Requirement.
+  constraint` now matches `AddonNode`/`DotnetEntry`; `dotquay_preview.gd`'s `Addon.resolved`/
+  `short_sha`/`folder` now match `dotquay_graph.gd`'s `AddonNode`; `Source.declared_by_addon` now
+  matches `DotnetPackage`'s). Also found and fixed a worse instance of the same bug class:
+  `dotquay_preview.gd` had *no* array field going through `array_or_empty` at all — a present-but-null
+  `addons`/`dotnet`/`sources_to_adopt`/etc. would have crashed the parse outright (`for x in null`), not
+  just rendered wrong. Same fix applied to `dotquay_panel.gd`'s self-update "messages" loop. 10 new
+  regression tests across `test_dotquay_graph.gd` and `test_dotquay_preview.gd`.
+- [x] **C-24** ~~Raw payloads for outdated/doctor/operation/self-check have no typed view and no
+  fixture test. Doctor's `issues[].kind` is ignored.~~ Fixed: four new typed views —
+  `DotquayOutdated`, `DotquayDoctor`, `DotquayOperation`, `DotquaySelfCheck` — mirroring the
+  graph/preview/explain pattern, each with its own fixture-test suite. `dotquay_panel.gd`'s
+  `_report_outdated`/`_report_doctor`/`_report_operation`/`_report_self_check`/`_report_self_update`
+  all read through these now; the now-fully-dead `_dictionaries_in` helper was deleted. Doctor's
+  `issues[].kind` is read and surfaced as a `"[kind] message"` prefix — verified against SPEC.md's own
+  documented kind vocabulary (`addon_folder_case_mismatch` §7.1.1, `install_folder_drift` and
+  `package_asset_metadata_drift` §7.1.2, `fragile_uid_reference` §7.3.1) rather than inventing a
+  translated label for kinds nothing here has actually confirmed.
+- [x] **C-25** ~~Style: `plugin.gd` uses `get_editor_interface()` while the panel uses the
+  `EditorInterface` singleton; `typeof(x) == TYPE_DICTIONARY` vs `x is Dictionary`; untyped
+  `_pending_requests: Dictionary`; `DotquayWire.ACTION_UPDATED` vs `DotquayDependencyNode.ACTION_UPDATE`
+  — near-identical names for different vocabularies. `.tscn` provenance is mixed. Dialog scenes set
+  `visible = true` on the root and the panel overrides to `false`.~~ Fixed every sub-item except one:
+  `plugin.gd` now uses the `EditorInterface` singleton; the two outlier `x is Dictionary` guards
+  (`dotquay_panel.gd`, `dotquay_rescan.gd`) now read `typeof(x) == TYPE_DICTIONARY` like the other 18
+  in the codebase; the three per-ticket dictionaries in `dotquay_panel.gd` are now typed
+  (`Dictionary[int, DotquayAddRequest]` and so on); every `DotquayDependencyNode` menu-action constant
+  was renamed `ACTION_* → MENU_*`, so `DotquayWire.ACTION_*` (what a wire `changes[].action` *did*) and
+  a dependency node's menu commands no longer share a name for different vocabularies (confirmed via
+  grep that no test referenced the old names); all five dialog scenes now default `visible = false` on
+  their own root, and the panel's now-redundant per-instance overrides were removed.
+  _Deliberately deferred: the `.tscn` UID-provenance item ("open and re-save every scene in 4.7 once")
+  needs the real Godot editor GUI — a text edit can't regenerate `uid=`/`unique_id` the way the editor's
+  own save does, and guessing at values here risks corrupting real scene identity rather than fixing
+  it. Left for a future pass with a live editor open._
 
 ---
 
