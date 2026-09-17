@@ -69,7 +69,13 @@ public static class GitLabErrorExplanation
             ? opening + " The stored credential was sent and refused. If it is a fine-grained token, "
                 + "check that it grants read access to this project's releases; if it is a classic "
                 + "one, that it has read_api and has not expired."
-            : opening + $" No credential was sent, and dotquay's release project is private - run "
-                + $"'dotquay login {host}'.";
+            // Deliberately does not assert that the channel is private. It might not be - the channel
+            // is configurable, so this can be someone's own mirror, and dotquay's own project is
+            // expected to be public once it ships. GitLab answers a project that does not exist and
+            // one you may not see identically, so both readings stay on the table and the reader
+            // picks. Asserting the wrong one is the mistake this whole type exists to stop making.
+            : opening + " No credential was sent. GitLab answers the same way for a project that does "
+                + "not exist and one you are not allowed to see, so this is either the wrong channel "
+                + $"URL or a project that wants a login - 'dotquay login {host}'.";
     }
 }

@@ -8,8 +8,8 @@
 # Usage:
 #   DOTQUAY_TOKEN=<gitlab token> sh install.sh [--version 0.17.0] [--dir ~/.local/bin]
 #
-# The token is needed because dotquay's release project is private. A GitLab personal access token
-# with read_api is enough; the same one `dotquay login gitlab.kemomi.de` stores works here.
+# A token is needed while dotquay's release project is private. Any GitLab personal access token that
+# can read that project's releases will do - the same one `dotquay login gitlab.kemomi.de` stores.
 
 set -eu
 
@@ -72,7 +72,7 @@ else
 fi
 
 echo "looking up the newest dotquay for $RID"
-RELEASE=$(fetch "$RELEASE_URL") || fail "could not reach $API. If dotquay's project is private, pass --token."
+RELEASE=$(fetch "$RELEASE_URL") || fail "could not reach $API. If that project is private, pass --token."
 
 # Each links entry is a flat object, so splitting on '{' gives one entry per line and the first
 # "url" in it is the asset link (GitLab emits url before direct_asset_url).

@@ -203,7 +203,7 @@ dotquay self rollback   # put the previous one back
 ```
 
 A one-line notice on stderr mentions a new release at most once a day; `dotquay self notify off`
-turns it off without turning off `self check`. The release project is private, so run
+turns it off without turning off `self check`. While the release project is private, run
 `dotquay login gitlab.kemomi.de` once and updates work without a token on the command line.
 
 Design and the reasoning behind every refusal: [`docs/DESIGN-v0.17-SELF-UPDATE.md`](docs/DESIGN-v0.17-SELF-UPDATE.md).

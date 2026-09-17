@@ -8,8 +8,9 @@
     able to write, so anything installed this way can update itself afterwards without needing an
     elevated prompt.
 
-    A token is needed because dotquay's release project is private. A GitLab personal access token
-    with read_api is enough - the same one 'dotquay login gitlab.kemomi.de' stores works here.
+    A token is needed while dotquay's release project is private. Any GitLab personal access token
+    that can read that project's releases will do - the same one
+    'dotquay login gitlab.kemomi.de' stores works here.
 
 .EXAMPLE
     $env:DOTQUAY_TOKEN = "glpat-..."; .\install.ps1
@@ -49,7 +50,7 @@ try {
     $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers -TimeoutSec 60
 }
 catch {
-    Fail "could not reach $Channel. dotquay's project is private, so this is most likely a missing -Token. ($($_.Exception.Message))"
+    Fail "could not reach $Channel. If that project is private, this is most likely a missing -Token. ($($_.Exception.Message))"
 }
 
 # ?per_page=1 returns an array, /releases/<tag> returns an object. Normalising here keeps the rest of

@@ -56,12 +56,18 @@ public class GitLabErrorExplanationTests
     }
 
     [Fact]
-    public void Without_a_credential_the_advice_is_to_log_in()
+    public void Without_a_credential_both_readings_stay_on_the_table()
     {
         var message = GitLabErrorExplanation.Describe(
             HttpStatusCode.NotFound, detail: null, authenticated: false, Host, "looking up the newest release");
 
         Assert.Contains($"dotquay login {Host}", message);
+        Assert.Contains("does not exist", message);
+
+        // The channel is configurable, so this can be someone's own mirror - and dotquay's own
+        // project is expected to be public once it ships. Asserting that a channel is private is
+        // asserting something this code cannot know.
+        Assert.DoesNotContain("is private", message);
     }
 
     [Fact]
