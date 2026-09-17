@@ -10,9 +10,13 @@ repos, real NativeAOT publishes, not just unit tests): [`docs/SPRINT-01.md`](doc
 
 ## Status
 
-v0.1 through v0.4 are shipped — the full original roadmap. 261 unit tests pass, and every feature
-below has been verified against real git repositories (and, for the git-addon and public/private
-NuGet paths, a real NativeAOT publish), not just fakes:
+v0.1 through v0.18 are shipped. The unit test suite has grown well past the original 261 (1090 as
+of v0.18), and every feature has been verified against real git repositories (and, for the
+git-addon, private-feed, and MCP-server paths, a real NativeAOT publish), not just fakes. The list
+below is the original v0.1-v0.4 roadmap; everything shipped since — private NuGet feeds and auth,
+machine-readable `--json` output, the Godot editor plugin, local links, patch-conflict handling,
+self-update, and the `dotquay mcp` server for coding agents (§20) — is covered in
+[`docs/SPEC.md`](docs/SPEC.md).
 
 - **v0.1 — reproducible core**: `init`, `add`, `remove`, `install`, `update`, `list`, all three
   git source kinds (`version`/`branch`/`rev`), NuGet delegation, a global content-addressed fetch
@@ -33,6 +37,15 @@ dotquay add Newtonsoft.Json                    # NuGet package
 dotquay install                                # fresh clone -> addons/ + .csproj match the lockfile
 ```
 
+Coding agents can drive the same operations through MCP instead of a shell:
+
+```
+dotquay mcp --project /path/to/a/godot/project
+```
+
+See [`docs/SPEC.md` §20](docs/SPEC.md#20-mcp-server-v018) for the tool catalogue and a connection
+walkthrough.
+
 ## Commands
 
 | Command | What it does |
@@ -47,6 +60,7 @@ dotquay install                                # fresh clone -> addons/ + .cspro
 | `status` | Diff disk against the lockfile: clean / patched as expected / modified / missing. |
 | `patch <name>` | Capture hand-edits to an installed addon as a patch file, replayed via 3-way merge on future `install`/`update`. |
 | `doctor` | Run sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned `addons/` folders. |
+| `mcp` | Start dotquay as a stdio MCP server, exposing reads and guarded writes as tools for coding agents — see [`docs/SPEC.md` §20](docs/SPEC.md#20-mcp-server-v018). |
 | `self check` | Ask whether a newer dotquay exists. Exits 3 when one does. |
 | `self update` | Download, verify and install the newest dotquay, replacing this executable. |
 | `self rollback` | Put back the dotquay the last update replaced. |
@@ -116,6 +130,9 @@ src/Dotquay.Core/    pipeline stages behind interfaces — manifest/lockfile I/O
                       the dependency graph resolver, sync engine, patch workflow, NuGet delegation.
                       No console/CLI code lives here.
 src/Dotquay.Cli/     thin System.CommandLine command layer over Dotquay.Core.
+src/Dotquay.Mcp/     `dotquay mcp`: a stdio MCP server exposing dotquay's read and guarded write
+                      operations as tools for coding agents — see docs/SPEC.md §20. Depends only
+                      on Dotquay.Core, never Dotquay.Cli.
 tests/Dotquay.Tests/ xUnit tests. Everything goes through IFileSystem/IGitClient/INuGetClient/
                       IPatchTool/IDotnetCliRunner fakes, never real disk or network — see
                       Dotquay.Tests/Support/.
@@ -207,4 +224,3 @@ turns it off without turning off `self check`. While the release project is priv
 `dotquay login gitlab.kemomi.de` once and updates work without a token on the command line.
 
 Design and the reasoning behind every refusal: [`docs/DESIGN-v0.17-SELF-UPDATE.md`](docs/DESIGN-v0.17-SELF-UPDATE.md).
-

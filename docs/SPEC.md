@@ -1160,3 +1160,149 @@ suppressing this under `--json` alone would not be enough — `dotquay list | gr
 parseable. Silent under `--json`, when stderr is redirected, when `CI` is set, under the `self`
 command group, and when turned off by `self notify off` or `DOTQUAY_NO_UPDATE_CHECK`.
 
+## 20. MCP server (v0.18)
+
+Every dotquay operation already speaks one contract: the `--json` envelope (§17). The Godot plugin
+(§18) is one consumer of it; `dotquay mcp` is a second, aimed at coding agents instead of a GDScript
+client. It does not add a new surface — every tool call is the same `DependencyWorkflow`/
+`OverrideWorkflow`/`SourceWorkflow` result, mapped through the same `JsonMapper`, that the CLI already
+produces. What an agent driving a shell lacks is *discovery*: a typed description of what dotquay can
+do, what each operation needs, and which ones are safe to call without a human approving them first.
+The Model Context Protocol (MCP) is that discovery layer. Full design and rationale:
+`docs/DESIGN-v0.18-MCP.md`.
+
+### 20.1 Starting the server
+
+`dotquay mcp [--project <dir>]... [--log <file>]` speaks newline-delimited JSON-RPC 2.0 over
+stdin/stdout (stdio transport only — every client that matters spawns a process, so there is no
+listener, no port, and no auth surface to design). Nothing else may reach stdout: dotquay's own update
+notice (§19.3) is excluded the same way `--json` excludes it, progress bars are replaced by
+`notifications/progress` (§20.4), and the host's own logging is redirected off the wire entirely. A
+client configures dotquay exactly like any other MCP server — point it at the built binary
+(`dotquay mcp`), optionally pinning one or more project roots with repeated `--project` flags.
+
+`--project` is optional. With none given, the working directory is the only root a call may touch;
+with one or more given, the `project` argument on every tool defaults to the single root and is
+required once there is more than one. A client that declares the `roots` capability widens this list
+further: dotquay reads the client's roots on `initialize` and again on every
+`notifications/roots/list_changed`, so a project opened later in the same editor session becomes
+reachable without restarting the server. A `project` argument outside every known root is refused with
+a `scope` error (§20.3), naming the roots that would have worked.
+
+### 20.2 Tools
+
+Every tool is named `dotquay_<verb>` (snake_case; a Godot addon script, a `.tscn`, and now this are
+the three places dotquay's own conventions have to survive being typed by something else, and
+underscore is what the widest range of MCP clients render cleanly). Every tool's result carries both
+a `text` block, for a client that only displays text, and a `structuredContent` block that is exactly
+the same `JsonEnvelope<T>` shape §17 already documents — an agent that has already learned to parse
+`dotquay --json status` output does not learn a second shape for the MCP version of the same call.
+Each tool also carries `ToolAnnotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`,
+`openWorldHint`) so a client's own policy layer can decide what to auto-approve before dotquay's own
+write guard (§20.3) ever runs.
+
+Eight tools are pure reads, mapping 1:1 onto their CLI command and requiring nothing beyond `project`:
+`dotquay_status`, `dotquay_list`, `dotquay_graph`, `dotquay_outdated`, `dotquay_doctor`,
+`dotquay_add_preview`, `dotquay_source_list`, `dotquay_override_list`.
+
+Eleven tools write, and every one of them passes through the guard below before touching disk:
+`dotquay_init`, `dotquay_add`, `dotquay_add_dotnet`, `dotquay_install`, `dotquay_update`,
+`dotquay_remove`, `dotquay_patch_capture`, `dotquay_patch_resolve`, `dotquay_patch_abandon`,
+`dotquay_override_set`, `dotquay_override_clear`. Deliberately absent from both lists: anything that
+handles a credential (`login`, `logout`, the credential helper), anything that creates a local link
+(`link` — the one place a plausible-sounding path from an agent could delete a folder git cannot
+recover, per §9's junction rule), and the `self` command group. An agent that needs one of these tells
+the user which command to run at a real terminal.
+
+At most one write is in flight per project at a time — a `SemaphoreSlim(1,1)` keyed on the normalized,
+case-folded project path serializes `dotquay_add`/`dotquay_update`/etc. against each other and against
+concurrent reads of the same project, released in a `finally` so a cancelled call (§20.4) can't leak
+the slot. Two different projects proceed fully in parallel.
+
+### 20.3 The write guard — refusing what would have prompted
+
+Every write tool exists because the equivalent CLI command sometimes stops to ask a question at the
+console — adopt this feed, discard these local edits, keep this generated file private. An MCP call
+has no console to ask at, so each of those questions becomes a structured refusal instead, and the
+caller either already has the answer (because it asked the human itself, out-of-band) or does not call
+the tool at all:
+
+- **Feed adoption.** A write that would add a new source needs that source named back in the tool's
+  `approved_source_urls` argument, mirroring the CLI's own y/n prompt.
+- **Generator privacy.** A write that would commit a generated asset needs `keep_generator_private`
+  answered the same way `add`'s own prompt would have been.
+- **Force with unresolved local changes.** The MCP equivalent of `--force` is `confirm_discard`:
+  refused whenever any addon in scope is `modified` with real content changes (not just Godot-artifact
+  churn, §9) and the addon has not been named in `confirm_discard`; not required at all when every
+  affected addon is already `SafeToForce`.
+
+A refusal is not a JSON-RPC protocol error — the call succeeds at the transport level and returns
+`isError: true` with a `structuredContent` reusing the same `JsonError` shape (`kind`, `message`) that
+`--json` already uses for every other failure (§17), plus an optional `detail` object. Two
+`JsonErrorKind` values exist only here: `scope`, whose `detail.allowed_roots` lists the project roots
+that would have worked (§20.1), and `needs_confirmation`, whose `detail.policy` names which policy
+above triggered and whose `unapproved_sources`/`unconfirmed_addons` lists exactly what to pass back on
+retry. An agent never has to guess the shape of a second attempt — the first refusal states it.
+
+### 20.4 Progress, cancellation, logging
+
+Long-running writes (`install`, `update`) report progress through `notifications/progress` instead of
+`Dotquay.Cli`'s console spinner — `McpProgressReporter` is the only progress reporter `dotquay mcp`
+ever constructs, so a stray `ConsoleProgressReporter` write is a wiring bug, not a formatting choice.
+Every call gets its own `CancellationTokenSource`; a client's `notifications/cancelled` tears down the
+in-flight operation and releases the project's write slot (§20.2) in a `finally`, the same as a normal
+completion.
+
+`--log <file>` opts into a structured log of every request (falling back to stderr, never stdout, if
+the file can't be opened) and raises the minimum level a running server reports over
+`notifications/message` in response to `logging/setLevel` — for warnings and above by default, so a
+client's own log viewer sees the same "something's wrong" signal a console user would have seen
+printed inline.
+
+### 20.5 Resources and prompts
+
+Four `dotquay://` URI templates expose the project's own state files as MCP resources — read-only,
+never a write path, same rule as everything above: `dotquay://{project}/manifest`,
+`.../lockfile`, `.../local`, and `.../patches/{name}`. An agent that wants to *understand* a project's
+declared dependencies, its pinned lockfile, its machine-local links, or a captured patch reads these
+directly instead of shelling out to `cat`.
+
+Three prompts ship canned, multi-step workflows that chain several tools with dotquay's own domain
+knowledge already baked into the prompt text (kept as embedded markdown resources under
+`Dotquay.Mcp/Prompts/`, not string literals in C#, so they read and diff like documentation):
+
+- **`dotquay_diagnose_modified`** walks from a `modified` addon in `dotquay_status` to a specific
+  explanation — folder-casing drift, a real local edit, or Godot artifact churn — without the agent
+  needing to already know the difference (§9's own diagnostic pattern, now written down for an agent
+  instead of a person).
+- **`dotquay_upgrade_safely`** runs `dotquay_outdated`, previews the update, and only calls
+  `dotquay_update` once the preview is clean or the caller has supplied the confirmations §20.3 would
+  otherwise refuse.
+- **`dotquay_add_addon`** runs `dotquay_add_preview` before `dotquay_add`, surfacing exactly the
+  approval arguments a first real call would need instead of letting the agent discover them one
+  refusal at a time.
+
+### 20.6 Connecting a client (tutorial)
+
+Point any MCP-capable client at the published binary with the `mcp` subcommand — for example, Claude
+Code:
+
+```
+claude mcp add dotquay -- dotquay mcp --project /path/to/a/godot/project
+```
+
+or, for a client that supports the `roots` capability instead of a fixed `--project`, omit `--project`
+entirely and open the Godot project as the client's own workspace root — dotquay picks it up on
+`initialize` with no restart needed if the workspace changes later in the session.
+
+Once connected, `tools/list` returns all nineteen tools with their schemas; a first useful call is
+almost always `dotquay_status` (read-only, no approvals needed) to establish what the agent is looking
+at, followed by `dotquay_doctor` if anything reads unexpected. A write attempt that comes back
+`isError: true` is not a bug to route around — its `detail` names exactly what to pass on the next
+call (§20.3), and re-issuing the same tool call with that detail filled in is the intended retry path,
+not a fallback to the shell.
+
+**Deferred, and why:** a `dotquay mcp install --client <...>` config-writing helper, elicitation for
+feed adoption and `--force` (a strictly better replacement for the refuse-and-retry shape above, once
+clients support it broadly), an HTTP transport, and `dotquay_link` — see
+`docs/DESIGN-v0.18-MCP.md` §11 for the reasoning behind each.
