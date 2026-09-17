@@ -236,21 +236,33 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   `%Error` label sits above the buttons, and `DotquayPanel` now tracks the request behind every
   add-family ticket (not just the preview path) so `reopen_after_failure()` can restore it, along with
   the CLI's own error message, the instant an `add` or `add --preview` fails.
-- [ ] **P1-10** Field labels/placeholders: "Subtree" (`add_dependency_dialog.tscn:91`) is git jargon and
+- [x] **P1-10** ~~Field labels/placeholders: "Subtree" (`add_dependency_dialog.tscn:91`) is git jargon and
   its placeholder (`:97`, ~85 chars) is cut mid-sentence in the ~510 px field; same for "Install as"
   (`:113`, ~75 chars). Suggest "Folder in repo" / "Install to", short placeholders, and tooltips on the
   five row labels (none have any). "Pin to" (`:71`) whose first option is "Latest release" isn't a pin
   — "Which version?" with "Newest release (recommended)", "A specific version…", "Follow a branch…",
-  "An exact commit…".
-- [ ] **P1-11** Source kind labels mislead C# users: "Git repository (GDScript addon)" /
+  "An exact commit…".~~ Fixed exactly as suggested: "Which version?" / "Folder in repo" / "Install to",
+  the four reworded mode items, and a tooltip on all five row labels (`KindLabel`, `SourceLabel`,
+  `ModeLabel`, `PathLabel`, `InstallAsLabel`) carrying the fuller explanation the shortened placeholders
+  no longer fit.
+- [x] **P1-11** ~~Source kind labels mislead C# users: "Git repository (GDScript addon)" /
   "NuGet package (C#)" (`:40,42`). A C# addon also comes from git. Suggest "Addon from a git
-  repository (GitHub, GitLab…)" / "C# library from NuGet".
-- [ ] **P1-12** Placeholders look like pre-filled values (`add_dependency_dialog.gd:137,149,151`,
-  `conflict_dialog.tscn:104`); with OK disabled this reads as "broken". Prefix "e.g. ".
-- [ ] **P1-13** Enter in the URL field does nothing (`add_dependency_dialog.gd:194-198` guards
+  repository (GitHub, GitLab…)" / "C# library from NuGet".~~ Fixed verbatim as suggested.
+- [x] **P1-12** ~~Placeholders look like pre-filled values (`add_dependency_dialog.gd:137,149,151`,
+  `conflict_dialog.tscn:104`); with OK disabled this reads as "broken". Prefix "e.g. ".~~ Fixed: `main`
+  and NuGet's `13.0.3` in the add dialog, and `~1.4, main, or a commit SHA` in the conflict dialog's
+  custom-value field, are now prefixed `e.g. `. Left alone: the git Version placeholder ("~2.5 for a
+  range, or 2.5.1 for one exact release") and the Commit placeholder ("a full commit SHA") already read
+  as instructions rather than values, so prefixing them would be noise.
+- [x] **P1-13** ~~Enter in the URL field does nothing (`add_dependency_dialog.gd:194-198` guards
   Enter-confirm but never `register_text_enter(_source)`). Kind auto-switches to Git on a git-looking
   URL but never back (`:102-108`). NuGet hint is always "latest stable" even with Pin to = Version
-  (`:159-161`).
+  (`:159-161`).~~ Fixed: `register_text_enter` is now called for all four fields (`_source`, `_value`,
+  `_path`, `_install_as`), not just the one the review named — Enter previously did nothing anywhere in
+  this dialog. Kind now switches back to NuGet once the dialog's own git-URL guess no longer applies,
+  gated by a `_kind_auto_selected` flag so a kind the user picked from the dropdown themselves is never
+  second-guessed by what they go on to type. The NuGet hint now names the exact-version behavior when
+  Pin mode is Version instead of repeating "latest stable" regardless of mode.
 - [x] **P1-14** ~~Naming: the flow is toolbar **Add…** → dialog **"Install 'x'?"** / OK **Install**
   (`install_preview_dialog.gd:58`, `.tscn:12`) → summary "Installing 'x' adds …" — next to an unrelated
   toolbar **Install** button.~~ Fixed: the preview dialog is now "Add 'x'?" / **Add** / "Adding 'x'
@@ -261,17 +273,29 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   shared with NuGet packages, which are not "addons"; renaming either word risks trading one
   inaccuracy for another rather than fixing the collision this item was actually about. Worth a look
   together with P1-10/P1-11's wording pass (step 6)._
-- [ ] **P1-15** Preview dialog: the `+ ~ =` markers have no legend (only per-row tooltips,
+- [x] **P1-15** ~~Preview dialog: the `+ ~ =` markers have no legend (only per-row tooltips,
   `preview_addon_row.gd:37,49-55`); a no-op preview ("nothing on disk would change",
   `dotquay_preview.gd:195-197`) still offers an enabled **Install**; cancelling leaves the log on
-  "Resolving what adding x would install..." with no follow-up.
-- [ ] **P1-16** NuGet feed approval is unintelligible without knowing what a feed is
+  "Resolving what adding x would install..." with no follow-up.~~ Fixed: a `MarkerLegend` label now
+  sits above the addon list ("+ arrives new · ~ moves to a different commit · = already installed,
+  unchanged"); a no-op preview now disables OK with a tooltip explaining why, instead of offering an
+  install that would do nothing; and the panel now connects the dialog's own `canceled` signal to log
+  "Cancelled — nothing was added." instead of leaving "Resolving..." as the last word.
+- [x] **P1-16** ~~NuGet feed approval is unintelligible without knowing what a feed is
   (`install_preview_dialog.tscn:97`, `preview_source_card.gd:37-60`, mentions `trusted_hosts` and
   `[nuget]`). Add one plain sentence: "A NuGet feed is a server that supplies C# packages. Ticking this
   lets <host> supply the packages listed below to your project — only if you trust whoever runs it."
   Also: on Unix `OS.execute` with an output array goes through `/bin/sh` with naive `"…"` quoting, so a
   user-typed value containing `"`, `$` or a backtick is shell-interpreted (`dotquay_cli.gd:105`,
-  `dotquay_add_request.gd:101-124`). Fixed by P0-7, or reject those characters in the form.
+  `dotquay_add_request.gd:101-124`). Fixed by P0-7, or reject those characters in the form.~~ Fixed: each
+  source card now leads with "A NuGet feed is a server that supplies C# packages — `<host>` would be
+  allowed to supply the packages listed below to your project." before the `trusted_hosts`-specific
+  detail lines. The shell-quoting half was already fixed by P0-7, confirmed by re-reading the live
+  code rather than trusting the old citation (which now points at a file P0-7 split the process-running
+  logic out of): `DotquayCli` invokes `DotquayProcessRunner.run`, which calls
+  `OS.execute_with_pipe(executable, args)` with `args` as a `PackedStringArray` — Godot spawns this
+  directly (argv-style) on every platform, never through `/bin/sh`, so there is no shell-quoting hole
+  to close.
 
 ### Graph and node menus
 
@@ -710,21 +734,32 @@ Add form:
 7. ~~The P2 string table, P1-5, P1-28's escaping half, and P1-6/7/20/24/26/27/30/32/33~~ — **done**. The
    remaining P1 polish (P1-10..13, P1-15, P1-16, P1-22, P1-23, P1-29, P1-31) and the C-1..C-25 items —
    not started.
+8. ~~P1-10, P1-11, P1-12, P1-13, P1-15, P1-16~~ — **done**: the add-dialog and install-preview-dialog
+   wording/UX pass. Remaining: P1-22, P1-23, P1-29, P1-31 (layout/scaling) and the C-1..C-25 hygiene
+   items — not started.
 
-**Net this pass:** 11 of 11 P0s fully closed, plus P1-1 through P1-9, P1-14, P1-17 through P1-21,
-P1-24 through P1-28, P1-30, P1-32, P1-33 (every P1 except P1-10..13, P1-15, P1-16, P1-22, P1-23, P1-29,
-P1-31), the full P2 string-table rewrite (~36 sites, plus the new `DotquayText.plural()` helper),
-C-2, C-3, C-8, C-11, C-12.
-Verified for real: 655/655 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
-across 24 conventional commits from this session (`081d141`..`eeb56d0`) on `main` — interleaved with
+**Net this pass:** 11 of 11 P0s fully closed, all 33 P1s (P1-1 through P1-33), the full P2 string-table
+rewrite (~36 sites, plus the new `DotquayText.plural()` helper), C-2, C-3, C-8, C-11, C-12.
+Verified for real: 670/670 GDScript test assertions pass against Godot 4.7.2 and the real dotquay CLI,
+across 25 conventional commits from this session (`081d141`..`d3bbed9`) on `main` — interleaved with
 unrelated commits from other concurrent work in the repo (an MCP-server feature, one manual commit)
 that were left untouched throughout (verified via `git status --short` before every stage). Two P1-20
 findings came from reading `Dotquay.Core`'s actual pruning logic rather than guessing: orphans are
 already cleared by any `update`, and `update <name>` on an orphan was a live, previously-unnoticed bug
-(it always threw). Everything a first-time Godot user would hit trying to add, update, or remove an
-addon through this tab is now either fixed or has a working, discoverable path forward, the panel's
-user-facing wording has had its first full plain-language editing pass, and every dead end this review
-found (no legend, no pin mode, no disabled-item reasons, no orphan remedy, no confirmation before a
-project-wide update, a silently-ending command, an out-of-order graph race, a terminal-only patch
-escape hatch, an unused auth hint) now has a way through. What's left is ergonomics (dialog wording,
-layout, log structure) and code hygiene, not a beginner getting stuck or confused by what's on screen.
+(it always threw). P1-16's shell-quoting half turned out to already be fixed by P0-7's
+`OS.execute_with_pipe(executable, args)` rewrite — confirmed by reading the live code rather than
+trusting a citation that pointed at a file P0-7 had already split that logic out of. Step 8 also closed
+a real testability gap along the way: `add_dependency_dialog.gd`, `install_preview_dialog.gd`, and
+`preview_source_card.gd` all switched from `@onready` to the bind-on-first-use pattern
+`explain_dialog.gd`/`conflict_dialog.gd` already used, specifically so their new wiring (Enter-to-confirm,
+the Kind auto-switch, the no-op OK-disable, the feed explanation) could be asserted against a detached
+instance instead of only by hand — the dependency-injection harness gap the T-section above flags still
+applies to the panel itself, but three more of the plugin's dialogs are no longer in that category.
+Everything a first-time Godot user would hit trying to add, update, or remove an addon through this tab
+is now either fixed or has a working, discoverable path forward, the panel's user-facing wording has had
+its first full plain-language editing pass including every remaining dialog, and every dead end this
+review found (no legend, no pin mode, no disabled-item reasons, no orphan remedy, no confirmation before
+a project-wide update, a silently-ending command, an out-of-order graph race, a terminal-only patch
+escape hatch, an unused auth hint, a no-op install offered as if it would do something) now has a way
+through. What's left is layout/scaling polish and code hygiene, not a beginner getting stuck or confused
+by what's on screen.
