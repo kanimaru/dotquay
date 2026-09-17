@@ -474,6 +474,10 @@ now pulls `Dotquay.Mcp` in transitively. No pipeline change.
 - **OQ-2 TTY guard.** Should `dotquay mcp` refuse to start when stdin is a terminal (a human who typed
   it by accident sees a hung prompt)? Proposed: yes, print one line explaining it is meant to be
   spawned by an MCP client, exit 2. Cheap, and it is the first thing a confused user will do.
+  **Resolved 2026-09-17:** implemented as proposed — `TtyGuard.ShouldRefuse` checks
+  `Console.IsInputRedirected` in `McpCommand`, refusing on stderr with exit 2 before anything else
+  runs. The decision is a pure function of one bool (`TtyGuardTests.cs`); a real interactive TTY is
+  not something an automated test can reproduce, so only that boolean is unit-tested.
 - **OQ-3 Tool name prefix.** `dotquay_status` vs `dotquay.status`. Underscore is what most clients
   render cleanly and what the spec's examples use; revisit only if a client chokes on it.
 - **OQ-4 Read tools under the gate.** Serializing reads behind `ProjectGate` (§4.4) is the safe

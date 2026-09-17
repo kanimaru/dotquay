@@ -38,6 +38,15 @@ internal static class McpCommand
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
+            // TTY guard (design doc §12, OQ-2): refuse before anything else runs when stdin is a real
+            // console, not the pipe an MCP client spawns this with — otherwise a human who ran this by
+            // accident just sees a process that never prints anything, indistinguishable from a hang.
+            if (TtyGuard.ShouldRefuse(Console.IsInputRedirected))
+            {
+                Console.Error.WriteLine(TtyGuard.Message);
+                return TtyGuard.ExitCode;
+            }
+
             var projectDirectory = GlobalOptions.Resolve(parseResult);
             var logFile = parseResult.GetValue(logOption);
             await McpServerBuilder.RunStdioAsync([projectDirectory], logFile, cancellationToken);
