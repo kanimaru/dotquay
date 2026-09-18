@@ -719,7 +719,59 @@ public sealed partial class DependencyWorkflow
             return Task.CompletedTask;
         }
 
+        if (TryRemoveOrphanedDotnet(projectDirectory, name))
+        {
+            return Task.CompletedTask;
+        }
+
         throw new WorkflowException($"'{name}' is not declared in {manifestPath}.");
+    }
+
+    /// <summary>
+    /// Removes a NuGet package that only the lockfile still mentions: the orphan doctor reports as a
+    /// dangling entry and tells the user to <c>dotquay remove</c> (DESIGN-v0.19 §4). Returns false when
+    /// <paramref name="name"/> isn't locked as a package at all, so the caller's "not declared" error
+    /// still applies.
+    /// </summary>
+    /// <remarks>
+    /// Before v0.19 this fell through to "not declared in dotquay.toml", which made doctor's own advice
+    /// a dead end. It refuses when a reachable addon still declares the package. Removing the reference
+    /// would work for exactly one command; the next <c>update</c> would union it straight back in
+    /// (requirement P1-5), which would look like dotquay ignoring the removal.
+    /// </remarks>
+    private bool TryRemoveOrphanedDotnet(string projectDirectory, string name)
+    {
+        var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
+        if (lockfile.Dotnet.All(d => d.Name != name))
+        {
+            return false;
+        }
+
+        var (manifest, _) = ReadManifestOrThrow(projectDirectory);
+        var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
+        var reachable = ComputeReachableAddonNames(lockedByName, manifest.Addons.Keys);
+
+        if (AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).TryGetValue(name, out var declarers))
+        {
+            var addons = string.Join(", ", declarers.Select(a => $"'{a}'"));
+            throw new WorkflowException(
+                $"'{name}' is declared by {addons}, not by your {ManifestFileName}, so there is nothing of "
+                + $"yours to remove — it would come straight back on the next update. Remove "
+                + $"{(declarers.Count == 1 ? "that addon" : "those addons")} instead.");
+        }
+
+        WriteLockfile(lockfilePath, lockfile with { Dotnet = lockfile.Dotnet.Where(d => d.Name != name).ToList() });
+
+        try
+        {
+            _dotnetInstaller.Remove(projectDirectory, name);
+        }
+        catch (DotnetSyncException ex)
+        {
+            throw new WorkflowException(ex.Message, ex);
+        }
+
+        return true;
     }
 
     /// <summary>
