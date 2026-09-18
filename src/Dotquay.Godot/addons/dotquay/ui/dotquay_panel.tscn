@@ -222,17 +222,6 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="NuGet" type="ScrollContainer" parent="Root/Split/SidebarTabs" unique_id=1740341129]
-visible = false
-layout_mode = 2
-horizontal_scroll_mode = 0
-metadata/_tab_index = 1
-
-[node name="DotnetList" type="VBoxContainer" parent="Root/Split/SidebarTabs/NuGet" unique_id=1430012615]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-
 ; visible = false is no longer overridden per-instance below (C-25): each of these five dialogs now
 ; defaults to invisible in its own scene, so an override here would just repeat what the base scene
 ; already says. popup_centered() (or popup(), for LegendDialog) is what shows any of them.

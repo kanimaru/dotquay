@@ -75,6 +75,42 @@ func test_real_cli_emits_a_graph_this_addon_can_parse() -> void:
 		"--project should be echoed back, confirming the CLI operated on the directory we asked for")
 
 
+## v0.19's package fields, checked against the real binary. The package is written straight into the
+## lockfile rather than added, so no NuGet feed is contacted: a locked package that nothing declares
+## is an orphan, which the CLI must say without any network.
+func test_real_cli_emits_package_origin_requirers_and_source() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var project := _make_project()
+	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
+
+	var lockfile := FileAccess.open(project.path_join("dotquay.lock"), FileAccess.WRITE)
+	lockfile.store_string("[[dotnet]]\nname = \"Ghost.Package\"\nresolved = \"2.0.0\"\n")
+	lockfile.close()
+
+	var result := _run(cli, PackedStringArray(["graph", "--project", project, "--json"]), "graph")
+	# Removed straight away, before any assertion can return early: the other contract tests share
+	# this directory and expect a project with nothing in it.
+	DirAccess.remove_absolute(project.path_join("dotquay.lock"))
+	runner.check(result.ok, "graph should succeed on a project with a leftover package")
+
+	var entries: Array = DotquayWire.array_or_empty(result.data.get("dotnet"))
+	runner.equal(entries.size(), 1, "the leftover package should be reported")
+	if entries.is_empty():
+		return
+
+	var raw: Dictionary = entries[0]
+	# Key presence, not just values: a renamed key would parse to the fallback and still "work".
+	for key in ["origin", "required_by", "source"]:
+		runner.check(raw.has(key), "the CLI should emit dotnet[].%s (v0.19)" % key)
+
+	var package := DotquayGraph.PackageNode.from_payload(raw)
+	runner.check(package.is_orphan(), "a locked package nothing declares is an orphan")
+	runner.check(package.is_on_public_feed(), "no feed recorded means nuget.org")
+
+
 ## The preview payload is a different shape from every other command's, reported under its own
 ## envelope command — so a rename on either side is invisible to the fixture suite and shows up as an
 ## empty confirmation dialog. This is the only test that would notice.

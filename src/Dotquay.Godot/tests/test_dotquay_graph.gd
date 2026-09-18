@@ -100,8 +100,10 @@ func test_null_conflict_and_requirement_and_dotnet_fields_parse_as_empty() -> vo
 	runner.equal(requirement.kind, "", "a null requirement kind parses as empty, not '<null>'")
 	runner.equal(requirement.git, "", "a null requirement git parses as empty, not '<null>'")
 
-	var entry := DotquayGraph.DotnetEntry.from_payload({"name": null})
+	var entry := DotquayGraph.PackageNode.from_payload({"name": null, "source": null, "required_by": null})
 	runner.equal(entry.name, "", "a null dotnet entry name parses as empty, not '<null>'")
+	runner.equal(entry.source, "", "a null source means nuget.org, not a feed called '<null>'")
+	runner.equal(entry.required_by.size(), 0, "a null required_by parses as empty, not raise")
 
 
 func test_null_graph_level_fields_parse_as_empty_or_fall_back() -> void:
@@ -469,7 +471,7 @@ func test_null_nested_arrays_parse_as_empty_not_a_crash() -> void:
 
 
 func test_requirement_constraint_null_parses_as_empty_not_the_literal_null() -> void:
-	# C-23: "constraint" is the same wire key AddonNode and DotnetEntry already treat as nullable via
+	# C-23: "constraint" is the same wire key AddonNode and PackageNode already treat as nullable via
 	# str_or_empty. Requirement used a plain String() default instead, which only fires when the key
 	# is absent — a present-but-null constraint (a plain `git` requirement with no version range)
 	# rendered as the literal text "<null>".
@@ -486,3 +488,106 @@ func test_empty_payload_parses_cleanly() -> void:
 
 	runner.check(graph.is_empty(), "a payload with nothing in it should report as empty")
 	runner.equal(graph.layers().size(), 0, "and produce no layout columns")
+
+
+## The diamond with v0.19's package fields: Serilog declared by both addons, Newtonsoft by the
+## project and addon a, Ghost locked but declared by nothing, and a package from a private feed.
+func _diamond_with_packages() -> Dictionary:
+	var payload := _diamond()
+	payload["dotnet"] = [
+		{"name": "Newtonsoft.Json", "constraint": "13.0.*", "resolved": "13.0.3", "declared_by_project": true,
+		 "origin": "root", "required_by": ["<project>", "a"], "source": null},
+		{"name": "Serilog", "constraint": "3.*", "resolved": "3.1.1", "declared_by_project": false,
+		 "origin": "transitive", "required_by": ["a", "b"], "source": "kemomi"},
+		{"name": "Ghost.Package", "constraint": null, "resolved": "2.0.0", "declared_by_project": false,
+		 "origin": "orphan", "required_by": [], "source": null},
+	]
+	return payload
+
+
+func test_packages_parse_origin_requirers_and_source() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+	var serilog := graph.find_package("Serilog")
+
+	runner.check(serilog.is_transitive(), "origin should parse")
+	runner.equal(serilog.required_by, PackedStringArray(["a", "b"]), "required_by should parse in order")
+	runner.equal(serilog.source, "kemomi", "the locked feed name should parse")
+	runner.check(not serilog.is_on_public_feed(), "a named feed is not nuget.org")
+	runner.check(graph.find_package("Ghost.Package").is_orphan(), "an orphan package should parse as one")
+
+
+func test_package_addon_requirers_drop_the_project_sentinel() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	# The project isn't drawn as a node, so an edge "from <project>" would dangle.
+	runner.equal(graph.find_package("Newtonsoft.Json").addon_requirers(), PackedStringArray(["a"]),
+		"only addon names become edges")
+
+
+func test_packages_index_back_onto_the_addons_that_declare_them() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	runner.equal(graph.find("a").packages, PackedStringArray(["Newtonsoft.Json", "Serilog"]),
+		"addon a declares two packages")
+	runner.equal(graph.find("b").packages, PackedStringArray(["Serilog"]), "addon b declares one")
+	runner.equal(graph.find("core").packages.size(), 0, "core declares none")
+
+
+func test_package_column_sits_right_of_the_deepest_addon_column() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	# Two addon columns (a/b, then core), so packages go in the third.
+	runner.equal(graph.package_column(), 2, "packages get their own column after the addons")
+
+
+func test_package_column_is_zero_without_addons() -> void:
+	var payload := _diamond_with_packages()
+	payload["addons"] = []
+	payload["edges"] = []
+	var graph: DotquayGraph = GRAPH.from_payload(payload)
+
+	runner.equal(graph.package_column(), 0, "a packages-only project starts at the left edge")
+
+
+func test_package_names_are_sorted_for_a_stable_column() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	runner.equal(graph.package_names(), PackedStringArray(["Ghost.Package", "Newtonsoft.Json", "Serilog"]),
+		"packages are drawn in name order so refreshes don't shuffle the column")
+
+
+func test_pre_v019_payload_derives_origin_from_declared_by_project() -> void:
+	# The existing diamond fixture has no origin keys at all, which is exactly what an older CLI sends.
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond())
+
+	runner.check(graph.find_package("Newtonsoft.Json").is_root(), "declared_by_project true reads as a root")
+	# Transitive, not orphan: an older CLI can't tell the two apart, and transitive is the reading that
+	# never offers a Remove that would fail.
+	runner.check(graph.find_package("Serilog").is_transitive(), "declared_by_project false reads as transitive")
+	runner.check(not graph.find_package("Serilog").is_removable(), "so Remove stays off")
+
+
+func test_package_removability_follows_origin() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	runner.check(graph.find_package("Newtonsoft.Json").is_removable(), "a root has a manifest entry to remove")
+	runner.check(not graph.find_package("Serilog").is_removable(), "a transitive package would come straight back")
+	runner.check(graph.find_package("Ghost.Package").is_removable(), "an orphan's lock entry can be removed (v0.19)")
+
+
+func test_nuget_url_pins_the_resolved_version() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	runner.equal(graph.find_package("Newtonsoft.Json").nuget_url(),
+		"https://www.nuget.org/packages/Newtonsoft.Json/13.0.3", "a locked package links to its exact version")
+
+	var unlocked := DotquayGraph.PackageNode.from_payload({"name": "New.Thing", "resolved": null})
+	runner.equal(unlocked.nuget_url(), "https://www.nuget.org/packages/New.Thing",
+		"without a resolved version the link goes to the package page")
+
+
+func test_counts_include_orphan_packages() -> void:
+	var graph: DotquayGraph = GRAPH.from_payload(_diamond_with_packages())
+
+	runner.equal(graph.counts()["orphans"], 1, "the orphan package is counted with orphan addons")
+	runner.equal(graph.counts()["dotnet"], 3, "every package is counted")

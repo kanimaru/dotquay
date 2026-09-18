@@ -13,18 +13,8 @@ extends GraphNode
 ## Emitted when the user picks something from this node's action menu.
 signal action_requested(action: String, addon_name: String)
 
-## Menu commands this node's own popup offers (C-25). Prefixed `MENU_`, not `ACTION_`, specifically to
-## stay clear of [DotquayWire]'s `ACTION_*` constants: those name what a wire `changes[].action`
-## already *did* ("updated"), these name what a person is *asking* this menu to do ("update") — two
-## different vocabularies that happened to collide on ACTION_UPDATED vs. ACTION_UPDATE before this.
-const MENU_UPDATE := "update"
-const MENU_REMOVE := "remove"
-const MENU_RESOLVE := "resolve"
-const MENU_OVERRIDE := "override"
-const MENU_CLEAR_OVERRIDE := "clear_override"
-const MENU_OPEN_REPO := "open_repo"
-const MENU_CAPTURE_PATCH := "capture_patch"
-const MENU_EXPLAIN := "explain"
+## The action ids it carries are [DotquayNodeActions]' `MENU_*` constants, shared with
+## [DotquayPackageNode] (DESIGN-v0.19 §5).
 
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
@@ -42,6 +32,7 @@ var addon_name: String = ""
 var _model: DotquayGraph.AddonNode
 var _conflict: DotquayGraph.Conflict
 var _is_root := true
+var _show_packages := true
 
 
 func _ready() -> void:
@@ -53,8 +44,13 @@ func _ready() -> void:
 		_render()
 
 
-func setup(model: DotquayGraph.AddonNode, conflict: DotquayGraph.Conflict, is_root: bool) -> void:
+## [param show_packages] is false when the view isn't drawing packages (the Addons filter). An addon
+## whose only children are packages then gets no right-hand slot with nothing to connect to.
+func setup(
+	model: DotquayGraph.AddonNode, conflict: DotquayGraph.Conflict, is_root: bool, show_packages: bool = true
+) -> void:
 	_model = model
+	_show_packages = show_packages
 	_conflict = conflict
 	_is_root = is_root
 
@@ -73,7 +69,9 @@ func _render() -> void:
 	# Left slot = "something requires me", right slot = "I require something". A root has nothing on
 	# its left because the project itself isn't drawn as a node — an arrow from empty space would
 	# imply a parent that doesn't exist.
-	set_slot(0, not _is_root, 0, DotquayPalette.MUTED, not _model.dependencies.is_empty(), 0, DotquayPalette.MUTED)
+	# The right slot is also on for an addon that only declares NuGet packages. Their edges start
+	# here too (DESIGN-v0.19).
+	set_slot(0, not _is_root, 0, DotquayPalette.MUTED, has_outgoing_slot(_model, _show_packages), 0, DotquayPalette.MUTED)
 
 	_render_status_row()
 	_render_details()
@@ -142,125 +140,28 @@ func _render_details() -> void:
 
 
 func _render_menu() -> void:
-	var popup := _menu_button.get_popup()
-	popup.clear()
-
-	if _conflict != null:
-		_add_menu_item(popup, "Resolve conflict...", MENU_RESOLVE)
-
-	# A transitive addon has no manifest entry to re-resolve on its own; updating it means updating
-	# whatever requires it. An orphan has no manifest entry either — `dotquay update <name>` throws
-	# "not declared in dotquay.toml" for one, since it was never a root to begin with (P1-20).
-	_add_menu_item(popup, "Update", MENU_UPDATE, _is_transitive() or _model.is_orphan(),
-		update_disabled_reason(_is_transitive(), _model.is_orphan(), _model.requirements))
-	_add_menu_item(popup, "Always use a specific version...", MENU_OVERRIDE)
-
-	if _model.is_overridden:
-		_add_menu_item(popup, "Stop forcing a version", MENU_CLEAR_OVERRIDE)
-
-	# Listed above "capture" on purpose: the honest order is find out what changed, then decide what to
-	# do about it. A user who already knows loses one menu position; a user who does not is handed the
-	# answer before the option that acts on it.
-	if _model.status == DotquayWire.STATUS_MODIFIED:
-		_add_menu_item(popup, "Why is this modified?", MENU_EXPLAIN)
-		_add_menu_item(popup, "Keep my edits (save as patch)", MENU_CAPTURE_PATCH)
-
-	popup.add_separator()
-
-	_add_menu_item(popup, "Open repository", MENU_OPEN_REPO, _model.git.is_empty(),
-		"This addon has no repository URL to open — it was likely declared as a NuGet package.")
-	_add_menu_item(popup, "Remove", MENU_REMOVE, not _model.is_removable(),
-		remove_disabled_reason(_model.is_removable(), _is_transitive(), _model.is_orphan(), _model.requirements))
+	DotquayNodeActions.apply_to(_menu_button.get_popup(), DotquayNodeActions.for_addon(_model, _conflict))
 
 
-func _is_transitive() -> bool:
-	return _model.origin == DotquayWire.ORIGIN_TRANSITIVE
+## Whether the right (outgoing) slot is on: when the addon has addon children, or declares packages
+## that are being drawn. Static so the rule is a test; a detached node never runs `_render`.
+static func has_outgoing_slot(model: DotquayGraph.AddonNode, packages_shown: bool) -> bool:
+	return not model.dependencies.is_empty() or (packages_shown and not model.packages.is_empty())
 
 
-## Every "why is this greyed out" explanation below is a static function of plain data rather than an
-## instance method reading [member _model] directly (P1-19), so each can be tested against a made-up
-## [DotquayGraph.Requirement] list without instantiating a [GraphNode] — mirroring how
-## [method DotquayProcessRunner.launch_failed_message] takes its platform as a parameter instead of
-## reading [method OS.get_name] itself.
-
-## Names who actually needs this addon, for a tooltip that names a specific thing to go do instead of
-## just saying "not here". Falls back to something true but generic when the graph never populated
-## [param requirements] — the lockfile-only view of the graph doesn't carry them.
 ## Shortens [param addon_name] to [constant TITLE_MAX_LENGTH] with a trailing ellipsis (P1-23). A
-## plain string function of plain data, like every other reason below, so the cutoff length is a test
-## rather than something only visible by dragging a long-named addon onto the canvas.
+## plain string function of plain data, so the cutoff length is a test rather than something only
+## visible by dragging a long-named addon onto the canvas. The package node uses it too.
 static func truncate_title(addon_name: String) -> String:
 	if addon_name.length() <= TITLE_MAX_LENGTH:
 		return addon_name
 	return addon_name.substr(0, TITLE_MAX_LENGTH - 1) + "…"
 
 
-static func requirer_summary(requirements: Array) -> String:
-	var names := PackedStringArray()
-	for requirement in requirements:
-		names.append(DotquayWire.display_requirer(requirement.requirer))
-	return ", ".join(names) if not names.is_empty() else "another addon"
-
-
-## Explains a disabled Update/Remove on a transitive addon: it has no entry of its own in
-## dotquay.toml, so [param verb] has nothing to act on until it's applied to whatever pulled this in.
-static func brought_in_by_reason(is_transitive: bool, requirements: Array, verb: String) -> String:
-	if not is_transitive:
-		return ""
-	return "Brought in by %s; %s that instead." % [requirer_summary(requirements), verb]
-
-
-## Explains a disabled Update on an orphan: it has no manifest entry to update either (P1-20) —
-## `dotquay update <name>` refuses one outright — so the tooltip names the command that actually
-## clears it instead of just saying "no".
-static func update_disabled_reason(is_transitive: bool, is_orphan: bool, requirements: Array) -> String:
-	if is_transitive:
-		return brought_in_by_reason(true, requirements, "update")
-	if is_orphan:
-		return ("Nothing requires this any more, so it has no manifest entry to update. Running "
-			+ "\"Update all\" removes it instead.")
-	return ""
-
-
-static func remove_disabled_reason(
-	is_removable: bool, is_transitive: bool, is_orphan: bool, requirements: Array
-) -> String:
-	if is_removable:
-		return ""
-	if is_transitive:
-		return brought_in_by_reason(true, requirements, "remove")
-	if is_orphan:
-		return ("Nothing requires this any more, but it isn't a root entry, so Remove has nothing to "
-			+ "act on here. Running \"Update all\" removes it automatically instead.")
-	return ""
-
-
-## Ids are positional, so the action travels as metadata instead: reordering the menu must not
-## silently change what a click does. [param disabled_reason] becomes the item's tooltip when
-## [param disabled] is true, so a greyed-out option says why instead of just sitting there (P1-19).
-func _add_menu_item(
-	popup: PopupMenu, text: String, action: String, disabled: bool = false, disabled_reason: String = ""
-) -> void:
-	var id := popup.get_item_count()
-	popup.add_item(text, id)
-
-	var index := popup.get_item_index(id)
-	popup.set_item_metadata(index, action)
-	popup.set_item_disabled(index, disabled)
-
-	if disabled and not disabled_reason.is_empty():
-		popup.set_item_tooltip(index, disabled_reason)
-
-
 func _on_menu_id_pressed(id: int) -> void:
-	var popup := _menu_button.get_popup()
-	var index := popup.get_item_index(id)
-	if index < 0:
-		return
-
-	var action: Variant = popup.get_item_metadata(index)
-	if typeof(action) == TYPE_STRING:
-		action_requested.emit(String(action), addon_name)
+	var action := DotquayNodeActions.action_for(_menu_button.get_popup(), id)
+	if not action.is_empty():
+		action_requested.emit(action, addon_name)
 
 
 func _badge(text: String, color: Color, tooltip: String) -> DotquayStatusLabel:

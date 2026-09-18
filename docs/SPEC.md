@@ -1094,7 +1094,7 @@ and only the second is about taste:
 - **A panel built in `_ready` can only be changed by editing code**, which puts a spacing tweak and a
   wire-format change in the same review. The scenes are editable in the editor the plugin ships
   inside.
-- **Repeated rows become instantiable units.** A conflict card, a candidate row, a NuGet row, a
+- **Repeated rows become instantiable units.** A conflict card, a candidate row, a package node, a
   preview row, a feed card, and the badge/detail label are each one scene, instanced where needed —
   so the scripts hold data binding and nothing else.
 
@@ -1106,6 +1106,17 @@ Hand-written `.tscn` files fail at **load** time rather than compile time, so `t
 loads and instantiates every one of them, and checks that each `%UniqueName` a script reaches for
 actually exists — the expected names are scanned out of the script's own source rather than listed,
 so adding a node cannot leave the test behind.
+
+### 18.1.1 NuGet packages are graph nodes (v0.19)
+
+Packages used to be rows in a separate NuGet sidebar tab. They are now their own node kind in the
+graph (`ui/package_node.tscn`): a column to the right of the deepest addon column, with an edge
+from each addon whose package manifest declares one, fed by `dotnet[].required_by` (§17). A
+toolbar filter (All / Addons / NuGet) replaces the flat list the tab used to give. The two node
+kinds get their menus from one action table, `DotquayNodeActions`. A package offers Update, Open on
+nuget.org and Remove, each greyed out with a reason when its origin makes it meaningless: a
+transitive package is updated or removed through the addon that declared it. Design and rationale:
+`docs/DESIGN-v0.19-UNIFIED-GRAPH.md`.
 
 ### 18.2 The add form (v0.9)
 

@@ -26,6 +26,11 @@ class AddonNode extends RefCounted:
 	var status: String = ""
 	var dependencies: PackedStringArray = PackedStringArray()
 	var requirements: Array = []   ## Array[Requirement]
+	## NuGet package IDs this addon's own package manifest declares (v0.19). This isn't a wire field
+	## on the addon: [method DotquayGraph.from_payload] fills it in as the reverse of each package's
+	## `required_by`. The node needs it to know it has a right-hand slot even when it has no addon
+	## children.
+	var packages: PackedStringArray = PackedStringArray()
 
 	static func from_payload(payload: Dictionary) -> AddonNode:
 		var node := AddonNode.new()
@@ -103,7 +108,7 @@ class Requirement extends RefCounted:
 		requirement.requirer = DotquayWire.str_or_empty(payload.get("requirer"))
 		requirement.kind = DotquayWire.str_or_empty(payload.get("kind"))
 		# str_or_empty, not a plain String() default (C-23): "constraint" is the same wire key AddonNode
-		# and DotnetEntry already treat as nullable below — a version-less requirement (a plain `git`
+		# and PackageNode already treat as nullable below — a version-less requirement (a plain `git`
 		# dependency with no [dotnet]-style range) sends it as null, not omitted.
 		requirement.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
 		requirement.git = DotquayWire.str_or_empty(payload.get("git"))
@@ -249,19 +254,44 @@ class Conflict extends RefCounted:
 		return "Pin" if is_manual_pin else "Apply override"
 
 
-class DotnetEntry extends RefCounted:
+## One NuGet package, drawn as its own kind of node in the graph (DESIGN-v0.19).
+##
+## This replaces the old `DotnetEntry`, which knew only `declared_by_project`. That was enough to
+## grey out Remove, but not enough to say *which* addon pulled a package in, and "which one" is the
+## whole question.
+class PackageNode extends RefCounted:
+	const NUGET_PACKAGE_URL := "https://www.nuget.org/packages/%s"
+
 	var name: String = ""
 	var constraint: String = ""
 	var resolved: String = ""
 	var declared_by_project: bool = true
+	var origin: String = DotquayWire.ORIGIN_ROOT
+	## `"<project>"` first when the project declares it, then addon names — exactly as the CLI sent
+	## them.
+	var required_by: PackedStringArray = PackedStringArray()
+	## The declared feed name it resolved from. Empty means nuget.org.
+	var source: String = ""
 
-	static func from_payload(payload: Dictionary) -> DotnetEntry:
-		var entry := DotnetEntry.new()
-		entry.name = DotquayWire.str_or_empty(payload.get("name"))
-		entry.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
-		entry.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
-		entry.declared_by_project = bool(payload.get("declared_by_project", true))
-		return entry
+	static func from_payload(payload: Dictionary) -> PackageNode:
+		var node := PackageNode.new()
+		node.name = DotquayWire.str_or_empty(payload.get("name"))
+		node.constraint = DotquayWire.str_or_empty(payload.get("constraint"))
+		node.resolved = DotquayWire.str_or_empty(payload.get("resolved"))
+		node.declared_by_project = bool(payload.get("declared_by_project", true))
+		node.source = DotquayWire.str_or_empty(payload.get("source"))
+
+		for requirer in DotquayWire.array_or_empty(payload.get("required_by")):
+			node.required_by.append(String(requirer))
+
+		# A dotquay older than v0.19 sends no origin. declared_by_project is the most that CLI could
+		# say, and it can't tell a transitive package from an orphan, so it reads as transitive: the
+		# one choice that never offers a Remove that would fail.
+		var origin := DotquayWire.str_or_empty(payload.get("origin"))
+		if origin.is_empty():
+			origin = DotquayWire.ORIGIN_ROOT if node.declared_by_project else DotquayWire.ORIGIN_TRANSITIVE
+		node.origin = origin
+		return node
 
 	func display_version() -> String:
 		if not resolved.is_empty():
@@ -270,13 +300,47 @@ class DotnetEntry extends RefCounted:
 			return constraint
 		return "?"
 
+	func is_root() -> bool:
+		return origin == DotquayWire.ORIGIN_ROOT
+
+	func is_transitive() -> bool:
+		return origin == DotquayWire.ORIGIN_TRANSITIVE
+
+	func is_orphan() -> bool:
+		return origin == DotquayWire.ORIGIN_ORPHAN
+
+	## True when `dotquay remove <id>` can succeed. A root has a manifest entry to delete, and an
+	## orphan has a lock entry nothing else defends (DESIGN-v0.19 §4). A transitive package has
+	## neither: its addon would bring it straight back.
+	func is_removable() -> bool:
+		return is_root() or is_orphan()
+
+	## The addons that declared this package, without the project sentinel. These are the nodes the
+	## graph draws an edge from.
+	func addon_requirers() -> PackedStringArray:
+		var result := PackedStringArray()
+		for requirer in required_by:
+			if requirer != DotquayWire.PROJECT_NODE:
+				result.append(requirer)
+		return result
+
+	## True when the package resolved from nuget.org, the only feed with a public package page to
+	## open. A private feed's URL is an API endpoint, not something a browser can show.
+	func is_on_public_feed() -> bool:
+		return source.is_empty()
+
+	## The package's nuget.org page, pinned to the resolved version when there is one.
+	func nuget_url() -> String:
+		var url := NUGET_PACKAGE_URL % name.uri_encode()
+		return url + "/" + resolved.uri_encode() if not resolved.is_empty() else url
+
 
 var source: String = DotquayWire.GRAPH_SOURCE_LOCKFILE
 var project_directory: String = ""
 var roots: PackedStringArray = PackedStringArray()
 var addons: Array = []      ## Array[AddonNode]
 var edges: Array = []       ## Array of {from: String, to: String}
-var dotnet: Array = []      ## Array[DotnetEntry]
+var dotnet: Array = []      ## Array[PackageNode]
 var conflicts: Array = []   ## Array[Conflict]
 
 
@@ -302,7 +366,9 @@ static func from_payload(payload: Dictionary) -> DotquayGraph:
 
 	for entry in DotquayWire.array_or_empty(payload.get("dotnet")):
 		if typeof(entry) == TYPE_DICTIONARY:
-			graph.dotnet.append(DotnetEntry.from_payload(entry))
+			graph.dotnet.append(PackageNode.from_payload(entry))
+
+	graph._index_packages_by_addon()
 
 	for entry in DotquayWire.array_or_empty(payload.get("conflicts")):
 		if typeof(entry) == TYPE_DICTIONARY:
@@ -320,6 +386,39 @@ func find(addon_name: String) -> AddonNode:
 		if node.name == addon_name:
 			return node
 	return null
+
+
+func find_package(package_name: String) -> PackageNode:
+	for node in dotnet:
+		if node.name == package_name:
+			return node
+	return null
+
+
+## Fills [member AddonNode.packages] from each package's `required_by`. Done once at parse time,
+## so a node asking "do I declare any packages?" never has to scan every package itself.
+func _index_packages_by_addon() -> void:
+	for package in dotnet:
+		for requirer in package.addon_requirers():
+			var addon := find(requirer)
+			if addon != null and not addon.packages.has(package.name):
+				addon.packages.append(package.name)
+
+
+## The column packages are drawn in: one to the right of the deepest addon column. Packages are
+## always sinks, so giving them a column of their own keeps them from interleaving with addons that
+## happen to sit at the same depth. The layout also stays put when an addon's depth changes.
+func package_column() -> int:
+	return layers().size()
+
+
+## Package names in drawing order: sorted, so refreshes don't shuffle the column.
+func package_names() -> PackedStringArray:
+	var names := PackedStringArray()
+	for node in dotnet:
+		names.append(node.name)
+	names.sort()
+	return names
 
 
 func conflict_for(addon_name: String) -> Conflict:
@@ -408,6 +507,10 @@ func counts() -> Dictionary:
 			DotquayWire.STATUS_LINKED:
 				linked += 1
 		if node.is_orphan():
+			orphans += 1
+
+	for package in dotnet:
+		if package.is_orphan():
 			orphans += 1
 
 	return {

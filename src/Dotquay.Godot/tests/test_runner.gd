@@ -28,9 +28,12 @@ const SUITES := [
 	preload("res://tests/test_dotquay_text.gd"),
 	preload("res://tests/test_dotquay_palette.gd"),
 	preload("res://tests/test_dotquay_graph.gd"),
-	# The dependency-node menu's disabled-item explanations (P1-19), pulled out as static functions of
-	# plain data so they're testable without a GraphNode in a tree.
+	# Both node kinds' menus and their disabled-item explanations (P1-19, DESIGN-v0.19 §5), as plain
+	# data so they're testable without a GraphNode in a tree.
+	preload("res://tests/test_dotquay_node_actions.gd"),
+	preload("res://tests/test_dotquay_graph_filter.gd"),
 	preload("res://tests/test_dependency_node.gd"),
+	preload("res://tests/test_package_node.gd"),
 	# The graph view's manual-position bookkeeping (P1-22) — driven against the real, detached scene
 	# rather than pulled apart into static functions, since what's under test is render()'s own
 	# stateful behaviour across two calls, not a pure mapping of plain data.

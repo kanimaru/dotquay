@@ -18,6 +18,16 @@ const ERROR := Color(0.88, 0.32, 0.32)
 const MUTED := Color(0.58, 0.60, 0.65)
 const OVERRIDE := Color(0.47, 0.62, 0.94)
 
+## NuGet packages as a node kind (DESIGN-v0.19): the kind badge, the connection slots, and, through
+## [constant PACKAGE_TINT], the node frame. A hue none of the status colours use, so "this is a
+## package" never reads as "this is in trouble".
+const PACKAGE := Color(0.70, 0.52, 0.92)
+
+## [member CanvasItem.self_modulate] for a package node's frame. Only the frame: children aren't
+## affected, so badges keep their own colours. Kept close to white so the editor theme still
+## decides contrast.
+const PACKAGE_TINT := Color(0.87, 0.80, 0.97)
+
 ## The same colours as BBCode, for the log's [RichTextLabel]. Derived rather than retyped so a colour
 ## can only be changed in one place.
 ##

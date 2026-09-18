@@ -32,7 +32,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
 theme_override_font_sizes/font_size = 12
-text = "Badges next to an addon in the graph flag its current state. Hover any badge there for the exact detail — this is the short version of all of them in one place."
+text = "Badges on an addon or NuGet package in the graph flag its current state. Hover any badge there for the exact detail — this is the short version of all of them in one place."
 autowrap_mode = 3
 
 [node name="Scroll" type="ScrollContainer" parent="Root"]
@@ -168,7 +168,7 @@ custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
-text = "Still locked in dotquay.lock, but nothing in the project requires it any more. Action: none from here yet — it isn't a root entry, so Remove has nothing to act on."
+text = "Still locked in dotquay.lock, but nothing in the project requires it any more. Action: for an addon, run Update all, which prunes it. For a NuGet package, choose Remove from its menu."
 autowrap_mode = 3
 
 [node name="RenamedRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
@@ -187,4 +187,22 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Installed under a different folder name than the addon itself (install_as in dotquay.toml) — usually because another addon preloads it by an absolute path that needs a specific name. No action needed unless the folder name is a surprise."
+autowrap_mode = 3
+
+[node name="NuGetRow" type="HBoxContainer" parent="Root/Scroll/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Badge" type="Label" parent="Root/Scroll/Rows/NuGetRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.52, 0.92, 1)
+text = "NuGet"
+
+[node name="Text" type="Label" parent="Root/Scroll/Rows/NuGetRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "A NuGet package rather than a git addon, drawn in its own column on the right with an edge from each addon that declared it. A \"required by …\" line names the addons that declared it. Your dotquay.toml doesn't list it, so Update and Remove belong to those addons. The graph toolbar's filter can show packages alone."
 autowrap_mode = 3

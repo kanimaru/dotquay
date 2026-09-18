@@ -14,7 +14,6 @@ extends Control
 ## talks to the CLI.
 
 const CONFLICT_CARD := preload("res://addons/dotquay/ui/items/conflict_card.tscn")
-const DOTNET_ROW := preload("res://addons/dotquay/ui/items/dotnet_row.tscn")
 const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 
 @onready var _graph_view: DotquayDependencyGraphView = %GraphView
@@ -22,7 +21,6 @@ const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 @onready var _log: RichTextLabel = %Log
 @onready var _clear_log_button: Button = %ClearLogButton
 @onready var _conflict_list: VBoxContainer = %ConflictList
-@onready var _dotnet_list: VBoxContainer = %DotnetList
 @onready var _busy: Label = %Busy
 @onready var _toolbar: HBoxContainer = %Toolbar
 
@@ -151,7 +149,7 @@ func _ready() -> void:
 	_get_dotquay_button.pressed.connect(_on_get_dotquay_pressed)
 	_browse_button.pressed.connect(_on_browse_pressed)
 	_explain_dialog.capture_patch_requested.connect(
-		func(name: String) -> void: _on_node_action(DotquayDependencyNode.MENU_CAPTURE_PATCH, name))
+		func(name: String) -> void: _on_node_action(DotquayNodeActions.MENU_CAPTURE_PATCH, name))
 
 	_cli_path_dialog = EditorFileDialog.new()
 	_cli_path_dialog.title = "Select the dotquay executable"
@@ -182,11 +180,10 @@ func _ready() -> void:
 	# screen before a real graph ever comes back.
 	_summary.text = ""
 
-	# Both render their own "nothing here yet" state when [member _graph] is null, so calling them
-	# before the first graph ever arrives replaces a blank sidebar with that message instead of
-	# leaving it empty until the tab's first `_apply_graph` (P1-6).
+	# Renders its own "nothing here yet" state when [member _graph] is null, so calling it before the
+	# first graph ever arrives replaces a blank sidebar with that message instead of leaving it empty
+	# until the tab's first `_apply_graph` (P1-6).
 	_render_conflicts()
-	_render_dotnet()
 
 
 ## Only ever running while [member _rescan] is waiting for the editor to finish a scan of its own.
@@ -195,7 +192,7 @@ func _process(_delta: float) -> void:
 
 
 ## Ids for the Tools overflow menu (P1-25) — Re-resolve and Doctor moved here off the main toolbar,
-## since neither is a first-click action. Positional like [DotquayDependencyNode]'s own menu, and for
+## since neither is a first-click action. Positional like the node menus ([DotquayNodeActions]), and for
 ## the same reason: the action a click means must survive the menu being reordered or relabelled.
 const TOOLS_ITEM_RESOLVE := 0
 const TOOLS_ITEM_DOCTOR := 1
@@ -372,11 +369,11 @@ func _on_doctor_pressed() -> void:
 
 func _on_node_action(action: String, addon_name: String) -> void:
 	match action:
-		DotquayDependencyNode.MENU_UPDATE:
+		DotquayNodeActions.MENU_UPDATE:
 			_log_line("Updating %s..." % addon_name)
 			_run(DotquayWire.COMMAND_UPDATE, PackedStringArray([addon_name]), true)
 
-		DotquayDependencyNode.MENU_REMOVE:
+		DotquayNodeActions.MENU_REMOVE:
 			_pending_removal = addon_name
 			# Shared by addons and NuGet packages, so it names what `remove` does for both rather than
 			# promising a NuGet package will disappear from addons/.
@@ -390,25 +387,30 @@ func _on_node_action(action: String, addon_name: String) -> void:
 		# [method _open_conflict_dialog] already builds a synthetic manual-pin conflict when there is no
 		# real one, and [DotquayGraph.Conflict.is_manual_pin] is what the dialog itself reads to tell the
 		# two apart in its own wording (P1-18).
-		DotquayDependencyNode.MENU_RESOLVE, DotquayDependencyNode.MENU_OVERRIDE:
+		DotquayNodeActions.MENU_RESOLVE, DotquayNodeActions.MENU_OVERRIDE:
 			_open_conflict_dialog(addon_name)
 
-		DotquayDependencyNode.MENU_CLEAR_OVERRIDE:
+		DotquayNodeActions.MENU_CLEAR_OVERRIDE:
 			_log_line("Clearing the override on %s..." % addon_name)
 			_run(DotquayWire.COMMAND_OVERRIDE, PackedStringArray([addon_name, DotquayWire.FLAG_CLEAR]), true)
 
-		DotquayDependencyNode.MENU_CAPTURE_PATCH:
+		DotquayNodeActions.MENU_CAPTURE_PATCH:
 			_log_line("Capturing edits to %s as a patch..." % addon_name)
 			_run(DotquayWire.COMMAND_PATCH, PackedStringArray([addon_name]), true)
 
-		DotquayDependencyNode.MENU_EXPLAIN:
+		DotquayNodeActions.MENU_EXPLAIN:
 			# `--explain` compares against the locked commit, which can mean a fetch — so it is said
 			# out loud rather than leaving the panel silently busy.
 			_log_line("Comparing %s against its locked commit..." % addon_name)
 			var ticket := _run(DotquayWire.COMMAND_STATUS, PackedStringArray([DotquayWire.FLAG_EXPLAIN]))
 			_pending_explains[ticket] = addon_name
 
-		DotquayDependencyNode.MENU_OPEN_REPO:
+		DotquayNodeActions.MENU_OPEN_NUGET:
+			var package := _graph.find_package(addon_name) if _graph != null else null
+			if package != null and package.is_on_public_feed():
+				OS.shell_open(package.nuget_url())
+
+		DotquayNodeActions.MENU_OPEN_REPO:
 			var node := _graph.find(addon_name) if _graph != null else null
 			if node == null or node.git.is_empty():
 				return
@@ -825,7 +827,6 @@ func _apply_graph(payload: Dictionary) -> void:
 	_graph = DotquayGraph.from_payload(payload)
 	_graph_view.render(_graph)
 	_render_conflicts()
-	_render_dotnet()
 	_update_summary()
 
 	# A graph result — even a failing one carrying a conflict — implies both a working CLI and an
@@ -890,27 +891,6 @@ func _render_conflicts() -> void:
 		card.setup(conflict)
 		card.resolve_requested.connect(_open_conflict_dialog)
 		card.focus_requested.connect(_graph_view.focus_addon)
-
-
-func _render_dotnet() -> void:
-	DotquayNodes.clear_children(_dotnet_list)
-
-	if _graph == null or _graph.dotnet.is_empty():
-		var empty: DotquayStatusLabel = STATUS_LABEL.instantiate()
-		_dotnet_list.add_child(empty)
-		empty.setup("No NuGet packages.", DotquayPalette.MUTED)
-		return
-
-	for entry in _graph.dotnet:
-		var row: DotquayDotnetRow = DOTNET_ROW.instantiate()
-		_dotnet_list.add_child(row)
-		row.setup(entry)
-		# Not `_on_node_action.bind(MENU_REMOVE)`: bind *appends*, so the handler would receive
-		# (package_name, "remove") — action and name swapped — and the match would fall through
-		# silently. The lambda puts the arguments where the handler expects them.
-		row.remove_requested.connect(
-			func(package_name: String) -> void:
-				_on_node_action(DotquayDependencyNode.MENU_REMOVE, package_name))
 
 
 func _report_outdated(payload: Dictionary) -> void:
@@ -997,7 +977,7 @@ func _log_heading(command_name: String) -> void:
 
 ## A human-readable, present-tense label for [param command_name] — the same string [method _run]
 ## hands to [method DotquayCli.run] — used by both the busy indicator and the log heading above it
-## (P1-29). A static function of plain data, matching [DotquayDependencyNode]'s own reason helpers, so
+## (P1-29). A static function of plain data, matching [DotquayNodeActions]' reason helpers, so
 ## the mapping is a test rather than something only visible by clicking every button once.
 static func busy_label(command_name: String) -> String:
 	match command_name:
@@ -1057,7 +1037,7 @@ static func _is_web_url(url: String) -> bool:
 ## focus, the refresh tracker, Locate, a self-update, the explain fallback) and their replies can land
 ## out of order — applying a stale one would flash old data over what a newer, still-pending read is
 ## about to correct (P1-30). Pulled out as a static function of plain data, mirroring
-## [DotquayDependencyNode]'s own disabled-reason helpers, so the ordering rule is a test rather than
+## [DotquayNodeActions]' disabled-reason helpers, so the ordering rule is a test rather than
 ## something only provable by racing two real CLI calls.
 static func should_apply_graph_result(result: DotquayResult, latest_graph_ticket: int) -> bool:
 	return result.command != DotquayWire.COMMAND_GRAPH or result.ticket == latest_graph_ticket

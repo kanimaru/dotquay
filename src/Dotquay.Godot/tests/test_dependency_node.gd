@@ -1,92 +1,13 @@
 extends RefCounted
 
-## Covers [DotquayDependencyNode]'s disabled-menu-item explanations (P1-19) — pure static functions
-## of plain data rather than instance methods, precisely so they're testable without instantiating a
-## [GraphNode] inside a scene tree.
+## Covers [DotquayDependencyNode]'s title truncation (P1-23) and its slot rule. Its menu and the
+## disabled-item explanations moved to [DotquayNodeActions] in v0.19; see
+## test_dotquay_node_actions.gd.
 
 const NODE := preload("res://addons/dotquay/ui/dependency_node.gd")
 const GRAPH := preload("res://addons/dotquay/core/dotquay_graph.gd")
 
 var runner: Object
-
-
-func _requirement(requirer: String) -> DotquayGraph.Requirement:
-	return GRAPH.Requirement.from_payload(
-		{"requirer": requirer, "kind": "version", "constraint": "~1.0", "git": ""})
-
-
-func test_requirer_summary_names_a_single_requirer() -> void:
-	runner.equal(NODE.requirer_summary([_requirement("core")]), "core",
-		"one requirer is named plainly")
-
-
-func test_requirer_summary_joins_several_requirers() -> void:
-	var summary := NODE.requirer_summary([_requirement("core"), _requirement("shared")])
-	runner.equal(summary, "core, shared", "several requirers are joined for one tooltip line")
-
-
-func test_requirer_summary_falls_back_when_the_graph_carries_none() -> void:
-	# The lockfile-only view of the graph never populates requirements — a tooltip still needs
-	# something true to say rather than an empty parenthetical.
-	runner.equal(NODE.requirer_summary([]), "another addon",
-		"no requirement data still reads as a sentence")
-
-
-func test_requirer_summary_names_the_project_readably() -> void:
-	runner.equal(NODE.requirer_summary([_requirement("<project>")]), "this project",
-		"'<project>' is wire syntax, not something to show verbatim")
-
-
-func test_brought_in_by_reason_is_blank_for_a_root_addon() -> void:
-	runner.equal(NODE.brought_in_by_reason(false, [], "update"), "",
-		"an addon with its own manifest entry never needs this explanation")
-
-
-func test_brought_in_by_reason_names_the_requirer_and_the_verb() -> void:
-	var reason := NODE.brought_in_by_reason(true, [_requirement("core")], "update")
-	runner.equal(reason, "Brought in by core; update that instead.",
-		"names who to act on instead, and what to do to it")
-
-
-func test_remove_disabled_reason_is_blank_for_a_removable_addon() -> void:
-	runner.equal(NODE.remove_disabled_reason(true, false, false, []), "",
-		"Remove is never disabled for a root addon, so there's nothing to explain")
-
-
-func test_remove_disabled_reason_for_a_transitive_addon_points_at_its_requirer() -> void:
-	var reason := NODE.remove_disabled_reason(false, true, false, [_requirement("shared")])
-	runner.equal(reason, "Brought in by shared; remove that instead.",
-		"a transitive addon's Remove points at the same fix as its Update")
-
-
-func test_remove_disabled_reason_for_an_orphan_names_update_all_as_the_fix() -> void:
-	# P1-20: `SyncAddonGraphAsync` (Dotquay.Core) deletes any lockfile addon a fresh manifest-rooted
-	# walk doesn't reach, so any Update — not just this addon's own, which it doesn't have — clears an
-	# orphan. Verified by reading the workflow, not assumed: this review used to leave the remedy
-	# unstated for exactly that reason.
-	var reason := NODE.remove_disabled_reason(false, false, true, [])
-	runner.check(reason.contains("root entry"),
-		"an orphan's Remove is disabled because it isn't a root entry, not because of anything CLI-side: %s" % reason)
-	runner.check(reason.contains("Update all"), "should name the actual remedy: %s" % reason)
-
-
-func test_update_disabled_reason_is_blank_for_a_root_addon() -> void:
-	runner.equal(NODE.update_disabled_reason(false, false, []), "",
-		"an addon with its own manifest entry can always be updated by name")
-
-
-func test_update_disabled_reason_for_a_transitive_addon_points_at_its_requirer() -> void:
-	var reason := NODE.update_disabled_reason(true, false, [_requirement("core")])
-	runner.equal(reason, "Brought in by core; update that instead.",
-		"a transitive addon's Update points at the same fix as its Remove")
-
-
-func test_update_disabled_reason_for_an_orphan_names_update_all() -> void:
-	# `dotquay update <orphan-name>` throws "not declared in dotquay.toml" (DependencyWorkflow.cs) —
-	# an orphan is exactly the addon that was never a manifest root, so Update-by-name would always
-	# fail for it. Update is disabled for the same reason Remove is, but the explanation differs.
-	var reason := NODE.update_disabled_reason(false, true, [])
-	runner.check(reason.contains("Update all"), "should name the actual remedy: %s" % reason)
 
 
 func test_truncate_title_leaves_short_names_alone() -> void:
@@ -108,3 +29,14 @@ func test_truncate_title_shortens_long_names_with_a_trailing_ellipsis() -> void:
 	runner.check(truncated.ends_with("…"), "a truncated title should end with an ellipsis: %s" % truncated)
 	runner.check(long_name.begins_with(truncated.substr(0, truncated.length() - 1)),
 		"the visible prefix should still be a real prefix of the original name: %s" % truncated)
+
+
+func test_outgoing_slot_follows_addon_children_and_visible_packages() -> void:
+	var packages_only := GRAPH.AddonNode.from_payload({"name": "a", "dependencies": []})
+	packages_only.packages = PackedStringArray(["Serilog"])
+	var with_child := GRAPH.AddonNode.from_payload({"name": "b", "dependencies": ["core"]})
+
+	runner.check(NODE.has_outgoing_slot(packages_only, true), "declared packages need an outgoing slot")
+	runner.check(not NODE.has_outgoing_slot(packages_only, false),
+		"not when the filter hides packages: it would dangle")
+	runner.check(NODE.has_outgoing_slot(with_child, false), "an addon child always needs one")

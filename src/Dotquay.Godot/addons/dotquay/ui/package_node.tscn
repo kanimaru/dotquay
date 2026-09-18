@@ -1,0 +1,40 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/package_node.gd" id="1_package_node"]
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/package_glyph.gd" id="2_package_glyph"]
+
+[node name="PackageNode" type="GraphNode"]
+custom_minimum_size = Vector2(240, 0)
+offset_right = 240.0
+title = "package"
+resizable = false
+script = ExtResource("1_package_node")
+
+[node name="StatusRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Glyph" type="Control" parent="StatusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(16, 16)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("2_package_glyph")
+
+[node name="Badges" type="HBoxContainer" parent="StatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Details" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ActionsButton" type="MenuButton" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Actions for this package."
+flat = false
+text = "Actions"
