@@ -214,6 +214,33 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
+    public async Task InstallAsync_LeftoverStagingTree_IsSwept()
+    {
+        // Found as .dotquay/staging/twitcher: a full copy of an addon left behind weeks earlier.
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v1.0.0");
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+        fileSystem.WriteAllText($"{ProjectDir}/.dotquay/staging/twitcher/plugin.gd", "extends EditorPlugin");
+
+        await workflow.InstallAsync(ProjectDir, force: false);
+
+        Assert.False(fileSystem.DirectoryExists($"{ProjectDir}/.dotquay/staging/twitcher"));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LeftoverStagingTree_IsSwept()
+    {
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v1.0.0");
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+        fileSystem.WriteAllText($"{ProjectDir}/.dotquay/staging/twitcher/plugin.gd", "extends EditorPlugin");
+
+        await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        Assert.False(fileSystem.DirectoryExists($"{ProjectDir}/.dotquay/staging/twitcher"));
+    }
+
+    [Fact]
     public async Task RemoveAsync_RemovesFromManifestLockfileAndDisk()
     {
         var (workflow, fileSystem, gitClient) = Build();

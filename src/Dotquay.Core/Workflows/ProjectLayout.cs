@@ -57,6 +57,10 @@ public sealed record ProjectLayout(string ProjectDirectory, string PatchesDirect
         fileSystem.CombinePath(
             [ProjectDirectory, .. PatchesDirectory.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries)]);
 
+    /// <summary>Scratch space for trees that live for one command; see <see cref="StagingSweeper"/>.</summary>
+    public string StagingRoot(IFileSystem fileSystem) =>
+        fileSystem.CombinePath(ProjectDirectory, DotquayDirectory, "staging");
+
     public string StagingPath(IFileSystem fileSystem, string addonName) =>
         fileSystem.CombinePath(ProjectDirectory, DotquayDirectory, "staging", addonName);
 

@@ -464,6 +464,8 @@ public sealed partial class DependencyWorkflow
                 + $"locked) — run 'dotquay add' or 'dotquay update' first (requirement P0-3).");
         }
 
+        StagingSweeper.Sweep(_fileSystem, ProjectLayout.WithoutPatches(projectDirectory));
+
         var installedAddons = new List<LockedAddon>();
         var installedCount = 0;
         foreach (var addon in lockfile.Addons)
@@ -540,6 +542,8 @@ public sealed partial class DependencyWorkflow
         {
             throw new WorkflowException($"'{name}' is not declared in {manifestPath}.");
         }
+
+        StagingSweeper.Sweep(_fileSystem, ProjectLayout.WithoutPatches(projectDirectory));
 
         var previousAddonsByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
         var walksAddonGraph = resync || name is null || manifest.Addons.ContainsKey(name);

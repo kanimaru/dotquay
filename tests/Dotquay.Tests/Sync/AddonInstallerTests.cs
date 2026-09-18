@@ -71,6 +71,21 @@ public class AddonInstallerTests
     }
 
     [Fact]
+    public async Task InstallAsync_RefusedInstall_LeavesNoStagedTree()
+    {
+        // A refusal is final for this run, so the extracted tree has no further use. Leaving it made
+        // .dotquay/staging accumulate full copies of addons nobody would ever finish installing.
+        var (installer, fileSystem, _, _) = Build();
+        fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "hand-edited");
+        var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
+
+        await Assert.ThrowsAsync<SyncException>(
+            () => installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), PreviousWithContentHash("sha256:original"), force: false));
+
+        Assert.False(fileSystem.DirectoryExists("project/.dotquay/staging/dialogue_manager"));
+    }
+
+    [Fact]
     public async Task InstallAsync_DirtyDestinationWithForce_Overwrites()
     {
         var (installer, fileSystem, _, _) = Build();

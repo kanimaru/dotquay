@@ -107,7 +107,36 @@ public sealed class AddonInstaller
 
         resolved = CorrectFolderCase(resolved, cachedRepoPath);
 
-        var stagingPath = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging", resolved.Name);
+        var stagingPath = layout.StagingPath(_fileSystem, resolved.Name);
+
+        try
+        {
+            return await InstallFromStagingAsync(resolved, cachedRepoPath, layout, stagingPath, previous, force, cancellationToken);
+        }
+        catch when (!_fileSystem.FileExists(layout.ConflictMarkerPath(_fileSystem, resolved.Name)))
+        {
+            // A refusal or failure is final for this run, so the extracted tree has no further use.
+            // Left in place, staging collected full copies of addons nobody would finish installing.
+            // A patch conflict is the exception: its tree is what the user edits before --resolve.
+            if (_fileSystem.DirectoryExists(stagingPath))
+            {
+                _fileSystem.DeleteDirectory(stagingPath);
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<LockedAddon> InstallFromStagingAsync(
+        ResolvedAddon resolved,
+        string cachedRepoPath,
+        ProjectLayout layout,
+        string stagingPath,
+        LockedAddon? previous,
+        bool force,
+        CancellationToken cancellationToken)
+    {
+        var projectDirectory = layout.ProjectDirectory;
         SubtreeExtractor.Extract(_fileSystem, cachedRepoPath, resolved.Path, stagingPath);
 
         if (previous is { PatchHash: not null, PatchBaseSha: not null })
