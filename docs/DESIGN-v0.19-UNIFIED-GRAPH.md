@@ -1,12 +1,19 @@
 # DESIGN v0.19 — NuGet packages in the dependency graph
 
-Status: Phase 1 shipped 2026-09-18; Phases 2 and 3 (§8) are still proposed. Direction agreed with
+Status: Phases 1 and 2 shipped 2026-09-18; Phase 3 (§8) is still an idea. Direction agreed with
 kani on 2026-09-18: packages move into the graph view, and the plugin's separate NuGet sidebar tab
 goes away. Phase 1 was verified against a real NativeAOT publish: `graph --json` emits `origin`,
 `required_by` and `source` for a root, an addon-declared and an orphan package; `remove` on the
 orphan drops its lock entry and `PackageReference` and reports `"kind": "dotnet"`; `remove` on the
 addon-declared package is refused and names the addon; and the GDScript suite, including the live
 contract test, passes against that binary.
+Phase 2 was verified the same way, against a real NuGet feed. `add --version` on a declared
+package reports `updated` with `from`. Repeating it reports unchanged without a restore. Without a
+version it's refused and names both ways forward, and a version that doesn't exist is refused. A
+pin on an addon-declared package makes it `root` with the addon still in `required_by`. Removing
+that pin keeps the `PackageReference` and hands the package back as `transitive`. The GDScript
+suite, including the live contract test, and the MCP real-process write-tool test pass against
+that binary.
 
 ## The problem
 
@@ -278,5 +285,5 @@ a `DependencyRemoval` (the kind, plus the addons that still declare it), so the 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | §3 wire fields in both modes, §3.1 shared reader, §4 orphan removal, §5 actions (Update / Open on nuget.org / Remove), §6 package nodes + filter, NuGet tab removed. Also: `remove` now reports which kind it removed (`DependencyKind`), so `remove --json` and the MCP tool stop calling every removal an addon. | shipped 2026-09-18 |
-| 2 | §7a: `add <id> --version <v>` pins a transitive package and changes a root one (`DeclareDotnetAsync`); `remove` keeps what an addon still needs; a version dialog behind **Pin a version in my project…** / **Change version…**. | in progress |
+| 2 | §7a: `add <id> --version <v>` pins a transitive package and changes a root one (`DeclareDotnetAsync`); `remove` keeps what an addon still needs; a version dialog behind **Pin a version in my project…** / **Change version…**. | shipped 2026-09-18 |
 | 3 | Optional: a per-node "outdated" badge from `outdated --json` for both kinds. | idea |
