@@ -77,6 +77,15 @@ func _orphan(folder: String) -> Dictionary:
 		"'addons/%s' is on disk but isn't tracked by any locked addon %s a leftover from a manual copy?" % [folder, "—"])
 
 
+func _uid_issue(file: String, uid: String, res_path: String) -> Dictionary:
+	var payload := _issue("fragile_uid_reference",
+		"%s loads addons/whatever by %s. A uid:// literal has no path to fall back on." % [file, uid])
+	payload["file"] = file
+	payload["uid"] = uid
+	payload["res_path"] = res_path
+	return payload
+
+
 func test_groups_collapse_one_kind_into_one_entry() -> void:
 	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
 		_orphan("a"), _orphan("b"), _orphan("c"),
@@ -188,3 +197,56 @@ func test_summarize_says_so_when_there_is_nothing_wrong() -> void:
 	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": true, "issues": []})
 
 	runner.equal(doctor.summarize(), "Doctor found no issues.", "a healthy project gets a plain sentence")
+
+
+func test_issue_with_file_uid_and_res_path_reports_a_uid_fix() -> void:
+	var issue := DotquayDoctor.Issue.from_payload(
+		_uid_issue("game/boot.gd", "uid://bxwpwbdv4fm02", "res://addons/r3/frame.cs"))
+
+	runner.check(issue.has_uid_fix(), "all three fields present means a fix is known")
+	runner.equal(issue.uid_fix_line(), "game/boot.gd  |  uid://bxwpwbdv4fm02  ->  res://addons/r3/frame.cs",
+		"the compact line names the file, the token to find, and what replaces it")
+
+
+func test_an_issue_missing_any_fix_field_reports_no_uid_fix() -> void:
+	var missing_res_path := DotquayDoctor.Issue.from_payload(
+		_issue("fragile_uid_reference", "'x' something."))
+
+	runner.check(not missing_res_path.has_uid_fix(), "no file/uid/res_path at all means no fix")
+
+
+func test_a_group_with_every_issue_fixable_prefers_fix_lines_over_subjects() -> void:
+	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
+		_uid_issue("a.gd", "uid://one", "res://addons/x/one.gd"),
+		_uid_issue("b.gd", "uid://two", "res://addons/x/two.gd"),
+	]})
+	var group: Variant = doctor.groups()[0]
+
+	runner.check(group.has_uid_fixes(), "every issue in the group carries a resolved fix")
+	runner.equal(group.fix_lines().size(), 2, "one compact line per issue")
+	runner.equal(group.fix_lines()[0], "a.gd  |  uid://one  ->  res://addons/x/one.gd",
+		"in the CLI's own reported order")
+
+
+func test_a_group_with_one_unfixable_issue_reports_no_uid_fixes() -> void:
+	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
+		_uid_issue("a.gd", "uid://one", "res://addons/x/one.gd"),
+		_issue("fragile_uid_reference", "some older dotquay sent a message with no fix fields at all."),
+	]})
+	var group: Variant = doctor.groups()[0]
+
+	# All-or-nothing: a mixed group falling back to messages() is simpler to reason about than a
+	# group that shows fix lines for some rows and raw sentences for others.
+	runner.check(not group.has_uid_fixes(), "one issue with no fix means the group has none to offer")
+
+
+func test_copy_text_joins_every_fix_line() -> void:
+	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
+		_uid_issue("a.gd", "uid://one", "res://addons/x/one.gd"),
+		_uid_issue("b.gd", "uid://two", "res://addons/x/two.gd"),
+	]})
+	var group: Variant = doctor.groups()[0]
+
+	runner.equal(group.copy_text(),
+		"a.gd  |  uid://one  ->  res://addons/x/one.gd\nb.gd  |  uid://two  ->  res://addons/x/two.gd",
+		"one line per issue, ready to paste as-is")

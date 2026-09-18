@@ -20,8 +20,14 @@ var _header: Button
 var _body: MarginContainer
 var _detail: Label
 var _subjects: Label
+var _copy_fixes: Button
 
 var _group: DotquayDoctor.Group
+
+## Restored on _copy_fixes after the "Copied!" acknowledgement, so a second click starts from the
+## same label rather than accumulating "Copied!" from the first.
+const COPY_LABEL := "Copy fix list"
+const COPIED_LABEL := "Copied!"
 
 
 ## Shown as the heading's open/closed marker. A toggled [Button] gives no affordance of its own that
@@ -37,17 +43,31 @@ func setup(group: DotquayDoctor.Group, start_expanded: bool) -> void:
 		_body = %Body
 		_detail = %Detail
 		_subjects = %Subjects
+		_copy_fixes = %CopyFixes
 		_header.toggled.connect(_on_toggled)
+		_copy_fixes.pressed.connect(_on_copy_fixes_pressed)
 
 	_group = group
 
 	_detail.text = group.detail()
 	_detail.visible = not group.detail().is_empty()
 
-	# Names when the CLI gave us names to show, whole sentences when it did not — an unrecognised
-	# kind, or a message that opens some other way, still reads correctly, just less compactly.
-	var lines := group.subjects() if group.has_subjects() else group.messages()
+	# A resolved fix per issue when the CLI sent one, names when it only sent those, whole sentences
+	# otherwise — an unrecognised kind, or a message that opens some other way, still reads correctly,
+	# just less compactly.
+	var lines: PackedStringArray
+	if group.has_uid_fixes():
+		lines = group.fix_lines()
+	elif group.has_subjects():
+		lines = group.subjects()
+	else:
+		lines = group.messages()
 	_subjects.text = "\n".join(lines)
+
+	# dotquay never writes a project's own scripts (SPEC.md §18) -- copying the fix to the clipboard
+	# is the button this dialog can honestly offer instead of applying it for you.
+	_copy_fixes.visible = group.has_uid_fixes()
+	_copy_fixes.text = COPY_LABEL
 
 	_header.button_pressed = start_expanded
 	_apply_expanded(start_expanded)
@@ -74,3 +94,18 @@ func _heading() -> String:
 
 func _on_toggled(pressed: bool) -> void:
 	_apply_expanded(pressed)
+
+
+## Puts every issue's ile | uid -> res_path line on the system clipboard, one per line, so the
+## fix can be pasted straight into an editor's search-and-replace, an issue tracker, or a message to
+## whoever owns the script -- without dotquay itself ever opening that script to edit it.
+func _on_copy_fixes_pressed() -> void:
+	if _group == null:
+		return
+
+	DisplayServer.clipboard_set(_group.copy_text())
+
+	_copy_fixes.text = COPIED_LABEL
+	if is_inside_tree():
+		await get_tree().create_timer(1.5).timeout
+		_copy_fixes.text = COPY_LABEL

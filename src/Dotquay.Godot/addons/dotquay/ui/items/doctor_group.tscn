@@ -83,3 +83,14 @@ theme_override_colors/font_color = Color(0.88, 0.89, 0.92, 1)
 theme_override_font_sizes/font_size = 14
 text = "subjects"
 autowrap_mode = 3
+
+; Only shown when every issue in the group carries a resolved fix (DotquayDoctor.Group.has_uid_fixes)
+; -- dotquay never edits a project's own scripts, so this copies the fix to the clipboard instead of
+; applying it.
+
+[node name="CopyFixes" type="Button" parent="Content/Body/Lines"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 12
+text = "Copy fix list"

@@ -17,11 +17,33 @@ class Issue extends RefCounted:
 	var kind: String = ""
 	var message: String = ""
 
+	## The three facts a fix needs, set only for ragile_uid_reference (SPEC.md §18) and "" for
+	## every other kind. Carried as data rather than pulled back out of [member message] by a regex
+	## guessing at the CLI's sentence shape -- the CLI already computed all three before it ever
+	## built that sentence.
+	var file: String = ""
+	var uid: String = ""
+	var res_path: String = ""
+
 	static func from_payload(payload: Dictionary) -> Issue:
 		var issue := Issue.new()
 		issue.kind = DotquayWire.str_or_empty(payload.get("kind"))
 		issue.message = DotquayWire.str_or_empty(payload.get("message"))
+		issue.file = DotquayWire.str_or_empty(payload.get("file"))
+		issue.uid = DotquayWire.str_or_empty(payload.get("uid"))
+		issue.res_path = DotquayWire.str_or_empty(payload.get("res_path"))
 		return issue
+
+	## True once the CLI has sent everything a fix needs: which file to open, the literal token to
+	## find in it, and the res:// path to put there instead.
+	func has_uid_fix() -> bool:
+		return not file.is_empty() and not uid.is_empty() and not res_path.is_empty()
+
+	## One compact line in place of the full sentence: the file, the bare token to search for, and
+	## the res:// path that replaces it -- everything a hand-edit needs, none of the boilerplate
+	## every other issue in the group already said once via [method Group.detail].
+	func uid_fix_line() -> String:
+		return "%s  |  %s  ->  %s" % [file, uid, res_path]
 
 	## The log line for this issue. Leads with the kind only when the CLI actually sent one, so a
 	## dotquay predating this field still reads as a plain sentence rather than "[] some message".
@@ -212,6 +234,28 @@ class Group extends RefCounted:
 			lines.append(issue.message)
 
 		return lines
+
+	## True when every issue in the group carries a full [method Issue.has_uid_fix] -- the CLI has
+	## already resolved exactly what to change and to what, for every one of them.
+	func has_uid_fixes() -> bool:
+		for issue in issues:
+			if not issue.has_uid_fix():
+				return false
+
+		return not issues.is_empty()
+
+	## One compact line per issue in place of the repeated sentence: see [method Issue.uid_fix_line].
+	func fix_lines() -> PackedStringArray:
+		var lines := PackedStringArray()
+		for issue in issues:
+			lines.append(issue.uid_fix_line())
+
+		return lines
+
+	## The whole group's fixes as one block of text, ready to paste into an issue tracker or a chat
+	## with whoever owns the referencing script -- one line per occurrence, ile | uid -> res_path.
+	func copy_text() -> String:
+		return "\n".join(fix_lines())
 
 
 ## The issues collapsed by kind, in the order the CLI first reported each one.

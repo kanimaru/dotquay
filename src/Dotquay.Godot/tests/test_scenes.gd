@@ -516,3 +516,27 @@ func test_doctor_group_toggles_open() -> void:
 	runner.check(row.get_node("%Subjects").text.contains("addons/a"), "and the subject is what it reveals")
 
 	row.free()
+
+
+## dotquay never edits a project's own scripts, so a resolved fix only ever offers a copy button —
+## and only when the whole group is resolved, matching Group.has_uid_fixes()'s all-or-nothing rule.
+func test_doctor_group_shows_the_copy_button_only_when_every_issue_is_fixable() -> void:
+	var fixable := DotquayDoctor.from_payload({"healthy": false, "issues": [
+		{"kind": "fragile_uid_reference", "message": "a.gd loads it.",
+			"file": "a.gd", "uid": "uid://one", "res_path": "res://addons/x/one.gd"},
+	]})
+	var mixed := DotquayDoctor.from_payload({"healthy": false, "issues": [
+		{"kind": "fragile_uid_reference", "message": "a.gd loads it.",
+			"file": "a.gd", "uid": "uid://one", "res_path": "res://addons/x/one.gd"},
+		{"kind": "fragile_uid_reference", "message": "an older dotquay sent this with no fix fields."},
+	]})
+
+	var row: Node = load("res://addons/dotquay/ui/items/doctor_group.tscn").instantiate()
+
+	row.setup(fixable.groups()[0], true)
+	runner.check(row.get_node("%CopyFixes").visible, "every issue resolved means the copy button shows")
+
+	row.setup(mixed.groups()[0], true)
+	runner.check(not row.get_node("%CopyFixes").visible, "one unresolved issue means no copy button at all")
+
+	row.free()
