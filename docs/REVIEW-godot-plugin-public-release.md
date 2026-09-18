@@ -102,6 +102,23 @@ These either show wrong information, lose data, or leave a beginner stuck with n
   Remove button aren't individually greyed out while a run is queued — clicking them still works, it
   just waits its turn safely instead of racing.
 
+- [x] **P0-7b The same runner deadlocked on any output over one pipe buffer.** ~~`DotquayProcessRunner`
+  read the child's pipes only after it exited, on the measurement that a concurrent read "returns an
+  empty string, output and all". An OS pipe buffer is 4 KiB on Windows and a child that fills it blocks
+  in its own `write` until someone reads, so any command with more output than that never exited: it
+  waited out the full timeout (300s by default), was killed, and surfaced the 4096-byte fragment that
+  had fit, which the envelope parser reported as `cli_bad_output` with the raw JSON pasted into the
+  panel log. Reproduced through the real plugin stack: `doctor` on a project with 44 findings took
+  20s to a forced timeout and returned exactly 4096 bytes.~~ Fixed: the poll loop now drains both pipes
+  every interval, with `get_length()` + `get_buffer()` rather than `get_as_text()` — on Windows that
+  length is a `PeekNamedPipe` of what is buffered at that instant, so it returns immediately, whereas
+  `get_as_text()` reads towards EOF and blocks inside the loop until the child closes its end, which
+  takes the wall-clock timeout down with it (measured: the suite itself hung for 120s on the first
+  attempt). Bytes are accumulated and decoded once at the end, since a multi-byte character can
+  straddle two drains. Same `doctor` run now completes in 362ms with all 12,989 bytes and 44 parsed
+  issues. Covered by two new cases in `tests/test_dotquay_process_runner.gd`: 26 KB of output across
+  400 lines arriving whole without a timeout, and a process that exits before the first poll still
+  having its output collected.
 - [x] **P0-7 No timeout; `_exit_tree` joins unconditionally, so a stalled child hangs the editor —
   including on quit.** ~~`dotquay_cli.gd:35-43` + the retired timeout setting
   (`dotquay_settings.gd:15-18`, "OS.execute has no timeout to give it to"). An ssh host-key prompt on a
