@@ -131,3 +131,18 @@ func test_a_process_that_exits_immediately_still_has_its_output_captured() -> vo
 
 	runner.check(outcome.output.contains("instant"),
 		"output written before the first poll interval must not be lost")
+
+## Regression: a child that writes nothing at all to either stream still must exit cleanly with its
+## real exit code -- before the fix, the final drain peeked stdout and stderr with FileAccess.get_length()
+## even though a pipe that never received a single byte is already both closed and empty the instant its
+## process exits, and PeekNamedPipe hard-fails on that combination on Windows. dotquay's own CLI leaves
+## stderr empty on nearly every real call, so this fired on effectively every plugin-issued command.
+func test_a_silent_process_completes_without_a_broken_pipe_failure() -> void:
+	var shell: Array = _shell("exit 0")
+
+	var outcome: DotquayProcessRunner.Outcome = PROCESS_RUNNER.run(shell[0], shell[1], 2000)
+
+	runner.check(not outcome.launch_failed, "a real shell should start")
+	runner.check(not outcome.timed_out, "a silent process should not time out")
+	runner.equal(outcome.exit_code, 0, "the real exit code should still be captured with no output at all")
+	runner.equal(outcome.output, "", "no output should be reported when nothing was written")

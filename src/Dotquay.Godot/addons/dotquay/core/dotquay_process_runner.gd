@@ -29,6 +29,11 @@ extends RefCounted
 ## yet — not because reading broke it. Accumulating across polls returns everything, and keeps the
 ## buffer empty enough that the child never blocks. This class exists to keep that ordering
 ## impossible to get wrong at the call site.
+##
+## The one read made after the process has already exited uses a separate helper, [method _drain_after_exit],
+## rather than this same peek-then-read trick -- peeking an already-closed, already-empty pipe is a hard
+## failure on Windows, not an empty read, and logs a spurious engine-level error on almost every real run.
+## See that method's doc comment for why.
 
 
 const DEFAULT_POLL_INTERVAL_MS := 20
@@ -94,9 +99,10 @@ static func run(executable: String, args: PackedStringArray, timeout_ms: int,
 		OS.delay_msec(DEFAULT_POLL_INTERVAL_MS)
 
 	# Whatever is still buffered now the process has stopped, which for a process that exited inside
-	# the first poll interval is all of it.
-	stdout_bytes.append_array(_drain(stdio))
-	stderr_bytes.append_array(_drain(stderr))
+	# the first poll interval is all of it. Reads to true EOF rather than peeking first -- see
+	# _drain_after_exit()'s doc comment for why the loop's peek-then-read trick misfires here.
+	stdout_bytes.append_array(_drain_after_exit(stdio))
+	stderr_bytes.append_array(_drain_after_exit(stderr))
 
 	outcome.output = stdout_bytes.get_string_from_utf8() + stderr_bytes.get_string_from_utf8()
 	outcome.exit_code = -1 if outcome.timed_out else OS.get_process_exit_code(pid)
@@ -119,6 +125,34 @@ static func _drain(pipe: FileAccess) -> PackedByteArray:
 
 	var available := pipe.get_length()
 	return pipe.get_buffer(available) if available > 0 else PackedByteArray()
+
+## The one drain made after OS.is_process_running has already gone false. Deliberately not
+## _drain(): FileAccess.get_length() peeks with PeekNamedPipe, and on Windows that call fails
+## outright (not "0 bytes available", an actual failure Godot logs as an engine-level error from
+## drivers/windows/file_access_windows_pipe.cpp) once a pipe is both closed by its writer and has
+## nothing left buffered. A pipe that received zero bytes over its whole lifetime reaches exactly
+## that state the instant its process exits, and dotquay's own stderr is empty on almost every real
+## invocation (structured output goes to stdout; stderr is only written on error), so _drain() firing
+## here logged that engine error on effectively every "--json" call the Godot plugin made. The error
+## comes from the engine itself and cannot be caught or silenced from GDScript.
+##
+## The peek-then-read split in _drain() exists only to avoid blocking on a pipe whose writer might
+## still add more data later. A pipe whose process has already exited can never do that, so there is
+## nothing left to avoid blocking on: reading straight to EOF sidesteps PeekNamedPipe entirely.
+## FileAccess.get_buffer() resolves to a plain ReadFile, which reports "no more data because the
+## writer closed" by returning zero bytes rather than by failing -- the same information a successful
+## peek gives _drain(), without the failure path a peek takes once the buffer is also empty.
+static func _drain_after_exit(pipe: FileAccess) -> PackedByteArray:
+	if pipe == null:
+		return PackedByteArray()
+
+	var out := PackedByteArray()
+	while true:
+		var chunk := pipe.get_buffer(4096)
+		if chunk.is_empty():
+			break
+		out.append_array(chunk)
+	return out
 
 
 ## Builds the message for a launch that produced no process at all — a bad path, something not
