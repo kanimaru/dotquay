@@ -1,8 +1,12 @@
 # DESIGN v0.19 — NuGet packages in the dependency graph
 
-Status: proposed, not implemented. Direction agreed with kani on 2026-09-18: packages move into the
-graph view, and the plugin's separate NuGet sidebar tab goes away. Phase 1 (§8) is the next thing
-to build.
+Status: Phase 1 shipped 2026-09-18; Phases 2 and 3 (§8) are still proposed. Direction agreed with
+kani on 2026-09-18: packages move into the graph view, and the plugin's separate NuGet sidebar tab
+goes away. Phase 1 was verified against a real NativeAOT publish: `graph --json` emits `origin`,
+`required_by` and `source` for a root, an addon-declared and an orphan package; `remove` on the
+orphan drops its lock entry and `PackageReference` and reports `"kind": "dotnet"`; `remove` on the
+addon-declared package is refused and names the addon; and the GDScript suite, including the live
+contract test, passes against that binary.
 
 ## The problem
 
@@ -155,7 +159,9 @@ ui/dependency_graph_view.gd    Lays out packages in their column, draws addon→
                                Auto-arrange, for the same reason that button is built in code).
 ui/dotquay_panel.*             The NuGet tab, DotnetList and _render_dotnet are removed.
 ui/items/dotnet_row.*          Deleted.
-icons/package.svg              A generic package glyph (not the NuGet logo).
+ui/items/package_glyph.gd      A generic box glyph, drawn in `_draw` rather than shipped as an
+                               image, so no `.import` file lands in consumers' addons/ (not the
+                               NuGet logo).
 ```
 
 **Node identity.** `GraphEdit` node names and the view's `_nodes_by_name` are keyed by kind:
@@ -205,6 +211,6 @@ project with a root package, an addon-declared one and an orphan, with the docum
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | §3 wire fields in both modes, §3.1 shared reader, §4 orphan removal, §5 actions (Update / Open on nuget.org / Remove), §6 package nodes + filter, NuGet tab removed. | proposed |
+| 1 | §3 wire fields in both modes, §3.1 shared reader, §4 orphan removal, §5 actions (Update / Open on nuget.org / Remove), §6 package nodes + filter, NuGet tab removed. Also: `remove` now reports which kind it removed (`DependencyKind`), so `remove --json` and the MCP tool stop calling every removal an addon. | shipped 2026-09-18 |
 | 2 | "Pin a version in my project…" on a `transitive` package: a version dialog that runs `dotquay add <id> --version <v>`, which makes it `root` and lets the project's entry win (P1-5). On a `root` package, a "Change version…" action needs `add` to accept an already-declared ID (today it refuses), so that is a Core change of its own. | proposed |
 | 3 | Optional: a per-node "outdated" badge from `outdated --json` for both kinds. | idea |
