@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Dotquay.Core.Json;
+using Dotquay.Core.Workflows;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Infrastructure;
 using Dotquay.Mcp.Json;
@@ -51,7 +52,7 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate, Cli
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
-        await workflow.RemoveAsync(projectDirectory, name, cancellationToken);
+        var removedKind = await workflow.RemoveAsync(projectDirectory, name, cancellationToken);
 
         var payload = new OperationJson
         {
@@ -60,10 +61,7 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate, Cli
                 new ChangeJson
                 {
                     Name = name,
-                    // RemoveAsync accepts either an addon or a dotnet name and doesn't report which
-                    // it matched — see RemoveCommand.cs's identical comment for why the wire value
-                    // stays "addon" rather than a third "unknown" kind.
-                    Kind = JsonMapper.ChangeKind.Addon,
+                    Kind = removedKind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
                     Action = JsonMapper.ChangeAction.Removed,
                 },
             ],

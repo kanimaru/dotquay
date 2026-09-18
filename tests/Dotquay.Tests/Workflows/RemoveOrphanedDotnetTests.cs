@@ -95,7 +95,10 @@ public class RemoveOrphanedDotnetTests
     {
         var (workflow, fileSystem) = Build();
 
-        await workflow.RemoveAsync(ProjectDirectory, "Ghost.Package");
+        var kind = await workflow.RemoveAsync(ProjectDirectory, "Ghost.Package");
+
+        // Reported as what it was, so `remove --json` says "dotnet" rather than "addon".
+        Assert.Equal(DependencyKind.Dotnet, kind);
 
         var lockfile = LockfileReader.Read(fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock")));
         Assert.DoesNotContain(lockfile.Dotnet, d => d.Name == "Ghost.Package");

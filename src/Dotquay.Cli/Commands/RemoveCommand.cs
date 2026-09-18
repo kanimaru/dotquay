@@ -31,7 +31,7 @@ internal static class RemoveCommand
 
             try
             {
-                await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name, cancellationToken);
+                var removedKind = await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name, cancellationToken);
 
                 if (json)
                 {
@@ -42,12 +42,7 @@ internal static class RemoveCommand
                             new ChangeJson
                             {
                                 Name = name,
-                                // RemoveAsync accepts either an addon or a dotnet name and doesn't
-                                // report which it matched, so the wire value stays "addon" — the
-                                // caller already knows what it asked to remove, and inventing a
-                                // third "unknown" kind would only add a case every consumer must
-                                // handle.
-                                Kind = JsonMapper.ChangeKind.Addon,
+                                Kind = removedKind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
                                 Action = JsonMapper.ChangeAction.Removed,
                             },
                         ],

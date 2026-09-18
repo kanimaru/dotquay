@@ -672,7 +672,9 @@ public sealed partial class DependencyWorkflow
     /// pruned from disk and the lockfile. This deliberately does not re-walk or re-resolve anything
     /// that stays reachable — a plain <c>remove</c> never moves another addon's pinned commit.
     /// </remarks>
-    public Task RemoveAsync(string projectDirectory, string name, CancellationToken cancellationToken = default)
+    /// <returns>Which kind of dependency <paramref name="name"/> turned out to be, so a caller can report
+    /// the removal as what it was rather than guessing from the name.</returns>
+    public Task<DependencyKind> RemoveAsync(string projectDirectory, string name, CancellationToken cancellationToken = default)
     {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
@@ -694,7 +696,7 @@ public sealed partial class DependencyWorkflow
             }
 
             WriteLockfile(lockfilePath, lockfile with { Addons = lockfile.Addons.Where(a => reachable.Contains(a.Name)).ToList() });
-            return Task.CompletedTask;
+            return Task.FromResult(DependencyKind.Addon);
         }
 
         if (manifest.Dotnet.ContainsKey(name))
@@ -716,12 +718,12 @@ public sealed partial class DependencyWorkflow
                 throw new WorkflowException(ex.Message, ex);
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(DependencyKind.Dotnet);
         }
 
         if (TryRemoveOrphanedDotnet(projectDirectory, name))
         {
-            return Task.CompletedTask;
+            return Task.FromResult(DependencyKind.Dotnet);
         }
 
         throw new WorkflowException($"'{name}' is not declared in {manifestPath}.");
