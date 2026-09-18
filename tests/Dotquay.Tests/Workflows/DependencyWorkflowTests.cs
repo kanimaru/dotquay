@@ -1530,6 +1530,27 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
+    public async Task DoctorAsync_LinkedAddonWithDifferentPluginCfgVersion_SkipsPluginCfgDriftCheck()
+    {
+        // Regression test: a linked addon's plugin.cfg is the developer's own live working copy, and
+        // the lockfile deliberately never tracks it (LocalLinks keeps naming the last
+        // upstream-resolved version through a link) — so an ordinary local version bump must not
+        // read as drift, the same way AddonStatusEvaluator already treats a link as its own kind
+        // rather than "modified".
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v2.44.0");
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+
+        var installedPath = $"{ProjectDir}/addons/dialogue_manager";
+        fileSystem.CreateDirectoryLink(installedPath, "dev/dialogue_manager");
+        fileSystem.WriteAllText($"{installedPath}/plugin.cfg", "[plugin]\nversion=\"3.0.0-dev\"\n");
+
+        var result = await workflow.DoctorAsync(ProjectDir);
+
+        Assert.DoesNotContain(result.Issues, i => i.Kind == DoctorIssueKind.PluginCfgVersionDrift);
+    }
+
+    [Fact]
     public async Task DoctorAsync_PseudoVersionedAddon_SkipsPluginCfgDriftCheck()
     {
         var (workflow, fileSystem, gitClient) = Build();

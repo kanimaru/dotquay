@@ -1781,8 +1781,19 @@ public sealed partial class DependencyWorkflow
             return;
         }
 
-        var pluginCfgPath = _fileSystem.CombinePath(
-            InstallPaths.For(_fileSystem, projectDirectory, locked), "plugin.cfg");
+        var installedPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
+
+        // A linked addon's plugin.cfg is the developer's own live working copy (SPEC.md §7.4) — the
+        // lockfile deliberately keeps naming the last upstream-resolved version through a link (see
+        // LocalLinks), so comparing it against whatever version the developer has written locally
+        // would flag ordinary in-progress work as drift, every time. Same reasoning as
+        // AddonStatusEvaluator.Evaluate skipping the content hash for a link.
+        if (_fileSystem.IsDirectoryLink(installedPath))
+        {
+            return;
+        }
+
+        var pluginCfgPath = _fileSystem.CombinePath(installedPath, "plugin.cfg");
         var cfgVersion = PluginCfgReader.TryReadVersion(_fileSystem, pluginCfgPath);
         if (cfgVersion is null)
         {
