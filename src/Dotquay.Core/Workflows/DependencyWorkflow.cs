@@ -33,6 +33,7 @@ public sealed partial class DependencyWorkflow
 
     private readonly IFileSystem _fileSystem;
     private readonly ProjectFileStore _projectFiles;
+    private readonly InstalledPackageManifests _installedManifests;
     private readonly LocalLinks _localLinks;
 
     /// <summary>Where long operations announce themselves. Defaults to discarding, so nothing had to
@@ -188,6 +189,7 @@ public sealed partial class DependencyWorkflow
     {
         _fileSystem = fileSystem;
         _projectFiles = new ProjectFileStore(fileSystem);
+        _installedManifests = new InstalledPackageManifests(fileSystem);
         _localLinks = new LocalLinks(fileSystem);
         _gitClient = gitClient;
         _nuGetClientFactory = nuGetClientFactory;
@@ -1609,13 +1611,7 @@ public sealed partial class DependencyWorkflow
         }
 
         var declaredDotnet = new HashSet<string>(manifest.Dotnet.Keys, StringComparer.Ordinal);
-        foreach (var locked in lockfile.Addons.Where(a => reachable.Contains(a.Name)))
-        {
-            foreach (var name in ReadInstalledPackageDotnetNames(projectDirectory, locked.EffectiveFolder))
-            {
-                declaredDotnet.Add(name);
-            }
-        }
+        declaredDotnet.UnionWith(AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).Keys);
 
         foreach (var locked in lockfile.Dotnet.Where(d => !declaredDotnet.Contains(d.Name)))
         {
@@ -1627,40 +1623,45 @@ public sealed partial class DependencyWorkflow
         }
     }
 
-    /// <summary>The <c>[dotnet.*]</c> names an installed addon declares in its own package manifest.
-    /// Empty for an addon that ships none, isn't installed, or ships one that doesn't parse —
-    /// the unreadable case is <see cref="CheckPackageManifestReadable"/>'s to report, and reporting it
-    /// twice would be worse than reporting it once.</summary>
-    private IReadOnlyList<string> ReadInstalledPackageDotnetNames(string projectDirectory, string folder) =>
-        TryReadInstalledPackageManifest(projectDirectory, folder)?.Dotnet.Keys.ToList() ?? [];
-
     /// <summary>
-    /// The package manifest an installed addon ships, or null if it ships none or ships one that
-    /// doesn't parse.
+    /// Package ID to the reachable addons whose installed package manifests declare it. This is the
+    /// offline answer to "does anything still need this NuGet entry?" that doctor's dangling check
+    /// and <see cref="RemoveAsync"/> both ask, read through the same
+    /// <see cref="InstalledPackageManifests"/> the graph view uses.
     /// </summary>
     /// <remarks>
-    /// The installed folder <em>is</em> the extracted subtree (SPEC.md §7.2), so this is exactly the
-    /// document the resolver reads — answerable off disk, with no network. Parse failures are
-    /// swallowed here on purpose: <see cref="CheckPackageManifestReadable"/> already reports them, once.
+    /// An addon that ships no manifest, or one that doesn't parse, vouches for nothing. The unreadable
+    /// case is <see cref="CheckPackageManifestReadable"/>'s to report, and reporting it twice would be
+    /// worse than reporting it once.
     /// </remarks>
-    private PackageManifest? TryReadInstalledPackageManifest(string projectDirectory, string folder)
+    private Dictionary<string, List<string>> AddonDeclaredDotnetNames(
+        string projectDirectory, DotquayLockfile lockfile, IReadOnlySet<string> reachable)
     {
-        var manifestPath = _fileSystem.CombinePath(
-            InstallPaths.ForFolder(_fileSystem, projectDirectory, folder), ManifestFileName);
-        if (!_fileSystem.FileExists(manifestPath))
+        var declarations = _installedManifests.DotnetDeclarationsByAddon(
+            projectDirectory, lockfile.Addons.Where(a => reachable.Contains(a.Name)));
+        var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        foreach (var (addon, specs) in declarations.OrderBy(kv => kv.Key, StringComparer.Ordinal))
         {
-            return null;
+            foreach (var spec in specs)
+            {
+                if (!result.TryGetValue(spec.Name, out var addons))
+                {
+                    addons = [];
+                    result[spec.Name] = addons;
+                }
+
+                addons.Add(addon);
+            }
         }
 
-        try
-        {
-            return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
-        }
-        catch (ManifestParseException)
-        {
-            return null;
-        }
+        return result;
     }
+
+    /// <summary>The package manifest an installed addon ships, or null if it ships none or ships one
+    /// that doesn't parse. See <see cref="InstalledPackageManifests.TryRead"/>.</summary>
+    private PackageManifest? TryReadInstalledPackageManifest(string projectDirectory, string folder) =>
+        _installedManifests.TryRead(projectDirectory, folder);
 
     /// <summary>
     /// Reports an addon installed somewhere other than where the manifest declaring it asks for.

@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lets the suite test the CLI's small pure text helpers (e.g. GraphCommand's NuGet origin line)
+         without widening them to public API. -->
+    <InternalsVisibleTo Include="Dotquay.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Dotquay.Core\Dotquay.Core.csproj" />
 
     <!-- The `dotquay mcp` subcommand (docs/DESIGN-v0.18-MCP.md) hosts Dotquay.Mcp; that project does

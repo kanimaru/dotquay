@@ -333,6 +333,179 @@ public class GraphInspectorTests
         Assert.False(report.Dotnet.Single(d => d.Name == "Serilog").DeclaredByProject);
     }
 
+    /// <summary>The diamond, plus one NuGet package of each origin: <c>Newtonsoft.Json</c> declared
+    /// by the project, <c>Serilog</c> declared by addon <c>a</c>'s installed package manifest, and
+    /// <c>Ghost.Package</c> that only the lockfile still mentions.</summary>
+    private static GraphReport InspectWithNuGet(
+        string? aPackageManifest, string extraLockfile = "", string manifestExtra = "")
+    {
+        var manifest = DiamondManifest + manifestExtra + """
+
+            [dotnet.Newtonsoft.Json]
+            version = "13.0.*"
+            """;
+
+        var lockfile = DiamondLockfile + extraLockfile + """
+
+            [[dotnet]]
+            name = "Newtonsoft.Json"
+            resolved = "13.0.3"
+
+            [[dotnet]]
+            name = "Serilog"
+            resolved = "3.1.1"
+            source = "kemomi"
+
+            [[dotnet]]
+            name = "Ghost.Package"
+            resolved = "2.0.0"
+            """;
+
+        var (inspector, fileSystem) = Build(manifest, lockfile);
+        if (aPackageManifest is not null)
+        {
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "a", "dotquay.toml"), aPackageManifest);
+        }
+
+        return inspector.Inspect(ProjectDirectory);
+    }
+
+    private const string ADeclaresSerilog = """
+        [package]
+        name = "a"
+        version = "1.0.0"
+
+        [dotnet.Serilog]
+        version = "3.*"
+        """;
+
+    [Fact]
+    public void Inspect_AddonDeclaredNuGet_NamesTheAddonThatDeclaredIt()
+    {
+        // The whole point of v0.19: the default, offline view used to know only "not the project's",
+        // which the panel could render as nothing better than "needed by an addon".
+        var report = InspectWithNuGet(ADeclaresSerilog);
+
+        var serilog = report.Dotnet.Single(d => d.Name == "Serilog");
+        Assert.Equal(GraphNodeOrigin.Transitive, serilog.Origin);
+        Assert.Equal(["a"], serilog.RequiredBy);
+        Assert.Equal("3.*", serilog.Constraint);
+        Assert.Equal("kemomi", serilog.Source);
+    }
+
+    [Fact]
+    public void Inspect_ProjectDeclaredNuGet_IsARootRequiredByTheProject()
+    {
+        var report = InspectWithNuGet(ADeclaresSerilog);
+
+        var json = report.Dotnet.Single(d => d.Name == "Newtonsoft.Json");
+        Assert.Equal(GraphNodeOrigin.Root, json.Origin);
+        Assert.Equal([GraphConflict.ProjectRequirerName], json.RequiredBy);
+    }
+
+    [Fact]
+    public void Inspect_NuGetNothingDeclares_IsAnOrphan()
+    {
+        var report = InspectWithNuGet(ADeclaresSerilog);
+
+        var ghost = report.Dotnet.Single(d => d.Name == "Ghost.Package");
+        Assert.Equal(GraphNodeOrigin.Orphan, ghost.Origin);
+        Assert.Empty(ghost.RequiredBy);
+    }
+
+    [Fact]
+    public void Inspect_AddonWithNoPackageManifest_VouchesForNothing()
+    {
+        // Without a manifest on disk, nothing claims Serilog is needed. Showing it as an orphan is the
+        // same honest answer doctor gives, and the two must not disagree.
+        var report = InspectWithNuGet(aPackageManifest: null);
+
+        Assert.Equal(GraphNodeOrigin.Orphan, report.Dotnet.Single(d => d.Name == "Serilog").Origin);
+    }
+
+    [Fact]
+    public void Inspect_MalformedPackageManifest_ReadsAsDeclaringNothing()
+    {
+        // A read-only view must not fail over a broken addon file. doctor's
+        // package_manifest_unreadable check reports it, once.
+        var report = InspectWithNuGet("this is [not toml");
+
+        Assert.Equal(GraphNodeOrigin.Orphan, report.Dotnet.Single(d => d.Name == "Serilog").Origin);
+    }
+
+    [Fact]
+    public void Inspect_UnreachableAddon_DoesNotVouchForItsPackages()
+    {
+        // 'ghost' is still on disk and still declares Serilog, but nothing requires 'ghost' any more.
+        // Letting an orphaned addon keep its package alive would hide exactly the drift an orphan
+        // badge exists to show.
+        var lockfile = $"""
+
+            [[addon]]
+            name = "ghost"
+            git = "{CoreUrl}"
+            resolved = "{Sha('d')}"
+            path = "addons/ghost"
+            """;
+
+        var manifest = DiamondManifest + """
+
+            [dotnet.Newtonsoft.Json]
+            version = "13.0.*"
+            """;
+
+        var (inspector, fileSystem) = Build(manifest, DiamondLockfile + lockfile + """
+
+            [[dotnet]]
+            name = "Serilog"
+            resolved = "3.1.1"
+            """);
+        fileSystem.WriteAllText(
+            fileSystem.CombinePath(ProjectDirectory, "addons", "ghost", "dotquay.toml"),
+            ADeclaresSerilog.Replace("name = \"a\"", "name = \"ghost\""));
+
+        var report = inspector.Inspect(ProjectDirectory);
+
+        Assert.Equal(GraphNodeOrigin.Orphan, report.Dotnet.Single(d => d.Name == "Serilog").Origin);
+    }
+
+    [Fact]
+    public void Inspect_ReadsThePackageManifestFromTheInstallAsFolder()
+    {
+        // 'a' installs into addons/renamed_a. Its package manifest lives there, not in addons/a, and a
+        // name-derived path would quietly find nothing.
+        var lockfile = DiamondLockfile.Replace(
+            "path = \"addons/a\"", "path = \"addons/a\"\nfolder = \"renamed_a\"");
+
+        var (inspector, fileSystem) = Build(DiamondManifest, lockfile + """
+
+            [[dotnet]]
+            name = "Serilog"
+            resolved = "3.1.1"
+            """);
+        fileSystem.WriteAllText(
+            fileSystem.CombinePath(ProjectDirectory, "addons", "renamed_a", "dotquay.toml"), ADeclaresSerilog);
+
+        var report = inspector.Inspect(ProjectDirectory);
+
+        var serilog = report.Dotnet.Single(d => d.Name == "Serilog");
+        Assert.Equal(GraphNodeOrigin.Transitive, serilog.Origin);
+        Assert.Equal(["a"], serilog.RequiredBy);
+    }
+
+    [Fact]
+    public void ToJson_CarriesNuGetOriginRequirersAndSource()
+    {
+        var payload = JsonMapper.ToJson(InspectWithNuGet(ADeclaresSerilog));
+
+        var serilog = payload.Dotnet.Single(d => d.Name == "Serilog");
+        Assert.Equal("transitive", serilog.Origin);
+        Assert.Equal(["a"], serilog.RequiredBy);
+        Assert.Equal("kemomi", serilog.Source);
+
+        Assert.Equal("orphan", payload.Dotnet.Single(d => d.Name == "Ghost.Package").Origin);
+    }
+
     [Fact]
     public void Inspect_EmptyProject_IsNotAnError()
     {

@@ -42,13 +42,7 @@ public static class JsonMapper
         ShortSha = ShortSha(node.ResolvedSha),
         Path = node.Path,
         Folder = node.Folder,
-        Origin = node.Origin switch
-        {
-            GraphNodeOrigin.Root => "root",
-            GraphNodeOrigin.Transitive => "transitive",
-            GraphNodeOrigin.Orphan => "orphan",
-            _ => "unknown",
-        },
+        Origin = ToWire(node.Origin),
         SourceKind = node.SourceKind is null ? null : ToWire(node.SourceKind.Value),
         Constraint = node.Constraint,
         IsOverridden = node.IsOverridden,
@@ -95,6 +89,19 @@ public static class JsonMapper
         Constraint = node.Constraint,
         Resolved = node.Resolved,
         DeclaredByProject = node.DeclaredByProject,
+        Origin = ToWire(node.Origin),
+        RequiredBy = node.RequiredBy,
+        Source = node.Source,
+    };
+
+    /// <summary>One mapping for both node kinds, so an addon and a package can never disagree about
+    /// what "orphan" is called on the wire.</summary>
+    public static string ToWire(GraphNodeOrigin origin) => origin switch
+    {
+        GraphNodeOrigin.Root => "root",
+        GraphNodeOrigin.Transitive => "transitive",
+        GraphNodeOrigin.Orphan => "orphan",
+        _ => "unknown",
     };
 
     public static ListJson ToListJson(IReadOnlyList<LockedAddon> addons, IReadOnlyList<LockedDotnet> dotnet) => new()
@@ -119,6 +126,7 @@ public static class JsonMapper
                 Constraint = null,
                 Resolved = d.Resolved,
                 DeclaredByProject = true,
+                Source = d.Source,
                 IncludeAssets = d.Assets.Include,
                 ExcludeAssets = d.Assets.Exclude,
                 PrivateAssets = d.Assets.Private,

@@ -1033,6 +1033,13 @@ offline, exactly the property §8 introduced those edges for, applied to drawing
 installing. It can never report a conflict, because a lockfile only exists once conflicts were
 settled. `--resolve` re-walks live git refs and is the only mode that can.
 
+Each `dotnet[]` entry in `graph` carries `origin` (`root` | `transitive` | `orphan`, the same
+vocabulary as an addon's), `required_by` (`"<project>"` first when the project declares it, then
+the addons whose package manifests do) and `source` (the locked feed name, `null` for nuget.org),
+all added in v0.19. Both modes fill them in. Lockfile mode reads the installed package manifests of
+reachable addons, which is the same offline rule `doctor` uses, so the default view can name the
+addon that pulled a package in instead of only saying "not the project's" (DESIGN-v0.19).
+
 Conflicts became data rather than exceptions in v0.5 (`AddonUnifier`, `GraphConflict`). The
 unification rules are unchanged from v0.4; what is new is that a failure carries who required what,
 and which concrete versions are on offer — each candidate annotated with which requirers it would

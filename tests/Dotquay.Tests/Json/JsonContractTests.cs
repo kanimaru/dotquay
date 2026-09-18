@@ -40,6 +40,36 @@ public class JsonContractTests
     }
 
     [Fact]
+    public void GraphDotnetEntry_CarriesOriginRequiredByAndSource()
+    {
+        var payload = new GraphJson
+        {
+            Source = "lockfile",
+            ProjectDirectory = "/p",
+            Dotnet =
+            [
+                new DotnetJson
+                {
+                    Name = "Serilog",
+                    Resolved = "3.1.1",
+                    Origin = "transitive",
+                    RequiredBy = ["a"],
+                    Source = null,
+                },
+            ],
+        };
+
+        var entry = Parse(WriteGraph(payload)).GetProperty("data").GetProperty("dotnet")[0];
+
+        // The plugin draws package edges and picks the right menu off exactly these keys (v0.19).
+        Assert.Equal("transitive", entry.GetProperty("origin").GetString());
+        Assert.Equal("a", entry.GetProperty("required_by")[0].GetString());
+        // Present-but-null, never omitted (SPEC.md §17): "nuget.org" and "a dotquay too old to say"
+        // must stay distinguishable.
+        Assert.Equal(JsonValueKind.Null, entry.GetProperty("source").ValueKind);
+    }
+
+    [Fact]
     public void FailureEnvelope_HasNullDataAndATypedError()
     {
         var json = DotquayJson.Write(JsonEnvelope<OperationJson>.Failure(

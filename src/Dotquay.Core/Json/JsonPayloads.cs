@@ -168,6 +168,17 @@ public sealed record DotnetJson
     /// project manifest has no entry to remove, so a UI must not offer to remove it.</summary>
     public bool DeclaredByProject { get; init; }
 
+    /// <summary><c>root</c> | <c>transitive</c> | <c>orphan</c> — the same vocabulary as an addon's
+    /// <c>origin</c> (v0.19). Null from <c>list</c>, which reports what is installed rather than why.</summary>
+    public string? Origin { get; init; }
+
+    /// <summary>Who declared this package: <c>"&lt;project&gt;"</c> first when the project does, then
+    /// addon names (v0.19). The Godot plugin draws one edge per addon listed here.</summary>
+    public IReadOnlyList<string> RequiredBy { get; init; } = [];
+
+    /// <summary>The declared feed name it resolved from, or null for nuget.org (v0.19).</summary>
+    public string? Source { get; init; }
+
     /// <summary>
     /// The asset metadata actually wired into the <c>.csproj</c> (v0.10), or null where it is not
     /// known.

@@ -19,6 +19,7 @@ public sealed class GraphInspector
     private readonly IGitClient _gitClient;
     private readonly RepoCache _repoCache;
     private readonly ProjectFileStore _projectFiles;
+    private readonly InstalledPackageManifests _installedManifests;
 
     public GraphInspector(IFileSystem fileSystem, IGitClient gitClient, string cacheRoot)
         : this(fileSystem, gitClient, new RepoCache(fileSystem, gitClient, cacheRoot))
@@ -31,6 +32,7 @@ public sealed class GraphInspector
         _gitClient = gitClient;
         _repoCache = repoCache;
         _projectFiles = new ProjectFileStore(fileSystem);
+        _installedManifests = new InstalledPackageManifests(fileSystem);
     }
 
     /// <summary>
@@ -97,7 +99,7 @@ public sealed class GraphInspector
             RootNames = manifest.Addons.Keys.ToList(),
             Addons = nodes,
             Edges = BuildEdges(manifest.Addons.Keys, nodes),
-            Dotnet = BuildDotnet(manifest, lockfile, addonDeclared: []),
+            Dotnet = BuildDotnetFromInstalledManifests(projectDirectory, manifest, lockfile, reachable),
             Conflicts = [],
             Overrides = manifest.Overrides.Keys.ToList(),
         };
@@ -177,7 +179,7 @@ public sealed class GraphInspector
             RootNames = manifest.Addons.Keys.ToList(),
             Addons = nodes,
             Edges = BuildEdges(manifest.Addons.Keys, nodes),
-            Dotnet = BuildDotnet(manifest, lockfile, analysis.AddonDeclaredDotnet),
+            Dotnet = DotnetGraphBuilder.Build(manifest, lockfile, analysis.AddonDeclaredDotnet, analysis.DotnetPackagesByAddon),
             Conflicts = analysis.Conflicts,
             Warnings = analysis.Warnings,
             Overrides = manifest.Overrides.Keys.ToList(),
@@ -236,33 +238,20 @@ public sealed class GraphInspector
         return edges;
     }
 
-    private static IReadOnlyList<GraphDotnetNode> BuildDotnet(
-        ProjectManifest manifest, DotquayLockfile lockfile, IReadOnlyList<DotnetSpec> addonDeclared)
+    /// <summary>
+    /// Lockfile mode's NuGet half. Who declared each package is read off the installed package
+    /// manifests of the <em>reachable</em> addons, which is the same offline rule doctor's
+    /// dangling-entry check uses. An orphaned addon that still sits on disk therefore doesn't vouch
+    /// for anything.
+    /// </summary>
+    private IReadOnlyList<GraphDotnetNode> BuildDotnetFromInstalledManifests(
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, IReadOnlySet<string> reachable)
     {
-        var resolvedByName = lockfile.Dotnet.ToDictionary(d => d.Name, d => d.Resolved, StringComparer.Ordinal);
-        var result = new List<GraphDotnetNode>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var declarations = _installedManifests.DotnetDeclarationsByAddon(
+            projectDirectory, lockfile.Addons.Where(a => reachable.Contains(a.Name)));
+        var (winners, packagesByAddon) = DotnetGraphBuilder.Flatten(declarations);
 
-        foreach (var (name, spec) in manifest.Dotnet)
-        {
-            seen.Add(name);
-            result.Add(new GraphDotnetNode(name, spec.Version, resolvedByName.GetValueOrDefault(name), DeclaredByProject: true));
-        }
-
-        // The project's own [dotnet.*] entries always win over an addon-declared one of the same
-        // name (requirement P1-5's rule, mirrored here so the panel shows the same winner the
-        // installer would pick).
-        foreach (var spec in addonDeclared.Where(s => seen.Add(s.Name)))
-        {
-            result.Add(new GraphDotnetNode(spec.Name, spec.Version, resolvedByName.GetValueOrDefault(spec.Name), DeclaredByProject: false));
-        }
-
-        foreach (var locked in lockfile.Dotnet.Where(d => seen.Add(d.Name)))
-        {
-            result.Add(new GraphDotnetNode(locked.Name, null, locked.Resolved, DeclaredByProject: false));
-        }
-
-        return result;
+        return DotnetGraphBuilder.Build(manifest, lockfile, winners, packagesByAddon);
     }
 
     /// <summary>BFS over the lockfile's own <see cref="LockedAddon.Dependencies"/> edges — the same

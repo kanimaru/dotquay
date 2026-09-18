@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Dotquay.Core.Graph;
 using Dotquay.Core.Json;
+using Dotquay.Core.Resolve;
 
 namespace Dotquay.Cli.Commands;
 
@@ -90,6 +91,22 @@ internal static class GraphCommand
         return command;
     }
 
+    /// <summary>Why a NuGet package is in the project, in the same words the tree uses for addons.
+    /// Names the addons that declared it rather than saying "an addon", since which one is the
+    /// question someone reading this is actually asking.</summary>
+    internal static string DescribeDotnetOrigin(DotnetJson dependency)
+    {
+        var addons = dependency.RequiredBy.Where(r => r != GraphConflict.ProjectRequirerName).ToList();
+
+        return dependency.Origin switch
+        {
+            "orphan" => "  (locked but nothing declares it — see 'dotquay doctor')",
+            _ when addons.Count == 0 => dependency.DeclaredByProject ? "" : "  (required by an addon)",
+            "root" => $"  (also required by {string.Join(", ", addons)})",
+            _ => $"  (required by {string.Join(", ", addons)})",
+        };
+    }
+
     /// <summary>An indented tree for humans. Each addon is printed once at its shallowest depth, with
     /// deeper repeats marked rather than re-expanded — a diamond (SPEC.md §8) is one installed copy,
     /// and printing it twice would suggest otherwise.</summary>
@@ -117,8 +134,7 @@ internal static class GraphCommand
 
         foreach (var dependency in report.Dotnet)
         {
-            var origin = dependency.DeclaredByProject ? "" : "  (required by an addon)";
-            Console.WriteLine($"{dependency.Name}  {dependency.Resolved ?? dependency.Constraint ?? "?"}  (NuGet){origin}");
+            Console.WriteLine($"{dependency.Name}  {dependency.Resolved ?? dependency.Constraint ?? "?"}  (NuGet){DescribeDotnetOrigin(dependency)}");
         }
 
         foreach (var conflict in report.Conflicts)

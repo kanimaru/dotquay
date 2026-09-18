@@ -97,7 +97,26 @@ public sealed record GraphEdge(string From, string To);
 /// distinguishes the project's own <c>[dotnet.*]</c> entries from ones unioned in by an addon
 /// (requirement P1-5) — the latter can't be removed from the project manifest, because they aren't
 /// in it.</summary>
-public sealed record GraphDotnetNode(string Name, string? Constraint, string? Resolved, bool DeclaredByProject);
+/// <remarks>
+/// <see cref="Origin"/>, <see cref="RequiredBy"/> and <see cref="Source"/> (v0.19) are what let the
+/// editor draw a package as a graph node with an edge from each addon that declared it, instead of a
+/// greyed-out sidebar row that only says "needed by an addon" (DESIGN-v0.19). Built by
+/// <see cref="DotnetGraphBuilder"/>, never by hand, so both graph modes agree.
+/// </remarks>
+public sealed record GraphDotnetNode(string Name, string? Constraint, string? Resolved, bool DeclaredByProject)
+{
+    /// <summary>Root when the project declares it, transitive when only addons do, orphan when only
+    /// the lockfile still mentions it. The same meaning as <see cref="GraphNode.Origin"/>.</summary>
+    public GraphNodeOrigin Origin { get; init; } = DeclaredByProject ? GraphNodeOrigin.Root : GraphNodeOrigin.Transitive;
+
+    /// <summary>Who declared it: <see cref="GraphConflict.ProjectRequirerName"/> first when the project
+    /// does, then addon names in ordinal order. Empty for an orphan.</summary>
+    public IReadOnlyList<string> RequiredBy { get; init; } = [];
+
+    /// <summary>The <c>[nuget.sources.*]</c> name the lockfile says it resolved from, or null for
+    /// nuget.org (<see cref="Lockfile.LockedDotnet.Source"/>).</summary>
+    public string? Source { get; init; }
+}
 
 /// <summary>
 /// Everything the Godot editor plugin needs to draw a project's dependency state in one payload
