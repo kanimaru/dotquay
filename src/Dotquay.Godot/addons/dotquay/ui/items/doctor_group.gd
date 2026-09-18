@@ -1,6 +1,6 @@
 @tool
 class_name DotquayDoctorGroup
-extends VBoxContainer
+extends PanelContainer
 
 ## One doctor issue kind: a heading you can open, the shared explanation, and what it applies to.
 ##

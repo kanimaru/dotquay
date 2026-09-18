@@ -1,45 +1,85 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://addons/dotquay/ui/items/doctor_group.gd" id="1_doctor_group"]
 
-[node name="DoctorGroup" type="VBoxContainer"]
-theme_override_constants/separation = 2
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(1, 1, 1, 0.02)
+border_width_left = 3
+border_color = Color(0.92, 0.71, 0.24, 1)
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header_normal"]
+bg_color = Color(1, 1, 1, 0.05)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header_hover"]
+bg_color = Color(1, 1, 1, 0.08)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+; A PanelContainer root, not VBoxContainer: the left accent bar and background tint give each group a
+; visible boundary against its neighbors, which plain vertical spacing never did - with 44 findings
+; collapsed to 3 groups, "where does one group end and the next begin" needs an answer stronger than a
+; 10px gap.
+
+[node name="DoctorGroup" type="PanelContainer"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 script = ExtResource("1_doctor_group")
+
+[node name="Content" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 6
 
 ; alignment = 0 is ALIGNMENT_LEFT. A centred heading over a left-aligned list reads as two unrelated
 ; blocks, and the marker stops lining up down the column once the headings differ in length.
 
-[node name="Header" type="Button" parent="."]
+[node name="Header" type="Button" parent="Content"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.71, 0.24, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_header_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_header_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_header_hover")
 toggle_mode = true
 text = "heading"
 alignment = 0
 
-[node name="Body" type="MarginContainer" parent="."]
+[node name="Body" type="MarginContainer" parent="Content"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/margin_left = 18
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_bottom = 8
 
-[node name="Lines" type="VBoxContainer" parent="Body"]
+[node name="Lines" type="VBoxContainer" parent="Content/Body"]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 4
 
-[node name="Detail" type="Label" parent="Body/Lines"]
+[node name="Detail" type="Label" parent="Content/Body/Lines"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 13
 text = "detail"
 autowrap_mode = 3
 
-[node name="Subjects" type="Label" parent="Body/Lines"]
+[node name="Subjects" type="Label" parent="Content/Body/Lines"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.88, 0.89, 0.92, 1)
+theme_override_font_sizes/font_size = 14
 text = "subjects"
 autowrap_mode = 3
