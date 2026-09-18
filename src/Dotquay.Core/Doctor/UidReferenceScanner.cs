@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Sync;
 
 namespace Dotquay.Core.Doctor;
 
@@ -50,17 +51,17 @@ public static partial class UidReferenceScanner
         }
 
         var findings = new List<Finding>();
-        var ignoredByGodot = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        var visibility = new GodotVisibility(fileSystem, projectDirectory);
 
         foreach (var file in fileSystem.EnumerateFiles(projectDirectory, recursive: true))
         {
             var relative = Relative(file, projectDirectory);
 
             // Code *inside* an addon referencing that addon's own resources is the addon author's
-            // business, and it moves in lockstep with the uids it names.
+            // business, and it moves in lockstep with the uids it names. Code Godot never scans
+            // (.godot/, .dotquay/staging/, a .gdignore'd folder) is never loaded, so it cannot break.
             if (!IsCode(relative) || relative.StartsWith("addons/", StringComparison.OrdinalIgnoreCase)
-                || HiddenFromGodot(relative)
-                || InGdignoredFolder(fileSystem, projectDirectory, relative, ignoredByGodot))
+                || !visibility.IsVisible(relative))
             {
                 continue;
             }
@@ -85,10 +86,17 @@ public static partial class UidReferenceScanner
     private static Dictionary<string, string> MapUidsToAddonFiles(IFileSystem fileSystem, string addonsDirectory)
     {
         var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        var visibility = new GodotVisibility(fileSystem, addonsDirectory);
 
         foreach (var file in fileSystem.EnumerateFiles(addonsDirectory, recursive: true))
         {
             var relative = Relative(file, addonsDirectory);
+
+            // Godot never registers a uid it never scanned, so nothing can load one by it.
+            if (!visibility.IsVisible(relative))
+            {
+                continue;
+            }
 
             // A .uid file is exactly one line: the uid of the script it sits beside.
             if (relative.EndsWith(".uid", StringComparison.OrdinalIgnoreCase))
@@ -130,48 +138,6 @@ public static partial class UidReferenceScanner
 
     private static bool IsCode(string relativePath) =>
         CodeExtensions.Any(extension => relativePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>
-    /// True when a segment of the path starts with a dot, which Godot's filesystem scan skips.
-    /// </summary>
-    /// <remarks>
-    /// Code Godot never loads cannot break, so reporting it is noise. That covers <c>.godot/</c> (its
-    /// caches hold uids in bulk) and, the case that surfaced this, <c>.dotquay/staging/</c>: an
-    /// extracted copy of an addon whose own internal uid references were reported as the project's.
-    /// </remarks>
-    private static bool HiddenFromGodot(string relativePath) =>
-        relativePath.Split('/').Any(segment => segment.StartsWith('.'));
-
-    /// <summary>
-    /// True when a folder above the file holds a <c>.gdignore</c>, which hides that whole subtree
-    /// from Godot. Answers are cached per folder, since every file below one asks about the same
-    /// ancestors.
-    /// </summary>
-    private static bool InGdignoredFolder(
-        IFileSystem fileSystem, string projectDirectory, string relativePath, Dictionary<string, bool> cache)
-    {
-        var segments = relativePath.Split('/');
-        var folder = "";
-
-        for (var i = 0; i < segments.Length - 1; i++)
-        {
-            folder = folder.Length == 0 ? segments[i] : $"{folder}/{segments[i]}";
-
-            if (!cache.TryGetValue(folder, out var ignored))
-            {
-                ignored = fileSystem.FileExists(
-                    fileSystem.CombinePath([projectDirectory, .. folder.Split('/'), ".gdignore"]));
-                cache[folder] = ignored;
-            }
-
-            if (ignored)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private static string Relative(string filePath, string root) =>
         filePath[root.Length..].TrimStart('/', '\\').Replace('\\', '/');

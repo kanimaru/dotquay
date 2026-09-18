@@ -1926,10 +1926,14 @@ public sealed partial class DependencyWorkflow
         // addon deliberately installed under another name is the opposite of an orphan.
         var lockedFolders = lockfile.Addons.Select(a => a.EffectiveFolder).ToHashSet(StringComparer.Ordinal);
 
+        // A folder Godot never scans (addons/.backup, one holding a .gdignore) cannot load as an
+        // addon, so there is nothing for it to be an orphan of.
+        var visibility = new GodotVisibility(_fileSystem, addonsPath);
+
         foreach (var dir in _fileSystem.EnumerateDirectories(addonsPath))
         {
             var name = dir.Replace('\\', '/').TrimEnd('/').Split('/').Last();
-            if (!lockedFolders.Contains(name))
+            if (!lockedFolders.Contains(name) && visibility.IsVisible(name, isDirectory: true))
             {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.OrphanedAddonFolder,

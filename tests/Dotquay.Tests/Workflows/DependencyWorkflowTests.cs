@@ -1530,6 +1530,19 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
+    public async Task DoctorAsync_AddonFolderGodotNeverScans_IsNotAnOrphan()
+    {
+        // Godot skips dot folders and folders holding a .gdignore, so neither can load as an addon.
+        var (workflow, fileSystem, _) = Build();
+        fileSystem.WriteAllText($"{ProjectDir}/addons/.backup/plugin.cfg", "cfg");
+        fileSystem.WriteAllText($"{ProjectDir}/addons/parked/.gdignore", "");
+
+        var result = await workflow.DoctorAsync(ProjectDir);
+
+        Assert.DoesNotContain(result.Issues, i => i.Kind == DoctorIssueKind.OrphanedAddonFolder);
+    }
+
+    [Fact]
     public async Task Status_AddonWithPathOverride_ChecksActualInstallLocationNotSourceSubtree()
     {
         // Regression test: LockedAddon.Path records the SOURCE subtree extracted from the upstream
