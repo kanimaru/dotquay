@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://cots837fpnl48" path="res://addons/dotquay/ui/dotquay_panel.gd" id="1_panel"]
 [ext_resource type="PackedScene" path="res://addons/dotquay/ui/dependency_graph_view.tscn" id="2_graph_view"]
 [ext_resource type="PackedScene" uid="uid://b687jenmtp25a" path="res://addons/dotquay/ui/conflict_dialog.tscn" id="3_conflict_dialog"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/package_version_dialog.tscn" id="20_package_version_dialog"]
 [ext_resource type="PackedScene" uid="uid://pe8o3qdtfv8i" path="res://addons/dotquay/ui/add_dependency_dialog.tscn" id="4_add_dialog"]
 [ext_resource type="PackedScene" uid="uid://bb8pb0afhvlsv" path="res://addons/dotquay/ui/install_preview_dialog.tscn" id="5_preview_dialog"]
 [ext_resource type="PackedScene" path="res://addons/dotquay/ui/explain_dialog.tscn" id="6_explain_dialog"]
@@ -227,6 +228,9 @@ size_flags_horizontal = 3
 ; already says. popup_centered() (or popup(), for LegendDialog) is what shows any of them.
 
 [node name="ConflictDialog" parent="." unique_id=1290198678 instance=ExtResource("3_conflict_dialog")]
+unique_name_in_owner = true
+
+[node name="PackageVersionDialog" parent="." instance=ExtResource("20_package_version_dialog")]
 unique_name_in_owner = true
 
 [node name="AddDialog" parent="." unique_id=1108032224 instance=ExtResource("4_add_dialog")]

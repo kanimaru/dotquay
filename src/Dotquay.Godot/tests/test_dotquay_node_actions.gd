@@ -153,7 +153,8 @@ func test_addon_menu_offers_clear_override_only_when_overridden() -> void:
 func test_package_menu_offers_only_nuget_actions() -> void:
 	var actions := _actions(ACTIONS.for_package(_package("root", ["<project>"])))
 
-	runner.equal(actions, PackedStringArray([ACTIONS.MENU_UPDATE, ACTIONS.MENU_OPEN_NUGET, ACTIONS.MENU_REMOVE]),
+	runner.equal(actions,
+		PackedStringArray([ACTIONS.MENU_UPDATE, ACTIONS.MENU_CHANGE_VERSION, ACTIONS.MENU_OPEN_NUGET, ACTIONS.MENU_REMOVE]),
 		"no override, patch, explain or repository on a package")
 
 
@@ -200,3 +201,27 @@ func test_enabled_entries_carry_no_reason() -> void:
 	for entry in ACTIONS.for_package(_package("root", ["<project>"])):
 		if not entry.is_separator:
 			runner.equal(entry.reason, "", "%s is enabled, so it has no reason" % entry.action)
+
+
+
+# --- choosing a version (DESIGN-v0.19 §7a) ---
+
+func test_root_package_offers_change_version_not_pin() -> void:
+	var actions := _actions(ACTIONS.for_package(_package("root", ["<project>"])))
+
+	runner.check(actions.has(ACTIONS.MENU_CHANGE_VERSION), "the project's own entry can change version")
+	runner.check(not actions.has(ACTIONS.MENU_PIN_VERSION), "it's already the project's, so there's nothing to pin")
+
+
+func test_transitive_package_offers_pin_not_change() -> void:
+	var actions := _actions(ACTIONS.for_package(_package("transitive", ["vbeami"])))
+
+	runner.check(actions.has(ACTIONS.MENU_PIN_VERSION), "an addon's package can be pinned in the project")
+	runner.check(not actions.has(ACTIONS.MENU_CHANGE_VERSION), "there's no project entry to change yet")
+
+
+func test_orphan_package_offers_neither_version_action() -> void:
+	var actions := _actions(ACTIONS.for_package(_package("orphan")))
+
+	runner.check(not actions.has(ACTIONS.MENU_PIN_VERSION) and not actions.has(ACTIONS.MENU_CHANGE_VERSION),
+		"nothing needs an orphan, so there's nothing to pin it for")

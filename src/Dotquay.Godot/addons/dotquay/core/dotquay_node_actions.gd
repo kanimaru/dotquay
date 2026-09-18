@@ -23,6 +23,8 @@ const MENU_OPEN_REPO := "open_repo"
 const MENU_CAPTURE_PATCH := "capture_patch"
 const MENU_EXPLAIN := "explain"
 const MENU_OPEN_NUGET := "open_nuget"
+const MENU_PIN_VERSION := "pin_version"
+const MENU_CHANGE_VERSION := "change_version"
 
 
 ## One row of a node's menu: an item, or a separator when [member is_separator] is set.
@@ -83,12 +85,20 @@ static func for_addon(model: DotquayGraph.AddonNode, conflict: DotquayGraph.Conf
 	return entries
 
 
-## The package menu. Only actions that mean something for NuGet appear at all. There's no
-## override (that is `[overrides]`, which is git-only), no patch and no repository.
+## The package menu. Only actions that mean something for NuGet appear at all. There's no git
+## override, patch or repository. A package's "use this exact version" is the project's own
+## `[dotnet.*]` entry instead, reached through Change version / Pin a version.
 static func for_package(model: DotquayGraph.PackageNode) -> Array:
 	var entries: Array = []
 
 	entries.append(Entry.item("Update", MENU_UPDATE, not model.is_root(), package_update_disabled_reason(model)))
+
+	# The exact-version choice (DESIGN-v0.19 §7a): a change for the project's own entry, a pin for an
+	# addon's. An orphan gets neither, since nothing needs it and there's nothing to pin it for.
+	if model.is_root():
+		entries.append(Entry.item("Change version...", MENU_CHANGE_VERSION))
+	elif model.is_transitive():
+		entries.append(Entry.item("Pin a version in my project...", MENU_PIN_VERSION))
 
 	entries.append(Entry.separator())
 

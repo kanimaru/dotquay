@@ -278,3 +278,14 @@ func test_a_blank_source_is_diagnosed_as_nothing_to_fix() -> void:
 
 	runner.check(not fix.has_fix(), "nothing typed yet is not a shape problem")
 	runner.check(not fix.blocks_submit, "nothing typed yet does not block anything on its own")
+
+
+## DESIGN-v0.19 §7a: the package version dialog's pin/change goes through the same builder as the Add
+## form, so it can never produce a flag `add` rejects for a NuGet ID.
+func test_nuget_version_request_is_add_with_version() -> void:
+	var request := DotquayAddRequest.for_nuget_version("VBeami.Core", "0.4.9")
+
+	runner.equal(request.to_args(), PackedStringArray(["add", "VBeami.Core", "--version", "0.4.9"]),
+		"exactly add <id> --version <v>, nothing git-only")
+	runner.check(not request.is_git, "a package ID is never treated as a git source")
+	runner.check(request.is_complete(), "a version-pinned request is runnable")

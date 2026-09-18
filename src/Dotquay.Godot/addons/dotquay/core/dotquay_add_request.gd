@@ -122,6 +122,18 @@ static func diagnose_source_shape(text: String) -> ShapeFix:
 	return fix
 
 
+## `add <package-id> --version <version>`: what the package version dialog runs to pin or change a
+## NuGet package (DESIGN-v0.19 §7a.1). Built here rather than by hand at the call site, so it goes
+## through the same [method to_args] as the Add form.
+static func for_nuget_version(package_id: String, version: String) -> DotquayAddRequest:
+	var request := DotquayAddRequest.new()
+	request.source = package_id
+	request.is_git = false
+	request.source_mode = Source.VERSION
+	request.source_value = version
+	return request
+
+
 static func for_git(git_url: String) -> DotquayAddRequest:
 	var request := DotquayAddRequest.new()
 	request.source = git_url

@@ -19,6 +19,7 @@ const SCENES := [
 	"res://addons/dotquay/ui/dependency_graph_view.tscn",
 	"res://addons/dotquay/ui/dependency_node.tscn",
 	"res://addons/dotquay/ui/package_node.tscn",
+	"res://addons/dotquay/ui/package_version_dialog.tscn",
 	"res://addons/dotquay/ui/add_dependency_dialog.tscn",
 	"res://addons/dotquay/ui/conflict_dialog.tscn",
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
@@ -147,6 +148,7 @@ const DIALOGS := [
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
 	"res://addons/dotquay/ui/explain_dialog.tscn",
 	"res://addons/dotquay/ui/legend_dialog.tscn",
+	"res://addons/dotquay/ui/package_version_dialog.tscn",
 ]
 
 
@@ -540,3 +542,48 @@ func test_doctor_group_shows_the_copy_button_only_when_every_issue_is_fixable() 
 	runner.check(not row.get_node("%CopyFixes").visible, "one unresolved issue means no copy button at all")
 
 	row.free()
+
+
+func _package(origin: String, resolved: String = "0.4.7") -> DotquayGraph.PackageNode:
+	return DotquayGraph.PackageNode.from_payload({
+		"name": "VBeami.Core", "resolved": resolved, "origin": origin,
+		"required_by": ["vbeami"] if origin == "transitive" else ["<project>"],
+	})
+
+
+## DESIGN-v0.19 §7a.3: a pin opens on the locked version with OK enabled (pinning it as-is is a real
+## choice), and says what it does in the dialog's own words.
+func test_package_version_dialog_pin_opens_ready_to_pin_the_locked_version() -> void:
+	var dialog: DotquayPackageVersionDialog = load("res://addons/dotquay/ui/package_version_dialog.tscn").instantiate()
+
+	dialog.open_for(_package("transitive"))
+
+	runner.equal(dialog._version.text, "0.4.7", "the field starts at what's locked now")
+	runner.equal(dialog.get_ok_button().text, "Pin", "a transitive package is pinned, not changed")
+	runner.check(not dialog.get_ok_button().disabled, "pinning the locked version is allowed")
+	runner.check(dialog._explanation.text.contains("vbeami"), "names the addon it takes over from: %s" % dialog._explanation.text)
+
+	dialog.free()
+
+
+func test_package_version_dialog_change_needs_a_different_valid_version() -> void:
+	var dialog: DotquayPackageVersionDialog = load("res://addons/dotquay/ui/package_version_dialog.tscn").instantiate()
+	var chosen: Array = []
+	dialog.version_chosen.connect(func(id: String, version: String) -> void: chosen.append([id, version]))
+
+	dialog.open_for(_package("root"))
+	runner.check(dialog.get_ok_button().disabled, "changing to the version already locked does nothing")
+
+	dialog._version.text = "0.4.*"
+	dialog._update_ok_state()
+	runner.check(dialog.get_ok_button().disabled, "a range isn't an exact version")
+	runner.check(dialog._hint.text.contains("range"), "and the hint says why: %s" % dialog._hint.text)
+
+	dialog._version.text = " 0.4.9 "
+	dialog._update_ok_state()
+	runner.check(not dialog.get_ok_button().disabled, "a different exact version enables Change")
+
+	dialog._on_confirmed()
+	runner.equal(chosen, [["VBeami.Core", "0.4.9"]], "confirming emits the trimmed version once")
+
+	dialog.free()

@@ -45,6 +45,7 @@ var _cli_path_dialog: EditorFileDialog
 @onready var _update_dismiss_button: Button = %UpdateDismissButton
 
 @onready var _conflict_dialog: DotquayConflictDialog = %ConflictDialog
+@onready var _package_version_dialog: DotquayPackageVersionDialog = %PackageVersionDialog
 @onready var _add_dialog: DotquayAddDependencyDialog = %AddDialog
 @onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
 @onready var _explain_dialog: DotquayExplainDialog = %ExplainDialog
@@ -143,6 +144,7 @@ func _ready() -> void:
 	_preview_dialog.canceled.connect(_on_preview_cancelled)
 	_explain_dialog.force_update_requested.connect(_on_force_update_requested)
 	_conflict_dialog.override_chosen.connect(_on_override_chosen)
+	_package_version_dialog.version_chosen.connect(_on_package_version_chosen)
 	_confirm_remove.confirmed.connect(_on_remove_confirmed)
 	_confirm_overwrite_cli_path.confirmed.connect(_on_overwrite_cli_path_confirmed)
 	_confirm_update_all.confirmed.connect(_on_update_all_confirmed)
@@ -405,6 +407,11 @@ func _on_node_action(action: String, addon_name: String) -> void:
 			var ticket := _run(DotquayWire.COMMAND_STATUS, PackedStringArray([DotquayWire.FLAG_EXPLAIN]))
 			_pending_explains[ticket] = addon_name
 
+		DotquayNodeActions.MENU_PIN_VERSION, DotquayNodeActions.MENU_CHANGE_VERSION:
+			var versioned := _graph.find_package(addon_name) if _graph != null else null
+			if versioned != null:
+				_package_version_dialog.open_for(versioned)
+
 		DotquayNodeActions.MENU_OPEN_NUGET:
 			var package := _graph.find_package(addon_name) if _graph != null else null
 			if package != null and package.is_on_public_feed():
@@ -422,6 +429,12 @@ func _on_node_action(action: String, addon_name: String) -> void:
 				OS.shell_open(node.git)
 			else:
 				_log_warning("'%s' is not a web URL, so it can't be opened in a browser: %s" % [addon_name, node.git])
+
+
+## Runs the pin or change the package version dialog settled on, through the same NuGet add path the
+## Add form uses, so the argument list is built in one place ([DotquayAddRequest]).
+func _on_package_version_chosen(package_id: String, version: String) -> void:
+	_on_add_requested(DotquayAddRequest.for_nuget_version(package_id, version))
 
 
 func _on_remove_confirmed() -> void:

@@ -32,6 +32,7 @@ const SUITES := [
 	# data so they're testable without a GraphNode in a tree.
 	preload("res://tests/test_dotquay_node_actions.gd"),
 	preload("res://tests/test_dotquay_graph_filter.gd"),
+	preload("res://tests/test_dotquay_package_version_choice.gd"),
 	preload("res://tests/test_dependency_node.gd"),
 	preload("res://tests/test_package_node.gd"),
 	# The graph view's manual-position bookkeeping (P1-22) — driven against the real, detached scene

@@ -1,0 +1,56 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/package_version_dialog.gd" id="1_package_version_dialog"]
+
+[node name="PackageVersionDialog" type="ConfirmationDialog"]
+oversampling_override = 1.0
+title = "Choose a version"
+position = Vector2i(0, 36)
+size = Vector2i(480, 300)
+visible = false
+wrap_controls = false
+ok_button_text = "Pin"
+script = ExtResource("1_package_version_dialog")
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -49.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="Explanation" type="Label" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "explanation"
+autowrap_mode = 3
+
+[node name="Current" type="Label" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Locked now: ?"
+
+[node name="Version" type="LineEdit" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "e.g. 1.4.2"
+
+; Always present and two lines tall, filled or not: a hint that appears on the first bad keystroke
+; would push the buttons down mid-typing, and at the dialog's opening size a wrapped hint overlapped
+; them outright.
+
+[node name="Hint" type="Label" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 34)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
