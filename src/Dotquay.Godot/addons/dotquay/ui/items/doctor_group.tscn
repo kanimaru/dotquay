@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/items/doctor_group.gd" id="1_doctor_group"]
+
+[node name="DoctorGroup" type="VBoxContainer"]
+theme_override_constants/separation = 2
+script = ExtResource("1_doctor_group")
+
+; alignment = 0 is ALIGNMENT_LEFT. A centred heading over a left-aligned list reads as two unrelated
+; blocks, and the marker stops lining up down the column once the headings differ in length.
+
+[node name="Header" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+text = "heading"
+alignment = 0
+
+[node name="Body" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_left = 18
+
+[node name="Lines" type="VBoxContainer" parent="Body"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Detail" type="Label" parent="Body/Lines"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "detail"
+autowrap_mode = 3
+
+[node name="Subjects" type="Label" parent="Body/Lines"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "subjects"
+autowrap_mode = 3

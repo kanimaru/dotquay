@@ -51,6 +51,7 @@ var _cli_path_dialog: EditorFileDialog
 @onready var _preview_dialog: DotquayInstallPreviewDialog = %PreviewDialog
 @onready var _explain_dialog: DotquayExplainDialog = %ExplainDialog
 @onready var _legend_dialog: AcceptDialog = %LegendDialog
+@onready var _doctor_dialog: DotquayDoctorDialog = %DoctorDialog
 @onready var _confirm_remove: ConfirmationDialog = %ConfirmRemove
 @onready var _confirm_overwrite_cli_path: ConfirmationDialog = %ConfirmOverwriteCliPath
 @onready var _confirm_update_all: ConfirmationDialog = %ConfirmUpdateAll
@@ -929,14 +930,24 @@ func _report_outdated(payload: Dictionary) -> void:
 			DotquayText.or_unknown(entry.latest)])
 
 
+## One line in the log, the findings in a dialog.
+##
+## Doctor is the one command whose result is routinely dozens of lines, and they are a checklist
+## rather than a record of what happened — printed into the log they buried everything else in it
+## and repeated one long explanation once per finding. The log keeps the sentence worth having in
+## the history ("ran it, found this much"); [DotquayDoctorDialog] holds what to do about it.
+##
+## Opened even when the project is healthy: the user pressed a button and a dialog saying "nothing
+## needs fixing" answers them, where a single log line among many is easy to miss entirely.
 func _report_doctor(payload: Dictionary) -> void:
 	var doctor := DotquayDoctor.from_payload(payload)
-	if doctor.healthy:
-		_log_line("Doctor found no issues.")
-		return
 
-	for issue in doctor.issues:
-		_log_warning("  " + issue.describe())
+	if doctor.healthy:
+		_log_line(doctor.summarize())
+	else:
+		_log_warning(doctor.summarize())
+
+	_doctor_dialog.show_report(doctor)
 
 
 func _report_operation(payload: Dictionary) -> void:

@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://bb8pb0afhvlsv" path="res://addons/dotquay/ui/install_preview_dialog.tscn" id="5_preview_dialog"]
 [ext_resource type="PackedScene" path="res://addons/dotquay/ui/explain_dialog.tscn" id="6_explain_dialog"]
 [ext_resource type="PackedScene" path="res://addons/dotquay/ui/legend_dialog.tscn" id="7_legend_dialog"]
+[ext_resource type="PackedScene" path="res://addons/dotquay/ui/doctor_dialog.tscn" id="8_doctor_dialog"]
 
 [node name="DotquayPanel" type="Control" unique_id=861563337]
 layout_mode = 3
@@ -250,6 +251,9 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="LegendDialog" parent="." instance=ExtResource("7_legend_dialog")]
+unique_name_in_owner = true
+
+[node name="DoctorDialog" parent="." instance=ExtResource("8_doctor_dialog")]
 unique_name_in_owner = true
 
 [node name="ConfirmRemove" type="ConfirmationDialog" parent="." unique_id=1572317390]

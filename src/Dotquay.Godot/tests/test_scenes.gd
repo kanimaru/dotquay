@@ -23,6 +23,7 @@ const SCENES := [
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
 	"res://addons/dotquay/ui/explain_dialog.tscn",
 	"res://addons/dotquay/ui/legend_dialog.tscn",
+	"res://addons/dotquay/ui/doctor_dialog.tscn",
 	"res://addons/dotquay/ui/items/status_label.tscn",
 	"res://addons/dotquay/ui/items/conflict_card.tscn",
 	"res://addons/dotquay/ui/items/candidate_row.tscn",
@@ -30,6 +31,7 @@ const SCENES := [
 	"res://addons/dotquay/ui/items/preview_addon_row.tscn",
 	"res://addons/dotquay/ui/items/preview_source_card.tscn",
 	"res://addons/dotquay/ui/items/explain_change_row.tscn",
+	"res://addons/dotquay/ui/items/doctor_group.tscn",
 ]
 
 ## Node names the panel reaches by plain path rather than by `%`, because they are looked up through
@@ -140,6 +142,7 @@ func test_container_hosted_roots_do_not_grow_over_their_host() -> void:
 
 const DIALOGS := [
 	"res://addons/dotquay/ui/add_dependency_dialog.tscn",
+	"res://addons/dotquay/ui/doctor_dialog.tscn",
 	"res://addons/dotquay/ui/conflict_dialog.tscn",
 	"res://addons/dotquay/ui/install_preview_dialog.tscn",
 	"res://addons/dotquay/ui/explain_dialog.tscn",
@@ -453,3 +456,63 @@ static func _unique_names_in(source: String) -> PackedStringArray:
 			found.append(name)
 
 	return found
+
+
+## The doctor dialog, actually rendering something.
+##
+## The regression it guards is the one that made doctor unusable in the first place: 44 findings as 44
+## log lines. One group per kind, the long explanation said once, and the count in the heading is the
+## whole point — so it is asserted on rendered nodes rather than trusted from the data layer.
+func test_doctor_dialog_groups_by_kind_and_collapses_long_groups() -> void:
+	var issues: Array = []
+	for folder in ["a", "b", "c", "d", "e", "f"]:
+		issues.append({"kind": "orphaned_addon_folder",
+			"message": "'addons/%s' is on disk but isn't tracked by any locked addon." % folder})
+	issues.append({"kind": "plugin_cfg_version_drift", "message": "'vbeami': its plugin.cfg disagrees."})
+
+	var doctor := DotquayDoctor.from_payload({"healthy": false, "issues": issues})
+
+	# Detached on purpose: a node added during `SceneTree._initialize` never reaches `_ready`, so an
+	# `@onready`-bound dialog would null out here, which is why this one binds lazily.
+	var dialog: Window = load("res://addons/dotquay/ui/doctor_dialog.tscn").instantiate()
+
+	dialog.show_report(doctor)
+
+	var list: Node = dialog.get_node("%GroupList")
+	runner.equal(list.get_child_count(), 2, "seven issues of two kinds should render two groups, not seven rows")
+	runner.check(dialog.get_node("%Summary").text.contains("7 issues"), "the header counts every issue")
+	runner.check(not dialog.get_node("%Healthy").visible, "a project with findings is not healthy")
+
+	var big: Node = list.get_child(0)
+	var small: Node = list.get_child(1)
+	runner.check(big.get_node("%Header").text.contains("6 folders"),
+		"the big group's heading carries its count instead of repeating its message six times")
+	runner.check(not big.get_node("%Body").visible,
+		"a group larger than EXPAND_UP_TO starts collapsed, so the headings stay scannable")
+	runner.check(small.get_node("%Body").visible, "a short group is shorter open than the click to open it")
+
+	# Reused rather than re-instantiated: the dialog is a long-lived child of the panel, so "shown a
+	# second time with different data" is the normal case and the one a stale row would survive into.
+	dialog.show_report(DotquayDoctor.from_payload({"healthy": true, "issues": []}))
+	runner.equal(list.get_child_count(), 0, "reopening on a healthy project must not leave the old groups behind")
+	runner.check(dialog.get_node("%Healthy").visible, "and must say the check ran and found nothing")
+
+	dialog.free()
+
+
+## Opening a collapsed group has to actually reveal it — the toggle is the only way to reach the
+## names, so a disconnected signal would hide them permanently.
+func test_doctor_group_toggles_open() -> void:
+	var doctor := DotquayDoctor.from_payload({"healthy": false, "issues": [
+		{"kind": "orphaned_addon_folder", "message": "'addons/a' is on disk."},
+	]})
+	var row: Node = load("res://addons/dotquay/ui/items/doctor_group.tscn").instantiate()
+
+	row.setup(doctor.groups()[0], false)
+	runner.check(not row.get_node("%Body").visible, "starts collapsed when asked to")
+
+	row.get_node("%Header").button_pressed = true
+	runner.check(row.get_node("%Body").visible, "pressing the heading opens it")
+	runner.check(row.get_node("%Subjects").text.contains("addons/a"), "and the subject is what it reveals")
+
+	row.free()

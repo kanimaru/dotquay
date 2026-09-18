@@ -1,0 +1,58 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dotquay/ui/doctor_dialog.gd" id="1_doctor_dialog"]
+
+[node name="DoctorDialog" type="AcceptDialog"]
+oversampling_override = 1.0
+title = "What dotquay doctor found"
+position = Vector2i(0, 36)
+size = Vector2i(680, 460)
+min_size = Vector2i(320, 200)
+visible = false
+wrap_controls = false
+ok_button_text = "Close"
+script = ExtResource("1_doctor_dialog")
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -49.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="Summary" type="Label" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "summary"
+autowrap_mode = 3
+
+[node name="Healthy" type="Label" parent="Root"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "Nothing needs fixing in this project right now."
+autowrap_mode = 3
+
+; horizontal_scroll_mode = DISABLED, or the wrapping labels inside never wrap: a ScrollContainer that
+; can scroll sideways offers its children unbounded width, and an autowrapping Label given unbounded
+; width renders one very long line and drags the dialog's minimum size out with it.
+
+[node name="Scroll" type="ScrollContainer" parent="Root"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="GroupList" type="VBoxContainer" parent="Root/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
