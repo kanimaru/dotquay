@@ -42,7 +42,8 @@ NuGet, and delete the second display.
 - **No NuGet transitive graph.** See §1.
 - **No package overrides.** `[overrides]` is git-only (`OverrideWorkflow` needs a version, branch,
   or rev on an addon). NuGet's equivalent already exists: a project-level `[dotnet."X"]` always
-  wins over an addon-declared one (P1-5). The action that exposes it is Phase 2 (§8).
+  wins over an addon-declared one (P1-5). Phase 2 exposes that as "Pin a version in my project…"
+  (§7a).
 - **No `.csproj` health state on package nodes.** "Declared but missing from the `.csproj`" is a
   doctor question; it's not a reason to add a status evaluator for packages here.
 - **No schema bump.** Every wire change is additive (SPEC.md §17: an older plugin ignores unknown
@@ -207,10 +208,75 @@ Real-binary check (per the verification discipline): a NativeAOT publish, `graph
 project with a root package, an addon-declared one and an orphan, with the document inspected. Also
 `remove <orphan-id>` for real, followed by a look at the `.csproj`.
 
+## 7a. Phase 2: choosing a package's version from the graph
+
+Phase 1 left a package's version in someone else's hands. A transitive package has whatever its
+addon declared, and a root package has whatever `add` resolved or `update` last moved it to. Phase 2
+adds the one decision the graph was still missing, "use this exact version", for both origins.
+
+### 7a.1 CLI: `add <id> --version <v>` on a package the project already knows
+
+`add` stays the only verb for this. Its rule becomes: **`--version` on a package ID states the
+version the project declares, whether or not it already declares one.** Three cases, decided in
+Core by `DependencyWorkflow.DeclareDotnetAsync`, a new entry point that `AddCommand` and the MCP
+`dotquay_add_dotnet` tool both call:
+
+| The project… | `add <id>` | `add <id> --version <v>` |
+|---|---|---|
+| doesn't know the package | adds latest stable, as today (`added`) | adds `<v>`, as today (`added`) |
+| has it locked but doesn't declare it (transitive or orphan) | adds latest stable (`added`) | declares `<v>`: **pinned** (`updated`) |
+| declares it in `[dotnet.*]` | refused, as today, but the message now names both ways forward: `update <id>` for the newest allowed version, `add <id> --version <v>` to change it | changes the declared version to `<v>`: **changed** (`updated`), or `unchanged` if it was already exactly that |
+
+Three rules keep a change or a pin from doing more than it says:
+
+- **What the entry already declared survives.** A change keeps the entry's `source` pin and its
+  asset metadata. Only `--version` is a new statement; `--source` on the same call replaces the pin,
+  as it would on a first add.
+- **A pin inherits what dotquay already wired up.** The lockfile's `assets` record for the package,
+  which is what dotquay wrote into the `.csproj`, becomes the new project entry's asset metadata.
+  An addon-declared analyzer kept private stays private once the project declares it, and the
+  source-generator question (v0.10) isn't asked again about a package already on disk.
+- **The version must exist.** It's verified on the feed the entry is pinned to, or on the declared
+  feeds in order, exactly like a first `add --version`. It is an exact version, not a range.
+
+`DeclareDotnetAsync` returns a `DotnetDeclaration` with the locked result, the outcome
+(`Added` / `Pinned` / `Changed` / `Unchanged`) and the previous resolved version. The CLI and MCP
+report it as `changes[].action` `added` / `updated` / `unchanged`, with `from` set to the previous
+version. The existing `AddDotnetAsync` keeps its contract (new packages only) and becomes the
+`Added` branch.
+
+### 7a.2 Removing a root package that an addon also declares
+
+Undoing a pin is `remove <id>`. Today that deletes the lock entry and the `PackageReference` even
+when a reachable addon still declares the package. The next `update` brings it back, but until then
+the project doesn't build against a package its addon needs. So `remove` now deletes **only the
+manifest entry** in that case. The lock entry and the reference stay, the package becomes
+`transitive` again, and the next `update` re-resolves it to the addon's range. `RemoveAsync` returns
+a `DependencyRemoval` (the kind, plus the addons that still declare it), so the CLI can say
+*"'X' is no longer declared by your project; kept because 'vbeami' still needs it"* instead of
+"Removed".
+
+### 7a.3 Plugin
+
+- **Menu.** A `root` package gets **Change version…**, a `transitive` one gets **Pin a version in
+  my project…**, and an `orphan` gets neither: there's nothing to pin it for. Both entries are new
+  `DotquayNodeActions` ids (`MENU_CHANGE_VERSION`, `MENU_PIN_VERSION`), so the table in §5 stays
+  the single source of both menus.
+- **Dialog.** `ui/package_version_dialog.tscn` is a scene-based `ConfirmationDialog`. It shows what
+  the choice will do in plain words (pin: *"Adds [dotnet."X"] to your dotquay.toml at this exact
+  version. Your entry wins over what vbeami asks for; remove it later to hand the choice back."*),
+  and a version field prefilled with the resolved version. OK stays disabled until the field holds
+  something shaped like a NuGet version, and until it differs from the current one for a change. The
+  wording and validation are static functions on `DotquayPackageVersionChoice` (plugin `core/`), so
+  they're tested without a window.
+- **Running it.** The dialog emits `version_chosen(package_id, version)`. The panel builds a
+  `DotquayAddRequest.for_nuget_version(id, v)` and runs it through the same path the Add form uses
+  for a NuGet package, so the argument list is built in exactly one place.
+
 ## 8. Phasing
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | §3 wire fields in both modes, §3.1 shared reader, §4 orphan removal, §5 actions (Update / Open on nuget.org / Remove), §6 package nodes + filter, NuGet tab removed. Also: `remove` now reports which kind it removed (`DependencyKind`), so `remove --json` and the MCP tool stop calling every removal an addon. | shipped 2026-09-18 |
-| 2 | "Pin a version in my project…" on a `transitive` package: a version dialog that runs `dotquay add <id> --version <v>`, which makes it `root` and lets the project's entry win (P1-5). On a `root` package, a "Change version…" action needs `add` to accept an already-declared ID (today it refuses), so that is a Core change of its own. | proposed |
+| 2 | §7a: `add <id> --version <v>` pins a transitive package and changes a root one (`DeclareDotnetAsync`); `remove` keeps what an addon still needs; a version dialog behind **Pin a version in my project…** / **Change version…**. | in progress |
 | 3 | Optional: a per-node "outdated" badge from `outdated --json` for both kinds. | idea |
