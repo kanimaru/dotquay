@@ -94,6 +94,26 @@ public static class JsonMapper
         Source = node.Source,
     };
 
+    /// <summary>
+    /// The <c>changes[]</c> entry for a NuGet declaration (DESIGN-v0.19 §7a.1): <c>added</c> for a new
+    /// package, <c>updated</c> with <c>from</c> for a pin or a version change, <c>unchanged</c> when it
+    /// already was exactly that. Shared by <c>add --json</c> and the MCP tool so both report one
+    /// outcome the same way.
+    /// </summary>
+    public static ChangeJson ToChange(Workflows.DotnetDeclaration declaration) => new()
+    {
+        Name = declaration.Locked.Name,
+        Kind = ChangeKind.Dotnet,
+        Action = declaration.Outcome switch
+        {
+            Workflows.DotnetDeclarationOutcome.Added => ChangeAction.Added,
+            Workflows.DotnetDeclarationOutcome.Unchanged => ChangeAction.Unchanged,
+            _ => ChangeAction.Updated,
+        },
+        From = declaration.Outcome == Workflows.DotnetDeclarationOutcome.Added ? null : declaration.PreviousResolved,
+        To = declaration.Locked.Resolved,
+    };
+
     /// <summary>One mapping for both node kinds, so an addon and a package can never disagree about
     /// what "orphan" is called on the wire.</summary>
     public static string ToWire(GraphNodeOrigin origin) => origin switch

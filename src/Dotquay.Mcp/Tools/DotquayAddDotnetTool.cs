@@ -23,7 +23,8 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, 
     public override string Name => "dotquay_add_dotnet";
 
     public override string Description =>
-        "Add a NuGet package: resolve a version, add a PackageReference, restore. Read-write.";
+        "Add a NuGet package: resolve a version, add a PackageReference, restore. With a version, also pins a "
+        + "package an addon brought in, or changes the version of one the project already declares. Read-write.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -34,7 +35,7 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, 
               "description": "Absolute path to the project directory (containing dotquay.toml). Defaults to the server's first --project root."
             },
             "package_id": { "type": "string", "description": "The NuGet package ID to add." },
-            "version": { "type": "string", "description": "An exact package version. Defaults to the latest stable release." },
+            "version": { "type": "string", "description": "An exact package version. Defaults to the latest stable release. On a package the project already has, the version to pin it to or change it to." },
             "nuget_source": {
               "type": "string",
               "description": "A declared [nuget.sources.<name>] name to resolve from, instead of searching every declared feed in order."
@@ -67,25 +68,14 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, 
         var workflow = McpInfrastructure.CreateWorkflow(
             progress, sourceApproval: null, GeneratorPrivacyPolicy.Resolve(keepGeneratorPrivate));
 
-        var locked = await workflow.AddDotnetAsync(projectDirectory, packageId, version, nuGetSource, cancellationToken);
-
-        var pinnedTo = nuGetSource is null ? "" : $", pinned to '{nuGetSource}'";
-        var kept = locked.Assets.Private is null ? "" : ", kept private to this project";
-        var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored{pinnedTo}{kept}";
+        // Also pins an addon-declared package, or changes a declared one, when a version is given
+        // (DESIGN-v0.19 §7a.1) — the same entry point `add` uses on the CLI.
+        var declaration = await workflow.DeclareDotnetAsync(projectDirectory, packageId, version, nuGetSource, cancellationToken);
 
         var payload = new OperationJson
         {
-            Changes =
-            [
-                new ChangeJson
-                {
-                    Name = locked.Name,
-                    Kind = JsonMapper.ChangeKind.Dotnet,
-                    Action = JsonMapper.ChangeAction.Added,
-                    To = locked.Resolved,
-                },
-            ],
-            Messages = [summary],
+            Changes = [JsonMapper.ToChange(declaration)],
+            Messages = [declaration.Describe(nuGetSource)],
         };
 
         return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));

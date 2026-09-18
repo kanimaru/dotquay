@@ -348,14 +348,7 @@ public sealed partial class DependencyWorkflow
         // Checked before the first network call, and phrased for the flag the user actually typed:
         // NuGetSourceSet.Resolve would raise this too, but as a message about a `source = "..."` key
         // the user has not written yet.
-        if (pinnedSourceName is not null && sourceSet.ByName(pinnedSourceName) is null)
-        {
-            var declared = sourceSet.All.Select(source => $"'{source.Name}'").ToList();
-
-            throw new WorkflowException(
-                $"--source '{pinnedSourceName}' isn't a declared NuGet feed. Declared: {string.Join(", ", declared)}. "
-                + "Add it with 'dotquay source add <name> <url>'.");
-        }
+        ThrowIfUnknownSource(sourceSet, pinnedSourceName);
 
         var nuGetClient = _nuGetClientFactory.Create(sourceSet, pinnedSourceName);
         var (version, resolvedSource) = await ResolveDotnetVersionOrThrowAsync(

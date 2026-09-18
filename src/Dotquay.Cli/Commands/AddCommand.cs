@@ -53,7 +53,8 @@ internal static class AddCommand
         var versionOption = new Option<string?>("--version")
         {
             Description = "Version to add. For git, a constraint matched against tags (e.g. \"~2.5\"). For NuGet, "
-                + "an exact package version. Defaults to the latest release either way.",
+                + "an exact package version; on a package the project already has, this pins or changes it. "
+                + "Defaults to the latest release either way.",
         };
 
         var branchOption = new Option<string?>("--branch")
@@ -464,28 +465,19 @@ internal static class AddCommand
                 + "dirty-check override to bypass.");
         }
 
-        var locked = await workflow.AddDotnetAsync(
+        // DeclareDotnetAsync rather than AddDotnetAsync: with --version, `add` also pins a package an
+        // addon brought in, or changes one the project already declares (DESIGN-v0.19 §7a.1).
+        var declaration = await workflow.DeclareDotnetAsync(
             projectDirectory, packageId, options.Version, options.NuGetSource, cancellationToken);
         progress.Dispose();
 
-        var pinnedTo = options.NuGetSource is null ? "" : $", pinned to '{options.NuGetSource}'";
-        var kept = locked.Assets.Private is null ? "" : ", kept private to this project";
-        var summary = $"Added '{locked.Name}' @ {locked.Resolved} (NuGet) -> .csproj, restored{pinnedTo}{kept}";
+        var summary = declaration.Describe(options.NuGetSource);
 
         if (json)
         {
             JsonOutput.WriteOperation(CommandName, new OperationJson
             {
-                Changes =
-                [
-                    new ChangeJson
-                    {
-                        Name = locked.Name,
-                        Kind = JsonMapper.ChangeKind.Dotnet,
-                        Action = JsonMapper.ChangeAction.Added,
-                        To = locked.Resolved,
-                    },
-                ],
+                Changes = [JsonMapper.ToChange(declaration)],
                 Messages = [summary],
             });
             return 0;
