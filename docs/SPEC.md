@@ -292,6 +292,44 @@ Three things it deliberately does not do:
 - **Two parents asking for different folders is silent here.** That is a resolution conflict with its
   own reporting (§8); doctor picking a winner would contradict whatever resolution decides.
 
+### 7.1.3 A `path` can point at a Godot project instead of an addon (v0.19)
+
+`path` names the subtree of the addon's repository that is copied into `addons/<folder>`. When that
+repository is restructured — the plugin moved from the root into `addons/<name>/` so the root can be
+a playable Godot project — every manifest still saying `path = "."` keeps working perfectly, by every
+measure dotquay has: the subtree exists, extracts, hashes, and installs. It just now contains
+`project.godot`, a nested `addons/`, and no `plugin.cfg` where Godot looks for one. The single
+symptom is the editor reporting the plugin as missing, and `install`, replaying the lockfile, repeats
+it faithfully.
+
+The worked example is vrm-addon (2026-09-18). It moved its plugin to `addons/vrm`; vbeami's package
+manifest still declared it with `path = "."`; every consumer of vbeami got the whole vrm-addon
+repository under `addons/vrm`, with nothing reporting why. Worse, the only thing reported was the
+project root's own `[project]` manifest lacking a `[package]` header — advice that, followed, would
+have been exactly wrong.
+
+`GodotProjectRootChecker` (`Doctor/`) tells the two apart the way Godot itself does: a subtree with
+`project.godot` and no `plugin.cfg` beside it is a project root. An addon that ships a
+`project.godot` next to its own `plugin.cfg` is still an addon; a content-only folder with neither
+is left alone. It then looks for the real addon under the subtree's `addons/` — the candidate whose
+folder matches the addon's name wins, an only candidate wins by default, and anything else is
+listed rather than guessed at.
+
+Two reports, both naming the manifest whose `path` is wrong (the project's own `[overrides.*]` or
+`[addons.*]`, or the package manifest of the addon that depends on it) and the exact `override`
+that pins the fix from the consuming project meanwhile:
+
+- the resolver warns (`SubtreeIsGodotProject`, §8) during `add`/`update`/`graph`, quoting the
+  branch or range the declaring spec used, and stays quiet about the project manifest it would
+  otherwise have reported as unreadable;
+- `doctor` reports `addon_folder_is_godot_project` offline from the installed folder, pinning the
+  locked commit with `--rev` because it has no declaring spec to quote, and likewise drops the
+  `unreadable_package_manifest` report for that folder.
+
+Reported, never corrected. §7.1.1's folder-case correction is allowed to act because capitalisation
+changes nothing about *what* is installed; swapping `path = "."` for `addons/vrm` changes identity
+and content, and would have to guess between plugins whenever a project ships more than one.
+
 ### 7.3.1 The editor writes into the folders dotquay manages (v0.9)
 
 Godot generates files *inside* `addons/<name>/`, which puts it in direct conflict with P0-6's "the
@@ -447,6 +485,11 @@ declared was silently dropped, with nothing reported anywhere. Two warnings now 
 - the subtree has one that isn't a valid package manifest, usually a missing `[package]` header.
 
 Both keep the leaf behaviour exactly as it was. They change the silence, not the resolution.
+
+A third shape looks like the second and is not: the subtree *is* the Godot project, because the
+addon moved into `addons/<name>/` after the consumer's `path` was written. Its `[project]` manifest
+is then read as a package manifest and reported as unreadable, when the file is not the problem at
+all — §7.1.3 covers that case and takes precedence over this report.
 
 ### 7.3 Lockfile — `dotquay.lock`
 

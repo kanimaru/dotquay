@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Doctor;
 using Dotquay.Core.Git;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Sync;
@@ -196,7 +197,8 @@ public sealed class DependencyGraphResolver
                 }
 
                 var specForDiscovery = overrides.TryGetValue(name, out var overrideSpec) ? overrideSpec : requirement.Spec;
-                var packageManifest = await TryReadPackageManifestAsync(specForDiscovery, warnings, cancellationToken);
+                var packageManifest = await TryReadPackageManifestAsync(
+                    specForDiscovery, requirement.Requirer, warnings, cancellationToken);
 
                 if (packageManifest is null)
                 {
@@ -298,8 +300,13 @@ public sealed class DependencyGraphResolver
 
         return declared with { Git = rewritten };
     }
+    /// <param name="requirer">Who asked for this addon — <see cref="GraphConflict.ProjectRequirerName"/>
+    /// for the project's own <c>[addons.*]</c>, otherwise the name of the addon whose package manifest
+    /// declares it. Only used to make a layout warning name the manifest that needs editing: a
+    /// consumer who sees "vrm points at a project" has no way to know that the <c>path</c> in question
+    /// lives in vbeami's manifest, not their own.</param>
     private async Task<PackageManifest?> TryReadPackageManifestAsync(
-        AddonSpec specForDiscovery, List<GraphWarning> warnings, CancellationToken cancellationToken)
+        AddonSpec specForDiscovery, string requirer, List<GraphWarning> warnings, CancellationToken cancellationToken)
     {
         ResolvedAddon resolved;
         try
@@ -331,6 +338,8 @@ public sealed class DependencyGraphResolver
             return null;
         }
 
+        var subtreeIsProject = WarnIfSubtreeIsAGodotProject(resolved, specForDiscovery, requirer, discoveryPath, warnings);
+
         var manifestPath = _fileSystem.CombinePath(discoveryPath, "dotquay.toml");
         if (!_fileSystem.FileExists(manifestPath))
         {
@@ -341,6 +350,14 @@ public sealed class DependencyGraphResolver
         try
         {
             return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
+        }
+        catch (ManifestParseException) when (subtreeIsProject)
+        {
+            // A project root carries the project's own [project] manifest, which is not a package
+            // manifest and was never meant to be one. The warning above already explains the whole
+            // situation; a second one about the header would send the reader off to add [package] to
+            // a file that should not be read at all.
+            return null;
         }
         catch (ManifestParseException ex)
         {
@@ -358,6 +375,54 @@ public sealed class DependencyGraphResolver
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// The subtree exists and extracts, but is a Godot project root rather than an addon
+    /// (<see cref="GodotProjectRootChecker"/>). Returns whether it is, so the caller can stop reading
+    /// the project's own manifest as if it were a package manifest.
+    /// </summary>
+    /// <remarks>
+    /// Warned about, never corrected. The folder-case correction (SPEC.md §7.1.1) may fix
+    /// capitalisation because that changes nothing about <em>what</em> is installed; silently
+    /// swapping <c>path = "."</c> for <c>addons/vrm</c> would change identity and content, and would
+    /// have to guess between several plugins when a project ships more than one. The message
+    /// instead names the manifest that has to change and the exact override that pins it meanwhile.
+    /// </remarks>
+    private bool WarnIfSubtreeIsAGodotProject(
+        ResolvedAddon resolved, AddonSpec spec, string requirer, string discoveryPath, List<GraphWarning> warnings)
+    {
+        var finding = GodotProjectRootChecker.Check(_fileSystem, discoveryPath, resolved.Name, resolved.Path);
+        if (finding is null)
+        {
+            return false;
+        }
+
+        var declaredIn = requirer == GraphConflict.ProjectRequirerName
+            ? $"this project's dotquay.toml ([addons.{resolved.Name}])"
+            : $"'{requirer}''s package manifest";
+
+        var (sourceFlag, sourceValue) = spec switch
+        {
+            { Version: not null } => ("--version", spec.Version),
+            { Branch: not null } => ("--branch", spec.Branch),
+            _ => ("--rev", spec.Rev ?? resolved.ResolvedSha),
+        };
+
+        var fix = finding.SuggestedPath is null
+            ? $"Set path in {declaredIn} to the folder that holds this addon's plugin.cfg."
+            : $"Set path = \"{finding.SuggestedPath}\" in {declaredIn}, or pin it from here: "
+              + GodotProjectRootChecker.OverrideCommand(resolved.Name, sourceFlag, sourceValue, finding.SuggestedPath) + ".";
+
+        warnings.Add(new GraphWarning(
+            resolved.Name,
+            GraphWarningKind.SubtreeIsGodotProject,
+            $"'{resolved.Name}' points at a Godot project, not an addon: {declaredIn} declares it with "
+            + $"path = \"{resolved.Path}\", but that subtree has a project.godot and no plugin.cfg — "
+            + $"{GodotProjectRootChecker.DescribeWhereTheAddonIs(finding)}. Installed as-is, the whole project "
+            + $"lands under addons/{resolved.EffectiveFolder}/ and Godot finds no plugin there. {fix}"));
+
+        return true;
     }
 
     /// <summary>

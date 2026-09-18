@@ -23,6 +23,14 @@ public enum GraphWarningKind
     /// lockfile will name a URL no manifest literally contains, and that should never be a
     /// surprise.</summary>
     GitTransportRewritten,
+
+    /// <summary>The extracted subtree is a Godot project root — <c>project.godot</c> with no
+    /// <c>plugin.cfg</c> beside it — not an addon. Almost always a manifest whose <c>path</c> still
+    /// says <c>"."</c> after the addon's repository moved its plugin into <c>addons/&lt;name&gt;/</c>.
+    /// Resolution is unaffected: the subtree exists and installs, which is precisely the problem —
+    /// the whole project lands under <c>addons/&lt;folder&gt;</c>, the editor finds no plugin there,
+    /// and nothing else anywhere says why (<see cref="Doctor.GodotProjectRootChecker"/>).</summary>
+    SubtreeIsGodotProject,
 }
 
 /// <summary>

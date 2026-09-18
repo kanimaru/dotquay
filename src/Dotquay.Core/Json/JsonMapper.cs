@@ -357,6 +357,7 @@ public static class JsonMapper
         DoctorIssueKind.LocalOverlayNotImported => "local_overlay_not_imported",
         DoctorIssueKind.SshHostNotTrusted => "ssh_host_not_trusted",
         DoctorIssueKind.NuGetSourceMappingDrift => "nuget_source_mapping_drift",
+        DoctorIssueKind.AddonFolderIsGodotProject => "addon_folder_is_godot_project",
         _ => "unknown",
     };
 

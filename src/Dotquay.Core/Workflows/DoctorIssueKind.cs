@@ -194,4 +194,19 @@ public enum DoctorIssueKind
     /// the message says to run.
     /// </remarks>
     NuGetSourceMappingDrift,
+
+    /// <summary>
+    /// An installed addon folder is a Godot project root — it has <c>project.godot</c> and no
+    /// <c>plugin.cfg</c> — because the manifest that declares the addon points its <c>path</c> at the
+    /// repository root after the addon moved into <c>addons/&lt;name&gt;/</c> (v0.19).
+    /// </summary>
+    /// <remarks>
+    /// Nothing fails on the way here: the subtree exists, extracts, hashes, and installs, and
+    /// <c>install</c> replays the same lockfile faithfully. The one symptom is Godot reporting the
+    /// plugin as missing, which points at the editor rather than at a <c>path</c> in somebody else's
+    /// package manifest. The offline half of the resolver's
+    /// <see cref="Resolve.GraphWarningKind.SubtreeIsGodotProject"/>: the installed folder <em>is</em>
+    /// the extracted subtree, so the evidence is already on disk (<see cref="Doctor.GodotProjectRootChecker"/>).
+    /// </remarks>
+    AddonFolderIsGodotProject,
 }

@@ -117,6 +117,7 @@ public class JsonContractTests
     [InlineData(DoctorIssueKind.OrphanedAddonFolder, "orphaned_addon_folder")]
     [InlineData(DoctorIssueKind.UnreadablePackageManifest, "unreadable_package_manifest")]
     [InlineData(DoctorIssueKind.SshHostNotTrusted, "ssh_host_not_trusted")]
+    [InlineData(DoctorIssueKind.AddonFolderIsGodotProject, "addon_folder_is_godot_project")]
     public void DoctorIssueKind_MapsToASnakeCaseName(DoctorIssueKind kind, string expected) =>
         Assert.Equal(expected, JsonMapper.ToWire(kind));
 

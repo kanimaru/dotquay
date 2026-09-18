@@ -285,4 +285,165 @@ public class GraphWarningTests
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(GraphWarningKind.PackageManifestOutsideSubtree, warning.Kind);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A subtree that is a Godot project, not an addon (v0.19)
+    // -----------------------------------------------------------------------------------------
+
+    private const string VbeamiUrl = "https://example.com/vbeami.git";
+    private const string VrmUrl = "https://example.com/vrm-addon.git";
+    private static string VrmSha => new('c', 40);
+
+    /// <summary>The real incident: vrm-addon moved its plugin into <c>addons/vrm</c> and turned its
+    /// root into a project, while vbeami's package manifest kept declaring it with the path from
+    /// before the move.</summary>
+    private static AddonSpec SetUpProjectRootDependency(FakeGitClient gitClient, string declaredPath = ".")
+    {
+        SetTags(gitClient, VbeamiUrl, "v0.7.22");
+        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string>
+        {
+            ["godot/addons/vbeami/plugin.cfg"] = "cfg",
+            ["godot/addons/vbeami/dotquay.toml"] = $"""
+                [package]
+                name = "vbeami"
+
+                [addons.vrm]
+                git = "{VrmUrl}"
+                branch = "main"
+                path = "{declaredPath}"
+                """,
+        };
+
+        gitClient.BranchTips[(VrmUrl, "main")] = VrmSha;
+        gitClient.FetchedFilesByUrl[VrmUrl] = new Dictionary<string, string>
+        {
+            ["project.godot"] = "config_version=5",
+            ["dotquay.toml"] = """
+                [project]
+                godot = "4.3"
+                """,
+            ["addons/vrm/plugin.cfg"] = "cfg",
+            ["addons/gut/plugin.cfg"] = "cfg",
+        };
+
+        return new AddonSpec { Name = "vbeami", Git = VbeamiUrl, Version = "~0.7", Path = "godot/addons/vbeami" };
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_Warns()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient);
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        var warning = Assert.Single(analysis.Warnings);
+        Assert.Equal(GraphWarningKind.SubtreeIsGodotProject, warning.Kind);
+        Assert.Equal("vrm", warning.AddonName);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_NamesTheDeclaringManifestAndTheRealPath()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient);
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        // The consumer's own manifest never mentions vrm. Unless the warning says whose path is
+        // wrong and what it should be, the reader is left grepping for a "." they never wrote.
+        var message = analysis.Warnings[0].Message;
+        Assert.Contains("'vbeami''s package manifest", message);
+        Assert.Contains("path = \".\"", message);
+        Assert.Contains("'addons/vrm'", message);
+        Assert.Contains("project.godot", message);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_OffersAnOverrideOnTheDeclaredBranch()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient);
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        // The resolver knows vbeami declared vrm by branch, so the hint tracks that branch rather
+        // than freezing a commit the way doctor's offline hint has to.
+        Assert.Contains("dotquay override vrm --branch main --path addons/vrm", analysis.Warnings[0].Message);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_SubtreeIsAGodotProject_DoesNotAlsoWarnAboutItsProjectManifest()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient);
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        // The project root's own dotquay.toml is a [project] manifest. Before this warning existed,
+        // "missing [package] header" was the only thing said about the situation — and following
+        // that advice would have been exactly wrong.
+        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.PackageManifestNotReadable);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_SubtreeIsAGodotProject_StillResolvesExactlyAsBefore()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient);
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        // A warning never changes resolution (SPEC.md §8). Silently swapping the path would be
+        // dotquay inferring a layout it wasn't told, which §7.1 rules out; the message says what to
+        // change instead.
+        var vrm = Assert.Single(analysis.Addons, a => a.Resolved.Name == "vrm");
+        Assert.Equal(".", vrm.Resolved.Path);
+        Assert.Equal(VrmSha, vrm.Resolved.ResolvedSha);
+        Assert.Empty(analysis.Conflicts);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_RootAddonPointingAtAGodotProject_NamesTheProjectsOwnDeclaration()
+    {
+        var (resolver, gitClient) = Build();
+        SetUpProjectRootDependency(gitClient);
+        var spec = new AddonSpec { Name = "vrm", Git = VrmUrl, Branch = "main", Path = "." };
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        var warning = Assert.Single(analysis.Warnings, w => w.Kind == GraphWarningKind.SubtreeIsGodotProject);
+        Assert.Contains("this project's dotquay.toml ([addons.vrm])", warning.Message);
+    }
+
+    [Fact]
+    public async Task AnalyzeGraphAsync_DeclaredPathFixed_WarnsAboutNothing()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient, declaredPath: "addons/vrm");
+
+        var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
+
+        // The fix the warning asks for, applied: the subtree is now the plugin folder, which has a
+        // plugin.cfg and no project.godot, so this check has nothing left to say. (§7.2's
+        // misplaced-manifest heuristic still notices the project's own dotquay.toml at the root —
+        // that is the addon author's to settle by shipping a [package] manifest, not this check's.)
+        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.SubtreeIsGodotProject);
+        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.PackageManifestNotReadable);
+        Assert.Contains(analysis.Addons, a => a.Resolved.Name == "vrm" && a.Resolved.Path == "addons/vrm");
+    }
+
+    [Fact]
+    public async Task ResolveGraphAsync_SubtreeIsAGodotProject_CarriesTheWarningToTheInstallPath()
+    {
+        var (resolver, gitClient) = Build();
+        var spec = SetUpProjectRootDependency(gitClient);
+
+        var result = await resolver.ResolveGraphAsync(Roots(spec), NoOverrides());
+
+        // `update` is where somebody watches addons/vrm fill up with a whole repository; the warning
+        // has to be printed there, not only by `dotquay graph`.
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal(GraphWarningKind.SubtreeIsGodotProject, warning.Kind);
+    }
 }

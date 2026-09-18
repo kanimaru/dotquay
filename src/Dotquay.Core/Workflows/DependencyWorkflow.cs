@@ -1352,8 +1352,9 @@ public sealed partial class DependencyWorkflow
 
         foreach (var locked in lockfile.Addons)
         {
+            var folderIsGodotProject = CheckAddonFolderIsGodotProject(projectDirectory, manifest, lockfile, locked, issues);
             CheckPluginCfgDrift(projectDirectory, locked, issues);
-            CheckPackageManifestReadable(projectDirectory, locked, issues);
+            CheckPackageManifestReadable(projectDirectory, locked, folderIsGodotProject, issues);
             CheckAddonFolderCase(projectDirectory, locked, issues);
         }
 
@@ -1805,8 +1806,19 @@ public sealed partial class DependencyWorkflow
     /// half of the same warning the resolver emits, and it needs no network at all: the installed
     /// folder <em>is</em> the extracted subtree, so what's on disk is exactly what the walk reads.
     /// </summary>
-    private void CheckPackageManifestReadable(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
+    /// <param name="folderIsGodotProject">Whether <see cref="CheckAddonFolderIsGodotProject"/> already
+    /// reported this folder as a project root. A project root carries the project's own
+    /// <c>[project]</c> manifest, which was never meant to be read as a package manifest; reporting
+    /// its missing <c>[package]</c> header on top would send the reader off to "fix" a file that
+    /// should not be in <c>addons/</c> at all.</param>
+    private void CheckPackageManifestReadable(
+        string projectDirectory, LockedAddon locked, bool folderIsGodotProject, List<DoctorIssue> issues)
     {
+        if (folderIsGodotProject)
+        {
+            return;
+        }
+
         var manifestPath = _fileSystem.CombinePath(
             InstallPaths.For(_fileSystem, projectDirectory, locked), ManifestFileName);
         if (!_fileSystem.FileExists(manifestPath))
@@ -1827,6 +1839,78 @@ public sealed partial class DependencyWorkflow
                 $"'{locked.Name}' ships a dotquay.toml that isn't a valid package manifest, so any dependencies "
                 + $"it declares are being ignored. {ex.Message}"));
         }
+    }
+
+    /// <summary>
+    /// Reports an installed addon whose folder is a Godot project root rather than an addon — the
+    /// offline half of the resolver's <see cref="GraphWarningKind.SubtreeIsGodotProject"/>. Returns
+    /// whether it fired, so the package-manifest check can stand down for the same folder.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nothing on the way here fails: the subtree exists, extracts, hashes, and installs, and
+    /// <c>install</c> replays the same lockfile faithfully. The only symptom is the editor reporting
+    /// the plugin as missing, which points at Godot rather than at a <c>path</c> in somebody else's
+    /// package manifest — and that is the part worth saying. Which manifest declares the addon
+    /// depends on who asked for it: the project's own <c>[overrides.*]</c> or <c>[addons.*]</c>, or
+    /// the package manifest of a locked addon that lists it under <c>dependencies</c>. The message
+    /// names that file, because a consumer of vbeami has no other way to learn that vrm's
+    /// <c>path</c> lives in vbeami's manifest.
+    /// </para>
+    /// <para>
+    /// The override hint pins the locked commit with <c>--rev</c>: unlike the resolver, <c>doctor</c>
+    /// has no declaring spec to quote a branch or range from for a transitive addon, and a pin that
+    /// names exactly what is installed is the one hint that is never wrong.
+    /// </para>
+    /// </remarks>
+    private bool CheckAddonFolderIsGodotProject(
+        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile, LockedAddon locked, List<DoctorIssue> issues)
+    {
+        var finding = GodotProjectRootChecker.Check(
+            _fileSystem, InstallPaths.For(_fileSystem, projectDirectory, locked), locked.Name, locked.Path);
+        if (finding is null)
+        {
+            return false;
+        }
+
+        var declaredIn = DescribeDeclaringManifest(manifest, lockfile, locked.Name);
+        var fix = finding.SuggestedPath is null
+            ? $"Set path in {declaredIn} to the folder that holds this addon's plugin.cfg, then run "
+              + $"'dotquay update {locked.Name}'."
+            : $"Set path = \"{finding.SuggestedPath}\" in {declaredIn} and run 'dotquay update {locked.Name}', "
+              + "or pin it from here: "
+              + GodotProjectRootChecker.OverrideCommand(locked.Name, "--rev", locked.Resolved, finding.SuggestedPath) + ".";
+
+        issues.Add(new DoctorIssue(
+            DoctorIssueKind.AddonFolderIsGodotProject,
+            $"'{locked.Name}' is installed at addons/{locked.EffectiveFolder}/, but that folder is a Godot project, not "
+            + $"an addon: it has a project.godot and no plugin.cfg — {GodotProjectRootChecker.DescribeWhereTheAddonIs(finding)}. "
+            + $"The lockfile extracts path \"{locked.Path}\" from its repository, so Godot finds no plugin under "
+            + $"addons/{locked.EffectiveFolder}/. {fix}"));
+
+        return true;
+    }
+
+    /// <summary>Names the manifest whose <c>path</c> for <paramref name="name"/> is the one to edit,
+    /// in the same precedence resolution uses (SPEC.md §8): an override, then the project's own
+    /// declaration, then whichever locked addon lists it as a dependency.</summary>
+    private static string DescribeDeclaringManifest(ProjectManifest? manifest, DotquayLockfile lockfile, string name)
+    {
+        if (manifest?.Overrides.ContainsKey(name) == true)
+        {
+            return $"this project's dotquay.toml ([overrides.{name}])";
+        }
+
+        if (manifest?.Addons.ContainsKey(name) == true)
+        {
+            return $"this project's dotquay.toml ([addons.{name}])";
+        }
+
+        var parent = lockfile.Addons.FirstOrDefault(a => a.Dependencies.Contains(name, StringComparer.Ordinal));
+
+        return parent is null
+            ? "the manifest that declares it"
+            : $"'{parent.Name}''s package manifest (addons/{parent.EffectiveFolder}/dotquay.toml)";
     }
 
     private void CheckOrphanedAddonFolders(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
