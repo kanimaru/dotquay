@@ -52,7 +52,7 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate, Cli
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
-        var removedKind = await workflow.RemoveAsync(projectDirectory, name, cancellationToken);
+        var removal = await workflow.RemoveAsync(projectDirectory, name, cancellationToken);
 
         var payload = new OperationJson
         {
@@ -61,11 +61,11 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate, Cli
                 new ChangeJson
                 {
                     Name = name,
-                    Kind = removedKind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
+                    Kind = removal.Kind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
                     Action = JsonMapper.ChangeAction.Removed,
                 },
             ],
-            Messages = [$"Removed '{name}'."],
+            Messages = [removal.Describe(name)],
         };
 
         return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));

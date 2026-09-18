@@ -31,7 +31,7 @@ internal static class RemoveCommand
 
             try
             {
-                var removedKind = await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name, cancellationToken);
+                var removal = await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name, cancellationToken);
 
                 if (json)
                 {
@@ -42,16 +42,16 @@ internal static class RemoveCommand
                             new ChangeJson
                             {
                                 Name = name,
-                                Kind = removedKind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
+                                Kind = removal.Kind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
                                 Action = JsonMapper.ChangeAction.Removed,
                             },
                         ],
-                        Messages = [$"Removed '{name}'."],
+                        Messages = [removal.Describe(name)],
                     });
                     return 0;
                 }
 
-                ConsoleOutput.WriteLine(ConsoleColor.Green, $"Removed '{name}'.");
+                ConsoleOutput.WriteLine(removal.KeptForAddons ? ConsoleColor.Yellow : ConsoleColor.Green, removal.Describe(name));
                 return 0;
             }
             catch (WorkflowException ex)

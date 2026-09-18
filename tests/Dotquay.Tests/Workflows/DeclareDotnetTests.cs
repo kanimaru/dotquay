@@ -12,7 +12,7 @@ namespace Dotquay.Tests.Workflows;
 /// <summary>
 /// Covers <see cref="DependencyWorkflow.DeclareDotnetAsync"/>: <c>add &lt;id&gt; [--version]</c>
 /// for a package the project doesn't know, has only locked, or already declares
-/// (DESIGN-v0.19 §7a.1).
+/// (DESIGN-v0.19 §7a.1), plus the matching <c>remove</c> of a pin (§7a.2).
 /// </summary>
 /// <remarks>
 /// The fixture is the Phase 1 verification project in miniature. It has one reachable addon, <c>root</c>,
@@ -267,6 +267,37 @@ public class DeclareDotnetTests
 
         Assert.Contains("--source 'nope'", exception.Message);
         Assert.Empty(fixture.Factory.RequestedPins);
+    }
+
+    [Fact]
+    public async Task RemovingAPin_KeepsWhatTheAddonStillNeeds()
+    {
+        var fixture = Build();
+        await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
+
+        var removal = await fixture.Workflow.RemoveAsync(ProjectDirectory, "VBeami.Core");
+
+        // Undoing the pin hands the choice back to the addon. It must not pull the package out from
+        // under the addon until the next update resolves the addon's range (DESIGN-v0.19 §7a.2).
+        Assert.Equal(DependencyKind.Dotnet, removal.Kind);
+        Assert.Equal(["root"], removal.StillRequiredBy);
+        Assert.DoesNotContain("VBeami.Core", fixture.ReadManifest().Dotnet.Keys);
+        Assert.Contains(fixture.ReadLockfile().Dotnet, d => d.Name == "VBeami.Core");
+        Assert.Contains("Include=\"VBeami.Core\"", fixture.ReadCsproj());
+        Assert.Contains("'root' still needs it", removal.Describe("VBeami.Core"));
+    }
+
+    [Fact]
+    public async Task RemovingAPackageNoAddonNeeds_StillRemovesItCompletely()
+    {
+        var fixture = Build();
+
+        var removal = await fixture.Workflow.RemoveAsync(ProjectDirectory, "Newtonsoft.Json");
+
+        Assert.Empty(removal.StillRequiredBy);
+        Assert.DoesNotContain(fixture.ReadLockfile().Dotnet, d => d.Name == "Newtonsoft.Json");
+        Assert.DoesNotContain("Newtonsoft.Json", fixture.ReadCsproj());
+        Assert.Equal("Removed 'Newtonsoft.Json'.", removal.Describe("Newtonsoft.Json"));
     }
 
     [Theory]

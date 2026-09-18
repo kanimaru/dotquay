@@ -247,9 +247,9 @@ public class DependencyWorkflowTests
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
 
-        var kind = await workflow.RemoveAsync(ProjectDir, "dialogue_manager");
+        var removal = await workflow.RemoveAsync(ProjectDir, "dialogue_manager");
 
-        Assert.Equal(DependencyKind.Addon, kind);
+        Assert.Equal(DependencyKind.Addon, removal.Kind);
 
         var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
         Assert.Empty(manifest.Addons);
@@ -515,9 +515,9 @@ public class DependencyWorkflowTests
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
 
-        var kind = await workflow.RemoveAsync(ProjectDir, "Newtonsoft.Json");
+        var removal = await workflow.RemoveAsync(ProjectDir, "Newtonsoft.Json");
 
-        Assert.Equal(DependencyKind.Dotnet, kind);
+        Assert.Equal(DependencyKind.Dotnet, removal.Kind);
 
         var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
         Assert.Empty(manifest.Dotnet);

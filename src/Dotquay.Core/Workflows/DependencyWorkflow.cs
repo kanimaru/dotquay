@@ -666,8 +666,9 @@ public sealed partial class DependencyWorkflow
     /// that stays reachable — a plain <c>remove</c> never moves another addon's pinned commit.
     /// </remarks>
     /// <returns>Which kind of dependency <paramref name="name"/> turned out to be, so a caller can report
-    /// the removal as what it was rather than guessing from the name.</returns>
-    public Task<DependencyKind> RemoveAsync(string projectDirectory, string name, CancellationToken cancellationToken = default)
+    /// the removal as what it was rather than guessing from the name, and which addons still need a
+    /// NuGet package whose project declaration was removed.</returns>
+    public Task<DependencyRemoval> RemoveAsync(string projectDirectory, string name, CancellationToken cancellationToken = default)
     {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
@@ -689,7 +690,7 @@ public sealed partial class DependencyWorkflow
             }
 
             WriteLockfile(lockfilePath, lockfile with { Addons = lockfile.Addons.Where(a => reachable.Contains(a.Name)).ToList() });
-            return Task.FromResult(DependencyKind.Addon);
+            return Task.FromResult(DependencyRemoval.Complete(DependencyKind.Addon));
         }
 
         if (manifest.Dotnet.ContainsKey(name))
@@ -700,6 +701,17 @@ public sealed partial class DependencyWorkflow
             });
 
             var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
+
+            // A reachable addon still declaring it means the project was only overriding the addon's
+            // choice (a pin, P1-5). Undoing the pin must not pull the package out from under the addon
+            // until the next update puts it back (DESIGN-v0.19 §7a.2), so only the declaration goes.
+            var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
+            var reachable = ComputeReachableAddonNames(lockedByName, manifest.Addons.Keys);
+            if (AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).TryGetValue(name, out var declarers))
+            {
+                return Task.FromResult(new DependencyRemoval(DependencyKind.Dotnet, declarers));
+            }
+
             WriteLockfile(lockfilePath, lockfile with { Dotnet = lockfile.Dotnet.Where(d => d.Name != name).ToList() });
 
             try
@@ -711,12 +723,12 @@ public sealed partial class DependencyWorkflow
                 throw new WorkflowException(ex.Message, ex);
             }
 
-            return Task.FromResult(DependencyKind.Dotnet);
+            return Task.FromResult(DependencyRemoval.Complete(DependencyKind.Dotnet));
         }
 
         if (TryRemoveOrphanedDotnet(projectDirectory, name))
         {
-            return Task.FromResult(DependencyKind.Dotnet);
+            return Task.FromResult(DependencyRemoval.Complete(DependencyKind.Dotnet));
         }
 
         throw new WorkflowException($"'{name}' is not declared in {manifestPath}.");
