@@ -14,13 +14,20 @@ extends RefCounted
 ## caller polls wall-clock time on its own thread and calls [method OS.kill] once the budget runs
 ## out, rather than being stuck inside a single blocking call with no way to interrupt it.
 ##
-## Deliberately does not read the process's output pipes while it is still running. Measured against
-## a real build on Windows (Godot 4.7.2): reading concurrently with the poll loop — even from a
-## second thread dedicated to nothing else — silently returns an empty string, output and all,
-## regardless of what the child actually wrote. Reading only after [method OS.is_process_running]
-## has already gone false (whether by natural exit or by [method OS.kill], which closes the child's
-## pipes and unblocks a pending read in single-digit milliseconds on that same platform) reliably
-## returns everything the process wrote. This class exists specifically to keep that ordering
+## Drains the child's pipes as it runs, rather than once it has exited. This is not an optimisation:
+## an OS pipe buffer is small (4 KiB on Windows, measured on this build) and a child that fills it
+## blocks inside its own `write` until somebody reads. Waiting for exit before reading therefore
+## deadlocks outright on any command whose output crosses that threshold — the process never
+## exits, the wall-clock budget below kills it, and the only output ever recovered is the first
+## 4 KiB, which then fails to parse as JSON. `doctor` on a project with a few dozen findings is
+## already past it.
+##
+## An earlier version of this class read only after [method OS.is_process_running] went false, on
+## the measurement that a concurrent read "returns an empty string, output and all". That reading
+## was wrong: on Windows a pipe's [method FileAccess.get_length] is a `PeekNamedPipe` of the bytes
+## buffered *at that instant*, so an early read returns "" simply because the child has not written
+## yet — not because reading broke it. Accumulating across polls returns everything, and keeps the
+## buffer empty enough that the child never blocks. This class exists to keep that ordering
 ## impossible to get wrong at the call site.
 
 
@@ -66,23 +73,52 @@ static func run(executable: String, args: PackedStringArray, timeout_ms: int,
 	if on_started.is_valid():
 		on_started.call(pid)
 
+	var stdio: FileAccess = handle.get("stdio")
+	var stderr: FileAccess = handle.get("stderr")
+	# Bytes, not strings: a multi-byte character can straddle two drains, so only the joined bytes are
+	# safe to decode as UTF-8.
+	var stdout_bytes := PackedByteArray()
+	var stderr_bytes := PackedByteArray()
+
 	while OS.is_process_running(pid):
 		if Time.get_ticks_msec() - start >= timeout_ms:
 			outcome.timed_out = true
 			OS.kill(pid)
 			break
+
+		# Both pipes, every poll — see the class doc comment. Draining only stdout would leave a
+		# command that writes its detail to stderr deadlocked in exactly the same way.
+		stdout_bytes.append_array(_drain(stdio))
+		stderr_bytes.append_array(_drain(stderr))
+
 		OS.delay_msec(DEFAULT_POLL_INTERVAL_MS)
 
-	# Read only now that the process has stopped one way or another — see the class doc comment.
-	var stdio: FileAccess = handle.get("stdio")
-	var stderr: FileAccess = handle.get("stderr")
-	var stdout_text := stdio.get_as_text() if stdio else ""
-	var stderr_text := stderr.get_as_text() if stderr else ""
+	# Whatever is still buffered now the process has stopped, which for a process that exited inside
+	# the first poll interval is all of it.
+	stdout_bytes.append_array(_drain(stdio))
+	stderr_bytes.append_array(_drain(stderr))
 
-	outcome.output = stdout_text + stderr_text
+	outcome.output = stdout_bytes.get_string_from_utf8() + stderr_bytes.get_string_from_utf8()
 	outcome.exit_code = -1 if outcome.timed_out else OS.get_process_exit_code(pid)
 	outcome.elapsed_ms = Time.get_ticks_msec() - start
 	return outcome
+
+
+## The bytes buffered in [param pipe] right now, empty when there are none (or there is no pipe).
+##
+## [method FileAccess.get_length] first, and never [method FileAccess.get_as_text]: on Windows that
+## length is a `PeekNamedPipe` of what is available at this instant, so asking for exactly that many
+## returns immediately, while `get_as_text` reads towards EOF and blocks until the child closes its
+## end. Called from inside the poll loop the latter never returns at all, which takes the wall-clock
+## timeout down with it — a worse failure than the deadlock this drain exists to avoid. Measured on
+## Godot 4.7.2 (Windows): this also still returns what a process left buffered after it exited, so
+## the fast path that reads only once, after the loop, loses nothing.
+static func _drain(pipe: FileAccess) -> PackedByteArray:
+	if pipe == null:
+		return PackedByteArray()
+
+	var available := pipe.get_length()
+	return pipe.get_buffer(available) if available > 0 else PackedByteArray()
 
 
 ## Builds the message for a launch that produced no process at all — a bad path, something not

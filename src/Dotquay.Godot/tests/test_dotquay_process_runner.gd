@@ -92,3 +92,42 @@ func test_launch_failed_message_has_no_chmod_hint_on_windows() -> void:
 
 	runner.check(not message.contains("chmod"), "chmod is not a Windows concept")
 	runner.check(message.contains("C:\\dotquay\\dotquay.exe"), "the message should still name the configured path")
+
+## The regression that made `doctor` unusable on a real project: an OS pipe buffer is 4 KiB on
+## Windows, and a child that fills it blocks in its own write until something reads. While this class
+## read only after the process exited, any command whose output crossed 4 KiB never exited at all —
+## it waited out the full timeout and surfaced a truncated 4096-byte fragment, which the envelope
+## parser then reported as `cli_bad_output` with the raw JSON pasted into the log.
+##
+## Deliberately well past the threshold, and asserted on the count of complete lines rather than on a
+## byte total, so a partial read can't satisfy it by accident.
+func test_output_larger_than_one_pipe_buffer_is_captured_whole() -> void:
+	var line := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde"
+	var count := 400
+	var script := ("for /L %%i in (1,1,%d) do @echo " % count) + line if OS.get_name() == "Windows" \
+		else ("i=0; while [ $i -lt %d ]; do echo " % count) + line + "; i=$((i+1)); done"
+	var shell: Array = _shell(script)
+
+	var outcome: DotquayProcessRunner.Outcome = PROCESS_RUNNER.run(shell[0], shell[1], 20000)
+
+	runner.check(not outcome.launch_failed, "a real shell should start")
+	runner.check(not outcome.timed_out,
+		"a process writing more than one pipe buffer must still exit on its own, not block on a full pipe")
+
+	var written := outcome.output.count(line)
+	runner.equal(written, count,
+		"every line the child wrote should survive, not just the first pipe buffer's worth")
+	runner.check(outcome.output.length() > 4096,
+		"and the total should be well past the 4 KiB buffer that used to be the ceiling")
+
+
+## The drain runs on every poll, so a process that exits before the first one still has to have its
+## output collected by the final read — the path that regressed would be one that only ever drains
+## inside the loop.
+func test_a_process_that_exits_immediately_still_has_its_output_captured() -> void:
+	var shell: Array = _shell("echo instant")
+
+	var outcome: DotquayProcessRunner.Outcome = PROCESS_RUNNER.run(shell[0], shell[1], 5000)
+
+	runner.check(outcome.output.contains("instant"),
+		"output written before the first poll interval must not be lost")
