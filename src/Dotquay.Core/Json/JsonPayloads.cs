@@ -305,7 +305,14 @@ public sealed record DoctorTrustJson
 /// <summary>A feed that came from an addon rather than the project, and which addon asked.</summary>
 public sealed record DoctorAdoptedSourceJson(string Name, string Url, string DeclaredBy);
 
-public sealed record DoctorIssueJson(string Kind, string Message);
+/// <summary>
+/// <see cref="File"/>, <see cref="Uid"/>, and <see cref="ResPath"/> are set only for
+/// <c>fragile_uid_reference</c> (mirroring <see cref="Workflows.UidReferenceFix"/>) and are
+/// <see langword="null"/> for every other kind -- optional, additive fields an older consumer can
+/// simply not read.
+/// </summary>
+public sealed record DoctorIssueJson(
+    string Kind, string Message, string? File = null, string? Uid = null, string? ResPath = null);
 
 /// <summary>
 /// Payload of <c>dotquay add --preview --json</c> (SPEC.md §6, §11.3): what an add would do, before

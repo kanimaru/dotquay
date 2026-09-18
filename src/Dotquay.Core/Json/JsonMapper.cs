@@ -154,7 +154,8 @@ public static class JsonMapper
 
     public static DoctorJson ToJson(DoctorResult doctor) => new()
     {
-        Issues = doctor.Issues.Select(i => new DoctorIssueJson(ToWire(i.Kind), i.Message)).ToList(),
+        Issues = doctor.Issues.Select(i => new DoctorIssueJson(
+            ToWire(i.Kind), i.Message, i.UidFix?.File, i.UidFix?.Uid, i.UidFix?.ResPath)).ToList(),
         Healthy = doctor.Issues.Count == 0,
         Trust = new DoctorTrustJson
         {

@@ -1422,7 +1422,8 @@ public sealed partial class DependencyWorkflow
                 DoctorIssueKind.FragileUidReference,
                 $"{finding.File} loads addons/{finding.Target} by {finding.Uid}. A uid:// literal has no "
                 + "path to fall back on, so it breaks if that addon's uid ever changes — load it by its "
-                + "res:// path instead."));
+                + "res:// path instead.",
+                new UidReferenceFix(finding.File, finding.Uid, $"res://addons/{finding.Target}")));
         }
     }
 
