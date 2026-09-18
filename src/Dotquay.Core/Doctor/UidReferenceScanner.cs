@@ -50,6 +50,7 @@ public static partial class UidReferenceScanner
         }
 
         var findings = new List<Finding>();
+        var ignoredByGodot = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var file in fileSystem.EnumerateFiles(projectDirectory, recursive: true))
         {
@@ -58,7 +59,8 @@ public static partial class UidReferenceScanner
             // Code *inside* an addon referencing that addon's own resources is the addon author's
             // business, and it moves in lockstep with the uids it names.
             if (!IsCode(relative) || relative.StartsWith("addons/", StringComparison.OrdinalIgnoreCase)
-                || GodotArtifactPath(relative))
+                || HiddenFromGodot(relative)
+                || InGdignoredFolder(fileSystem, projectDirectory, relative, ignoredByGodot))
             {
                 continue;
             }
@@ -129,10 +131,47 @@ public static partial class UidReferenceScanner
     private static bool IsCode(string relativePath) =>
         CodeExtensions.Any(extension => relativePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Godot's own caches hold uids in bulk and are regenerated wholesale; scanning them
-    /// would report thousands of "references" nobody wrote.</summary>
-    private static bool GodotArtifactPath(string relativePath) =>
-        relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// True when a segment of the path starts with a dot, which Godot's filesystem scan skips.
+    /// </summary>
+    /// <remarks>
+    /// Code Godot never loads cannot break, so reporting it is noise. That covers <c>.godot/</c> (its
+    /// caches hold uids in bulk) and, the case that surfaced this, <c>.dotquay/staging/</c>: an
+    /// extracted copy of an addon whose own internal uid references were reported as the project's.
+    /// </remarks>
+    private static bool HiddenFromGodot(string relativePath) =>
+        relativePath.Split('/').Any(segment => segment.StartsWith('.'));
+
+    /// <summary>
+    /// True when a folder above the file holds a <c>.gdignore</c>, which hides that whole subtree
+    /// from Godot. Answers are cached per folder, since every file below one asks about the same
+    /// ancestors.
+    /// </summary>
+    private static bool InGdignoredFolder(
+        IFileSystem fileSystem, string projectDirectory, string relativePath, Dictionary<string, bool> cache)
+    {
+        var segments = relativePath.Split('/');
+        var folder = "";
+
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            folder = folder.Length == 0 ? segments[i] : $"{folder}/{segments[i]}";
+
+            if (!cache.TryGetValue(folder, out var ignored))
+            {
+                ignored = fileSystem.FileExists(
+                    fileSystem.CombinePath([projectDirectory, .. folder.Split('/'), ".gdignore"]));
+                cache[folder] = ignored;
+            }
+
+            if (ignored)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string Relative(string filePath, string root) =>
         filePath[root.Length..].TrimStart('/', '\\').Replace('\\', '/');

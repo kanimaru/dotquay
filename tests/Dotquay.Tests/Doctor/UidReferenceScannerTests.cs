@@ -113,6 +113,42 @@ public class UidReferenceScannerTests
         Assert.Empty(UidReferenceScanner.Scan(fileSystem, Project, Addons));
     }
 
+    [Theory]
+    [InlineData(".dotquay/staging/r3/plugin.gd")]
+    [InlineData(".git/hooks/pre-commit.gd")]
+    [InlineData("tools/.cache/boot.gd")]
+    public void Scan_HiddenFolders_AreSkipped(string relative)
+    {
+        // Godot skips every file and folder whose name starts with a dot, so code there is never
+        // loaded and cannot break. .dotquay/staging is the case that mattered: an extracted copy of an
+        // addon, whose own uid references were reported as the project's.
+        var fileSystem = WithAddonScript();
+        fileSystem.WriteAllText($"{Project}/{relative}", "load(\"uid://bxwpwbdv4fm02\")");
+
+        Assert.Empty(UidReferenceScanner.Scan(fileSystem, Project, Addons));
+    }
+
+    [Fact]
+    public void Scan_FolderWithGdignore_IsSkipped()
+    {
+        // A .gdignore hides its folder and everything below it from Godot, just like a leading dot.
+        var fileSystem = WithAddonScript();
+        fileSystem.WriteAllText($"{Project}/vendor/.gdignore", "");
+        fileSystem.WriteAllText($"{Project}/vendor/lib/boot.gd", "load(\"uid://bxwpwbdv4fm02\")");
+
+        Assert.Empty(UidReferenceScanner.Scan(fileSystem, Project, Addons));
+    }
+
+    [Fact]
+    public void Scan_SiblingOfAGdignoredFolder_IsStillReported()
+    {
+        var fileSystem = WithAddonScript();
+        fileSystem.WriteAllText($"{Project}/vendor/.gdignore", "");
+        fileSystem.WriteAllText($"{Project}/game/boot.gd", "load(\"uid://bxwpwbdv4fm02\")");
+
+        Assert.Equal("game/boot.gd", Assert.Single(UidReferenceScanner.Scan(fileSystem, Project, Addons)).File);
+    }
+
     [Fact]
     public void Scan_NoAddonsDirectory_ReturnsNothing() =>
         Assert.Empty(UidReferenceScanner.Scan(new InMemoryFileSystem(), Project, Addons));
