@@ -31,6 +31,15 @@ public enum GraphWarningKind
     /// the whole project lands under <c>addons/&lt;folder&gt;</c>, the editor finds no plugin there,
     /// and nothing else anywhere says why (<see cref="Doctor.GodotProjectRootChecker"/>).</summary>
     SubtreeIsGodotProject,
+
+    /// <summary>An addon this machine links (SPEC.md §7.4) resolved to a newer commit than the one
+    /// the lockfile names, and was held at the locked one. A link cannot be installed, so nothing
+    /// fetches, extracts or hashes the newer commit — and writing its sha beside the old commit's
+    /// version and content hash produced a lockfile that described two commits at once, which a
+    /// fresh clone then read as a modified addon. Held back is the correct outcome; saying nothing
+    /// about it is not, because "no change" is indistinguishable from "nothing newer upstream" and
+    /// this addon is linked precisely because somebody is changing it.</summary>
+    LinkedAddonHeldBack,
 }
 
 /// <summary>

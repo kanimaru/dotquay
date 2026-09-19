@@ -219,6 +219,27 @@ public sealed class AddonInstaller
     /// the expected content of an upstream release.
     /// </para>
     /// <para>
+    /// Which is why <see cref="LockedAddon.Resolved"/> and <see cref="LockedAddon.Version"/> are
+    /// carried over with it. Between them the three describe one upstream commit — which commit it is,
+    /// what it is called, and what its tree hashes to — and they are only meaningful together.
+    /// Advancing the sha on its own (which <c>update</c> did, because it re-resolves and the resolver
+    /// had found a newer commit) wrote a lockfile whose fields named two different commits: a fresh
+    /// clone installed the new commit's tree, compared it against the old commit's hash, and read an
+    /// addon nobody had touched as <c>modified</c> — on a machine with no link, where this entry is
+    /// the whole of the truth. Nothing on this path fetches, extracts or hashes the new commit, so
+    /// nothing on this path can honestly describe it. Holding all three at the last commit dotquay
+    /// actually installed is what SPEC.md §7.4 means by "the lockfile is untouched", and is the same
+    /// rule <see cref="Workflows.DependencyWorkflow"/> already applies to a linked NuGet package.
+    /// Moving the project onto a newer commit is what <c>link --remove</c> and a real install are
+    /// for; <c>update</c> says so rather than leaving it silent.
+    /// </para>
+    /// <para>
+    /// <see cref="LockedAddon.Path"/> and <see cref="LockedAddon.Folder"/> are pointedly not held
+    /// back. They come from the manifest rather than from the commit, and a link renames like
+    /// anything else (v0.13) — freezing them would leave the lockfile naming the folder the rename
+    /// below has just vacated.
+    /// </para>
+    /// <para>
     /// A link is renameable for exactly the same reasons an installed copy is, and gets the same
     /// treatment: guard the old folder, then retire it. Skipping that left the previous
     /// <c>addons/&lt;folder&gt;</c> in place as a second live link into the same checkout — so the
@@ -271,15 +292,24 @@ public sealed class AddonInstaller
             RetirePreviousFolder(previous!, projectDirectory);
         }
 
+        // Decided as one unit, from one source. Reading each field independently is exactly how they
+        // came to disagree: three separate `previous?.X ?? resolvedY` expressions each look correct
+        // on their own line and together describe two different commits.
+        var lockedSha = previous is not null ? previous.Resolved : resolved.ResolvedSha;
+        var lockedVersion = previous is not null
+            ? previous.Version
+            : resolved.DisplayVersion ?? BuildPseudoVersion(resolved.ResolvedSha);
+        var lockedContentHash = previous?.ContentHash;
+
         return new LockedAddon
         {
             Name = resolved.Name,
             Git = resolved.Git,
-            Resolved = resolved.ResolvedSha,
-            Version = resolved.DisplayVersion ?? previous?.Version ?? BuildPseudoVersion(resolved.ResolvedSha),
+            Resolved = lockedSha,
+            Version = lockedVersion,
             Path = resolved.Path,
             Folder = resolved.InstallAs,
-            ContentHash = previous?.ContentHash,
+            ContentHash = lockedContentHash,
             PatchHash = previous?.PatchHash,
             PatchBaseSha = previous?.PatchBaseSha,
             Dependencies = previous?.Dependencies ?? [],

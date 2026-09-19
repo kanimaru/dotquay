@@ -2499,6 +2499,13 @@ public sealed partial class DependencyWorkflow
         }
 
         var resultByName = new Dictionary<string, LockedAddon>(StringComparer.Ordinal);
+        var warnings = graph.Warnings.ToList();
+
+        // Read once, for the report below rather than for the install — InstallAddonOrThrowAsync
+        // still does its own lookup, so link behaviour stays a property of installing rather than of
+        // having been told about a link here.
+        var declaredLinks = ReadAddonLinksOrThrow(projectDirectory);
+
         var syncedCount = 0;
         foreach (var entry in graph.Addons)
         {
@@ -2533,6 +2540,8 @@ public sealed partial class DependencyWorkflow
                     ? previous!
                     : await InstallAddonOrThrowAsync(entry.Resolved, projectDirectory, previous, force, cancellationToken),
                 entry.DependencyNames);
+
+            ReportIfHeldBackByALink(declaredLinks, addonName, previous, entry.Resolved.ResolvedSha, warnings);
         }
 
         foreach (var orphan in previousAddonsByName.Values.Where(a => !resultByName.ContainsKey(a.Name)))
@@ -2547,7 +2556,66 @@ public sealed partial class DependencyWorkflow
         var adoption = new SourceAdopter(SourceApproval).Evaluate(
             manifest, graph.AddonDeclaredSources.Select(s => (s.AddonName, s.Source)).ToList(), graph.DotnetPackagesByAddon);
 
-        return new GraphSyncResult(resultByName.Values.ToList(), graph.AddonDeclaredDotnet, graph.Warnings, adoption);
+        return new GraphSyncResult(resultByName.Values.ToList(), graph.AddonDeclaredDotnet, warnings, adoption);
+    }
+
+    /// <summary>
+    /// Says so when a linked addon resolved to a newer commit than the lockfile names and was left
+    /// where it was (<see cref="AddonInstaller"/>'s link path holds the commit, its version and its
+    /// content hash together, because it installs none of them).
+    /// </summary>
+    /// <remarks>
+    /// Without this the outcome is correct and completely silent: the entry does not move, so
+    /// <c>update</c> prints the same "unchanged" it prints for an addon that genuinely has nothing
+    /// newer upstream. The two states look identical and mean opposite things, and the addon in
+    /// question is the one somebody is actively working on — so the reading people would take from
+    /// the silence ("upstream has not moved") is exactly the wrong one. It is also the same silence
+    /// this workflow already refuses to accept for a .NET link whose overlay has stopped being
+    /// imported.
+    /// </remarks>
+    private static void ReportIfHeldBackByALink(
+        IReadOnlyDictionary<string, LocalLink> declaredLinks,
+        string addonName,
+        LockedAddon? previous,
+        string resolvedSha,
+        List<GraphWarning> warnings)
+    {
+        // No previous entry means nothing was held back: the link path locked the commit it was
+        // given, because there was no earlier one to keep.
+        if (previous is null
+            || !declaredLinks.TryGetValue(addonName, out var link)
+            || string.Equals(previous.Resolved, resolvedSha, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        warnings.Add(new GraphWarning(
+            addonName,
+            GraphWarningKind.LinkedAddonHeldBack,
+            $"'{addonName}' is linked to {link.Path}, so the lockfile stays at "
+            + $"{ShortSha(previous.Resolved)} even though it resolves to {ShortSha(resolvedSha)} "
+            + "upstream. A link is not installed, so its version and content hash cannot be written "
+            + "for the newer commit, and moving the commit alone would leave a fresh clone installing "
+            + $"content the lockfile does not describe. Run 'dotquay link {addonName} --remove' and "
+            + "update again to move the project onto it for real."));
+    }
+
+    /// <summary>Reads this machine's addon links, reporting an unreadable
+    /// <c>dotquay.local.toml</c> as a workflow failure.</summary>
+    /// <remarks>
+    /// The same translation <see cref="InstallAddonOrThrowAsync"/> performs, in one place, so the
+    /// two cannot end up disagreeing about whether a broken local file stops the run.
+    /// </remarks>
+    private IReadOnlyDictionary<string, LocalLink> ReadAddonLinksOrThrow(string projectDirectory)
+    {
+        try
+        {
+            return _localLinks.Read(projectDirectory);
+        }
+        catch (LocalLinkException ex)
+        {
+            throw new WorkflowException(ex.Message, ex);
+        }
     }
 
     /// <summary>

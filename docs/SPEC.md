@@ -545,6 +545,15 @@ checkout, so an edit is live on Godot's next reload with no dotquay command at a
   this machine straight back on what the lockfile always said. `content_hash` is deliberately not
   recomputed: hashing a live working copy would record in-progress edits as the expected content of
   a release.
+- **`update` holds the whole entry, not just the hash.** `resolved`, `version` and `content_hash`
+  describe one commit between them, and a link installs none of it — so `update` re-resolves a linked
+  addon, sees the newer commit, and leaves all three exactly where they were. Advancing the sha alone,
+  which it used to do, produced a committed lockfile naming two commits at once: a fresh clone
+  installed the newer commit's tree, compared it against the older commit's hash, and reported an
+  addon nobody had touched as `modified` — on a machine with no link, where that entry is the whole
+  of the truth. Being held back is reported as a warning rather than passed off as "unchanged", since
+  the two are indistinguishable on screen and mean opposite things. Moving the project onto the newer
+  commit is `dotquay link <name> --remove`, then `update`, then link again.
 - **A linked addon reports `linked`**, its own status, not `clean` or `modified`. Its contents are a
   working copy and will never match the lockfile; without this every linked addon would sit
   permanently in a state that reads like a problem, and the dirty check would refuse to touch it.

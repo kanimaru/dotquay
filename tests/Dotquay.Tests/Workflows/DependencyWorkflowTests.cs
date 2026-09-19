@@ -1534,6 +1534,54 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
+    public async Task UpdateAsync_LinkedAddonWithANewerUpstream_LeavesTheEntryWholeAndSaysSo()
+    {
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v2.43.0"); // locks the manifest to the "~2.43" constraint
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+
+        var before = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock")).Addons.Single();
+
+        // Link it to a checkout on this machine, then let upstream move on — the state the whole
+        // feature exists for, and the one in which `update` used to damage the lockfile.
+        fileSystem.WriteAllText("dev/dialogue_manager/plugin.cfg", "cfg");
+        fileSystem.WriteAllText(
+            $"{ProjectDir}/dotquay.local.toml", "[link.dialogue_manager]\npath = \"dev/dialogue_manager\"\n");
+        SetTags(gitClient, "v2.43.0", "v2.43.1");
+
+        var results = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        var after = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock")).Addons.Single();
+        Assert.Equal(before.Resolved, after.Resolved);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.ContentHash, after.ContentHash);
+
+        // Holding it back is right; doing so in silence is not. Without this the run is
+        // indistinguishable from one where upstream had nothing newer, which is the opposite of
+        // what happened and the one conclusion nobody should draw about an addon they are editing.
+        var warning = Assert.Single(results.Warnings, w => w.Contains("is linked to"));
+        Assert.Contains("dotquay link dialogue_manager --remove", warning);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LinkedAddonAlreadyAtTheResolvedCommit_SaysNothing()
+    {
+        var (workflow, fileSystem, gitClient) = Build();
+        SetTags(gitClient, "v2.43.0");
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+
+        fileSystem.WriteAllText("dev/dialogue_manager/plugin.cfg", "cfg");
+        fileSystem.WriteAllText(
+            $"{ProjectDir}/dotquay.local.toml", "[link.dialogue_manager]\npath = \"dev/dialogue_manager\"\n");
+
+        var results = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        // A warning on every update of every linked addon, whether or not anything was actually held
+        // back, is noise people learn to scroll past — and then miss the one that meant something.
+        Assert.DoesNotContain(results.Warnings, w => w.Contains("is linked to"));
+    }
+
+    [Fact]
     public async Task DoctorAsync_LinkedAddonWithDifferentPluginCfgVersion_SkipsPluginCfgDriftCheck()
     {
         // Regression test: a linked addon's plugin.cfg is the developer's own live working copy, and

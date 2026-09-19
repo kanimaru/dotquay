@@ -199,6 +199,111 @@ public class LocalLinkTests
     }
 
     // -----------------------------------------------------------------------------------------
+    // Updating through a link: the commit, its version and its hash move together or not at all
+    // -----------------------------------------------------------------------------------------
+
+    private static string NewerSha => new('b', 40);
+
+    /// <summary>The same addon resolved to a later commit — what an `update` that re-resolved a
+    /// moved-on upstream hands the installer.</summary>
+    private static ResolvedAddon ResolvedNewer() =>
+        new("my-addon", RepoUrl, NewerSha, DisplayVersion: "2.0.0", Path: ".");
+
+    private static ResolvedAddon RenamedNewer(string installAs) =>
+        new("my-addon", RepoUrl, NewerSha, DisplayVersion: "2.0.0", Path: ".", InstallAs: installAs);
+
+    /// <summary>Installs for real and then links — how an addon normally comes to be linked, and the
+    /// only way its lockfile entry ends up carrying a content hash there is to go stale.</summary>
+    private static async Task<(LockedAddon Installed, LockedAddon Linked)> InstalledThenLinkedAsync(AddonInstaller installer)
+    {
+        var installed = await installer.InstallAsync(
+            Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
+
+        var linked = await installer.InstallAsync(
+            Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), installed, force: false,
+            new LocalLink("my-addon", SourceDirectory));
+
+        return (installed, linked);
+    }
+
+    [Fact]
+    public async Task InstallAsync_UpdatingThroughALink_HoldsTheCommitVersionAndHashTogether()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var (_, linked) = await InstalledThenLinkedAsync(installer);
+
+        var afterUpdate = await installer.InstallAsync(
+            ResolvedNewer(), ProjectLayout.WithoutPatches(ProjectDirectory), linked, force: false,
+            new LocalLink("my-addon", SourceDirectory));
+
+        // Regression test. This path used to write the newly-resolved sha while leaving version and
+        // content_hash describing the commit before it, so the committed lockfile named two commits
+        // at once: a fresh clone installed the newer one's tree, compared it against the older one's
+        // hash, and reported an addon nobody had touched as modified. The link path installs
+        // nothing, so it can honestly describe no commit but the one already locked.
+        Assert.Equal(linked.Resolved, afterUpdate.Resolved);
+        Assert.Equal(linked.Version, afterUpdate.Version);
+        Assert.Equal(linked.ContentHash, afterUpdate.ContentHash);
+    }
+
+    [Fact]
+    public async Task InstallAsync_UpdatingThroughALink_KeepsAHashThatBelongsToTheCommitItNames()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var (installed, linked) = await InstalledThenLinkedAsync(installer);
+
+        var afterUpdate = await installer.InstallAsync(
+            ResolvedNewer(), ProjectLayout.WithoutPatches(ProjectDirectory), linked, force: false,
+            new LocalLink("my-addon", SourceDirectory));
+
+        // The single property the whole fix exists for, stated directly: the hash the entry carries
+        // is the hash of the commit the entry names — here, the one the real install above measured.
+        Assert.Equal(installed.Resolved, afterUpdate.Resolved);
+        Assert.Equal(installed.ContentHash, afterUpdate.ContentHash);
+        Assert.NotNull(afterUpdate.ContentHash);
+    }
+
+    [Fact]
+    public async Task InstallAsync_LinkingSomethingNeverLockedBefore_StillRecordsTheResolvedCommit()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+
+        var locked = await installer.InstallAsync(
+            ResolvedNewer(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false,
+            new LocalLink("my-addon", SourceDirectory));
+
+        // Nothing is being held back when there is no earlier entry to hold. The resolved commit is
+        // the only thing these fields can say, and an entry naming no commit at all would leave
+        // everyone without the link with no addon.
+        Assert.Equal(NewerSha, locked.Resolved);
+        Assert.Equal("2.0.0", locked.Version);
+        Assert.Null(locked.ContentHash);
+    }
+
+    [Fact]
+    public async Task InstallAsync_RenamingALinkWhoseUpstreamHasMoved_StillMovesTheFolder()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var installer = BuildInstaller(fileSystem);
+        var (_, linked) = await InstalledThenLinkedAsync(installer);
+
+        var renamed = await installer.InstallAsync(
+            RenamedNewer("My-Addon-Folder"), ProjectLayout.WithoutPatches(ProjectDirectory), linked, force: false,
+            new LocalLink("my-addon", SourceDirectory));
+
+        // Holding the commit must not hold the folder with it: install_as comes from the manifest,
+        // not from the commit, and the link really has moved. A lockfile still naming the vacated
+        // folder would aim every later dirty check, prune and remove at nothing.
+        Assert.Equal("My-Addon-Folder", renamed.Folder);
+        Assert.True(fileSystem.IsDirectoryLink(fileSystem.CombinePath(ProjectDirectory, "addons", "My-Addon-Folder")));
+        Assert.False(fileSystem.DirectoryExists(InstalledPath(fileSystem)));
+        Assert.Equal(linked.Resolved, renamed.Resolved);
+    }
+
+    // -----------------------------------------------------------------------------------------
     // v0.16: a junction is a claim, and it has to agree with the declaration before anything writes
     // -----------------------------------------------------------------------------------------
 
