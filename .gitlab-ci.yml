@@ -75,6 +75,23 @@ variables:
     - .nuget/packages/
 
 # ---------------------------------------------------------------------------
+# shippable-changes — what makes a commit on the default branch a release
+# ---------------------------------------------------------------------------
+# One list, shared by auto-tag and by everything downstream of it. It used to live only on
+# auto-tag, which left the release chain saying merely "on the default branch" — so a push that
+# changed nothing shippable skipped auto-tag (correctly) while keeping release:auto, whose
+# `needs: auto-tag` is not optional. GitLab then refused to create the pipeline at all:
+# "'release:auto' job needs 'auto-tag' job, but 'auto-tag' does not exist in the pipeline."
+# The CI-only push in 9c3e5ab is what surfaced it; every earlier push to this branch happened to
+# carry a src change alongside. The trigger condition for a release has to be written once and
+# used by the whole chain, or the chain disagrees with itself about what a release is.
+#
+# Deliberately NOT including .gitlab-ci.yml or docs/: editing the pipeline is not shipping a new
+# dotquay, and including it would mean every CI tweak burns a version number.
+.shippable-changes: &shippable-changes
+  - src/**/*
+
+# ---------------------------------------------------------------------------
 # git-push-auth — make a push authenticate as $VERSION_BUMP_TOKEN
 # ---------------------------------------------------------------------------
 # Used immediately before every push in this file, and only ever after a fetch that still needs
@@ -170,8 +187,7 @@ auto-tag:
     entrypoint: [""]
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - src/**/*
+      changes: *shippable-changes
   # No `needs:`, so stage ordering gates this job — `test` must pass first. This is deliberately
   # NOT `needs: []`, which would detach the job from stage ordering entirely and start it
   # immediately, in parallel with the tests it is supposed to be gated on.
@@ -404,6 +420,7 @@ smoke:linux-x64:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *shippable-changes
 
 upload:linux-x64:
   extends: .upload
@@ -552,6 +569,7 @@ release:auto:
       artifacts: false
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *shippable-changes
   variables:
     RELEASE_FOR: $RELEASE_TAG
   release:
