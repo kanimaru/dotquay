@@ -106,8 +106,19 @@ variables:
   fi
 
   git config --local --unset-all credential.helper || true
-  git config --local --name-only --get-regexp '^http\..*\.extraheader$' \
-    | while read -r key; do git config --local --unset-all "$key" || true; done
+
+  # Deliberately not `get-regexp | while read`: `git config --get-regexp` exits 1 when nothing
+  # matches, the runner's generated script turns on `pipefail`, and this script runs under
+  # `set -e` — so on a clone carrying no extraheader at all, "nothing to clear" became the
+  # job's exit status and auto-tag died in 108ms having printed nothing (job 5322). Command
+  # substitution with `|| true` keeps the empty case from being a failure. vbeami's copy of
+  # this fragment survives the same line only because its script never sets `set -e`.
+  EXTRA_HEADERS=$(git config --local --name-only --get-regexp '^http\..*\.extraheader$' || true)
+  for key in $EXTRA_HEADERS; do
+    git config --local --unset-all "$key" || true
+  done
+
+  echo "push auth: cleared the runner's inherited git credentials"
 
   CRED_FILE="$CI_PROJECT_DIR/.git-credentials-ci"
   trap 'rm -f "$CRED_FILE"' EXIT
