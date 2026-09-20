@@ -74,6 +74,46 @@ variables:
   paths:
     - .nuget/packages/
 
+# ---------------------------------------------------------------------------
+# git-push-auth — make a push authenticate as $VERSION_BUMP_TOKEN
+# ---------------------------------------------------------------------------
+# Used immediately before every push in this file, and only ever after a fetch that still needs
+# the runner's own credentials.
+#
+# GitLab Runner 15 embedded the job token in origin's URL, so a push to an explicitly written URL
+# matched no credential config in .git/config and fell through to the helper set up here. Runner
+# 19 moved that credential out of the URL and into host-keyed git config
+# (`http.<CI_SERVER_URL>.extraheader`, and/or a `credential.helper` of the runner's own), which
+# DOES match the push URL below — so the job token wins, git never consults this helper, and the
+# push dies with "You are not allowed to push code to this project." (a job token genuinely
+# cannot push code). That is what broke every pipeline on this instance after the 15 -> 19
+# upgrade, with no change to this file at all — vbeami's identical job broke the same day and
+# carries the same fix (commit 2abe31e). Clearing the inherited config first is what makes the
+# PAT win again, and keeps working whichever mechanism the next runner version picks.
+#
+# The token reaches git through a 0600 credential file rather than the remote URL. A credential
+# embedded in the URL is copied into .git/config and echoed back verbatim in any push error
+# message, which is how a masked variable ends up unmasked in a job log. dotquay's own SPEC §11.2
+# rejects URL-embedded credentials for exactly that reason; this is the CI side of the same rule.
+# Variable masking is still the first line of defence — this is the second.
+.git-push-auth: &git-push-auth |
+  # `:-` because the surrounding script runs under `set -u`: an undefined variable would
+  # otherwise abort with "unbound variable" instead of this message, which is exactly the case
+  # this guard exists to name.
+  if [ -z "${VERSION_BUMP_TOKEN:-}" ]; then
+    echo "VERSION_BUMP_TOKEN is empty - is the variable protected while this ref is not?" >&2
+    exit 1
+  fi
+
+  git config --local --unset-all credential.helper || true
+  git config --local --name-only --get-regexp '^http\..*\.extraheader$' \
+    | while read -r key; do git config --local --unset-all "$key" || true; done
+
+  CRED_FILE="$CI_PROJECT_DIR/.git-credentials-ci"
+  trap 'rm -f "$CRED_FILE"' EXIT
+  (umask 077 && printf 'https://%s:%s@%s\n' "dotquay-ci" "$VERSION_BUMP_TOKEN" "$CI_SERVER_HOST" > "$CRED_FILE")
+  git config --local credential.helper "store --file=$CRED_FILE"
+
 # Runs once, ahead of both platform-specific publish jobs below — the whole point of Dotquay.Tests
 # is that it never touches a real filesystem/network/git/dotnet process (fakes only, see
 # docs/SPRINT-01.md), so its result doesn't depend on which OS it runs on and only needs to happen
@@ -132,7 +172,12 @@ auto-tag:
     - |
       set -eu
 
-      git fetch origin --tags --quiet
+      # --prune --prune-tags because the docker executor reuses its build volume between jobs:
+      # `git init` and `git clean` both preserve refs, so a tag created by a run whose push then
+      # FAILED survives into the next run and becomes the baseline the next version is bumped off.
+      # In vbeami three failed releases drifted the next version two patches past anything that
+      # ever existed on the remote, exactly that way.
+      git fetch origin --tags --prune --prune-tags --quiet
 
       LATEST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
       if [ -z "$LATEST_TAG" ]; then LATEST_TAG="v0.0.0"; fi
@@ -158,18 +203,8 @@ auto-tag:
 
       echo "RELEASE_VERSION=$NEXT" >> release.env
       echo "RELEASE_TAG=$NEW_TAG" >> release.env
-
-      # The token reaches git through a 0600 credential file rather than the remote URL. A
-      # credential embedded in the URL is copied into .git/config and echoed back verbatim in any
-      # push error message, which is how a masked variable ends up unmasked in a job log. dotquay's
-      # own SPEC §11.2 rejects URL-embedded credentials for exactly that reason; this is the CI
-      # side of the same rule. Variable masking is still the first line of defence — this is the
-      # second.
-      CRED_FILE="$CI_PROJECT_DIR/.git-credentials-ci"
-      trap 'rm -f "$CRED_FILE"' EXIT
-      (umask 077 && printf 'https://%s:%s@%s\n' "dotquay-ci" "$VERSION_BUMP_TOKEN" "$CI_SERVER_HOST" > "$CRED_FILE")
-      git config credential.helper "store --file=$CRED_FILE"
-
+    - *git-push-auth
+    - |
       git tag "$NEW_TAG" "$CI_COMMIT_SHA"
 
       # `-o ci.skip` is load-bearing: without it, pushing a tag spawns a *second*, independent
