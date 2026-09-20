@@ -391,6 +391,19 @@ smoke:linux-x64:
       echo "$OUT" | grep -q '"command":"doctor"' \
         || { echo "FAIL: doctor --json emitted no envelope"; exit 1; }
 
+      # `ok` and `healthy` answer different questions, and the editor plugin depends on the
+      # difference: `ok` is false exactly when the envelope carries an `error` (JsonEnvelope.cs),
+      # while an unhealthy project is *data* — issues are a finding, not a crash. Only the exit code
+      # says "something is wrong", which is why this call needs the `|| true` above. The invariant is
+      # documented in three places (JsonEnvelope.cs, DoctorCommand.cs, DotquayDoctorTool.cs) and
+      # until now was asserted in none: DependencyWorkflowTests covers IsHealthy thoroughly, but
+      # nothing covered the shape that actually reaches the plugin. This job is the right place for
+      # it — a real AOT binary in a guaranteed-unhealthy state, since the image has no git.
+      echo "$OUT" | grep -q '"ok":true' \
+        || { echo "FAIL: doctor --json reported the command itself as failed"; exit 1; }
+      echo "$OUT" | grep -q '"healthy":false' \
+        || { echo "FAIL: doctor --json did not report the unhealthy project"; exit 1; }
+
       echo "--- 'self check' answers with an envelope rather than a stack trace"
       # The release channel is a private project and this job holds no credential for it, so the
       # expected outcome is an auth failure - and that is still the assertion worth making. An
