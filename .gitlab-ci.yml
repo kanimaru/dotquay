@@ -272,7 +272,12 @@ build:linux-x64:
   script:
     - |
       set -eu
-      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      # `:-` on the tag: GitLab defines CI_COMMIT_TAG only on tag pipelines, and this script runs
+      # under `set -u`, so a branch pipeline otherwise dies with "CI_COMMIT_TAG: unbound variable"
+      # before the first line of real work. Strip the leading v as a separate step, because
+      # ${CI_COMMIT_TAG:-} and ${CI_COMMIT_TAG#v} cannot be spelled in one expansion.
+      PKG_VERSION="${CI_COMMIT_TAG:-}"
+      PKG_VERSION="${PKG_VERSION#v}"
       PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-0.0.0-ci-$CI_COMMIT_SHORT_SHA}}"
       echo "building dotquay $PKG_VERSION"
       dotnet publish src/Dotquay.Cli -c Release -r linux-x64 --self-contained -p:PublishAot=true -p:Version="$PKG_VERSION" -o publish/linux-x64
@@ -297,7 +302,12 @@ build:windows-x64:
   script:
     - |
       set -eu
-      PKG_VERSION="${CI_COMMIT_TAG#v}"
+      # `:-` on the tag: GitLab defines CI_COMMIT_TAG only on tag pipelines, and this script runs
+      # under `set -u`, so a branch pipeline otherwise dies with "CI_COMMIT_TAG: unbound variable"
+      # before the first line of real work. Strip the leading v as a separate step, because
+      # ${CI_COMMIT_TAG:-} and ${CI_COMMIT_TAG#v} cannot be spelled in one expansion.
+      PKG_VERSION="${CI_COMMIT_TAG:-}"
+      PKG_VERSION="${PKG_VERSION#v}"
       PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-0.0.0-ci-$CI_COMMIT_SHORT_SHA}}"
       echo "building dotquay $PKG_VERSION"
       # PublishAot explicitly disabled here -- see the file header. Still self-contained + trimmed +
@@ -435,8 +445,12 @@ upload:linux-x64:
   script:
     - |
       set -eu
-      PKG_VERSION="${CI_COMMIT_TAG#v}"
-      PKG_VERSION="${PKG_VERSION:-$RELEASE_VERSION}"
+      # `:-` on both, under `set -u`: CI_COMMIT_TAG exists only on tag pipelines and
+      # RELEASE_VERSION only when auto-tag ran. The guard below is what turns "neither" into a
+      # sentence; without the defaults it would never be reached.
+      PKG_VERSION="${CI_COMMIT_TAG:-}"
+      PKG_VERSION="${PKG_VERSION#v}"
+      PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-}}"
       test -n "$PKG_VERSION" || { echo "FAIL: no version to release" >&2; exit 1; }
       echo "uploading dotquay $PKG_VERSION (linux-x64)"
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/linux-x64/dotquay \
@@ -453,8 +467,12 @@ upload:windows-x64:
   script:
     - |
       set -eu
-      PKG_VERSION="${CI_COMMIT_TAG#v}"
-      PKG_VERSION="${PKG_VERSION:-$RELEASE_VERSION}"
+      # `:-` on both, under `set -u`: CI_COMMIT_TAG exists only on tag pipelines and
+      # RELEASE_VERSION only when auto-tag ran. The guard below is what turns "neither" into a
+      # sentence; without the defaults it would never be reached.
+      PKG_VERSION="${CI_COMMIT_TAG:-}"
+      PKG_VERSION="${PKG_VERSION#v}"
+      PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-}}"
       test -n "$PKG_VERSION" || { echo "FAIL: no version to release" >&2; exit 1; }
       echo "uploading dotquay $PKG_VERSION (windows-x64)"
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file publish/win-x64/dotquay.exe \
@@ -488,8 +506,12 @@ upload:manifest:
   script:
     - |
       set -eu
-      PKG_VERSION="${CI_COMMIT_TAG#v}"
-      PKG_VERSION="${PKG_VERSION:-$RELEASE_VERSION}"
+      # `:-` on both, under `set -u`: CI_COMMIT_TAG exists only on tag pipelines and
+      # RELEASE_VERSION only when auto-tag ran. The guard below is what turns "neither" into a
+      # sentence; without the defaults it would never be reached.
+      PKG_VERSION="${CI_COMMIT_TAG:-}"
+      PKG_VERSION="${PKG_VERSION#v}"
+      PKG_VERSION="${PKG_VERSION:-${RELEASE_VERSION:-}}"
       test -n "$PKG_VERSION" || { echo "FAIL: no version to describe" >&2; exit 1; }
 
       BASE="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PKG_VERSION}"
