@@ -330,6 +330,52 @@ Reported, never corrected. §7.1.1's folder-case correction is allowed to act be
 changes nothing about *what* is installed; swapping `path = "."` for `addons/vrm` changes identity
 and content, and would have to guess between plugins whenever a project ships more than one.
 
+### 7.1.4 A guessed subtree is offered, never assumed (v0.20)
+
+`add <git-url>` derives the addon's name from the URL's last segment and guesses its subtree as
+`addons/<name>`. §7.1.1 repairs that guess's capitalisation and deliberately nothing else, which
+leaves the commonest disagreement in the Godot ecosystem uncovered: a PascalCase repository name over
+a snake_case addon folder. `SproutyLabs/SproutyDialogs` holds `addons/sprouty_dialogs`, so the case
+correction declines — correctly, by its own contract — and the user gets
+`Configured path 'addons/SproutyDialogs' does not exist in the fetched repository`, which names the
+path that didn't work and nothing about the one that would have.
+
+`add` now probes the fetched repository before anything is written and offers what it finds
+(`SubtreeCandidates`, `Sync/`). Two rules, both narrow:
+
+- **The same words in a different convention.** Both names reduced to their letters and digits,
+  lowercased: `SproutyDialogs` ≡ `sprouty_dialogs` ≡ `sprouty-dialogs`.
+- **The only addon in the repository.** Exactly one directory holding a `plugin.cfg` — searched at
+  `addons/*`, then the repository root itself (for which the fix is the `path = "."` OQ-2 already
+  requires to be stated), then `*/addons/*` one level down for a repository whose Godot project lives
+  in a subfolder.
+
+Deliberately *not* matched: a dropped leading or trailing word (`godot_dialogue_manager` →
+`dialogue_manager`), because the same rule matches `core` against `vbeami_core`, which is a different
+addon rather than the same one spelled differently; and anything fuzzy, because a suggestion that is
+merely near is one whose confirmation prompt cannot be honest about what it found. Two or more
+candidates under either rule means no suggestion at all: the message lists them.
+
+Nothing is adopted without an answer. `ISubtreeChoice` is a seam like `ISourceApproval` (§11.3) and
+defaults to refusing; the CLI implements it as a `[Y/n]` prompt for an interactive non-`--json` run,
+and everything that cannot ask a human — CI, `--json`, the editor plugin — refuses and gets the exact
+`--path`/`--install-as` flags in the error instead. An accepted suggestion sets **both** `path` and
+`install_as` in `[addons.<name>]`: the addon's own `res://addons/<folder>/` references are
+case- and word-sensitive strings (§7.1.1), so accepting the subtree without the folder reproduces the
+Gut bug in full. The manifest key is untouched — this corrects layout, never identity.
+
+Two-phase for the plugin, like feed adoption: `add --preview --json` resolves the graph *as if* the
+suggestion were accepted and reports it as `subtree` (with `guessed_path`, `path`, `folder`, a fixed
+`reason` of `name_shape` or `only_addon`, and an `explanation` sentence) plus the mirror boolean
+`needs_subtree_confirmation`, and the preview exits 2 as it does for a feed needing approval. There
+is no pre-approved seam: confirming means passing `--path`/`--install-as`, which is what the user
+agreed to, and an explicitly stated `path` is never probed.
+
+`install` is untouched — it replays a lockfile, which already records the answer. A transitive
+addon's `path` is not guessed either: it comes from someone else's package manifest, so
+`SubtreeExtractor`'s "does not exist in the fetched repository" error gains the candidate list and an
+`override --path` line, and that is the whole change on that path (same split as §7.1.3).
+
 ### 7.3.1 The editor writes into the folders dotquay manages (v0.9)
 
 Godot generates files *inside* `addons/<name>/`, which puts it in direct conflict with P0-6's "the
