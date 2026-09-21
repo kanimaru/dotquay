@@ -25,6 +25,22 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     // still ships as the default for .bat launches and a lot of CI images.
     private static readonly char[] Frames = ['|', '/', '-', '\\'];
 
+    private static readonly TimeSpan RedrawInterval = TimeSpan.FromMilliseconds(120);
+
+    /// <summary>
+    /// The reporter currently drawing, if any.
+    /// </summary>
+    /// <remarks>
+    /// Static because the thing it guards is static: there is one terminal, and whoever writes to it
+    /// next has to know whether a spinner is sitting on the current line. Threading a reporter
+    /// through to every prompt would model this as if several could be drawing at once, which no
+    /// arrangement of this CLI produces — one command runs, with one reporter, and the prompts it may
+    /// raise are nested inside that.
+    /// </remarks>
+    private static ConsoleProgressReporter? _active;
+
+    private static readonly Lock ActiveGate = new();
+
     private readonly Timer _timer;
     private readonly Lock _gate = new();
 
@@ -33,16 +49,55 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     private int _frame;
     private int _lastRenderedWidth;
     private bool _disposed;
+    private bool _suspended;
 
-    private ConsoleProgressReporter()
+    private ConsoleProgressReporter(TimeSpan interval)
     {
-        _timer = new Timer(_ => Tick(), null, TimeSpan.FromMilliseconds(120), TimeSpan.FromMilliseconds(120));
+        _timer = new Timer(_ => Tick(), null, interval, interval);
+
+        lock (ActiveGate)
+        {
+            _active = this;
+        }
     }
 
     /// <summary>Returns a live reporter, or the null one when nothing should be drawn.</summary>
     public static IProgressReporter Create(bool json)
     {
-        return ShouldDraw(json) ? new ConsoleProgressReporter() : NullProgressReporter.Instance;
+        return ShouldDraw(json) ? new ConsoleProgressReporter(RedrawInterval) : NullProgressReporter.Instance;
+    }
+
+    /// <summary>A reporter that only ever draws when told to, for tests that drive it a frame at a
+    /// time against a substituted <see cref="Console.Error"/> instead of a real terminal.</summary>
+    internal static ConsoleProgressReporter CreateForTests() => new(Timeout.InfiniteTimeSpan);
+
+    /// <summary>
+    /// Clears the spinner and keeps it off the screen for as long as the returned scope lives — for
+    /// anything that needs the terminal to itself, which in practice means asking the user a
+    /// question.
+    /// </summary>
+    /// <remarks>
+    /// Found the hard way (v0.20): a prompt raised mid-resolve was printed straight onto the line the
+    /// spinner owned, so the question arrived as
+    /// <c>| checking where 'SproutyDialogs' lives in its repository'SproutyDialogs' isn't at …</c> and
+    /// the spinner carried on repainting over it while the user was reading. A question the user
+    /// cannot read is a question they answer by guessing.
+    /// <para>
+    /// A no-op when nothing is drawing (<c>--json</c>, CI, redirected stderr) and when a scope is
+    /// already open, so a caller never has to ask whether there is a spinner to pause — which is what
+    /// lets every prompt open one unconditionally.
+    /// </para>
+    /// </remarks>
+    public static IDisposable Pause()
+    {
+        ConsoleProgressReporter? active;
+
+        lock (ActiveGate)
+        {
+            active = _active;
+        }
+
+        return active?.Suspend() ?? NullScope.Instance;
     }
 
     private static bool ShouldDraw(bool json)
@@ -80,7 +135,9 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
         }
 
         // Redraw immediately so a new step appears the instant it starts, rather than up to one
-        // timer tick later.
+        // timer tick later. Suspended, this still records the step — it just doesn't draw it, so the
+        // spinner resumes on whatever is current rather than on whatever was current when the
+        // question was asked.
         Tick();
     }
 
@@ -88,7 +145,7 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     {
         lock (_gate)
         {
-            if (_disposed || _message.Length == 0)
+            if (_disposed || _suspended || _message.Length == 0)
             {
                 return;
             }
@@ -106,6 +163,52 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
 
             Write(text.PadRight(_lastRenderedWidth));
             _lastRenderedWidth = text.Length;
+        }
+    }
+
+    private IDisposable Suspend()
+    {
+        lock (_gate)
+        {
+            // Already quiet, for either reason. Handing back a real scope would let the inner `using`
+            // resume drawing while the outer one still needs the terminal.
+            if (_disposed || _suspended)
+            {
+                return NullScope.Instance;
+            }
+
+            _suspended = true;
+            ClearLine();
+        }
+
+        return new Resumption(this);
+    }
+
+    private void Resume()
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _suspended = false;
+        }
+
+        // Straight away, not at the next tick: the work carried on while the question was being
+        // answered, and a second of apparent silence after pressing Enter reads as a hang.
+        Tick();
+    }
+
+    /// <summary>Wipes the spinner's line and forgets it was ever there.</summary>
+    /// <remarks>Callers hold <see cref="_gate"/>.</remarks>
+    private void ClearLine()
+    {
+        if (_lastRenderedWidth > 0)
+        {
+            Console.Error.Write("\r" + new string(' ', _lastRenderedWidth) + "\r");
+            _lastRenderedWidth = 0;
         }
     }
 
@@ -138,11 +241,44 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
 
             _disposed = true;
             _timer.Dispose();
+            ClearLine();
+        }
 
-            if (_lastRenderedWidth > 0)
+        lock (ActiveGate)
+        {
+            // Only if it is still this one: a second command in the same process has already taken
+            // over, and clearing unconditionally would leave its prompts unable to find it.
+            if (ReferenceEquals(_active, this))
             {
-                Console.Error.Write("\r" + new string(' ', _lastRenderedWidth) + "\r");
+                _active = null;
             }
+        }
+    }
+
+    /// <summary>The open half of a <see cref="Pause"/>.</summary>
+    private sealed class Resumption(ConsoleProgressReporter reporter) : IDisposable
+    {
+        private bool _resumed;
+
+        public void Dispose()
+        {
+            if (_resumed)
+            {
+                return;
+            }
+
+            _resumed = true;
+            reporter.Resume();
+        }
+    }
+
+    /// <summary>What <see cref="Pause"/> hands back when there is nothing to pause.</summary>
+    private sealed class NullScope : IDisposable
+    {
+        public static readonly NullScope Instance = new();
+
+        public void Dispose()
+        {
         }
     }
 }

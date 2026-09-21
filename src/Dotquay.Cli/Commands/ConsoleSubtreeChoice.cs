@@ -20,6 +20,11 @@ internal sealed class ConsoleSubtreeChoice : ISubtreeChoice
 
     public bool Accept(SubtreeChoiceRequest request)
     {
+        // This question is raised in the middle of a resolve, so the spinner is mid-line and still
+        // repainting. Without this the first line lands on the spinner's own row and the frames keep
+        // overwriting the question while the user reads it.
+        using var quiet = ConsoleProgressReporter.Pause();
+
         ConsoleOutput.WriteLine(
             ConsoleColor.Yellow,
             $"'{request.AddonName}' isn't at {request.Finding.GuessedPath} in its repository.");

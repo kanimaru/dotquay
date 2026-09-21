@@ -26,6 +26,10 @@ internal sealed class ConsoleGeneratorAssetDecision : IGeneratorAssetDecision
 
     public bool KeepPrivate(GeneratorAssetRequest request)
     {
+        // The spinner is mid-line and still repainting when this is raised, so it has to be stood
+        // down before the question is written — see ConsoleProgressReporter.Pause.
+        using var quiet = ConsoleProgressReporter.Pause();
+
         ConsoleOutput.WriteLine(
             ConsoleColor.Yellow,
             $"{request.PackageId} {request.Version} is a source generator - it ships compiler plugins "

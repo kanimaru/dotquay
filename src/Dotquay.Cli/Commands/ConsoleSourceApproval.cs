@@ -19,6 +19,12 @@ internal sealed class ConsoleSourceApproval : ISourceApproval
 
     public bool Approve(SourceAdoptionRequest request)
     {
+        // Raised mid-resolve, with the spinner sitting on the current line and still repainting.
+        // Without this the question is written onto the spinner's row and then scribbled over while
+        // the user reads it — which, for a question about trusting somebody else's feed, is the
+        // worst one to make hard to read.
+        using var quiet = ConsoleProgressReporter.Pause();
+
         ConsoleOutput.WriteLine(
             ConsoleColor.Yellow,
             $"Addon '{request.AddonName}' wants to add a NuGet source:");
