@@ -12,11 +12,13 @@ internal static class WorkflowFactory
 {
     public static DependencyWorkflow Create(
         ISourceApproval? sourceApproval = null,
-        IGeneratorAssetDecision? generatorAssetDecision = null) =>
+        IGeneratorAssetDecision? generatorAssetDecision = null,
+        ISubtreeChoice? subtreeChoice = null) =>
         new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root())
         {
             SourceApproval = sourceApproval ?? DenyAllSourceApproval.Instance,
             GeneratorAssetDecision = generatorAssetDecision ?? ShareGeneratorDecision.Instance,
+            SubtreeChoice = subtreeChoice ?? DeclineSubtreeChoice.Instance,
         };
 
     /// <summary>
@@ -42,11 +44,15 @@ internal static class WorkflowFactory
     /// leaves it at <see cref="ShareGeneratorDecision"/>, the pre-v0.14 behaviour, which is what every
     /// command other than <c>add</c> wants: nothing else resolves a package for the first time, so
     /// nothing else has a decision to make.</param>
+    /// <param name="subtreeChoice">Who confirms a guessed subtree (v0.20). Null leaves it at
+    /// <see cref="DeclineSubtreeChoice"/>, which is what every command other than a real <c>add</c>
+    /// wants: nothing else derives a subtree from a URL, so nothing else has a guess to confirm.</param>
     public static (DependencyWorkflow Workflow, IDisposable Progress) CreateWithProgress(
         bool json,
         bool allowSourceAdoption = false,
         IReadOnlyList<string>? preApprovedSourceUrls = null,
-        IGeneratorAssetDecision? generatorAssetDecision = null)
+        IGeneratorAssetDecision? generatorAssetDecision = null,
+        ISubtreeChoice? subtreeChoice = null)
     {
         var reporter = ConsoleProgressReporter.Create(json);
         var approval = allowSourceAdoption
@@ -54,7 +60,7 @@ internal static class WorkflowFactory
             : DenyAllSourceApproval.Instance;
 
         return (
-            Create(approval, generatorAssetDecision).WithProgress(reporter),
+            Create(approval, generatorAssetDecision, subtreeChoice).WithProgress(reporter),
             reporter as IDisposable ?? NullDisposable.Instance);
     }
 

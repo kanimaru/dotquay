@@ -41,7 +41,9 @@ internal static class AddCommand
         {
             Description = "Git sources only. Subtree to extract from the addon's repo, if it isn't at "
                 + "addons/<name> (e.g. the repo is named godot_dialogue_manager but the addon folder "
-                + "inside it is just dialogue_manager). Repos where the addon lives at the repo root: pass \".\".",
+                + "inside it is just dialogue_manager). Repos where the addon lives at the repo root: pass \".\". "
+                + "Usually unnecessary: when the guess is wrong, add looks in the repository and offers "
+                + "what it finds. Pass it to overrule that, or to answer it up front in a script.",
         };
 
         var installAsOption = new Option<string?>("--install-as")
@@ -156,7 +158,13 @@ internal static class AddCommand
                     json,
                     allowSourceAdoption: true,
                     preApprovedSourceUrls: adoptSources,
-                    generatorAssetDecision: GeneratorDecisionFor(json, keepGeneratorPrivate, shareGenerator));
+                    generatorAssetDecision: GeneratorDecisionFor(json, keepGeneratorPrivate, shareGenerator),
+
+                    // Same split as the feed prompt above: a preview reports the question, the real
+                    // run answers it. A caller that already answered it in its own UI passes --path
+                    // and --install-as, which skips the probe entirely rather than replaying through
+                    // a second seam (docs/DESIGN-v0.20-SUBTREE-GUESS.md §4).
+                    subtreeChoice: ConsoleSubtreeChoice.For(json));
 
             var options = new AddonAddOptions
             {
@@ -310,10 +318,11 @@ internal static class AddCommand
     /// <c>add --preview</c>: resolves and reports, writes nothing.
     /// </summary>
     /// <remarks>
-    /// Exit code 2, not 0 or 1, when a feed needs approval. Zero would tell a script the add is ready
-    /// to run unattended when it isn't; one would say the preview failed, which it didn't — it
-    /// succeeded at discovering a question. A caller that only checks for success still behaves
-    /// correctly, because 2 is not 0.
+    /// Exit code 2, not 0 or 1, when the preview found a question: a feed needing approval, or a
+    /// subtree dotquay had to guess (v0.20). Zero would tell a script the add is ready to run
+    /// unattended when it isn't; one would say the preview failed, which it didn't — it succeeded at
+    /// discovering a question. A caller that only checks for success still behaves correctly, because
+    /// 2 is not 0.
     /// </remarks>
     private static async Task<int> PreviewGitAsync(
         DependencyWorkflow workflow,
@@ -330,12 +339,16 @@ internal static class AddCommand
 
         var payload = JsonMapper.ToJson(preview);
 
+        // Decided once. Two copies of "what counts as a question" is how the JSON path and the human
+        // path end up disagreeing about whether this preview is ready to run unattended.
+        var exitCode = payload.NeedsApproval || payload.NeedsSubtreeConfirmation ? 2 : 0;
+
         if (json)
         {
             Console.WriteLine(DotquayJson.Write(
                 JsonEnvelope<AddPreviewJson>.Success(PreviewCommandName, payload, preview.Warnings)));
 
-            return payload.NeedsApproval ? 2 : 0;
+            return exitCode;
         }
 
         PrintPreview(payload);
@@ -345,13 +358,17 @@ internal static class AddCommand
             ConsoleOutput.WriteLine(ConsoleColor.Yellow, warning);
         }
 
-        return payload.NeedsApproval ? 2 : 0;
+        return exitCode;
     }
 
     private static void PrintPreview(AddPreviewJson preview)
     {
         Console.WriteLine($"Adding '{preview.Name}' from {preview.Git} would resolve to:");
         Console.WriteLine();
+
+        // First, because everything below it was resolved from this answer. A reader who disagrees
+        // with the subtree can stop reading the graph.
+        PrintPreviewSubtree(preview.Subtree);
 
         foreach (var addon in preview.Addons)
         {
@@ -400,7 +417,46 @@ internal static class AddCommand
             Console.WriteLine("Re-run with --adopt-source <url> for each feed you accept, or add its host to "
                 + "[nuget] trusted_hosts in dotquay.toml.");
         }
+
+        if (preview.Subtree is { } subtree)
+        {
+            Console.WriteLine();
+            Console.WriteLine(
+                $"Re-run with --path {subtree.Path}{InstallAsFlag(preview.Name, subtree)} to accept the subtree "
+                + "above, or name a different one.");
+        }
     }
+
+    /// <summary>
+    /// Where dotquay believes the addon lives inside its repository, when its
+    /// <c>addons/&lt;name&gt;</c> guess turned out not to be there (v0.20).
+    /// </summary>
+    /// <remarks>
+    /// Printed as a finding rather than a prompt, because a preview never asks: it resolved the graph
+    /// below as if this were accepted, and says so, so a reader can tell which of the two things they
+    /// are being shown is a guess. The <c>explanation</c> is taken from the payload verbatim rather
+    /// than rebuilt here — the editor plugin renders the same sentence from the same field.
+    /// </remarks>
+    private static void PrintPreviewSubtree(SubtreeJson? subtree)
+    {
+        if (subtree is null)
+        {
+            return;
+        }
+
+        ConsoleOutput.WriteLine(ConsoleColor.Yellow, subtree.Explanation);
+        ConsoleOutput.WriteLine(
+            ConsoleColor.Yellow,
+            $"  Everything below assumes that, installed into addons/{subtree.Folder}.");
+        Console.WriteLine();
+    }
+
+    /// <summary>The <c>--install-as</c> half of the re-run line, omitted when the folder is already
+    /// the addon's name and the flag would restate the default.</summary>
+    private static string InstallAsFlag(string addonName, SubtreeJson subtree) =>
+        string.Equals(subtree.Folder, addonName, StringComparison.Ordinal)
+            ? string.Empty
+            : $" --install-as {subtree.Folder}";
 
     /// <param name="explainWhy">Only the automatic list needs a reason — for the other list, the
     /// reason is the heading.</param>
