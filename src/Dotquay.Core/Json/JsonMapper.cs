@@ -284,6 +284,17 @@ public static class JsonMapper
         SourcesNeedingApproval = preview.SourcesNeedingApproval.Select(ToJson).ToList(),
         NeedsApproval = preview.SourcesNeedingApproval.Count > 0,
         IsNoOp = preview.Addons.All(a => !a.IsNew) && preview.Dotnet.All(d => !d.IsNew),
+        Subtree = preview.Subtree is null ? null : ToJson(preview.Subtree),
+        NeedsSubtreeConfirmation = preview.Subtree is not null,
+    };
+
+    private static SubtreeJson ToJson(SubtreeSuggestion suggestion) => new()
+    {
+        GuessedPath = suggestion.GuessedPath,
+        Path = suggestion.Path,
+        Folder = suggestion.Folder,
+        Reason = suggestion.Reason,
+        Explanation = suggestion.Explanation,
     };
 
     private static PreviewSourceJson ToJson(PreviewSource source) => new()

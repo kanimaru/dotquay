@@ -361,6 +361,43 @@ public sealed record AddPreviewJson
     /// <summary>True when nothing in the graph would move. An add can still be worth running (the
     /// manifest gains its entry), but the confirmation can say so plainly.</summary>
     public bool IsNoOp { get; init; }
+
+    /// <summary>Where dotquay believes the addon lives inside its repository, when
+    /// <c>addons/&lt;name&gt;</c> isn't there (v0.20). Null when there was nothing to guess. This
+    /// preview's graph is resolved as if it were accepted, so confirming means echoing its
+    /// <c>path</c> and <c>folder</c> back as <c>--path</c>/<c>--install-as</c>.</summary>
+    public SubtreeJson? Subtree { get; init; }
+
+    /// <summary>Mirrors <see cref="Subtree"/> as a boolean, for the same reason
+    /// <see cref="NeedsApproval"/> mirrors <see cref="SourcesNeedingApproval"/>: a UI reads one field
+    /// per banner instead of null-checking a nested object.</summary>
+    public bool NeedsSubtreeConfirmation { get; init; }
+}
+
+/// <summary>dotquay's guess at an addon's subtree, and the evidence for it (SPEC.md §6,
+/// docs/DESIGN-v0.20-SUBTREE-GUESS.md §7).</summary>
+public sealed record SubtreeJson
+{
+    /// <summary>The subtree that was looked for and isn't there.</summary>
+    public required string GuessedPath { get; init; }
+
+    /// <summary>The subtree to extract instead — the <c>--path</c> value.</summary>
+    public required string Path { get; init; }
+
+    /// <summary>The folder under <c>addons/</c> to install into — the <c>--install-as</c> value.
+    /// Carried alongside the path rather than left to the consumer, because a Godot addon's own
+    /// <c>res://addons/&lt;folder&gt;/</c> references are written against it.</summary>
+    public required string Folder { get; init; }
+
+    /// <summary>Which rule found it: <c>name_shape</c> (the same name in a different separator
+    /// convention) or <c>only_addon</c> (the one thing in the repository with a <c>plugin.cfg</c>).
+    /// A fixed set, like <c>doctor</c>'s issue kinds — a consumer must be taught a new value rather
+    /// than expected to cope with one.</summary>
+    public required string Reason { get; init; }
+
+    /// <summary>One sentence covering all of the above, so every consumer explains the same finding
+    /// the same way.</summary>
+    public required string Explanation { get; init; }
 }
 
 /// <summary>One addon the graph resolves to.</summary>

@@ -5,6 +5,7 @@ using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Progress;
 using Dotquay.Core.Resolve;
+using Dotquay.Core.Sync;
 
 namespace Dotquay.Core.Workflows;
 
@@ -48,7 +49,8 @@ public sealed partial class DependencyWorkflow
         options.Validate();
 
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
-        var (name, spec) = await PrepareAddSpecAsync(manifest, manifestPath, gitUrl, options, cancellationToken);
+        var (name, spec, subtree) = await PrepareAddSpecAsync(
+            manifest, manifestPath, gitUrl, options, previewing: true, cancellationToken);
 
         var candidateManifest = manifest with
         {
@@ -93,7 +95,39 @@ public sealed partial class DependencyWorkflow
                     request.Source, request.AddonName, manifest.TrustedHosts, graph.DotnetPackagesByAddon))
                 .ToList(),
             Warnings = graph.Warnings.Select(w => w.Message).ToList(),
+
+            // Null whenever the guess was right, a --path was given, or the repository gave no clear
+            // answer (which throws rather than reporting). Non-null means this preview resolved
+            // against a subtree dotquay picked, and the caller owes the user a question before it
+            // runs the real add.
+            Subtree = ToSuggestion(subtree),
         };
+    }
+
+    /// <summary>Turns an applied finding into the thing a UI renders and replays.</summary>
+    /// <remarks>
+    /// The explanation is built here, once, rather than in each UI: the CLI's printout and the editor
+    /// plugin's dialog describing the same finding two different ways is the kind of drift that makes
+    /// a user distrust both. <see cref="SubtreeSuggestion.Path"/> and
+    /// <see cref="SubtreeSuggestion.Folder"/> are also literally the <c>--path</c> and
+    /// <c>--install-as</c> values to pass back, so a caller confirms by echoing what it showed.
+    /// </remarks>
+    private static SubtreeSuggestion? ToSuggestion(SubtreeFinding? finding)
+    {
+        if (finding?.Suggestion is not { } suggestion)
+        {
+            return null;
+        }
+
+        var wanted = SubtreeCandidates.LastSegment(finding.GuessedPath);
+
+        return new SubtreeSuggestion(
+            finding.GuessedPath,
+            suggestion.Path,
+            suggestion.Folder,
+            suggestion.Reason,
+            $"dotquay looked for {finding.GuessedPath} and found '{suggestion.Path}' — "
+            + $"{suggestion.Explain(wanted)}.");
     }
 
     /// <summary>
@@ -105,11 +139,16 @@ public sealed partial class DependencyWorkflow
     /// "which tag would we pick" is precisely the drift that would let a preview promise one version
     /// and the add install another.
     /// </remarks>
-    private async Task<(string Name, AddonSpec Spec)> PrepareAddSpecAsync(
+    /// <param name="previewing">True for <see cref="PreviewAddAsync"/>. A preview never asks and
+    /// never refuses: it applies a subtree suggestion so the graph it reports is the graph the
+    /// confirmed add would install, and hands the suggestion back for the caller's own UI to put the
+    /// question to the user. The real <c>add</c> asks <see cref="SubtreeChoice"/> instead.</param>
+    private async Task<AddSpecPlan> PrepareAddSpecAsync(
         ProjectManifest manifest,
         string manifestPath,
         string gitUrl,
         AddonAddOptions options,
+        bool previewing,
         CancellationToken cancellationToken)
     {
         var name = DeriveAddonName(gitUrl);
@@ -134,8 +173,159 @@ public sealed partial class DependencyWorkflow
             }
             : await BuildDefaultSpecAsync(name, gitUrl, options.Path, options.InstallAs, cancellationToken);
 
-        return (name, spec);
+        return await PlanSubtreeAsync(spec, previewing, cancellationToken);
     }
+
+    /// <summary>
+    /// Settles where in its own repository the addon actually is, before anything is resolved for
+    /// real (docs/DESIGN-v0.20-SUBTREE-GUESS.md §5).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The subtree <c>add</c> guesses is <c>addons/&lt;name&gt;</c>, derived from the URL, and that
+    /// guess is wrong whenever a repository's own name and its addon folder disagree by more than
+    /// capitalisation — <c>SproutyLabs/SproutyDialogs</c> over <c>addons/sprouty_dialogs</c>, which is
+    /// the majority convention split in the Godot ecosystem rather than an exotic case. Without this,
+    /// the guess survives all the way to the installer and fails there, after the fetch, with a
+    /// message naming only the path that didn't work.
+    /// </para>
+    /// <para>
+    /// An explicitly stated <c>--path</c> short-circuits the whole thing: probing it would mean
+    /// second-guessing something the user just said, and the question this asks has already been
+    /// answered. That is also the channel a UI replays a confirmed suggestion through, so the
+    /// plugin's "yes" arrives here as a path and never re-asks.
+    /// </para>
+    /// <para>
+    /// <see cref="SubtreeCandidate.Folder"/> is applied as <c>install_as</c> alongside the path. A
+    /// Godot addon refers to its own files by absolute <c>res://addons/&lt;folder&gt;/</c> paths,
+    /// which are case- and word-sensitive strings even where the filesystem is not — so installing
+    /// <c>sprouty_dialogs</c>' content into <c>addons/SproutyDialogs</c> reproduces the Gut bug in
+    /// full (SPEC.md §7.1.1): permanently <c>modified</c> on Windows, broken outright on Linux. The
+    /// manifest key is left alone; this corrects layout, never identity.
+    /// </para>
+    /// </remarks>
+    private async Task<AddSpecPlan> PlanSubtreeAsync(
+        AddonSpec spec, bool previewing, CancellationToken cancellationToken)
+    {
+        if (spec.Path is not null)
+        {
+            return new AddSpecPlan(spec.Name, spec, Subtree: null);
+        }
+
+        var finding = await ProbeSubtreeAsync(spec, cancellationToken);
+
+        if (finding is null)
+        {
+            return new AddSpecPlan(spec.Name, spec, Subtree: null);
+        }
+
+        if (finding.Suggestion is null)
+        {
+            throw new WorkflowException(DescribeUnguessableSubtree(spec, finding));
+        }
+
+        // A preview reports the question rather than asking it, exactly as it does for feed
+        // adoption — and applies the answer it is proposing, so the graph it shows is the graph the
+        // confirmed add installs rather than one resolved from a path that isn't there.
+        if (!previewing && !SubtreeChoice.Accept(
+            new SubtreeChoiceRequest(spec.Name, spec.Git, finding, finding.Suggestion)))
+        {
+            throw new WorkflowException(DescribeUnguessableSubtree(spec, finding));
+        }
+
+        return new AddSpecPlan(spec.Name, Apply(spec, finding.Suggestion), finding);
+    }
+
+    /// <summary>Writes an accepted candidate into the spec that is about to become an
+    /// <c>[addons.&lt;name&gt;]</c> entry — so the question is answered once and then read from the
+    /// manifest by everyone else, on every machine, forever.</summary>
+    private static AddonSpec Apply(AddonSpec spec, SubtreeCandidate suggestion) => spec with
+    {
+        Path = suggestion.Path,
+
+        // Null rather than a redundant restatement when the folder already equals the addon's name:
+        // `install_as` exists to record a disagreement, and writing one that agrees is noise in a
+        // file people read.
+        InstallAs = string.Equals(suggestion.Folder, spec.Name, StringComparison.Ordinal)
+            ? null
+            : suggestion.Folder,
+    };
+
+    /// <summary>
+    /// Fetches the addon's commit and asks the repository where the addon really is.
+    /// </summary>
+    /// <remarks>
+    /// One extra ref query ahead of the graph walk; the fetch itself is shared through
+    /// <see cref="RepoCache"/>, and the walk is about to want this very commit. Every failure is
+    /// swallowed: resolution and transport problems are the resolver's to report a moment later, and
+    /// a probe is not allowed to be the thing that reports them — badly, and in terms of a subtree
+    /// nobody has asked about yet.
+    /// </remarks>
+    private async Task<SubtreeFinding?> ProbeSubtreeAsync(AddonSpec spec, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _progress.Report($"checking where '{spec.Name}' lives in its repository");
+
+            var resolved = await _resolver.ResolveAsync(spec, cancellationToken);
+            var cachedRepoPath = await _repoCache.GetOrFetchAsync(spec.Git, resolved.ResolvedSha, cancellationToken);
+
+            return SubtreeCandidates.Find(_fileSystem, cachedRepoPath, spec.EffectivePath);
+        }
+        catch (AddonResolutionException)
+        {
+            return null;
+        }
+        catch (GitCommandException)
+        {
+            return null;
+        }
+        catch (SyncException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>What was looked for, what the repository holds instead, and the exact flags that
+    /// settle it.</summary>
+    /// <remarks>
+    /// Shared by the no-suggestion case and the declined-suggestion case, because the reader is in
+    /// the same position in both: they still have to name the subtree themselves, and the only
+    /// difference is whether dotquay can propose the value. A declined suggestion still prints its
+    /// flags — "no, not like that" and "no, never" are the same keypress, and whoever meant the first
+    /// should not have to run the add again to find out what to type.
+    /// </remarks>
+    private static string DescribeUnguessableSubtree(AddonSpec spec, SubtreeFinding finding)
+    {
+        var conjunction = finding.Suggestion is null ? "and" : "but";
+        var message =
+            $"'{spec.Name}' isn't at {finding.GuessedPath} in {spec.Git}, {conjunction} "
+            + $"{finding.DescribeWhereTheAddonIs()}. dotquay never guesses an addon's layout on its own "
+            + "(SPEC.md §7.1), so ";
+
+        if (finding.Suggestion is null)
+        {
+            return message
+                + "re-run with --path <subtree> (and --install-as <folder> when the folder under addons/ has to "
+                + "differ from the addon's name) to say which one it is.";
+        }
+
+        var installAs = string.Equals(finding.Suggestion.Folder, spec.Name, StringComparison.Ordinal)
+            ? string.Empty
+            : $" --install-as {finding.Suggestion.Folder}";
+
+        return message + $"re-run with: --path {finding.Suggestion.Path}{installAs}";
+    }
+
+    /// <summary>
+    /// The spec <c>add</c> would write, plus the subtree suggestion that shaped it.
+    /// </summary>
+    /// <param name="Subtree">Non-null only when dotquay's <c>addons/&lt;name&gt;</c> guess was wrong
+    /// and its <see cref="SubtreeFinding.Suggestion"/> was applied — by confirmation on a real add,
+    /// or provisionally on a preview, which is what a UI needs in order to ask. The whole finding
+    /// rather than just the chosen candidate, so a caller can say what was looked for as well as what
+    /// was found.</param>
+    private sealed record AddSpecPlan(string Name, AddonSpec Spec, SubtreeFinding? Subtree);
 
     /// <summary>The graph walk on its own, with the same exception translation
     /// <see cref="SyncAddonGraphAsync"/> applies — a conflict must surface as the same

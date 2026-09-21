@@ -93,8 +93,7 @@ public static class SubtreeExtractor
 
         if (!fileSystem.DirectoryExists(sourceRoot))
         {
-            throw new SyncException(
-                $"Configured path '{relativeSubtreePath}' does not exist in the fetched repository at {cachedRepoPath}.");
+            throw new SyncException(DescribeMissingSubtree(fileSystem, cachedRepoPath, relativeSubtreePath));
         }
 
         fileSystem.DeleteDirectory(stagingPath);
@@ -127,6 +126,58 @@ public static class SubtreeExtractor
             throw new SyncException(
                 $"Configured path '{relativeSubtreePath}' exists but is empty (after excluding git metadata) in the fetched repository at {cachedRepoPath}.");
         }
+    }
+
+    /// <summary>
+    /// The "that path isn't there" message, with whatever the repository offers instead.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The bare form of this message named the path that didn't work and stopped, which left the one
+    /// fact the reader needed — the path that <em>would</em> work — sitting unread in a directory
+    /// dotquay had already fetched. <see cref="SubtreeCandidates"/> reads it.
+    /// </para>
+    /// <para>
+    /// Deliberately phrased without the addon's name or its URL, neither of which the extractor
+    /// knows. Two quite different situations arrive here — a hand-written <c>path</c> in this
+    /// project's own manifest, and a <c>path</c> declared by some <em>other</em> addon's package
+    /// manifest — and the fix differs between them, so this names both rather than guessing which
+    /// one the reader is in. <c>add</c> never reaches this message for the first case: it probes and
+    /// offers the suggestion before anything is fetched for installation
+    /// (docs/DESIGN-v0.20-SUBTREE-GUESS.md §5).
+    /// </para>
+    /// </remarks>
+    private static string DescribeMissingSubtree(
+        IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath)
+    {
+        var message =
+            $"Configured path '{relativeSubtreePath}' does not exist in the fetched repository at {cachedRepoPath}.";
+
+        var finding = SubtreeCandidates.Find(fileSystem, cachedRepoPath, relativeSubtreePath);
+
+        if (finding is null || !finding.HasCandidates)
+        {
+            return message;
+        }
+
+        message += $" But {finding.DescribeWhereTheAddonIs()}.";
+
+        if (finding.Suggestion is null)
+        {
+            return message;
+        }
+
+        var installAs = string.Equals(
+            finding.Suggestion.Folder,
+            SubtreeCandidates.LastSegment(relativeSubtreePath),
+            StringComparison.Ordinal)
+            ? string.Empty
+            : $" and install_as = \"{finding.Suggestion.Folder}\"";
+
+        return message
+            + $" Set path = \"{finding.Suggestion.Path}\"{installAs} for this addon — in dotquay.toml if this "
+            + "project declares it, or under [overrides] ('dotquay override <name> --rev <sha> --path "
+            + $"{finding.Suggestion.Path}') if another addon does.";
     }
 
     private static bool IsExcluded(string relativePath)

@@ -73,6 +73,19 @@ public sealed partial class DependencyWorkflow
     public IGeneratorAssetDecision GeneratorAssetDecision { get; init; } = ShareGeneratorDecision.Instance;
 
     /// <summary>
+    /// Who confirms dotquay's guess at where an addon lives inside its own repository, when the
+    /// guessed <c>addons/&lt;name&gt;</c> subtree isn't there (v0.20).
+    /// </summary>
+    /// <remarks>
+    /// Same seam-and-safe-default shape as <see cref="SourceApproval"/>, and the same direction of
+    /// safety: <see cref="DeclineSubtreeChoice"/> installs nothing from a folder nobody named, so a
+    /// caller that never thought about this keeps failing exactly where it used to — just with a
+    /// message that now names the flags that would fix it. Only <c>add</c> ever consults it, and only
+    /// when no <c>--path</c> was given.
+    /// </remarks>
+    public ISubtreeChoice SubtreeChoice { get; init; } = DeclineSubtreeChoice.Instance;
+
+    /// <summary>
     /// How this workflow reads the process environment. Defaults to the real one; overridden in
     /// tests, which must not depend on the machine they run on having (or not having) a known_hosts
     /// file. Named for its type rather than the shorter "Environment", which would shadow
@@ -266,7 +279,11 @@ public sealed partial class DependencyWorkflow
 
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
-        var (name, spec) = await PrepareAddSpecAsync(manifest, manifestPath, gitUrl, options, cancellationToken);
+        // previewing: false — this one may ask, and refuses rather than installing from a folder
+        // nobody named. The suggestion it may have applied is already in `spec`, and is written to
+        // the manifest below with everything else.
+        var (name, spec, _) = await PrepareAddSpecAsync(
+            manifest, manifestPath, gitUrl, options, previewing: false, cancellationToken);
 
         var updatedManifest = manifest with
         {
