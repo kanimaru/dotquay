@@ -25,6 +25,9 @@ const STATUS_LABEL := preload("res://addons/dotquay/ui/items/status_label.tscn")
 ## what lets [method show_preview] be driven directly against a detached instance, the way P1-15's
 ## no-op-preview OK-disable is asserted.
 var _summary: Label
+var _subtree_section: VBoxContainer
+var _subtree_explanation: Label
+var _subtree_destination: Label
 var _addon_list: VBoxContainer
 var _dotnet_section: VBoxContainer
 var _dotnet_list: VBoxContainer
@@ -51,6 +54,9 @@ func _bind() -> void:
 	DotquayNodes.scale_dialog_size(self)
 
 	_summary = %Summary
+	_subtree_section = %SubtreeSection
+	_subtree_explanation = %SubtreeExplanation
+	_subtree_destination = %SubtreeDestination
 	_addon_list = %AddonList
 	_dotnet_section = %DotnetSection
 	_dotnet_list = %DotnetList
@@ -62,14 +68,20 @@ func _bind() -> void:
 	_summary.add_theme_color_override("font_color", DotquayPalette.MUTED)
 	_blocker.add_theme_color_override("font_color", DotquayPalette.WARN)
 
-	for label in [%AddonsHeading, %MarkerLegend, %DotnetHeading, %SourcesHeading]:
+	# Warn, like the blocker: not an error, but the one thing on screen dotquay worked out for itself
+	# rather than read somewhere, and the premise of every section under it.
+	_subtree_explanation.add_theme_color_override("font_color", DotquayPalette.WARN)
+
+	for label in [%AddonsHeading, %MarkerLegend, %DotnetHeading, %SourcesHeading, %SubtreeHeading, %SubtreeDestination]:
 		(label as Label).add_theme_color_override("font_color", DotquayPalette.MUTED)
 
 
-## [param request] is carried through untouched so the confirmed add uses exactly the arguments the
-## preview was resolved from — re-deriving them from the payload would be a second chance to get them
-## wrong, and the payload does not carry every argument anyway (`--path` and `--install-as` are inputs
-## the CLI has no reason to echo back).
+## [param request] is carried through so the confirmed add uses exactly the arguments the preview was
+## resolved from — re-deriving them from the payload would be a second chance to get them wrong.
+##
+## One field is written back rather than carried: a confirmed subtree suggestion (v0.20) becomes the
+## request's `--path`/`--install-as`, because that is the thing the user just agreed to and the
+## payload reports it for exactly that purpose. See [method _confirm_subtree].
 func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
 	_bind()
 	_preview = preview
@@ -81,6 +93,7 @@ func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
 	title = "Add '%s'?" % preview.name
 	_summary.text = preview.summarize()
 
+	_render_subtree()
 	_render_addons()
 	_render_dotnet()
 	_render_sources()
@@ -91,6 +104,29 @@ func show_preview(preview: DotquayPreview, request: DotquayAddRequest) -> void:
 	# asserted without a SceneTree.
 	if is_inside_tree():
 		popup_centered()
+
+
+## Shown only when dotquay had to guess where the addon lives in its own repository (v0.20).
+##
+## Not a choice with its own control, deliberately. The graph, the packages and the feeds below were
+## all resolved from this subtree, so agreeing to them *is* agreeing to it — a separate tickbox would
+## offer a combination that doesn't exist. Saying no is closing the dialog and passing a path
+## yourself, exactly as it is for a feed the user won't approve.
+func _render_subtree() -> void:
+	var subtree: DotquayPreview.Subtree = _preview.subtree
+	_subtree_section.visible = subtree != null
+
+	if subtree == null:
+		return
+
+	_subtree_explanation.text = subtree.describe()
+
+	# The folder is half the answer and the half nobody thinks to check: a Godot addon's own
+	# res://addons/<folder>/ paths are exact strings, so this is where it has to land, not a
+	# preference. Naming it here is what makes the dotquay.toml written afterwards unsurprising.
+	_subtree_destination.text = (
+		"It will be installed into addons/%s, and recorded in dotquay.toml as path/install_as so "
+		% subtree.folder + "this is asked once.")
 
 
 func _render_addons() -> void:
@@ -177,7 +213,25 @@ func _on_confirmed() -> void:
 		if not url.is_empty():
 			urls.append(url)
 
+	_confirm_subtree()
 	install_confirmed.emit(_request, urls)
+
+
+## Writes the confirmed subtree into the request, so the `add` that follows names it with `--path`
+## and `--install-as`.
+##
+## The one thing this dialog puts back into the request, and only because the user just agreed to it.
+## Passing it explicitly is also what stops the CLI asking again: a stated path is never probed, so
+## the run the user confirmed is not a second chance for dotquay to guess differently (the repository
+## can change between a preview and the add that follows). Guarded on the request not already naming
+## a path — if the user typed one into the form themselves, dotquay never guessed and there is
+## nothing here to have confirmed.
+func _confirm_subtree() -> void:
+	if _preview == null or _preview.subtree == null or not _request.path.strip_edges().is_empty():
+		return
+
+	_request.path = _preview.subtree.path
+	_request.install_as = _preview.subtree.folder
 
 
 func _clear(container: Node) -> void:

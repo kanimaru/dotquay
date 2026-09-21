@@ -249,3 +249,73 @@ func test_null_arrays_parse_as_empty_not_a_crash() -> void:
 	})
 	runner.equal(source.packages.size(), 0, "a null packages should parse as empty, not raise")
 	runner.equal(source.package_ids.size(), 0, "a null package_ids should parse as empty, not raise")
+
+
+## The subtree guess (v0.20): the second question a preview can surface, alongside feed adoption.
+##
+## The case is the reported one — repository `SproutyLabs/SproutyDialogs`, addon
+## `addons/sprouty_dialogs` — where dotquay's `addons/<name>` guess is wrong by more than
+## capitalisation and the whole preview below it was resolved from the answer.
+func _subtree_payload() -> Dictionary:
+	return {
+		"guessed_path": "addons/SproutyDialogs",
+		"path": "addons/sprouty_dialogs",
+		"folder": "sprouty_dialogs",
+		"reason": "name_shape",
+		"explanation": "dotquay looked for addons/SproutyDialogs and found 'addons/sprouty_dialogs'.",
+	}
+
+
+func test_parses_a_subtree_suggestion() -> void:
+	var payload := _payload()
+	payload["subtree"] = _subtree_payload()
+	payload["needs_subtree_confirmation"] = true
+
+	var preview: DotquayPreview = PREVIEW.from_payload(payload)
+
+	runner.check(preview.subtree != null, "a subtree suggestion in the payload is parsed")
+	runner.equal(preview.subtree.path, "addons/sprouty_dialogs", "the subtree to extract is kept")
+	runner.equal(preview.subtree.folder, "sprouty_dialogs", "the folder to install into is kept")
+	runner.equal(preview.subtree.reason, "name_shape", "the rule that found it is kept")
+	runner.check(
+		preview.subtree.describe().contains("sprouty_dialogs"),
+		"the CLI's own sentence is what gets shown")
+
+
+func test_no_subtree_means_the_guess_was_right() -> void:
+	# The ordinary case, and the one that must not render an empty section: nothing was guessed.
+	var preview: DotquayPreview = PREVIEW.from_payload(_payload())
+
+	runner.check(preview.subtree == null, "a payload with no subtree parses as no suggestion")
+
+
+func test_half_a_subtree_answer_is_not_a_question() -> void:
+	# Neither confirming nor declining this could produce a runnable `add`, so it is not put to the
+	# user at all. Only reachable from a CLI sending a shape this plugin was never promised.
+	var payload := _payload()
+	payload["subtree"] = {"guessed_path": "addons/Foo", "path": "addons/foo", "folder": ""}
+
+	runner.check(
+		PREVIEW.from_payload(payload).subtree == null,
+		"a suggestion missing its install folder is ignored rather than half-shown")
+
+
+func test_a_null_subtree_parses_as_none() -> void:
+	# SPEC.md §17 emits an absent optional value as JSON null rather than omitting the key, so null
+	# is the shape this field actually arrives in whenever there was nothing to guess.
+	var payload := _payload()
+	payload["subtree"] = null
+
+	runner.check(PREVIEW.from_payload(payload).subtree == null, "a null subtree parses as no suggestion")
+
+
+func test_subtree_describes_itself_without_an_explanation() -> void:
+	# An older CLI that sends the fields but not the sentence still has to be understandable, because
+	# the alternative is a warning-coloured empty line above the graph it applies to.
+	var subtree: DotquayPreview.Subtree = PREVIEW.Subtree.from_payload({
+		"guessed_path": "addons/SproutyDialogs", "path": "addons/sprouty_dialogs",
+		"folder": "sprouty_dialogs",
+	})
+
+	runner.check(subtree.describe().contains("addons/SproutyDialogs"), "the fallback names what was looked for")
+	runner.check(subtree.describe().contains("addons/sprouty_dialogs"), "the fallback names what was found")

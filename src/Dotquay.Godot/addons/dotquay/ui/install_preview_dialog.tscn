@@ -51,6 +51,41 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
+; First of the sections, because everything below it was resolved from this answer: the graph, the
+; packages and the feeds all describe the addon found at this subtree. A reader who disagrees with it
+; can stop reading the rest.
+
+[node name="SubtreeSection" type="VBoxContainer" parent="Root/Scroll/Sections" unique_id=1610612737]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SubtreeHeading" type="Label" parent="Root/Scroll/Sections/SubtreeSection" unique_id=1610612738]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
+theme_override_font_sizes/font_size = 12
+text = "Where this addon lives in its repository"
+
+[node name="SubtreeExplanation" type="Label" parent="Root/Scroll/Sections/SubtreeSection" unique_id=1610612739]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.71, 0.24, 1)
+text = "explanation"
+autowrap_mode = 3
+
+[node name="SubtreeDestination" type="Label" parent="Root/Scroll/Sections/SubtreeSection" unique_id=1610612740]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.58, 0.6, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "destination"
+autowrap_mode = 3
+
 [node name="AddonSection" type="VBoxContainer" parent="Root/Scroll/Sections" unique_id=931915028]
 layout_mode = 2
 theme_override_constants/separation = 4

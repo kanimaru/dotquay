@@ -140,6 +140,54 @@ class Source extends RefCounted:
 		return packages if not packages.is_empty() else package_ids
 
 
+## Where dotquay believes the addon lives inside its own repository, when `addons/<name>` turned out
+## not to be there (docs/DESIGN-v0.20-SUBTREE-GUESS.md §7).
+##
+## Present only when dotquay had to guess. The preview's whole graph was resolved as if this were
+## accepted, so the dialog showing it is asking about the premise of everything else on screen — and
+## confirming means passing [member path] and [member folder] back as `--path`/`--install-as`, which
+## is the same statement written down in dotquay.toml.
+class Subtree extends RefCounted:
+	## The subtree dotquay looked for and didn't find.
+	var guessed_path: String = ""
+	## The subtree to extract instead — the `--path` value.
+	var path: String = ""
+	## The folder under `addons/` to install into — the `--install-as` value. Carried with the path
+	## rather than derived from it, because a Godot addon's own `res://addons/<folder>/` references
+	## are written against this exact string.
+	var folder: String = ""
+	## Which rule found it: `name_shape` or `only_addon`. A fixed set on the CLI side, so an
+	## unrecognised value here means dotquay has learned a rule this plugin hasn't — which is why
+	## nothing branches on it and [member explanation] carries the words.
+	var reason: String = ""
+	## The CLI's own sentence about this finding, rendered as-is so the plugin and the terminal
+	## explain the same thing the same way.
+	var explanation: String = ""
+
+	static func from_payload(payload: Dictionary) -> Subtree:
+		var subtree := Subtree.new()
+		subtree.guessed_path = DotquayWire.str_or_empty(payload.get("guessed_path"))
+		subtree.path = DotquayWire.str_or_empty(payload.get("path"))
+		subtree.folder = DotquayWire.str_or_empty(payload.get("folder"))
+		subtree.reason = DotquayWire.str_or_empty(payload.get("reason"))
+		subtree.explanation = DotquayWire.str_or_empty(payload.get("explanation"))
+		return subtree
+
+	## True when this says enough to act on. A payload missing either half of the answer is not a
+	## question worth putting to the user, because neither confirming nor declining it would produce
+	## a runnable `add`.
+	func is_usable() -> bool:
+		return not path.is_empty() and not folder.is_empty()
+
+	## The sentence for the dialog. Falls back to building one rather than showing an empty row: an
+	## older CLI that sends the fields without the explanation should still be understandable.
+	func describe() -> String:
+		if not explanation.is_empty():
+			return explanation
+
+		return "dotquay looked for %s and found '%s' in the repository instead." % [guessed_path, path]
+
+
 var name: String = ""
 var git: String = ""
 var addons: Array = []                     ## Array[Addon]
@@ -148,6 +196,7 @@ var sources_to_adopt: Array = []           ## Array[Source]
 var sources_needing_approval: Array = []   ## Array[Source]
 var needs_approval: bool = false
 var is_no_op: bool = false
+var subtree: Subtree = null
 
 
 static func from_payload(payload: Dictionary) -> DotquayPreview:
@@ -156,6 +205,15 @@ static func from_payload(payload: Dictionary) -> DotquayPreview:
 	preview.git = DotquayWire.str_or_empty(payload.get("git"))
 	preview.needs_approval = bool(payload.get("needs_approval", false))
 	preview.is_no_op = bool(payload.get("is_no_op", false))
+
+	# `needs_subtree_confirmation` is the CLI's own boolean mirror, but the object is what the dialog
+	# needs, so an unusable payload is treated as no question at all rather than as a question with
+	# nothing in it. The two can only disagree if the CLI sent half an answer.
+	var subtree_payload: Variant = payload.get("subtree")
+	if typeof(subtree_payload) == TYPE_DICTIONARY:
+		var subtree := Subtree.from_payload(subtree_payload)
+		if subtree.is_usable():
+			preview.subtree = subtree
 
 	for entry in DotquayWire.array_or_empty(payload.get("addons")):
 		if typeof(entry) == TYPE_DICTIONARY:
