@@ -92,55 +92,31 @@ variables:
   - src/**/*
 
 # ---------------------------------------------------------------------------
-# git-push-auth — make a push authenticate as $VERSION_BUMP_TOKEN
+# Pushing the release tag — why there is no credential dance here
 # ---------------------------------------------------------------------------
-# Used immediately before every push in this file, and only ever after a fetch that still needs
-# the runner's own credentials.
+# auto-tag pushes with the runner's own $CI_JOB_TOKEN, which requires
+# Settings > CI/CD > Job token permissions > "Allow Git push requests to the repository"
+# to be on for this project (introduced 17.2 behind a flag, GA in 18.4). The token then pushes
+# with the permissions of whoever started the pipeline, so a protected default branch and
+# protected `v*` tags need no separate role kept in step with them — which is the failure mode
+# a dedicated token invites, since nothing tells you it has drifted until a release stops.
 #
-# GitLab Runner 15 embedded the job token in origin's URL, so a push to an explicitly written URL
-# matched no credential config in .git/config and fell through to the helper set up here. Runner
-# 19 moved that credential out of the URL and into host-keyed git config
-# (`http.<CI_SERVER_URL>.extraheader`, and/or a `credential.helper` of the runner's own), which
-# DOES match the push URL below — so the job token wins, git never consults this helper, and the
-# push dies with "You are not allowed to push code to this project." (a job token genuinely
-# cannot push code). That is what broke every pipeline on this instance after the 15 -> 19
-# upgrade, with no change to this file at all — vbeami's identical job broke the same day and
-# carries the same fix (commit 2abe31e). Clearing the inherited config first is what makes the
-# PAT win again, and keeps working whichever mechanism the next runner version picks.
+# This replaced a $VERSION_BUMP_TOKEN Project Access Token and the ~50 lines that existed only to
+# make that PAT beat the runner's own credentials. Worth keeping the history, because the shape of
+# it is what makes the deleted code look necessary: Runner 15 put the job token in origin's URL, so
+# a push to an explicitly written URL matched nothing in .git/config and fell through to the PAT's
+# helper. Runner 19 moved that credential into host-keyed git config, which DOES match an
+# explicitly written URL — so the job token won, and every release died on "You are not allowed to
+# push code to this project" (job 5347). The answer turned out not to be winning that fight but
+# ending it: the job token is now the identity that should be pushing.
 #
-# The token reaches git through a 0600 credential file rather than the remote URL. A credential
-# embedded in the URL is copied into .git/config and echoed back verbatim in any push error
-# message, which is how a masked variable ends up unmasked in a job log. dotquay's own SPEC §11.2
-# rejects URL-embedded credentials for exactly that reason; this is the CI side of the same rule.
-# Variable masking is still the first line of defence — this is the second.
-.git-push-auth: &git-push-auth |
-  # `:-` because the surrounding script runs under `set -u`: an undefined variable would
-  # otherwise abort with "unbound variable" instead of this message, which is exactly the case
-  # this guard exists to name.
-  if [ -z "${VERSION_BUMP_TOKEN:-}" ]; then
-    echo "VERSION_BUMP_TOKEN is empty - is the variable protected while this ref is not?" >&2
-    exit 1
-  fi
-
-  git config --local --unset-all credential.helper || true
-
-  # Deliberately not `get-regexp | while read`: `git config --get-regexp` exits 1 when nothing
-  # matches, the runner's generated script turns on `pipefail`, and this script runs under
-  # `set -e` — so on a clone carrying no extraheader at all, "nothing to clear" became the
-  # job's exit status and auto-tag died in 108ms having printed nothing (job 5322). Command
-  # substitution with `|| true` keeps the empty case from being a failure. vbeami's copy of
-  # this fragment survives the same line only because its script never sets `set -e`.
-  EXTRA_HEADERS=$(git config --local --name-only --get-regexp '^http\..*\.extraheader$' || true)
-  for key in $EXTRA_HEADERS; do
-    git config --local --unset-all "$key" || true
-  done
-
-  echo "push auth: cleared the runner's inherited git credentials"
-
-  CRED_FILE="$CI_PROJECT_DIR/.git-credentials-ci"
-  trap 'rm -f "$CRED_FILE"' EXIT
-  (umask 077 && printf 'https://%s:%s@%s\n' "dotquay-ci" "$VERSION_BUMP_TOKEN" "$CI_SERVER_HOST" > "$CRED_FILE")
-  git config --local credential.helper "store --file=$CRED_FILE"
+# So do not reintroduce clearing of `credential.helper` or `http.*.extraheader` before a push here.
+# The credential that clearing throws away is now precisely the one the push needs.
+#
+# GitLab triggers no pipeline for a job-token push, which is also what `-o ci.skip` below is for.
+# Both are kept: the flag costs nothing and still covers the case where the setting above gets
+# turned off, and a second pipeline racing a second publish of the same version is the one thing
+# here that must never happen.
 
 # Runs once, ahead of both platform-specific publish jobs below — the whole point of Dotquay.Tests
 # is that it never touches a real filesystem/network/git/dotnet process (fakes only, see
@@ -168,10 +144,10 @@ test:
 # the pipeline is not shipping a new dotquay, and including it would mean every CI tweak burns a
 # version number.
 #
-# Needs a $VERSION_BUMP_TOKEN CI/CD variable (protected + masked): a Project Access Token,
-# Settings > Access Tokens, scope write_repository, role Developer or higher. $CI_JOB_TOKEN cannot
-# push commits or tags. If the default branch is protected, that token's role also needs "allowed
-# to push" on it, and protected tags a matching allowance for `v*`, or this job fails at the push.
+# Pushes with $CI_JOB_TOKEN, so this project needs "Allow Git push requests to the repository"
+# under Settings > CI/CD > Job token permissions. Without it the push fails with "You are not
+# allowed to push code to this project" — see the note above the `test` job for why that message
+# used to mean something else entirely.
 auto-tag:
   stage: tag
   # alpine/git sets `ENTRYPOINT ["git"]`, so without overriding it the runner's shell invocation
@@ -230,14 +206,18 @@ auto-tag:
 
       echo "RELEASE_VERSION=$NEXT" >> release.env
       echo "RELEASE_TAG=$NEW_TAG" >> release.env
-    - *git-push-auth
     - |
       git tag "$NEW_TAG" "$CI_COMMIT_SHA"
 
+      # `origin`, not an explicitly written URL. The URL used to be the point — it was how a push
+      # dodged the job token Runner 15 had embedded in origin's remote. Now the job token is the
+      # identity doing the pushing, so the remote the runner set up is exactly the one to use.
+      #
       # `-o ci.skip` is load-bearing: without it, pushing a tag spawns a *second*, independent
       # pipeline for the same commit (GitLab treats tag and branch pipelines as unrelated), racing
-      # a second release attempt against this one.
-      git push -o ci.skip "https://$CI_SERVER_HOST/$CI_PROJECT_PATH.git" "refs/tags/$NEW_TAG"
+      # a second release attempt against this one. GitLab already suppresses pipelines for a
+      # job-token push, so this is now the second lock on that door rather than the only one.
+      git push -o ci.skip origin "refs/tags/$NEW_TAG"
   artifacts:
     reports:
       dotenv: release.env
