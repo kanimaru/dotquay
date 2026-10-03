@@ -20,28 +20,27 @@ public static class DirtyChecker
             return new Result(IsDirty: false, ActualContentHash: null);
         }
 
-        var actual = ContentHasher.HashDirectory(fileSystem, installedPath);
+        var tree = ContentHasher.HashTree(fileSystem, installedPath);
 
         if (expectedContentHash is null)
         {
             // Something already occupies the destination but the lockfile has no prior record for
             // it (e.g. a same-named folder that predates dotquay managing it) — treat as dirty so
             // sync never silently clobbers content it didn't put there.
-            return new Result(IsDirty: true, ActualContentHash: actual);
+            return new Result(IsDirty: true, ActualContentHash: tree.Canonical);
         }
 
-        if (actual == expectedContentHash)
-        {
-            return new Result(IsDirty: false, ActualContentHash: actual);
-        }
-
-        // Only reached on a mismatch, so the common path still hashes the tree once. A lockfile
-        // written before v0.9 recorded a hash that included editor-generated files; for an addon
-        // that ships its own .uid files, that is a different number for identical content. Matching
-        // the old form counts as clean, and the caller records `actual` — the current form — so each
-        // addon migrates the first time it is installed or updated.
-        var legacy = ContentHasher.HashDirectoryIncludingArtifacts(fileSystem, installedPath);
-
-        return new Result(IsDirty: legacy != expectedContentHash, ActualContentHash: actual);
+        // Clean when the recorded hash is ANY form this tree can have, not only the current one:
+        //  - v0.9: lockfiles written before editor-generated files were left out of the hash include
+        //    them, which for an addon that ships its own .uid files is a different number for
+        //    identical content;
+        //  - v0.23: lockfiles hold the hash of the files as git wrote them on whichever machine
+        //    installed last, which is CRLF on Windows and LF elsewhere for the same commit. A
+        //    teammate's git configuration is not a hand-edit.
+        // Anything matching counts as unedited, and a (re)install keeps the recorded value rather
+        // than churning it (see SyncEngine.SwapAndHash).
+        return new Result(
+            IsDirty: !tree.Accepted.Contains(expectedContentHash, StringComparer.Ordinal),
+            ActualContentHash: tree.Canonical);
     }
 }

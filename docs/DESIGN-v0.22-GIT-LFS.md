@@ -69,7 +69,7 @@ hash of the real files, which refreshes the lockfile entry (one lockfile change 
   Those tests return early (pass) where git-lfs is not installed, like the other real-process tests. With the
   repair disabled the two tests that exist for this bug fail; with it restored all six pass.
 * Editor plugin suite: 1131 assertions, 0 failures.
-* **Published NativeAOT binary, run for real** (the publish succeeded and the binary ran; trimming warnings were not compared against `main`): `doctor` against an addon of
+* **Published NativeAOT binary, run for real** (24 trim warnings, all in existing Tomlyn-using files; none from the new code): `doctor` against an addon of
   placeholders (old binary: clean; new: names the problem, text and `--json`); repair of a stale placeholder cache
   entry via the documented remediation; a fresh fetch on a machine with LFS installed but not activated; and a
   machine where git-lfs is unusable, which stops with the message, exit code 1, nothing installed, no half-done

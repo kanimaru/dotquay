@@ -49,7 +49,16 @@ public sealed class SyncEngine
             _fileSystem.WriteAllBytes(target, contents);
         }
 
-        return ContentHasher.HashDirectory(_fileSystem, destinationPath);
+        // The value to record. Normally the canonical hash of what was just written. But when the lockfile
+        // already holds a hash that still describes this tree (the same addon at the same commit, recorded
+        // by a machine with different line endings, or by an older dotquay), keep it: rewriting it would
+        // change the lockfile without any change to the addon, and that diff would flip back on the next
+        // machine that installs. A lockfile entry changes when the content does.
+        var installed = ContentHasher.HashTree(_fileSystem, destinationPath);
+
+        return expectedContentHash is not null && installed.Accepted.Contains(expectedContentHash, StringComparer.Ordinal)
+            ? expectedContentHash
+            : installed.Canonical;
     }
 
     /// <summary>

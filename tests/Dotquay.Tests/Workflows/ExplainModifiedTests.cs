@@ -138,17 +138,41 @@ public class ExplainModifiedTests
         Assert.Equal(ChangeClass.UidOnly, Assert.Single(explanation.Changes).Class);
     }
 
+    /// <summary>
+    /// Since v0.23 a line-endings-only difference is not a modification at all: the recorded hash ignores line
+    /// endings, so another machine's git configuration (CRLF on Windows, LF elsewhere) can no longer make an
+    /// untouched addon read as hand-edited. This used to be the explained case "forcing is safe"; there is now
+    /// nothing to explain. See docs/DESIGN-v0.23-LINE-ENDINGS.md.
+    /// </summary>
     [Fact]
-    public async Task StatusAsync_LineEndingsNormalised_SaysForcingIsSafe()
+    public async Task StatusAsync_LineEndingsOnly_IsCleanNotModified()
     {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/x.gd", ScriptLf.Replace("\n", "\r\n"));
 
+        var addon = Assert.Single((await workflow.StatusAsync(ProjectDir, explain: true)).Addons);
+
+        Assert.Equal(AddonStatusKind.Clean, addon.Kind);
+        Assert.Null(addon.Explanation);
+    }
+
+    /// <summary>
+    /// The classification still earns its place when line endings changed BESIDE a real edit: the tree is
+    /// modified for a real reason, and the explanation separates the file that only churned from the one that
+    /// matters.
+    /// </summary>
+    [Fact]
+    public async Task StatusAsync_LineEndingChurnBesideARealEdit_IsStillClassifiedPerFile()
+    {
+        var (workflow, fileSystem, _) = await InstalledAsync();
+        fileSystem.WriteAllText($"{AddonDir}/x.gd", ScriptLf.Replace("\n", "\r\n"));
+        fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
+
         var explanation = ExplanationOf(await workflow.StatusAsync(ProjectDir, explain: true));
 
-        Assert.Equal(ExplainVerdict.SafeToForce, explanation.Verdict);
+        Assert.Equal(ExplainVerdict.ReviewNeeded, explanation.Verdict);
+        Assert.Equal(1, explanation.Counts.Content);
         Assert.Equal(1, explanation.Counts.LineEndingsOnly);
-        Assert.Equal(ChangeClass.LineEndingsOnly, Assert.Single(explanation.Changes).Class);
     }
 
     /// <summary>
