@@ -26,6 +26,16 @@ public interface IGitClient
         string destinationPath,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Makes sure a checkout this client produced holds real files, not Git LFS pointers: downloads them
+    /// when it can, and throws a message that names the fix when it cannot. A repository without LFS costs
+    /// one search and nothing else. <see cref="FetchCommitAsync"/> does this itself; this exists for a
+    /// cache entry made <em>before</em> that was true, which would otherwise be trusted forever.
+    /// </summary>
+    /// <remarks>Defaults to doing nothing so implementations with no real checkout (test doubles) need not care.</remarks>
+    Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
     /// <summary>Resolves a tracked branch's current tip to a full commit SHA.</summary>
     Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default);
 

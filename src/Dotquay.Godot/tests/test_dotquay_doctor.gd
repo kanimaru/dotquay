@@ -183,6 +183,22 @@ func test_every_wording_entry_pluralises_and_explains() -> void:
 			"%s should read differently in singular and plural" % kind)
 
 
+func test_the_lfs_placeholder_kind_is_worded_not_dropped_into_the_unknown_bucket() -> void:
+	# `lfs_pointer_file` is the CLI's name for an addon whose binaries are Git LFS placeholders. Unworded it
+	# would still show, but as a bare "issue" with no explanation, and the explanation is the useful part:
+	# dotquay itself calls such an addon clean, so the plugin's row is the only place the cause is named.
+	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
+		_issue("lfs_pointer_file", "'GDMP' contains Git LFS placeholders where its real files belong."),
+	]})
+	var group: Variant = doctor.groups()[0]
+
+	runner.equal(group.kind, "lfs_pointer_file", "the kind is preserved")
+	runner.check(DotquayDoctor.KIND_WORDING.has("lfs_pointer_file"), "and has wording of its own")
+	runner.check(group.detail().contains("git lfs install"), "the explanation names the fix")
+	runner.check(group.headline() != "1 issue", "the heading says what is wrong, not just that something is")
+	runner.equal(group.subjects()[0], "GDMP", "and the addon is named as the subject")
+
+
 func test_summarize_counts_issues_and_categories() -> void:
 	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
 		_orphan("a"), _orphan("b"),

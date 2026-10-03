@@ -23,6 +23,8 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public bool FileExists(string path) => _files.ContainsKey(Resolve(path));
 
+    public long GetFileLength(string path) => ReadAllBytes(path).LongLength;
+
     public bool DirectoryExists(string path) => _directories.Contains(Resolve(path));
 
     public string ReadAllText(string path) => System.Text.Encoding.UTF8.GetString(ReadAllBytes(path));

@@ -179,6 +179,11 @@ const KIND_WORDING := {
 		"many": "addon folders that are whole Godot projects rather than addons",
 		"detail": "The manifest declaring it points its path at the repository root. Godot reports the plugin as missing, which points at the editor rather than at the real cause.",
 	},
+	"lfs_pointer_file": {
+		"one": "addon holding Git LFS placeholders instead of its real files",
+		"many": "addons holding Git LFS placeholders instead of their real files",
+		"detail": "It was fetched on a machine without git-lfs, so git left small text files where the binaries belong. dotquay calls it clean because the lockfile hash was taken over the placeholders. Install git-lfs, run `git lfs install`, delete the addon folder and run `dotquay install`.",
+	},
 }
 
 ## The fallback for a kind this plugin has no wording for. Counts the issues and says nothing else,

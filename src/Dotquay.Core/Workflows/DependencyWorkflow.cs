@@ -1438,6 +1438,7 @@ public sealed partial class DependencyWorkflow
             CheckPluginCfgDrift(projectDirectory, locked, issues);
             CheckPackageManifestReadable(projectDirectory, locked, folderIsGodotProject, issues);
             CheckAddonFolderCase(projectDirectory, locked, issues);
+            CheckLfsPointers(projectDirectory, locked, issues);
         }
 
         CheckInstallFolderDrift(projectDirectory, manifest, lockfile, issues);
@@ -1449,6 +1450,31 @@ public sealed partial class DependencyWorkflow
         CheckAddonLinks(projectDirectory, lockfile, issues);
 
         return new DoctorResult(issues) { Trust = SummarizeTrust(manifest) };
+    }
+
+    /// <summary>
+    /// Reports an installed addon whose real files are Git LFS placeholders. See <see cref="LfsPointerScanner"/>.
+    /// </summary>
+    private void CheckLfsPointers(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
+    {
+        var addonPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
+        var pointers = LfsPointerScanner.Scan(_fileSystem, addonPath);
+        if (pointers.Count == 0)
+        {
+            return;
+        }
+
+        var folder = locked.EffectiveFolder;
+        var example = pointers.Count == 1
+            ? $"addons/{folder}/{pointers[0]}"
+            : $"{pointers.Count} files, such as addons/{folder}/{pointers[0]}";
+
+        issues.Add(new DoctorIssue(
+            DoctorIssueKind.LfsPointerFile,
+            $"'{locked.Name}' contains Git LFS placeholders where its real files belong ({example}). It was "
+            + "fetched on a machine without git-lfs, so git left small text files instead of the binaries, and "
+            + "Godot will not be able to load them. Install git-lfs (https://git-lfs.com), run 'git lfs install' "
+            + $"once, delete addons/{folder}, and run 'dotquay install'."));
     }
 
     /// <summary>

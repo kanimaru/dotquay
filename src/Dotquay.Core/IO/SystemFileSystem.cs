@@ -26,6 +26,8 @@ public sealed class SystemFileSystem : IFileSystem
 
     public byte[] ReadAllBytes(string path) => File.ReadAllBytes(path);
 
+    public long GetFileLength(string path) => new FileInfo(path).Length;
+
     public void WriteAllBytes(string path, byte[] contents)
     {
         var directory = Path.GetDirectoryName(path);

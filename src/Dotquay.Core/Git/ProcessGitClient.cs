@@ -18,6 +18,7 @@ namespace Dotquay.Core.Git;
 public sealed class ProcessGitClient : IGitClient
 {
     private readonly IReadOnlyDictionary<string, string> _childEnvironment;
+    private readonly LfsResolver _lfs;
 
     /// <param name="childEnvironment">Extra variables for every git child process. Null builds the
     /// real one from <see cref="Environment.ProcessPath"/> Ã¢â‚¬â€ the AOT-safe way to find dotquay's own
@@ -25,6 +26,7 @@ public sealed class ProcessGitClient : IGitClient
     public ProcessGitClient(IReadOnlyDictionary<string, string>? childEnvironment = null)
     {
         _childEnvironment = childEnvironment ?? GitEnvironment.Build(Environment.ProcessPath, new SystemEnvironmentReader());
+        _lfs = new LfsResolver((directory, args, token) => RunGitAsync(directory, args, token));
     }
 
     public async Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default)
@@ -106,7 +108,14 @@ public sealed class ProcessGitClient : IGitClient
         }
 
         await RunGitOrThrowAsync(destinationPath, ["checkout", "--quiet", commitSha], cancellationToken, "git checkout");
+
+        // A repository that keeps its binaries in Git LFS checks out as pointer text, not files, unless
+        // the machine has git-lfs installed and activated, and git does not say so. See LfsResolver.
+        await _lfs.EnsureResolvedAsync(destinationPath, "origin", cancellationToken);
     }
+
+    public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
+        => _lfs.EnsureResolvedAsync(checkoutPath, "origin", cancellationToken);
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {

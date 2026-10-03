@@ -20,6 +20,10 @@ public interface IFileSystem
     /// encoding, which corrupts arbitrary bytes.</summary>
     byte[] ReadAllBytes(string path);
 
+    /// <summary>Size of a file in bytes, without reading it. For checks that must look at many files
+    /// and only care about the small ones.</summary>
+    long GetFileLength(string path);
+
     void WriteAllBytes(string path, byte[] contents);
 
     /// <summary>Creates the directory, including any missing parents. No-op if it already exists.</summary>

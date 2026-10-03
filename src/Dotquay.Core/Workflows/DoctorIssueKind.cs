@@ -209,4 +209,17 @@ public enum DoctorIssueKind
     /// the extracted subtree, so the evidence is already on disk (<see cref="Doctor.GodotProjectRootChecker"/>).
     /// </remarks>
     AddonFolderIsGodotProject,
+
+    /// <summary>
+    /// An installed addon contains Git LFS pointer files where its real files belong: it was fetched on a
+    /// machine without git-lfs, so git left placeholder text instead of the binaries.
+    /// </summary>
+    /// <remarks>
+    /// The one place this is still visible after the fact. The fetch now repairs or refuses
+    /// (<see cref="Git.LfsResolver"/>), but an addon installed before that is on disk as placeholders with a
+    /// lockfile hash computed over them, so <c>status</c> calls it clean and nothing local fails: the first
+    /// symptom is Godot unable to load a native library. Purely local
+    /// (<see cref="Doctor.LfsPointerScanner"/>).
+    /// </remarks>
+    LfsPointerFile,
 }

@@ -17,6 +17,12 @@ public sealed class RepoCache
     // instead of being mistaken for a complete, usable cache entry.
     private const string CompletionMarkerFileName = ".dotquay-fetch-complete";
 
+    // Added to the marker once the checkout is known to hold real files rather than Git LFS pointers.
+    // Entries written before dotquay checked for that carry the SHA alone; they are verified once on
+    // their next use and then marked, instead of being trusted forever. Not a new marker NAME: that
+    // would throw away every cache entry on every machine to catch a few.
+    private const string LfsVerifiedToken = "lfs-verified";
+
     private readonly IFileSystem _fileSystem;
     private readonly IGitClient _gitClient;
     private readonly string _cacheRoot;
@@ -37,15 +43,23 @@ public sealed class RepoCache
 
         if (_fileSystem.FileExists(marker))
         {
+            if (!_fileSystem.ReadAllText(marker).Contains(LfsVerifiedToken, StringComparison.Ordinal))
+            {
+                await _gitClient.EnsureFilesResolvedAsync(path, cancellationToken);
+                _fileSystem.WriteAllText(marker, MarkerContent(commitSha));
+            }
+
             return path;
         }
 
         _fileSystem.DeleteDirectory(path); // clear out any partial fetch from an interrupted run
         await _gitClient.FetchCommitAsync(repositoryUrl, commitSha, path, cancellationToken);
-        _fileSystem.WriteAllText(marker, commitSha);
+        _fileSystem.WriteAllText(marker, MarkerContent(commitSha));
 
         return path;
     }
+
+    private static string MarkerContent(string commitSha) => $"{commitSha}\n{LfsVerifiedToken}";
 
     public string GetCachePath(string repositoryUrl, string commitSha)
     {
