@@ -87,10 +87,26 @@ git = "https://example.com/core.git"
 version = "~2.0"
 ```
 
-`version` matches against git tags using Cargo-style `~` ranges (`~2.44` matches `2.44.x`, `~2`
-matches any `2.x.x`). `dotquay add` picks a sensible default automatically: the latest release
-tag's `~major.minor` range if the repo has tags, otherwise a hard `rev` pin to the default
-branch's tip.
+`version` is one constraint language for git addons and NuGet packages alike (node-semver, the one
+npm, Cargo, Helm and Composer share; spec: `docs/SPEC.md` §7.1.5):
+
+| Written | Means |
+| --- | --- |
+| `1.2.3` | exactly 1.2.3 |
+| `~2.44` | `2.44.x` (`~2` matches any `2.x.x`) |
+| `^1.2.3` | `>=1.2.3 <2.0.0` (`^0.2.3` stays below `0.3.0`) |
+| `13.0.*`, `1.x` | any patch / minor |
+| `>=1.2 <2`, `1.2 - 1.4`, `^1 \|\| ^2` | comparators, hyphen range, either-or |
+
+Prereleases are only chosen when the range names one (`^5.1.0-rc1` accepts `5.1.0-rc5`; `^5.0` never
+selects `5.1.0-rc1`). `update` picks the highest version that satisfies every constraint on a name,
+and `outdated` reports exactly that: a package pinned to `3.0.0` is current even though `3.1.1`
+exists. NuGet's own interval syntax (`[1.0,2.0)`) is not accepted; dotquay resolves the range itself
+and writes only the exact result into the `.csproj`.
+
+`dotquay add` picks a sensible default automatically: for a git addon the latest release tag's
+`~major.minor` range if the repo has tags, otherwise a hard `rev` pin to the default branch's tip; for
+a NuGet package `^<newest stable>`.
 
 ## Dependency graph (v0.4)
 

@@ -1559,6 +1559,110 @@ public class DependencyWorkflowTests
         Assert.Null(dependency.LatestVersion);
     }
 
+    // -- outdated honours the manifest's range, like update does (DESIGN-v0.21 §3.5) --
+
+    /// <summary>
+    /// The BotV2 case: an exact pin on 3.0.0 while 3.1.1 exists. <c>update</c> keeps 3.0.0, so reporting 3.1.1
+    /// as an available upgrade would promise something <c>update</c> never does.
+    /// </summary>
+    [Fact]
+    public async Task OutdatedAsync_DotnetExactPin_IsCurrentWhileANewerVersionExists()
+    {
+        var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Adapter"] = ["3.0.0", "3.1.1"];
+        await workflow.AddDotnetAsync(ProjectDir, "Adapter", versionOverride: "3.0.0");
+
+        var dependency = Assert.Single((await workflow.OutdatedAsync(ProjectDir)).Dotnet);
+
+        Assert.False(dependency.IsOutdated);
+        Assert.Null(dependency.LatestVersion);
+    }
+
+    [Fact]
+    public async Task OutdatedAsync_DotnetCaretRange_OffersTheNewestInsideItNotTheNewestOverall()
+    {
+        var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+        await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");   // writes ^13.0.3
+
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3", "13.2.0", "14.0.0"];
+
+        var dependency = Assert.Single((await workflow.OutdatedAsync(ProjectDir)).Dotnet);
+
+        Assert.True(dependency.IsOutdated);
+        Assert.Equal("13.2.0", dependency.LatestVersion);
+    }
+
+    [Fact]
+    public async Task OutdatedAsync_DotnetCaretRange_NewerMajorOnlyIsNotReported()
+    {
+        var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+        await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
+
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3", "14.0.0"];
+
+        var dependency = Assert.Single((await workflow.OutdatedAsync(ProjectDir)).Dotnet);
+
+        Assert.False(dependency.IsOutdated);
+    }
+
+    /// <summary>A prerelease pin is current: the old check compared with the newest stable (5.2.0) and said outdated.</summary>
+    [Fact]
+    public async Task OutdatedAsync_DotnetPrereleasePin_IsCurrent()
+    {
+        var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Api"] = ["5.0.0", "5.1.0-rc1", "5.2.0"];
+        await workflow.AddDotnetAsync(ProjectDir, "Api", versionOverride: "5.1.0-rc1");
+
+        var dependency = Assert.Single((await workflow.OutdatedAsync(ProjectDir)).Dotnet);
+
+        Assert.False(dependency.IsOutdated);
+    }
+
+    [Fact]
+    public async Task OutdatedAsync_DotnetPrereleaseRange_OffersALaterPrereleaseOfTheSameVersion()
+    {
+        var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Api"] = ["5.0.0", "5.1.0-rc1"];
+        await workflow.AddDotnetAsync(ProjectDir, "Api", versionOverride: "^5.1.0-rc1");
+
+        nuGetClient.VersionsByPackageId["Api"] = ["5.0.0", "5.1.0-rc1", "5.1.0-rc5", "5.2.0-rc1"];
+
+        var dependency = Assert.Single((await workflow.OutdatedAsync(ProjectDir)).Dotnet);
+
+        Assert.True(dependency.IsOutdated);
+        Assert.Equal("5.1.0-rc5", dependency.LatestVersion);
+    }
+
+    /// <summary>The manifest was edited after locking and the locked version is now above the range: nothing to offer.</summary>
+    [Fact]
+    public async Task OutdatedAsync_DotnetLockedAboveTheRange_DoesNotSuggestADowngrade()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["12.0.3", "13.0.3"];
+        await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");   // locked 13.0.3
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"^12.0\"\n");
+
+        var dependency = Assert.Single((await workflow.OutdatedAsync(ProjectDir)).Dotnet);
+
+        Assert.False(dependency.IsOutdated);
+    }
+
+    [Fact]
+    public async Task OutdatedAsync_DotnetInvalidRange_NamesThePackage()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+        await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"[13.0,14.0)\"\n");
+
+        var ex = await Assert.ThrowsAsync<WorkflowException>(() => workflow.OutdatedAsync(ProjectDir));
+
+        Assert.Contains("Newtonsoft.Json", ex.Message);
+        Assert.Contains("[13.0,14.0)", ex.Message);
+    }
+
     [Fact]
     public async Task OutdatedAsync_NoManifest_Throws()
     {

@@ -163,9 +163,12 @@ caller has to recognise as meaningless.
 
 `outdated` checks each locked entry against its live upstream without touching disk: `version`- and
 `branch`-sourced addons via `git ls-remote` (reusing the same tag-matching logic as the resolver,
-just read-only), dotnet packages via a `NuGetVersionSelector.CheckForNewerStableAsync` metadata
+just read-only), dotnet packages via a `NuGetVersionSelector.CheckForNewerWithinAsync` metadata
 query (`NuGetVersion` comparison, not string equality, so normalization differences like `"13.0.3"`
-vs. `"13.0.3.0"` don't false-positive). `rev`-sourced addons are skipped entirely — a hard pin has
+vs. `"13.0.3.0"` don't false-positive). Since v0.21 the NuGet check selects inside the manifest's own
+range (§7.1.5), the version `update` would pick, so a package pinned to `3.0.0` is not reported outdated
+while `3.1.1` exists; with no range it is the newest stable release as before. A range that does not
+parse is an error naming the package. `rev`-sourced addons are skipped entirely — a hard pin has
 nothing upstream to compare against. An entry locked but no longer declared in the manifest is also
 skipped (that drift is `doctor`'s job, not `outdated`'s).
 

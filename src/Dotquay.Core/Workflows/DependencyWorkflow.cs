@@ -2127,7 +2127,10 @@ public sealed partial class DependencyWorkflow
             string? latest;
             try
             {
-                latest = await NuGetVersionSelector.CheckForNewerStableAsync(nuGetClient, locked.Name, locked.Resolved, cancellationToken);
+                // The manifest's own range, the same one `update` resolves with (DESIGN-v0.21 §3.5): an
+                // upgrade `update` would not make is not reported as outdated.
+                latest = await NuGetVersionSelector.CheckForNewerWithinAsync(
+                    nuGetClient, locked.Name, locked.Resolved, ParseDotnetConstraintOrThrow(locked.Name, spec.Version), cancellationToken);
             }
             catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException)
             {

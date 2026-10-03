@@ -50,19 +50,32 @@ public static class NuGetVersionSelector
     /// <see cref="NuGetVersion"/> comparison rather than string equality so normalization
     /// differences (e.g. <c>"13.0.3"</c> vs. <c>"13.0.3.0"</c>) don't falsely report drift.</summary>
     public static async Task<string?> CheckForNewerStableAsync(
-        INuGetClient client, string packageId, string currentVersion, CancellationToken cancellationToken = default)
+        INuGetClient client, string packageId, string currentVersion, CancellationToken cancellationToken = default) =>
+        await CheckForNewerWithinAsync(client, packageId, currentVersion, constraint: null, cancellationToken);
+
+    /// <summary>
+    /// <see cref="CheckForNewerStableAsync"/> for a package whose manifest names a range: the highest
+    /// version <em>inside that range</em> if it is strictly newer than <paramref name="currentVersion"/>,
+    /// else null. This is the version <c>update</c> would pick (DESIGN-v0.21 §3.5), so <c>outdated</c>
+    /// never reports an upgrade <c>update</c> would refuse to make: a package pinned to <c>3.0.0</c> is
+    /// current while 3.1.1 exists. With no constraint it is the newest stable release, as before.
+    /// </summary>
+    public static async Task<string?> CheckForNewerWithinAsync(
+        INuGetClient client, string packageId, string currentVersion, VersionConstraint? constraint,
+        CancellationToken cancellationToken = default)
     {
-        var latest = await SelectLatestStableAsync(client, packageId, cancellationToken);
-        if (latest is null)
+        var versions = (await client.GetVersionsAsync(packageId, cancellationToken)).Versions;
+        var best = constraint is null ? SelectLatestStable(versions) : SelectHighestMatching(versions, constraint);
+        if (best is null)
         {
             return null;
         }
 
-        if (!NuGetVersion.TryParse(latest, out var latestVersion) || !NuGetVersion.TryParse(currentVersion, out var current))
+        if (!NuGetVersion.TryParse(best, out var bestVersion) || !NuGetVersion.TryParse(currentVersion, out var current))
         {
             return null;
         }
 
-        return latestVersion > current ? latest : null;
+        return bestVersion > current ? best : null;
     }
 }

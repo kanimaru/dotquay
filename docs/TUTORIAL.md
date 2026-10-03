@@ -98,8 +98,9 @@ dotquay add https://gitlab.kemomi.de/wild-alliance/vbeami/ \
 - The addon name is derived from the URL (`vbeami`).
 - `--path` is the subtree **inside the upstream repo** to extract — vbeami's repo is a whole
   application, and only `godot/addons/vbeami/` is the addon.
-- `--version` is a constraint matched against the repo's git **tags**. Use `--branch main` to track a
-  branch, or `--rev <sha>` to pin a commit.
+- `--version` is a constraint matched against the repo's git **tags**: `1.2.3` is exact, `~1.2` is
+  `1.2.x`, `^1.2` is anything below `2.0.0`, and `>=1.2 <2` works too (the full grammar is in the
+  README). Use `--branch main` to track a branch, or `--rev <sha>` to pin a commit.
 
 When it finishes you have:
 
@@ -149,7 +150,7 @@ surface — see vbeami's `docs/CUSTOM_NODES.md`.
 | `dotquay install` | Replays the lockfile exactly. Reproducible; **never** re-resolves and never adopts a feed. This is the CI/teammate command. |
 | `dotquay update [name]` | Re-resolves constraints, writes a new lockfile, installs. |
 | `dotquay status --explain` | Which addons are clean/modified/linked/patched — and *why* something reads as modified. |
-| `dotquay outdated` | Newer tags/versions available under your constraints. |
+| `dotquay outdated` | Newer tags/versions available inside your constraints, the ones `update` would pick (an exact pin is never outdated). |
 | `dotquay doctor` | Health check: folder-case mismatches, `install_as` drift, unusable trusted hosts, fragile `uid://` references. |
 | `dotquay link <name> <path>` | Point an addon at a local checkout for development — live edits, no commit, no update. |
 | `dotquay patch <name>` | Capture local edits to an addon as a patch that survives updates. |
