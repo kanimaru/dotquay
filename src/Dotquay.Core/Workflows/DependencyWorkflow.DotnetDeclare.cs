@@ -68,13 +68,19 @@ public sealed partial class DependencyWorkflow
             declared?.Assets ?? locked?.Assets ?? PackageAssets.None,
             cancellationToken);
 
-        var outcome = declared is null ? DotnetDeclarationOutcome.Pinned : DotnetDeclarationOutcome.Changed;
+        // A range re-declared as it was, still resolving where it did, changed nothing. The early return
+        // above can only see that for an exact pin, whose text is its own resolution.
+        var outcome = declared is null
+            ? DotnetDeclarationOutcome.Pinned
+            : declared.Version == version && locked?.Resolved == relocked.Resolved && pinnedSourceName is null
+                ? DotnetDeclarationOutcome.Unchanged
+                : DotnetDeclarationOutcome.Changed;
         return new DotnetDeclaration(relocked, outcome, locked?.Resolved);
     }
 
     /// <summary>
-    /// Resolves <paramref name="requestedVersion"/> (verifying it exists), or the latest stable when it
-    /// is null, then writes it into the <c>.csproj</c>, restores, and records it in both the manifest and
+    /// Resolves the highest version inside <paramref name="requestedVersion"/>, or the latest stable when
+    /// it is null, then writes it into the <c>.csproj</c>, restores, and records it in both the manifest and
     /// the lockfile. The shared second half of a pin and a change.
     /// </summary>
     private async Task<LockedDotnet> RedeclareDotnetAsync(
@@ -89,24 +95,34 @@ public sealed partial class DependencyWorkflow
         var sourceSet = manifest.SourceSet();
         ThrowIfUnknownSource(sourceSet, sourceName);
 
+        var constraint = ParseDotnetConstraintOrThrow(packageId, requestedVersion);
+
         var nuGetClient = _nuGetClientFactory.Create(sourceSet, sourceName);
         var (version, resolvedSource) = await ResolveDotnetVersionOrThrowAsync(
-            nuGetClient, packageId, requestedVersion, cancellationToken);
+            nuGetClient, packageId, constraint, cancellationToken);
 
         // Read before the install, for the same reason AddDotnetAsync does: the install rewrites
         // NuGet.Config's <packageSourceMapping> wholesale from what the lockfile knows.
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
         var previous = lockfile.Dotnet.FirstOrDefault(d => d.Name == packageId);
 
-        var locked = await InstallDotnetOrThrowAsync(
-            projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
-            cancellationToken, assets, previouslyWritten: previous?.Assets);
+        var locked = await InstallDotnetRestoringOnFailureAsync(
+            projectDirectory,
+            () => InstallDotnetOrThrowAsync(
+                projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
+                cancellationToken, assets, previouslyWritten: previous?.Assets));
 
         WriteManifest(manifestPath, manifest with
         {
             Dotnet = new Dictionary<string, DotnetSpec>(manifest.Dotnet)
             {
-                [packageId] = new DotnetSpec { Name = packageId, Version = version, Source = sourceName, Assets = assets },
+                [packageId] = new DotnetSpec
+                {
+                    Name = packageId,
+                    Version = requestedVersion ?? CompatibleRange(version),
+                    Source = sourceName,
+                    Assets = assets,
+                },
             },
         });
 

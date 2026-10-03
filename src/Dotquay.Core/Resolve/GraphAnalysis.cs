@@ -33,4 +33,10 @@ public sealed record GraphAnalysis(
     /// <summary>Addon name to the <c>[dotnet.*]</c> package IDs it declared.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> DotnetPackagesByAddon { get; init; } =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+    /// <summary>Package ID to every addon's range on it, in discovery order (DESIGN-v0.21 §3.5).
+    /// <see cref="AddonDeclaredDotnet"/> keeps only the first declaration, which still decides asset
+    /// metadata; versions are decided by all of them.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>> AddonDotnetRequirements { get; init; } =
+        new Dictionary<string, IReadOnlyList<AddonDotnetRequirement>>(StringComparer.Ordinal);
 }

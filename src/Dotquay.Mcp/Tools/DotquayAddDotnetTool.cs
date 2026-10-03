@@ -35,7 +35,7 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, 
               "description": "Absolute path to the project directory (containing dotquay.toml). Defaults to the server's first --project root."
             },
             "package_id": { "type": "string", "description": "The NuGet package ID to add." },
-            "version": { "type": "string", "description": "An exact package version. Defaults to the latest stable release. On a package the project already has, the version to pin it to or change it to." },
+            "version": { "type": "string", "description": "A version constraint: an exact version (\"1.2.3\"), \"^1.2\", \"~1.2\", \"1.2.*\", \">=1.2 <2\" or a prerelease (\"5.1.0-rc1\"). The highest version inside it is installed, and it is written to the manifest as given. Defaults to \"^\" on the latest stable release. On a package the project already has, the range to pin it to or change it to." },
             "nuget_source": {
               "type": "string",
               "description": "A declared [nuget.sources.<name>] name to resolve from, instead of searching every declared feed in order."

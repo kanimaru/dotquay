@@ -329,7 +329,7 @@ public sealed partial class DependencyWorkflow
             .ToHashSet(StringComparer.Ordinal);
         var syncedDotnet = await SyncDotnetAsync(
             projectDirectory, updatedManifest, lockfile.Dotnet, newDotnetNames, pruneUnreachable: false, cancellationToken,
-            refusalHints, addonDeclaredDotnet);
+            refusalHints, addonDeclaredDotnet, graphSync.AddonDotnetRequirements);
 
         WriteLockfile(lockfilePath, lockfile with { Addons = syncedAddons, Dotnet = syncedDotnet });
 
@@ -337,11 +337,14 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
-    /// Adds a new NuGet dependency: queries the latest stable version (or verifies an explicit
-    /// <paramref name="versionOverride"/> actually exists), writes a <c>PackageReference</c> into
+    /// Adds a new NuGet dependency: queries the latest stable version (or the highest inside an
+    /// explicit <paramref name="versionOverride"/> range), writes a <c>PackageReference</c> into
     /// the project's <c>.csproj</c>, runs <c>dotnet restore</c>, and updates the manifest and
     /// lockfile (SPEC.md §11, requirement P0-7).
     /// </summary>
+    /// <param name="versionOverride">Any range in the constraint language (DESIGN-v0.21), written to
+    /// the manifest as typed. Without one the manifest gets <c>^&lt;resolved&gt;</c>, so <c>update</c>
+    /// picks up compatible releases (§3.6).</param>
     /// <param name="pinnedSourceName">A declared <c>[nuget.sources.*]</c> name to resolve from, instead
     /// of searching every feed in order (v0.14's <c>--source</c>). Written to the manifest as
     /// <c>source = "..."</c>, so the pin survives into every later resolve.</param>
@@ -366,10 +369,11 @@ public sealed partial class DependencyWorkflow
         // NuGetSourceSet.Resolve would raise this too, but as a message about a `source = "..."` key
         // the user has not written yet.
         ThrowIfUnknownSource(sourceSet, pinnedSourceName);
+        var constraint = ParseDotnetConstraintOrThrow(packageId, versionOverride);
 
         var nuGetClient = _nuGetClientFactory.Create(sourceSet, pinnedSourceName);
         var (version, resolvedSource) = await ResolveDotnetVersionOrThrowAsync(
-            nuGetClient, packageId, versionOverride, cancellationToken);
+            nuGetClient, packageId, constraint, cancellationToken);
         var assets = await DecideGeneratorAssetsAsync(
             projectDirectory, nuGetClient, packageId, version, cancellationToken);
 
@@ -379,9 +383,11 @@ public sealed partial class DependencyWorkflow
         // nothing else, silently un-mapping every other private package in the project.
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
 
-        var locked = await InstallDotnetOrThrowAsync(
-            projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
-            cancellationToken, assets);
+        var locked = await InstallDotnetRestoringOnFailureAsync(
+            projectDirectory,
+            () => InstallDotnetOrThrowAsync(
+                projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
+                cancellationToken, assets));
 
         WriteManifest(manifestPath, manifest with
         {
@@ -394,7 +400,7 @@ public sealed partial class DependencyWorkflow
                 [packageId] = new DotnetSpec
                 {
                     Name = packageId,
-                    Version = version,
+                    Version = versionOverride ?? CompatibleRange(version),
                     Source = pinnedSourceName,
                     Assets = assets,
                 },
@@ -562,6 +568,7 @@ public sealed partial class DependencyWorkflow
 
         IReadOnlyList<LockedAddon> addons = lockfile.Addons;
         IReadOnlyList<DotnetSpec> addonDeclaredDotnet = [];
+        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonDotnetRequirements = null;
         IReadOnlyList<GraphWarning> graphWarnings = [];
         IReadOnlyDictionary<string, string> refusalHints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var addonResults = new List<AddonUpdateResult>();
@@ -582,6 +589,7 @@ public sealed partial class DependencyWorkflow
 
             var graphSync = await SyncAddonGraphAsync(projectDirectory, manifest, lockfile, freshNames, force, cancellationToken);
             (addons, addonDeclaredDotnet, graphWarnings) = (graphSync.Addons, graphSync.AddonDeclaredDotnet, graphSync.Warnings);
+            addonDotnetRequirements = graphSync.AddonDotnetRequirements;
 
             // Before dotnet resolution, so an adopted feed is available to the very packages that
             // caused it to be adopted.
@@ -650,7 +658,7 @@ public sealed partial class DependencyWorkflow
         var previousDotnetByName = lockfile.Dotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var syncedDotnet = await SyncDotnetAsync(
             projectDirectory, manifest, lockfile.Dotnet, dotnetTargetNames, pruneUnreachable: !resync && name is null, cancellationToken,
-            refusalHints, addonDeclaredDotnet);
+            refusalHints, addonDeclaredDotnet, addonDotnetRequirements);
 
 
         var syncedDotnetByName = syncedDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
@@ -2197,21 +2205,32 @@ public sealed partial class DependencyWorkflow
     /// (SPEC.md §7.3). A <see cref="NuGetAuthenticationException"/> is translated rather than
     /// swallowed: a feed that refuses to answer must stop the operation, not quietly become "package
     /// not found" and let a later public feed supply a same-named package.</summary>
+    /// <remarks>
+    /// <paramref name="constraint"/> selects the highest version inside it (DESIGN-v0.21 §3.5); null
+    /// means none was declared, which selects the newest stable release.
+    /// </remarks>
     private async Task<(string Version, string? SourceName)> ResolveDotnetVersionOrThrowAsync(
-        INuGetClient nuGetClient, string packageId, string? versionOverride, CancellationToken cancellationToken)
+        INuGetClient nuGetClient, string packageId, VersionConstraint? constraint, CancellationToken cancellationToken)
     {
         try
         {
             var query = await nuGetClient.GetVersionsAsync(packageId, cancellationToken);
 
-            if (versionOverride is not null)
+            if (constraint is not null)
             {
-                if (!NuGetVersionSelector.Exists(query.Versions, versionOverride))
+                var match = NuGetVersionSelector.SelectHighestMatching(query.Versions, constraint);
+                if (match is null)
                 {
-                    throw new WorkflowException($"'{packageId}' version '{versionOverride}' was not found on NuGet.");
+                    var newest = NuGetVersionSelector.SelectLatestStable(query.Versions);
+                    throw new WorkflowException(
+                        $"'{packageId}' has no version matching '{constraint}' on NuGet"
+                        + (newest is null ? "." : $" (newest stable: {newest}).")
+                        + " Change the range, or pin an existing version with 'dotquay add "
+                        + $"{packageId} --version <version>'."
+                        + DescribeCheckedSources(query));
                 }
 
-                return (versionOverride, query.SourceName);
+                return (match, query.SourceName);
             }
 
             var latest = NuGetVersionSelector.SelectLatestStable(query.Versions);
@@ -2229,6 +2248,137 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
+    /// What <c>add</c> declares for a NuGet package when no range was asked for: <c>^</c> on the
+    /// version it resolved, as <c>npm install</c> writes (DESIGN-v0.21 §3.6).
+    /// </summary>
+    private static string CompatibleRange(string resolvedVersion) => "^" + resolvedVersion;
+
+    /// <summary>
+    /// Runs one package's install-and-restore, putting the <c>.csproj</c> and <c>NuGet.Config</c> back
+    /// if it fails, so a refused restore leaves the project as it was (DESIGN-v0.21 §4).
+    /// </summary>
+    private async Task<LockedDotnet> InstallDotnetRestoringOnFailureAsync(
+        string projectDirectory, Func<Task<LockedDotnet>> install)
+    {
+        var snapshot = DotnetFilesSnapshot.Capture(_fileSystem, projectDirectory);
+        try
+        {
+            return await install();
+        }
+        catch
+        {
+            snapshot.Restore();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Resolves one package for <c>update</c>/<c>add</c>'s dotnet sync against every range on it
+    /// (DESIGN-v0.21 §3.5).
+    /// </summary>
+    /// <remarks>
+    /// The project's own entry wins outright, as it does for asset metadata (SPEC.md §8). Otherwise the
+    /// version must satisfy every addon that declared the package, and a failure names each of them and
+    /// its range, as <see cref="GraphConflictKind.NoCommonVersion"/> does for git addons. A package the
+    /// walk recorded no ranges for falls back to its declared entry.
+    /// </remarks>
+    private async Task<(string Version, string? SourceName)> ResolveDotnetForSyncAsync(
+        INuGetClient nuGetClient,
+        string packageId,
+        DotnetSpec? projectSpec,
+        IReadOnlyDictionary<string, DotnetSpec>? addonDeclaredByName,
+        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements,
+        CancellationToken cancellationToken)
+    {
+        if (projectSpec is not null)
+        {
+            return await ResolveDotnetVersionOrThrowAsync(
+                nuGetClient, packageId, ParseDotnetConstraintOrThrow(packageId, projectSpec.Version), cancellationToken);
+        }
+
+        IReadOnlyList<AddonDotnetRequirement> ranges =
+            addonRequirements is not null && addonRequirements.TryGetValue(packageId, out var recorded) && recorded.Count > 0
+                ? recorded
+                : addonDeclaredByName is not null && addonDeclaredByName.TryGetValue(packageId, out var declared)
+                    ? [new AddonDotnetRequirement("an addon", declared.Version)]
+                    : [];
+
+        VersionConstraint? combined = null;
+        foreach (var range in ranges)
+        {
+            if (!VersionConstraint.TryParse(range.Version, out var constraint) || constraint is null)
+            {
+                throw new WorkflowException(
+                    $"'{packageId}': '{range.Version}' (from {range.AddonName}) is not a valid version constraint.");
+            }
+
+            combined = combined is null ? constraint : combined.Intersect(constraint);
+        }
+
+        try
+        {
+            return await ResolveDotnetVersionOrThrowAsync(nuGetClient, packageId, combined, cancellationToken);
+        }
+        catch (WorkflowException ex) when (ranges.Count > 1)
+        {
+            throw new WorkflowException(
+                $"'{packageId}': no version satisfies every addon that declares it — "
+                + string.Join("; ", ranges.Select(r => $"{r.AddonName} wants {r.Version}"))
+                + $". Declare [dotnet.\"{packageId}\"] in your own dotquay.toml to settle it.",
+                ex);
+        }
+    }
+
+    /// <summary>
+    /// The version a package's first link records, before anything was ever resolved for it: the
+    /// declared version when it names one (<c>1.2.3</c>, or the base of <c>^1.2.3</c>/<c>~1.2.3</c>).
+    /// </summary>
+    /// <remarks>
+    /// A link is never resolved remotely (SPEC.md §7.4), so there is nothing to pick a version inside a
+    /// range from, and the <c>.csproj</c> needs a real one. A range with no single version in it
+    /// (<c>1.2.*</c>, <c>&gt;=1 &lt;2</c>) is refused rather than guessed at.
+    /// </remarks>
+    private static string? LinkedFirstVersion(string packageId, DotnetSpec? spec)
+    {
+        if (spec is null)
+        {
+            return null;
+        }
+
+        var text = spec.Version.Trim().TrimStart('^', '~', '=');
+        if (AddonVersion.TryParse(text, out var version) && version is not null)
+        {
+            return text;
+        }
+
+        throw new WorkflowException(
+            $"'{packageId}' is linked but has never been resolved, and '{spec.Version}' names no single version "
+            + "to record. Unlink it and run 'dotquay update' once, or declare an exact version.");
+    }
+
+    /// <summary>
+    /// Parses a <c>[dotnet.*]</c> <c>version</c> (or an <c>add --version</c>), naming the package when
+    /// it isn't in the constraint language. Null in, null out: nothing was declared.
+    /// </summary>
+    private static VersionConstraint? ParseDotnetConstraintOrThrow(string packageId, string? text)
+    {
+        if (text is null)
+        {
+            return null;
+        }
+
+        if (!VersionConstraint.TryParse(text, out var constraint) || constraint is null)
+        {
+            throw new WorkflowException(
+                $"'{packageId}': '{text}' is not a valid version constraint. Use an exact version (1.2.3), a "
+                + "range (^1.2, ~1.2, 1.2.*, >=1.2 <2), or a prerelease (5.1.0-rc1). NuGet's interval "
+                + "notation ([1.0,2.0)) is not accepted; see DESIGN-v0.21.");
+        }
+
+        return constraint;
+    }
+
+    /// <summary>
     /// The "no stable release" message, sharpened with which feeds were actually asked.
     /// </summary>
     /// <remarks>
@@ -2242,19 +2392,28 @@ public sealed partial class DependencyWorkflow
     /// </remarks>
     private static string DescribeNoStableRelease(string packageId, NuGetVersionQuery query)
     {
-        var baseMessage =
-            $"'{packageId}' has no stable release on NuGet — pass an explicit version (including "
-            + "prerelease) if you want to add it anyway.";
+        return $"'{packageId}' has no stable release on NuGet — pass an explicit version (including "
+            + "prerelease) if you want to add it anyway."
+            + DescribeCheckedSources(query);
+    }
 
-        // Only nuget.org was ever going to be asked (no private feed declared, or none reached this
-        // package) — there's nothing more specific to say than the message already says.
+    /// <summary>
+    /// Which feeds were asked, and the GitLab ambiguity, as a sentence to append to a "not found"
+    /// message — or nothing when only nuget.org was ever going to be asked.
+    /// </summary>
+    /// <remarks>
+    /// Shared by "no stable release" and "no version in the range" (DESIGN-v0.21): both can mean the
+    /// package, or the versions the range wants, sit on a private feed the token can't see.
+    /// </remarks>
+    private static string DescribeCheckedSources(NuGetVersionQuery query)
+    {
         var privateSourcesChecked = query.CheckedSources.Where(s => s != NuGetSourceSpec.PublicName).ToList();
         if (privateSourcesChecked.Count == 0)
         {
-            return baseMessage;
+            return "";
         }
 
-        return $"{baseMessage} Checked: {string.Join(", ", query.CheckedSources)}. If it's meant to come from "
+        return $" Checked: {string.Join(", ", query.CheckedSources)}. If it's meant to come from "
             + $"{string.Join(" or ", privateSourcesChecked)}, note that GitLab answers 404 both for a package "
             + "that was never published and one your token isn't allowed to see — confirm it's actually in the "
             + "project's package registry, and that the token has the read_package_registry scope.";
@@ -2599,7 +2758,10 @@ public sealed partial class DependencyWorkflow
         var adoption = new SourceAdopter(SourceApproval).Evaluate(
             manifest, graph.AddonDeclaredSources.Select(s => (s.AddonName, s.Source)).ToList(), graph.DotnetPackagesByAddon);
 
-        return new GraphSyncResult(resultByName.Values.ToList(), graph.AddonDeclaredDotnet, warnings, adoption);
+        return new GraphSyncResult(resultByName.Values.ToList(), graph.AddonDeclaredDotnet, warnings, adoption)
+        {
+            AddonDotnetRequirements = graph.AddonDotnetRequirements,
+        };
     }
 
     /// <summary>
@@ -2708,7 +2870,12 @@ public sealed partial class DependencyWorkflow
         IReadOnlyList<LockedAddon> Addons,
         IReadOnlyList<DotnetSpec> AddonDeclaredDotnet,
         IReadOnlyList<GraphWarning> Warnings,
-        SourceAdopter.Result Adoption);
+        SourceAdopter.Result Adoption)
+    {
+        /// <summary>Every addon's range per NuGet package (DESIGN-v0.21 §3.5).</summary>
+        public IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>> AddonDotnetRequirements { get; init; } =
+            new Dictionary<string, IReadOnlyList<AddonDotnetRequirement>>(StringComparer.Ordinal);
+    }
 
     /// <summary>
     /// Folds adopted feeds into the manifest that will be written and used for resolution, and turns
@@ -2746,13 +2913,18 @@ public sealed partial class DependencyWorkflow
 
     /// <summary>
     /// The dotnet-side twin of <see cref="SyncAddonGraphAsync"/>'s "fresh vs. frozen, prune-or-keep"
-    /// pattern: <paramref name="targetNames"/> are (re-)resolved to latest-stable and installed if
-    /// they changed; every other previously-locked package not in <paramref name="targetNames"/> is
+    /// pattern: <paramref name="targetNames"/> are (re-)resolved to the highest version their ranges
+    /// allow (DESIGN-v0.21 §3.5) and installed if they changed; every other previously-locked package not in <paramref name="targetNames"/> is
     /// either dropped (<paramref name="pruneUnreachable"/> — used for a full <c>update</c>, where the
     /// full picture of what's still declared/reachable is known) or carried forward untouched
     /// (used by <c>add</c> and a single-name <c>update</c>, which must never silently drop or move an
     /// unrelated dotnet package).
     /// </summary>
+    /// <remarks>
+    /// Any failure puts the <c>.csproj</c> and <c>NuGet.Config</c> back as they were (DESIGN-v0.21 §4):
+    /// the lockfile is only written after this returns, so a restore NuGet refuses would otherwise
+    /// leave a <c>.csproj</c> that matches neither the manifest nor the lockfile.
+    /// </remarks>
     private async Task<IReadOnlyList<LockedDotnet>> SyncDotnetAsync(
         string projectDirectory,
         ProjectManifest manifest,
@@ -2761,7 +2933,33 @@ public sealed partial class DependencyWorkflow
         bool pruneUnreachable,
         CancellationToken cancellationToken,
         IReadOnlyDictionary<string, string>? refusalHints = null,
-        IReadOnlyList<DotnetSpec>? addonDeclared = null)
+        IReadOnlyList<DotnetSpec>? addonDeclared = null,
+        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements = null)
+    {
+        var snapshot = DotnetFilesSnapshot.Capture(_fileSystem, projectDirectory);
+        try
+        {
+            return await SyncDotnetUnguardedAsync(
+                projectDirectory, manifest, previousDotnet, targetNames, pruneUnreachable, cancellationToken,
+                refusalHints, addonDeclared, addonRequirements);
+        }
+        catch
+        {
+            snapshot.Restore();
+            throw;
+        }
+    }
+
+    private async Task<IReadOnlyList<LockedDotnet>> SyncDotnetUnguardedAsync(
+        string projectDirectory,
+        ProjectManifest manifest,
+        IReadOnlyList<LockedDotnet> previousDotnet,
+        IReadOnlySet<string> targetNames,
+        bool pruneUnreachable,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? refusalHints,
+        IReadOnlyList<DotnetSpec>? addonDeclared,
+        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements)
     {
         var sources = manifest.SourceSet();
         var addonDeclaredByName = addonDeclared?.ToDictionary(s => s.Name, StringComparer.Ordinal);
@@ -2785,7 +2983,7 @@ public sealed partial class DependencyWorkflow
             // whatever it already said — or, on a first link, the version the manifest declares — so
             // unlinking still puts this machine back on something real.
             var linkedVersion = dotnetLinks.ContainsKey(targetName)
-                ? previous?.Resolved ?? spec?.Version
+                ? previous?.Resolved ?? LinkedFirstVersion(targetName, spec)
                 : null;
 
             string version;
@@ -2794,8 +2992,8 @@ public sealed partial class DependencyWorkflow
             {
                 (version, resolvedSource) = linkedVersion is not null
                     ? (linkedVersion, previous?.Source)
-                    : await ResolveDotnetVersionOrThrowAsync(
-                        nuGetClient, targetName, versionOverride: null, cancellationToken);
+                    : await ResolveDotnetForSyncAsync(
+                        nuGetClient, targetName, spec, addonDeclaredByName, addonRequirements, cancellationToken);
             }
             catch (WorkflowException ex) when (refusalHints?.TryGetValue(targetName, out var hint) == true)
             {

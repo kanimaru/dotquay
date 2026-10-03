@@ -55,6 +55,20 @@ public class AddonUnifierTests
     }
 
     [Fact]
+    public async Task UnifyAsync_RangeNamingAPrerelease_CanSelectOne()
+    {
+        var (unifier, gitClient) = Build();
+        SetTags(gitClient, CoreUrl, "v1.0.1", "v1.0.2-rc1", "v1.0.2-rc2", "v1.1.0-rc1");
+
+        // DESIGN-v0.21 §3.4: the range names a 1.0.2 prerelease, so later 1.0.2 prereleases qualify,
+        // and 1.1.0-rc1 does not — it is a prerelease of a different version.
+        var outcome = await unifier.UnifyAsync("core", [Wants("<project>", "^1.0.2-rc1")]);
+
+        Assert.True(outcome.IsResolved);
+        Assert.Equal("v1.0.2-rc2", outcome.Resolved.DisplayVersion);
+    }
+
+    [Fact]
     public async Task UnifyAsync_OverlappingVersionRanges_PicksTheHighestSatisfyingAll()
     {
         var (unifier, gitClient) = Build();

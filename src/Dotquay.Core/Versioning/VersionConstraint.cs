@@ -3,93 +3,391 @@ using System.Globalization;
 namespace Dotquay.Core.Versioning;
 
 /// <summary>
-/// Parses and matches the <c>version = "~2.44"</c> addon-spec field (SPEC.md §7.1) against
-/// resolved tags. Supports Cargo-style tilde ranges (<c>~I.J.K</c>, <c>~I.J</c>, <c>~I</c>) and
-/// exact versions. Prerelease tags are excluded from matches — "version" resolution never
-/// silently picks a "-dev"/"-rc" build (SPEC.md §15).
+/// A <c>version = "..."</c> constraint, for every <c>[addons.*]</c> and <c>[dotnet.*]</c> entry in
+/// every dotquay manifest (DESIGN-v0.21). The grammar is node-semver's: a bare version is exact,
+/// <c>^</c> allows compatible updates, <c>~</c> patch-level ones, <c>1.2.x</c>/<c>*</c> are x-ranges,
+/// and comparators, hyphen ranges and <c>||</c> cover the rest.
 /// </summary>
+/// <remarks>
+/// <para>Two dotquay extensions, both from DESIGN-v0.21 §3.2: a fourth component (Phantom Camera's
+/// <c>v0.11.0.3</c>, NuGet's <c>Revision</c>) that is compared like the others but that <c>~</c> and
+/// <c>^</c> never bump, and a comma accepted as a synonym for the space between comparators.</para>
+/// <para>Prereleases follow npm's rule (§3.4): one satisfies a range only when some comparator of that
+/// range names a prerelease of the same version numbers, so <c>^5.0</c> never selects
+/// <c>5.1.0-rc1</c>, while <c>^5.1.0-rc1</c> accepts <c>5.1.0-rc5</c>.</para>
+/// </remarks>
 public sealed class VersionConstraint
 {
-    private readonly IReadOnlyList<long> _components;
-    private readonly bool _isExact;
+    // A bare version with at least this many components is exact; fewer make it an x-range.
+    private const int FullComponentCount = 3;
 
-    private VersionConstraint(IReadOnlyList<long> components, bool isExact)
+    private readonly IReadOnlyList<IReadOnlyList<Comparator>> _alternatives;
+
+    private VersionConstraint(string text, IReadOnlyList<IReadOnlyList<Comparator>> alternatives)
     {
-        _components = components;
-        _isExact = isExact;
+        Text = text;
+        _alternatives = alternatives;
     }
+
+    /// <summary>The constraint as written.</summary>
+    public string Text { get; }
 
     public static bool TryParse(string constraint, out VersionConstraint? parsed)
     {
         parsed = null;
-
-        if (string.IsNullOrWhiteSpace(constraint))
+        if (constraint is null)
         {
             return false;
         }
 
-        var text = constraint.Trim();
-        var isExact = true;
-        if (text.StartsWith('~'))
+        var alternatives = new List<IReadOnlyList<Comparator>>();
+        foreach (var alternative in constraint.Split("||"))
         {
-            isExact = false;
-            text = text[1..];
-        }
-
-        if (text.Length > 0 && (text[0] == 'v' || text[0] == 'V'))
-        {
-            text = text[1..];
-        }
-
-        // Deliberately not AddonVersion.TryParse here: a constraint's own version text is allowed
-        // a single component ("~1"), which AddonVersion rejects for real tags (SPEC.md §15 requires
-        // 2-4 components there, since bare single-number git tags aren't a thing in the wild).
-        var pieces = text.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (pieces.Length is < 1 or > 4)
-        {
-            return false;
-        }
-
-        var components = new List<long>(pieces.Length);
-        foreach (var piece in pieces)
-        {
-            if (!long.TryParse(piece, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
+            if (!TryParseRange(alternative, out var comparators))
             {
                 return false;
             }
 
-            components.Add(value);
+            alternatives.Add(comparators);
         }
 
-        parsed = new VersionConstraint(components, isExact);
+        parsed = new VersionConstraint(constraint.Trim(), alternatives);
         return true;
     }
 
-    public bool IsSatisfiedBy(AddonVersion candidate)
+    public bool IsSatisfiedBy(AddonVersion candidate) =>
+        _alternatives.Any(range => Satisfies(range, candidate));
+
+    /// <summary>
+    /// A constraint satisfied exactly by the versions that satisfy both — how several requirers'
+    /// ranges on one package combine (DESIGN-v0.21 §3.5).
+    /// </summary>
+    public VersionConstraint Intersect(VersionConstraint other)
     {
-        if (candidate.IsPrerelease)
+        var alternatives = new List<IReadOnlyList<Comparator>>();
+        foreach (var left in _alternatives)
+        {
+            foreach (var right in other._alternatives)
+            {
+                alternatives.Add([.. left, .. right]);
+            }
+        }
+
+        return new VersionConstraint($"{Text} and {other.Text}", alternatives);
+    }
+
+    public override string ToString() => Text;
+
+    private static bool Satisfies(IReadOnlyList<Comparator> range, AddonVersion candidate)
+    {
+        if (!range.All(comparator => comparator.IsSatisfiedBy(candidate)))
         {
             return false;
         }
 
-        if (_isExact)
+        return !candidate.IsPrerelease
+            || range.Any(comparator => comparator.Prerelease is not null
+                && AddonVersion.CompareComponents(comparator.Components, candidate.Components) == 0);
+    }
+
+    private static bool TryParseRange(string text, out IReadOnlyList<Comparator> comparators)
+    {
+        comparators = [];
+        var tokens = Tokenize(text);
+
+        if (tokens.Count == 3 && tokens[1] == "-")
         {
-            return AddonVersion.CompareComponents(candidate.Components, _components) == 0;
+            return TryParseHyphen(tokens[0], tokens[2], out comparators);
         }
 
-        if (AddonVersion.CompareComponents(candidate.Components, _components) < 0)
+        var result = new List<Comparator>();
+        foreach (var token in tokens)
+        {
+            if (!TryParseComparator(token, result))
+            {
+                return false;
+            }
+        }
+
+        comparators = result;
+        return true;
+    }
+
+    /// <summary>
+    /// Splits on spaces and commas, gluing an operator written apart from its version
+    /// (<c>&gt;= 1.2</c>) back onto it.
+    /// </summary>
+    private static List<string> Tokenize(string text)
+    {
+        var raw = text.Split([' ', '\t', ','], StringSplitOptions.RemoveEmptyEntries);
+        var tokens = new List<string>();
+        for (var i = 0; i < raw.Length; i++)
+        {
+            var token = raw[i];
+            if (token is "<" or "<=" or ">" or ">=" or "=" or "~" or "^" && i + 1 < raw.Length)
+            {
+                token += raw[++i];
+            }
+
+            tokens.Add(token);
+        }
+
+        return tokens;
+    }
+
+    private static bool TryParseHyphen(string from, string to, out IReadOnlyList<Comparator> comparators)
+    {
+        comparators = [];
+        if (!Partial.TryParse(from, out var lower) || !Partial.TryParse(to, out var upper))
         {
             return false;
         }
 
-        // Cargo-style tilde upper bound: ~I -> <(I+1); ~I.J(.*) -> <I.(J+1) (bump the minor
-        // position and ignore anything finer, same as Cargo does for ~I.J.K bumping minor not
-        // patch — a 4th "build"-style component our lenient parser accepts is treated the same
-        // way as a patch component here).
-        var upperBound = _components.Count == 1
-            ? new List<long> { _components[0] + 1 }
-            : new List<long> { _components[0], _components[1] + 1 };
+        var result = new List<Comparator>();
+        if (lower.Specified > 0)
+        {
+            result.Add(new Comparator(Operator.GreaterOrEqual, lower.Components, lower.Prerelease));
+        }
 
-        return AddonVersion.CompareComponents(candidate.Components, upperBound) < 0;
+        if (upper.Specified >= FullComponentCount)
+        {
+            result.Add(new Comparator(Operator.LessOrEqual, upper.Components, upper.Prerelease));
+        }
+        else if (upper.Specified > 0)
+        {
+            result.Add(new Comparator(Operator.Less, upper.Bump(upper.Specified - 1), null));
+        }
+
+        comparators = result;
+        return true;
+    }
+
+    private static bool TryParseComparator(string token, List<Comparator> into)
+    {
+        var (prefix, rest) = token switch
+        {
+            _ when token.StartsWith(">=", StringComparison.Ordinal) => (">=", token[2..]),
+            _ when token.StartsWith("<=", StringComparison.Ordinal) => ("<=", token[2..]),
+            _ when token.StartsWith('>') => (">", token[1..]),
+            _ when token.StartsWith('<') => ("<", token[1..]),
+            _ when token.StartsWith('=') => ("=", token[1..]),
+            _ when token.StartsWith('~') => ("~", token[1..]),
+            _ when token.StartsWith('^') => ("^", token[1..]),
+            _ => ("", token),
+        };
+
+        if (!Partial.TryParse(rest, out var version))
+        {
+            return false;
+        }
+
+        var full = version.Specified >= FullComponentCount;
+        var any = version.Specified == 0;
+
+        switch (prefix)
+        {
+            case "" or "=":
+                if (full)
+                {
+                    into.Add(new Comparator(Operator.Equal, version.Components, version.Prerelease));
+                }
+                else if (!any)
+                {
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, null));
+                    into.Add(new Comparator(Operator.Less, version.Bump(version.Specified - 1), null));
+                }
+
+                return true;
+
+            case ">=":
+                if (!any)
+                {
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, version.Prerelease));
+                }
+
+                return true;
+
+            case ">":
+                // ">1.2" means above every 1.2.x, as in npm; ">*" would match nothing and is refused.
+                if (any)
+                {
+                    return false;
+                }
+
+                into.Add(full
+                    ? new Comparator(Operator.Greater, version.Components, version.Prerelease)
+                    : new Comparator(Operator.GreaterOrEqual, version.Bump(version.Specified - 1), null));
+                return true;
+
+            case "<":
+                if (any)
+                {
+                    return false;
+                }
+
+                into.Add(new Comparator(Operator.Less, version.Components, version.Prerelease));
+                return true;
+
+            case "<=":
+                if (full)
+                {
+                    into.Add(new Comparator(Operator.LessOrEqual, version.Components, version.Prerelease));
+                }
+                else if (!any)
+                {
+                    into.Add(new Comparator(Operator.Less, version.Bump(version.Specified - 1), null));
+                }
+
+                return true;
+
+            case "~":
+                if (!any)
+                {
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, version.Prerelease));
+                    into.Add(new Comparator(Operator.Less, version.Bump(Math.Min(version.Specified - 1, 1)), null));
+                }
+
+                return true;
+
+            case "^":
+                if (!any)
+                {
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, version.Prerelease));
+                    into.Add(new Comparator(Operator.Less, version.Bump(CaretBumpIndex(version)), null));
+                }
+
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// The component <c>^</c> bumps: the leftmost non-zero of major, minor and patch, or the last one
+    /// written when every written one is zero (<c>^0</c> → &lt;1, <c>^0.0</c> → &lt;0.1). Never the
+    /// fourth.
+    /// </summary>
+    private static int CaretBumpIndex(Partial version)
+    {
+        var limit = Math.Min(version.Specified, FullComponentCount);
+        for (var i = 0; i < limit; i++)
+        {
+            if (version.Components[i] != 0)
+            {
+                return i;
+            }
+        }
+
+        return limit - 1;
+    }
+
+    private enum Operator
+    {
+        Equal,
+        Greater,
+        GreaterOrEqual,
+        Less,
+        LessOrEqual,
+    }
+
+    private sealed record Comparator(Operator Op, IReadOnlyList<long> Components, string? Prerelease)
+    {
+        public bool IsSatisfiedBy(AddonVersion candidate)
+        {
+            var cmp = AddonVersion.CompareComponents(candidate.Components, Components);
+            if (cmp == 0)
+            {
+                cmp = AddonVersion.ComparePrerelease(candidate.PrereleaseLabel, Prerelease);
+            }
+
+            return Op switch
+            {
+                Operator.Equal => cmp == 0,
+                Operator.Greater => cmp > 0,
+                Operator.GreaterOrEqual => cmp >= 0,
+                Operator.Less => cmp < 0,
+                Operator.LessOrEqual => cmp <= 0,
+                _ => false,
+            };
+        }
+    }
+
+    /// <summary>
+    /// A version as written in a constraint: up to four components, any of them an <c>x</c>/<c>*</c>
+    /// wildcard that ends the specified part, an optional <c>v</c> and an optional prerelease.
+    /// </summary>
+    private sealed record Partial(IReadOnlyList<long> Components, int Specified, string? Prerelease)
+    {
+        public static bool TryParse(string text, out Partial parsed)
+        {
+            parsed = new Partial([], 0, null);
+            text = text.Trim();
+
+            if (text.Length > 0 && (text[0] == 'v' || text[0] == 'V'))
+            {
+                text = text[1..];
+            }
+
+            string? prerelease = null;
+            var dash = text.IndexOf('-');
+            if (dash >= 0)
+            {
+                prerelease = text[(dash + 1)..];
+                text = text[..dash];
+                if (prerelease.Length == 0)
+                {
+                    return false;
+                }
+            }
+
+            if (text.Length == 0)
+            {
+                // An empty range means any version; an empty version with a prerelease means nothing.
+                return prerelease is null;
+            }
+
+            var pieces = text.Split('.');
+            if (pieces.Length > 4)
+            {
+                return false;
+            }
+
+            var components = new List<long>();
+            var wildcard = false;
+            foreach (var piece in pieces)
+            {
+                if (piece is "x" or "X" or "*")
+                {
+                    wildcard = true;
+                    continue;
+                }
+
+                // A number after a wildcard ("1.x.3") has no meaning.
+                if (wildcard || !long.TryParse(piece, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
+                {
+                    return false;
+                }
+
+                components.Add(value);
+            }
+
+            // A prerelease only makes sense on a complete version: "1.2-rc1" is refused, as in npm.
+            if (prerelease is not null && components.Count < FullComponentCount)
+            {
+                return false;
+            }
+
+            parsed = new Partial(components, components.Count, prerelease);
+            return true;
+        }
+
+        /// <summary>The first <paramref name="index"/> + 1 components, the last of them incremented.</summary>
+        public IReadOnlyList<long> Bump(int index)
+        {
+            var bumped = Components.Take(index + 1).ToList();
+            bumped[index]++;
+            return bumped;
+        }
     }
 }

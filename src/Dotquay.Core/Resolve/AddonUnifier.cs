@@ -121,7 +121,9 @@ public sealed class AddonUnifier
         var effectivePath = versionRequirements[0].Spec.EffectivePath;
         var installAs = versionRequirements[0].Spec.InstallAs;
 
-        var tags = await ListStableTagsAsync(gitUrl, cancellationToken);
+        // Prerelease tags included: whether one qualifies is the constraints' decision (DESIGN-v0.21
+        // §3.4), and a range that names one must be able to select it.
+        var tags = await ListVersionTagsAsync(gitUrl, includePrereleases: true, cancellationToken);
 
         AddonVersion? best = null;
         GitRef? bestRef = null;
@@ -146,6 +148,7 @@ public sealed class AddonUnifier
         }
 
         var candidates = tags
+            .Where(t => !t.Version.IsPrerelease)
             .OrderByDescending(t => t.Version)
             .Take(MaxVersionCandidates)
             .Select(t => new GraphCandidate(
@@ -304,7 +307,7 @@ public sealed class AddonUnifier
         catch (AddonResolutionException ex)
         {
             var candidates = chosen.Spec.SourceKind == AddonSourceKind.Version
-                ? (await ListStableTagsAsync(chosen.Spec.Git, cancellationToken))
+                ? (await ListVersionTagsAsync(chosen.Spec.Git, includePrereleases: false, cancellationToken))
                     .OrderByDescending(t => t.Version)
                     .Take(MaxVersionCandidates)
                     .Select(t => new GraphCandidate(
@@ -321,8 +324,8 @@ public sealed class AddonUnifier
         }
     }
 
-    private async Task<IReadOnlyList<(AddonVersion Version, GitRef Ref)>> ListStableTagsAsync(
-        string gitUrl, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<(AddonVersion Version, GitRef Ref)>> ListVersionTagsAsync(
+        string gitUrl, bool includePrereleases, CancellationToken cancellationToken)
     {
         var refs = await _gitClient.ListRemoteRefsAsync(gitUrl, cancellationToken);
 
@@ -332,7 +335,7 @@ public sealed class AddonUnifier
             if (gitRef.Kind == GitRefKind.Tag
                 && AddonVersion.TryParse(gitRef.Name, out var version)
                 && version is not null
-                && !version.IsPrerelease)
+                && (includePrereleases || !version.IsPrerelease))
             {
                 tags.Add((version, gitRef));
             }

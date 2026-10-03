@@ -136,7 +136,7 @@ public class DeclareDotnetTests
         Assert.Equal(DotnetDeclarationOutcome.Added, declaration.Outcome);
         Assert.Equal("2.0.0", declaration.Locked.Resolved);
         Assert.Null(declaration.PreviousResolved);
-        Assert.Equal("2.0.0", fixture.ReadManifest().Dotnet["Brand.New"].Version);
+        Assert.Equal("^2.0.0", fixture.ReadManifest().Dotnet["Brand.New"].Version);
     }
 
     [Fact]

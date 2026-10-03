@@ -1,4 +1,5 @@
 using Dotquay.Core.Dotnet;
+using Dotquay.Core.Versioning;
 using Dotquay.Tests.Support;
 using Xunit;
 
@@ -38,31 +39,18 @@ public class NuGetVersionSelectorTests
         Assert.Null(latest);
     }
 
-    [Fact]
-    public async Task ExistsAsync_ExactVersionPresent_ReturnsTrue()
+    [Theory]
+    [InlineData("13.0.3", "13.0.3")]
+    [InlineData("^13.0", "13.2.0")]
+    [InlineData("~13.0", "13.0.3")]
+    [InlineData("99.0.0", null)]
+    [InlineData("^13.3.0-beta1", "13.3.0-beta2")]
+    public void SelectHighestMatching_TakesTheHighestInsideTheRange(string range, string? expected)
     {
-        var client = new FakeNuGetClient();
-        client.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+        VersionConstraint.TryParse(range, out var constraint);
+        string[] versions = ["13.0.1", "13.0.3", "13.2.0", "13.3.0-beta1", "13.3.0-beta2", "14.0.0", "not-a-version"];
 
-        Assert.True(await NuGetVersionSelector.ExistsAsync(client, "Newtonsoft.Json", "13.0.3"));
-    }
-
-    [Fact]
-    public async Task ExistsAsync_VersionMissing_ReturnsFalse()
-    {
-        var client = new FakeNuGetClient();
-        client.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
-
-        Assert.False(await NuGetVersionSelector.ExistsAsync(client, "Newtonsoft.Json", "99.0.0"));
-    }
-
-    [Fact]
-    public async Task ExistsAsync_UnparsableVersionString_ReturnsFalse()
-    {
-        var client = new FakeNuGetClient();
-        client.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
-
-        Assert.False(await NuGetVersionSelector.ExistsAsync(client, "Newtonsoft.Json", "not-a-version"));
+        Assert.Equal(expected, NuGetVersionSelector.SelectHighestMatching(versions, constraint!));
     }
 
     [Fact]

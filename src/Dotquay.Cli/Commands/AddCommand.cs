@@ -54,9 +54,10 @@ internal static class AddCommand
 
         var versionOption = new Option<string?>("--version")
         {
-            Description = "Version to add. For git, a constraint matched against tags (e.g. \"~2.5\"). For NuGet, "
-                + "an exact package version; on a package the project already has, this pins or changes it. "
-                + "Defaults to the latest release either way.",
+            Description = "Version constraint to add, the same language for git and NuGet: an exact version "
+                + "(\"1.2.3\"), \"^1.2\", \"~1.2\", \"1.2.*\", \">=1.2 <2\" or a prerelease (\"5.1.0-rc1\"). "
+                + "On a NuGet package the project already has, this pins or changes it. Defaults to \"~<latest>\" "
+                + "for git and \"^<latest>\" for NuGet.",
         };
 
         var branchOption = new Option<string?>("--branch")

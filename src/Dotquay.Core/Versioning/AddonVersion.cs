@@ -9,6 +9,11 @@ namespace Dotquay.Core.Versioning;
 /// itself. This is deliberately not full semver — real-world Godot addon tags don't follow it
 /// (Phantom Camera ships 4-component tags, godot-sqlite ships 2-component ones).
 /// </summary>
+/// <remarks>
+/// Also the version type for NuGet packages (DESIGN-v0.21 §5): one type means one ordering, so a
+/// <see cref="VersionConstraint"/> reads the same against a git tag and a feed's version list.
+/// Build metadata (<c>+sha</c>) is ignored, as SemVer 2.0 requires.
+/// </remarks>
 public sealed class AddonVersion : IComparable<AddonVersion>
 {
     private AddonVersion(string originalTag, IReadOnlyList<long> components, string? prereleaseLabel)
@@ -42,6 +47,12 @@ public sealed class AddonVersion : IComparable<AddonVersion>
         if (text.Length > 0 && (text[0] == 'v' || text[0] == 'V'))
         {
             text = text[1..];
+        }
+
+        var plusIndex = text.IndexOf('+');
+        if (plusIndex >= 0)
+        {
+            text = text[..plusIndex];
         }
 
         var numericPart = text;
@@ -91,19 +102,48 @@ public sealed class AddonVersion : IComparable<AddonVersion>
             return cmp;
         }
 
-        if (IsPrerelease && !other.IsPrerelease)
+        return ComparePrerelease(PrereleaseLabel, other.PrereleaseLabel);
+    }
+
+    /// <summary>
+    /// SemVer 2.0 precedence for two prerelease labels, null meaning a release: a release sorts above
+    /// any prerelease of the same components.
+    /// </summary>
+    /// <remarks>
+    /// Identifiers are dot-separated. Numeric ones compare as numbers, so <c>rc.2 &lt; rc.10</c>;
+    /// alphanumeric ones compare ordinally and sort above numeric ones; a shorter list sorts first when
+    /// every shared identifier is equal. An ordinal compare of the whole label got <c>rc.10</c> below
+    /// <c>rc.2</c>.
+    /// </remarks>
+    internal static int ComparePrerelease(string? a, string? b)
+    {
+        if (a is null || b is null)
         {
-            return -1;
+            return a is null ? (b is null ? 0 : 1) : -1;
         }
 
-        if (!IsPrerelease && other.IsPrerelease)
+        var left = a.Split('.');
+        var right = b.Split('.');
+        for (var i = 0; i < Math.Min(left.Length, right.Length); i++)
         {
-            return 1;
+            var leftNumeric = long.TryParse(left[i], NumberStyles.None, CultureInfo.InvariantCulture, out var l);
+            var rightNumeric = long.TryParse(right[i], NumberStyles.None, CultureInfo.InvariantCulture, out var r);
+
+            var cmp = (leftNumeric, rightNumeric) switch
+            {
+                (true, true) => l.CompareTo(r),
+                (true, false) => -1,
+                (false, true) => 1,
+                _ => string.CompareOrdinal(left[i], right[i]),
+            };
+
+            if (cmp != 0)
+            {
+                return Math.Sign(cmp);
+            }
         }
 
-        return IsPrerelease && other.IsPrerelease
-            ? string.CompareOrdinal(PrereleaseLabel, other.PrereleaseLabel)
-            : 0;
+        return left.Length.CompareTo(right.Length);
     }
 
     internal static int CompareComponents(IReadOnlyList<long> a, IReadOnlyList<long> b)

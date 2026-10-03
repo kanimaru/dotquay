@@ -67,4 +67,29 @@ public class AddonVersionTests
         Assert.True(v120!.CompareTo(v1100!) < 0);   // 1.2.0 < 1.10.0 (numeric, not lexical)
         Assert.True(v200rc1!.CompareTo(v200!) < 0); // prerelease sorts below the release
     }
+
+    // SemVer 2.0 §11 precedence, which NuGet follows too (DESIGN-v0.21 §3.4).
+    [Theory]
+    [InlineData("1.0.0-rc.2", "1.0.0-rc.10")]   // numeric identifiers compare as numbers
+    [InlineData("1.0.0-alpha", "1.0.0-alpha.1")] // a shorter identifier list sorts first
+    [InlineData("1.0.0-alpha.1", "1.0.0-alpha.beta")] // numeric sorts below alphanumeric
+    [InlineData("1.0.0-beta", "1.0.0-rc1")]
+    [InlineData("1.0.0-rc1", "1.0.0")]
+    public void CompareTo_FollowsSemVerPrereleasePrecedence(string lower, string higher)
+    {
+        AddonVersion.TryParse(lower, out var low);
+        AddonVersion.TryParse(higher, out var high);
+
+        Assert.True(low!.CompareTo(high!) < 0, $"{lower} should sort below {higher}");
+        Assert.True(high!.CompareTo(low!) > 0, $"{higher} should sort above {lower}");
+    }
+
+    [Fact]
+    public void TryParse_IgnoresBuildMetadata()
+    {
+        Assert.True(AddonVersion.TryParse("1.0.7+r3456", out var version));
+
+        Assert.Equal(new long[] { 1, 0, 7 }, version!.Components);
+        Assert.False(version.IsPrerelease);
+    }
 }

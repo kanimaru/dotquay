@@ -376,6 +376,39 @@ addon's `path` is not guessed either: it comes from someone else's package manif
 `SubtreeExtractor`'s "does not exist in the fetched repository" error gains the candidate list and an
 `override --path` line, and that is the whole change on that path (same split as §7.1.3).
 
+### 7.1.5 One version-constraint language (v0.21)
+
+Every `version` field — `[addons.*]` and `[dotnet.*]`, project and package manifests — uses the same
+grammar: node-semver's, the majority language across npm, Yarn, Helm, Cargo, Composer and Poetry
+(survey and rationale: `docs/DESIGN-v0.21-VERSION-CONSTRAINTS.md`).
+
+| Written | Means |
+| --- | --- |
+| `1.2.3` / `=1.2.3` | exactly 1.2.3 |
+| `1.2` / `1.2.x` / `1.2.*` | `>=1.2.0 <1.3.0` |
+| `~1.2.3` / `~1.2` / `~1` | `<1.3.0` / `<1.3.0` / `<2.0.0` |
+| `^1.2.3` / `^0.2.3` / `^0.0.3` | `<2.0.0` / `<0.3.0` / `<0.0.4` |
+| `1.2 - 1.4.5`, `>=1.2 <2`, `>=1.2, <2` | ranges; a comma is a synonym for a space |
+| `^1.0 \|\| ^2.0` | either |
+| `*`, empty | any stable version |
+
+- A fourth component (Phantom Camera's `v0.11.0.3`, NuGet's `Revision`) is compared like the others;
+  `~` and `^` never bump it.
+- A prerelease is only selected when a comparator of the same range names a prerelease of the same
+  version: `^5.1.0-rc1` accepts `5.1.0-rc5` and `5.1.0`, `^5.0` never selects `5.1.0-rc1`.
+  Prereleases order by SemVer 2.0 (`rc.2 < rc.10`).
+- `update` selects the highest version satisfying every range on a name. For a NuGet package the
+  project's own entry wins; otherwise every addon that declares it must be satisfied, and a package
+  no version satisfies is a hard error naming each addon and its range.
+- `add <git-url>` writes `~I.J`; `add <package-id>` writes `^<resolved>`; `--version` takes any
+  range and is written as typed.
+- NuGet's own syntax (a bare version as a minimum, `[1.0,2.0)` intervals) is not accepted. dotquay
+  resolves the range itself and writes only the exact result into the `.csproj`.
+- A restore NuGet refuses leaves the `.csproj` and `NuGet.Config` as they were before the sync.
+
+One change in meaning from earlier versions: a bare *partial* version (`"2.44"`) used to be exact
+and is now the x-range `2.44.x`. `add` never wrote one.
+
 ### 7.3.1 The editor writes into the folders dotquay manages (v0.9)
 
 Godot generates files *inside* `addons/<name>/`, which puts it in direct conflict with P0-6's "the
@@ -431,7 +464,7 @@ url = "https://gitlab.example.com/api/v4/projects/456/packages/nuget/index.json"
 
 [addons.dialogue_manager]
 git = "https://github.com/nathanhoad/godot_dialogue_manager"
-version = "~2.44"                  # matched against git tags
+version = "~2.44"                  # matched against git tags; grammar in §7.1.5
 path = "addons/dialogue_manager"   # subtree to extract; default: addons/<name>
 
 [addons.mtoon-shader]
@@ -449,7 +482,7 @@ git = "https://github.com/bar/other_addon"
 rev = "9f2c1ab"                    # hard pin for untagged repos
 
 [dotnet.Newtonsoft.Json]
-version = "13.0.*"                 # delegated to NuGet/dotnet restore
+version = "13.0.*"                 # same language as addons (§7.1.5); resolved by dotquay
 
 [dotnet.Kani.Core]
 version = "1.2.*"
@@ -625,7 +658,7 @@ requirement and Godot follows both identically.
 
 The resolver walks the dependency graph breadth-first, reading each dotquay-aware addon's package manifest, and collects all constraints per addon name. Godot's flat `addons/` folder allows exactly one copy of each addon, so the policy is **unification, not side-by-side**:
 
-- Pick the highest version satisfying all constraints on a name.
+- Pick the highest version satisfying all constraints on a name — git tags and NuGet packages alike (§7.1.5).
 - Constraints that cannot be unified (e.g. two different `rev` pins) are a hard error.
 - Two requirers wanting the same addon in different `install_as` folders is a hard error too (v0.5),
   reported before any version disagreement — it's the one a user can't discover from a version error.
@@ -724,7 +757,10 @@ Dotquay does **not** reimplement NuGet. It:
   confirmed against nuget.org and against a real private GitLab package registry, which exposes the
   equivalent resource at a completely different path (`.../nuget/download`).
 
-Resolution, caching, and lockfiles on the NuGet side stay NuGet's job.
+Which version to use is dotquay's decision, made with the same constraint language as for addons
+(§7.1.5, v0.21): the `.csproj` receives the exact result and the lockfile records it. Downloading,
+caching and the transitive graph below each package stay NuGet's job; a combination NuGet refuses
+at restore leaves the project as it was.
 
 ### 11.1 Private / authenticated NuGet feeds
 
@@ -1020,7 +1056,7 @@ Sampled from [awesome-godot](https://github.com/godotengine/awesome-godot) via t
 Implications for the resolver:
 
 - **Lenient tag parsing is P0**: strip `v` prefix, accept 2–4 numeric components, tolerate suffixes.
-- **Prerelease/suffix ranking**: `-dev`, `-rc` sort below the release; `-stable` counts as the release. Excluded from `version` ranges unless explicitly requested.
+- **Prerelease/suffix ranking**: `-dev`, `-rc` sort below the release; `-stable` counts as the release. Excluded from `version` ranges unless the range names a prerelease of the same version (§7.1.5, v0.21).
 - **Stale-tag warning**: if the newest tag is much older than default-branch activity (Dialogic case), `add` warns that `version` resolution may select an outdated release and suggests `branch`/`rev`.
 - Godot 3/4 split via branches confirmed in the wild (e.g. godot-sqlite) — supports the explicit-`branch` design.
 

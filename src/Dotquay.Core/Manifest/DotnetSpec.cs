@@ -8,7 +8,9 @@ public sealed class DotnetSpec
 {
     public required string Name { get; init; }
 
-    /// <summary>Delegated to NuGet/<c>dotnet restore</c> verbatim, e.g. <c>"13.0.*"</c> (SPEC.md §11).</summary>
+    /// <summary>A version constraint in dotquay's one language (<see cref="Versioning.VersionConstraint"/>,
+    /// DESIGN-v0.21), e.g. <c>"^13.0"</c> or <c>"13.0.*"</c>. dotquay resolves it itself and writes only
+    /// the exact result into the <c>.csproj</c>, so NuGet's range syntax never applies.</summary>
     public required string Version { get; init; }
 
     /// <summary>

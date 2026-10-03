@@ -51,7 +51,7 @@ public class AddPreviewTests
         packages = ["VBeami.*"]
 
         [dotnet.VBeami.Core]
-        version = "1.0.0"
+        version = "^1.0"
 
         [addons.vbeami_core]
         git = "{CoreUrl}"

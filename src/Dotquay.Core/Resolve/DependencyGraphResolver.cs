@@ -76,6 +76,7 @@ public sealed class DependencyGraphResolver
         {
             AddonDeclaredSources = analysis.AddonDeclaredSources,
             DotnetPackagesByAddon = analysis.DotnetPackagesByAddon,
+            AddonDotnetRequirements = analysis.AddonDotnetRequirements,
         };
     }
 
@@ -128,6 +129,7 @@ public sealed class DependencyGraphResolver
         {
             AddonDeclaredSources = walk.AddonDeclaredSources,
             DotnetPackagesByAddon = walk.DotnetPackagesByAddon,
+            AddonDotnetRequirements = walk.AddonDotnetRequirements,
         };
     }
 
@@ -141,6 +143,9 @@ public sealed class DependencyGraphResolver
 
         public IReadOnlyDictionary<string, IReadOnlyList<string>> DotnetPackagesByAddon { get; init; } =
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+        public IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>> AddonDotnetRequirements { get; init; } =
+            new Dictionary<string, IReadOnlyList<AddonDotnetRequirement>>(StringComparer.Ordinal);
     }
 
     /// <summary>The breadth-first discovery half, shared by both entry points: expands each addon
@@ -156,6 +161,7 @@ public sealed class DependencyGraphResolver
         var dependencyNamesByAddon = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var discoveredNames = new HashSet<string>(StringComparer.Ordinal);
         var addonDeclaredDotnet = new Dictionary<string, DotnetSpec>(StringComparer.Ordinal);
+        var addonDotnetRequirements = new Dictionary<string, List<AddonDotnetRequirement>>(StringComparer.Ordinal);
 
         // Only for warning messages — which addon won a package, so a conflict can name both sides
         // instead of saying "something else declared this differently".
@@ -217,18 +223,24 @@ public sealed class DependencyGraphResolver
 
                 foreach (var dotnetSpec in packageManifest.Dotnet.Values)
                 {
-                    // First-discovered wins among addon-declared entries -- there's no good general
-                    // way to unify two different NuGet version ranges the way git tags allow (no
-                    // "list every version and intersect" primitive dotquay already has for NuGet).
-                    // The caller (DependencyWorkflow) additionally lets the *project's own*
-                    // [dotnet.*] entries always win over anything discovered here.
+                    // Every addon's range is kept: the version must satisfy all of them, as for git
+                    // addons (DESIGN-v0.21 §3.5). The caller lets the *project's own* [dotnet.*]
+                    // entries win over anything discovered here.
+                    if (!addonDotnetRequirements.TryGetValue(dotnetSpec.Name, out var ranges))
+                    {
+                        addonDotnetRequirements[dotnetSpec.Name] = ranges = [];
+                    }
+
+                    ranges.Add(new AddonDotnetRequirement(name, dotnetSpec.Version));
+
+                    // The entry itself (asset metadata, feed pin) is still first-discovered-wins.
                     if (addonDeclaredDotnet.TryAdd(dotnetSpec.Name, dotnetSpec))
                     {
                         dotnetDeclaredBy[dotnetSpec.Name] = name;
                         continue;
                     }
 
-                    // Losing on version is expected and silent (see above). Losing on asset metadata
+                    // Losing on version costs nothing, since every range counts. Losing on asset metadata
                     // is worth reporting: it is not a range to be narrowed but a statement about how
                     // the package must be wired up, and the loser silently gets the winner's wiring.
                     var winner = addonDeclaredDotnet[dotnetSpec.Name];
@@ -267,6 +279,8 @@ public sealed class DependencyGraphResolver
         {
             AddonDeclaredSources = addonDeclaredSources,
             DotnetPackagesByAddon = dotnetPackagesByAddon,
+            AddonDotnetRequirements = addonDotnetRequirements.ToDictionary(
+                kv => kv.Key, kv => (IReadOnlyList<AddonDotnetRequirement>)kv.Value, StringComparer.Ordinal),
         };
     }
 

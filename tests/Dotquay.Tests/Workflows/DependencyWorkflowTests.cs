@@ -396,7 +396,8 @@ public class DependencyWorkflowTests
         Assert.Equal([$"{ProjectDir}/Game.csproj"], runner.RestoredCsprojPaths);
 
         var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
-        Assert.Equal("13.0.3", manifest.Dotnet["Newtonsoft.Json"].Version);
+        // A compatible range, not the exact version, so update picks up fixes (DESIGN-v0.21 §3.6).
+        Assert.Equal("^13.0.3", manifest.Dotnet["Newtonsoft.Json"].Version);
 
         var lockfile = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
         Assert.Equal("13.0.3", lockfile.Dotnet.Single().Resolved);
@@ -491,6 +492,195 @@ public class DependencyWorkflowTests
 
         var lockfile = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
         Assert.Equal("13.0.4", lockfile.Dotnet.Single().Resolved);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DotnetExactVersionInManifest_KeepsThatVersion()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["gdUnit4.test.adapter"] = ["3.0.0"];
+        await workflow.AddDotnetAsync(ProjectDir, "gdUnit4.test.adapter", versionOverride: "3.0.0");
+
+        nuGetClient.VersionsByPackageId["gdUnit4.test.adapter"] = ["3.0.0", "3.1.1"];
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        Assert.Equal("3.0.0", result.Dotnet.Single().Locked.Resolved);
+        Assert.Contains("Version=\"3.0.0\"", fileSystem.ReadAllText($"{ProjectDir}/Game.csproj"));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DotnetPrereleaseVersionInManifest_KeepsThatVersion()
+    {
+        var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["gdUnit4.api"] = ["5.0.0", "5.1.0-rc1"];
+        await workflow.AddDotnetAsync(ProjectDir, "gdUnit4.api", versionOverride: "5.1.0-rc1");
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        Assert.Equal("5.1.0-rc1", result.Dotnet.Single().Locked.Resolved);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DotnetCaretRange_MovesOnlyWithinItsMajor()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"^13.0\"\n");
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.1", "13.2.0", "14.0.0", "13.3.0-beta1"];
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        Assert.Equal("13.2.0", result.Dotnet.Single().Locked.Resolved);
+        // The range is the user's statement; update never rewrites it.
+        Assert.Contains("version = \"^13.0\"", fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
+    }
+
+    [Fact]
+    public async Task AddDotnetAsync_RangeGiven_ResolvesInsideItAndWritesItAsTyped()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["gdUnit4.api"] = ["5.0.0", "5.1.0-rc1", "5.1.0-rc5"];
+
+        var locked = await workflow.AddDotnetAsync(ProjectDir, "gdUnit4.api", versionOverride: "^5.1.0-rc1");
+
+        Assert.Equal("5.1.0-rc5", locked.Resolved);
+        var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
+        Assert.Equal("^5.1.0-rc1", manifest.Dotnet["gdUnit4.api"].Version);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DotnetNuGetIntervalNotation_IsRefusedWithTheGrammar()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"[13.0,14.0)\"\n");
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+
+        var ex = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Contains("'[13.0,14.0)' is not a valid version constraint", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DotnetRangeMatchesNothing_NamesTheNewestThatExists()
+    {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"^14.0\"\n");
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+
+        var ex = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Contains("no version matching '^14.0'", ex.Message);
+        Assert.Contains("newest stable: 13.0.3", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DotnetRestoreFails_LeavesCsprojAndLockfileAsTheyWere()
+    {
+        // The BotV2 failure (DESIGN-v0.21 §1, §4): update wrote the new PackageReference, NuGet refused
+        // the restore, and the .csproj was left matching neither the manifest nor the lockfile.
+        var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["gdUnit4.test.adapter"] = ["3.0.0"];
+        await workflow.AddDotnetAsync(ProjectDir, "gdUnit4.test.adapter");
+        var csprojBefore = fileSystem.ReadAllBytes($"{ProjectDir}/Game.csproj");
+        var lockfileBefore = fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock");
+
+        nuGetClient.VersionsByPackageId["gdUnit4.test.adapter"] = ["3.0.0", "3.1.1"];
+        runner.ThrowOnRestore = true;
+
+        await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Equal(csprojBefore, fileSystem.ReadAllBytes($"{ProjectDir}/Game.csproj"));
+        Assert.Equal(lockfileBefore, fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
+    }
+
+    [Fact]
+    public async Task AddDotnetAsync_RestoreFails_LeavesCsprojAsItWas()
+    {
+        var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
+        var csprojBefore = fileSystem.ReadAllBytes($"{ProjectDir}/Game.csproj");
+        runner.ThrowOnRestore = true;
+
+        await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json"));
+
+        Assert.Equal(csprojBefore, fileSystem.ReadAllBytes($"{ProjectDir}/Game.csproj"));
+    }
+
+    private const string GizmoUrl = "https://example.com/kani/gizmo.git";
+    private const string WidgetUrl = "https://example.com/kani/widget.git";
+
+    /// <summary>Two addons that each declare <c>Shared.Lib</c> with their own range.</summary>
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient NuGetClient)
+        BuildTwoAddonsDeclaringOnePackage(string gizmoRange, string widgetRange, string projectDotnetBlock = "")
+    {
+        var (workflow, fileSystem, gitClient, nuGetClient, _) = BuildWithDotnet();
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", $"""
+            [addons.gizmo]
+            git = "{GizmoUrl}"
+            version = "~1"
+
+            [addons.widget]
+            git = "{WidgetUrl}"
+            version = "~1"
+
+            {projectDotnetBlock}
+            """);
+
+        foreach (var (name, url, range, sha) in new[] { ("gizmo", GizmoUrl, gizmoRange, 'c'), ("widget", WidgetUrl, widgetRange, 'd') })
+        {
+            gitClient.RemoteRefsByUrl[url] = [new GitRef("v1.0.0", new string(sha, 40), GitRefKind.Tag)];
+            gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string>
+            {
+                [$"addons/{name}/plugin.cfg"] = name,
+                [$"addons/{name}/dotquay.toml"] = $"""
+                    [package]
+                    name = "{name}"
+
+                    [dotnet.Shared.Lib]
+                    version = "{range}"
+                    """,
+            };
+        }
+
+        return (workflow, fileSystem, nuGetClient);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TwoAddonsDeclareOnePackage_ResolvesInsideBothRanges()
+    {
+        var (workflow, _, nuGetClient) = BuildTwoAddonsDeclaringOnePackage("^1.2", "~1.3");
+        nuGetClient.VersionsByPackageId["Shared.Lib"] = ["1.2.0", "1.3.4", "1.4.0", "2.0.0"];
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        // ^1.2 alone would take 1.4.0, ~1.3 alone 1.3.4; both together only 1.3.4.
+        Assert.Equal("1.3.4", Assert.Single(result.Dotnet).Locked.Resolved);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TwoAddonsDeclareDisjointRanges_NamesBothAndTheirRanges()
+    {
+        var (workflow, _, nuGetClient) = BuildTwoAddonsDeclaringOnePackage("^1.2", "^2.0");
+        nuGetClient.VersionsByPackageId["Shared.Lib"] = ["1.2.0", "2.0.0"];
+
+        var ex = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.UpdateAsync(ProjectDir, name: null, force: false));
+
+        Assert.Contains("gizmo wants ^1.2", ex.Message);
+        Assert.Contains("widget wants ^2.0", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ProjectDeclaresAPackageAddonsAlsoDeclare_TheProjectsRangeWins()
+    {
+        var (workflow, _, nuGetClient) = BuildTwoAddonsDeclaringOnePackage(
+            "^1.2", "^2.0", projectDotnetBlock: "[dotnet.Shared.Lib]\nversion = \"^3.0\"");
+        nuGetClient.VersionsByPackageId["Shared.Lib"] = ["1.2.0", "2.0.0", "3.0.0"];
+
+        var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
+
+        Assert.Equal("3.0.0", Assert.Single(result.Dotnet).Locked.Resolved);
     }
 
     [Fact]
@@ -636,7 +826,7 @@ public class DependencyWorkflowTests
             url = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json"
 
             [dotnet.Acme.Internal]
-            version = "1.0.0"
+            version = "^2.0"
             source = "tools"
             """);
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
@@ -737,7 +927,7 @@ public class DependencyWorkflowTests
             """,
             """
             [dotnet.VBeami.Core]
-            version = "1.0.0"
+            version = "^1.0"
             """);
 
         var result = await workflow.UpdateAsync(ProjectDir, name: null, force: false);
@@ -769,7 +959,7 @@ public class DependencyWorkflowTests
             """,
             """
             [dotnet.VBeami.Core]
-            version = "1.0.0"
+            version = "^1.0"
             """);
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
@@ -803,7 +993,7 @@ public class DependencyWorkflowTests
             url = "{PrivateFeedUrl}"
 
             [dotnet.VBeami.Core]
-            version = "1.0.0"
+            version = "^1.0"
             """);
 
         // The fixture's default registers VBeami.Core on this client -- override it so the feed is
@@ -845,7 +1035,7 @@ public class DependencyWorkflowTests
             """,
             """
             [dotnet.VBeami.Core]
-            version = "1.0.0"
+            version = "^1.0"
             """);
 
         var first = await Assert.ThrowsAsync<WorkflowException>(
@@ -876,7 +1066,7 @@ public class DependencyWorkflowTests
             projectManifest: "",
             addonDotnetBlock: """
                 [dotnet.VBeami.Core]
-                version = "1.0.0"
+                version = "^1.0"
                 """);
 
         var first = await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDir, VbeamiUrl));
@@ -938,7 +1128,7 @@ public class DependencyWorkflowTests
             """,
             """
             [dotnet.VBeami.Core]
-            version = "1.0.0"
+            version = "^1.0"
             source = "some-name-the-project-never-declared"
             """);
 
@@ -960,7 +1150,7 @@ public class DependencyWorkflowTests
         packages = ["VBeami.*"]
 
         [dotnet.VBeami.Core]
-        version = "1.0.0"
+        version = "^1.0"
         """;
 
     /// <summary>The whole point of v0.8: botv2 declares no feed at all, only the addon.</summary>
