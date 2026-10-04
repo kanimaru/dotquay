@@ -180,7 +180,17 @@ auto-tag:
       # FAILED survives into the next run and becomes the baseline the next version is bumped off.
       # In vbeami three failed releases drifted the next version two patches past anything that
       # ever existed on the remote, exactly that way.
-      git fetch origin --tags --prune --prune-tags --quiet
+      #
+      # --force because pruning only removes tags the remote does NOT have. A failed run's tag can
+      # also share its name with one a later run shipped from a different runner slot - each
+      # concurrent-N slot keeps its own build volume. In dotquay, job 5347 left v0.18.1 on 75c5ff91 in
+      # concurrent-0, job 5360 shipped the real v0.18.1 on 81f0a504 from concurrent-1, and job 6147 back
+      # in concurrent-0 then died on "would clobber existing tag". The remote is the only authority on
+      # what shipped, so its tags overwrite local ones unconditionally.
+      #
+      # No --quiet: it suppresses exactly that "! [rejected]" line, so the job exited 1 with nothing in
+      # the log at all.
+      git fetch origin --tags --force --prune --prune-tags
 
       LATEST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
       if [ -z "$LATEST_TAG" ]; then LATEST_TAG="v0.0.0"; fi
