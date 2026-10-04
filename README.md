@@ -10,23 +10,39 @@ repos, real NativeAOT publishes, not just unit tests): [`docs/SPRINT-01.md`](doc
 
 ## Status
 
-v0.1 through v0.18 are shipped. The unit test suite has grown well past the original 261 (1090 as
-of v0.18), and every feature has been verified against real git repositories (and, for the
-git-addon, private-feed, and MCP-server paths, a real NativeAOT publish), not just fakes. The list
-below is the original v0.1-v0.4 roadmap; everything shipped since — private NuGet feeds and auth,
-machine-readable `--json` output, the Godot editor plugin, local links, patch-conflict handling,
-self-update, and the `dotquay mcp` server for coding agents (§20) — is covered in
-[`docs/SPEC.md`](docs/SPEC.md).
+Latest release: **v0.21.0** (2026-10-04). Download it from **Deployments → Releases**, or run
+`dotquay self update` on an existing install.
 
-- **v0.1 — reproducible core**: `init`, `add`, `remove`, `install`, `update`, `list`, all three
-  git source kinds (`version`/`branch`/`rev`), NuGet delegation, a global content-addressed fetch
-  cache, and private NuGet feed support.
-- **v0.2 — safety and visibility**: `outdated`, `status`, `doctor`.
-- **v0.3 — patches**: `dotquay patch <name>` captures hand-edits, `install`/`update` re-apply them
-  via a real 3-way merge, with conflicts halting cleanly instead of clobbering anything.
-- **v0.4 — dependency graph**: dotquay-aware addons can declare their own dependencies; dotquay
-  walks the graph, unifies shared dependencies to one version, and unions any addon-declared NuGet
-  packages into the project's `.csproj`.
+Every feature below is on `main` and in that release. The unit suite stands at 1409 tests. Features were also
+verified against real git repositories and, for most, a real NativeAOT publish, not just fakes —
+each design doc's own `Status:` line records exactly what was checked. The original v0.1–v0.4 roadmap is
+in [`docs/SPEC.md` §16](docs/SPEC.md#16-phasing).
+
+| Feature | What it adds | Design |
+|---|---|---|
+| v0.1–v0.4 | Reproducible core, `outdated`/`status`/`doctor`, patches with 3-way re-apply, dependency graph | [`SPEC.md`](docs/SPEC.md) |
+| v0.5 | `--json` output and the Godot editor plugin | [`SPEC.md` §17–18](docs/SPEC.md#17-machine-readable-output-v05) |
+| v0.7 | Multiple NuGet feeds and a shared credential store (`login`/`logout`) | [`DESIGN-v0.7`](docs/DESIGN-v0.7-AUTH.md) |
+| v0.8 | Addon-declared NuGet feeds | [`DESIGN-v0.8`](docs/DESIGN-v0.8-FEED-PROPAGATION.md) |
+| v0.9 | `add --preview`, feed approval in the editor, scene-based plugin UI | [`DESIGN-v0.9`](docs/DESIGN-v0.9-INSTALL-PREVIEW.md) |
+| v0.10 | PackageReference asset metadata | [`DESIGN-v0.10`](docs/DESIGN-v0.10-PACKAGE-ASSETS.md) |
+| v0.11 | `link` a `[dotnet]` package to a local `.csproj` | [`DESIGN-v0.11`](docs/DESIGN-v0.11-LOCAL-DOTNET-LINK.md) |
+| v0.12 | `status --explain`: why an addon is modified | [`DESIGN-v0.12`](docs/DESIGN-v0.12-MODIFIED-REASON.md) |
+| v0.13 | `doctor`'s install-folder drift check; linked addons survive an `install_as` rename | — |
+| v0.14 | `source add/list/remove` | [`DESIGN-v0.14`](docs/DESIGN-v0.14-FEED-COMMANDS.md) |
+| v0.15 | Git transport, URL identity, fetch diagnostics | [`DESIGN-v0.15`](docs/DESIGN-v0.15-GIT-TRANSPORT.md) |
+| v0.16 | Junction checks before writing through a link | [`DESIGN-v0.16`](docs/DESIGN-v0.16-LINK-SAFETY.md) |
+| v0.17 | `self check/update/rollback/notify` | [`DESIGN-v0.17`](docs/DESIGN-v0.17-SELF-UPDATE.md) |
+| v0.18 | `dotquay mcp`: reads and guarded writes for coding agents | [`DESIGN-v0.18`](docs/DESIGN-v0.18-MCP.md), [`SPEC.md` §20](docs/SPEC.md#20-mcp-server-v018) |
+| v0.19 | NuGet packages as nodes in the dependency graph | [`DESIGN-v0.19`](docs/DESIGN-v0.19-UNIFIED-GRAPH.md) |
+| v0.20 | Guessing an addon's subtree, and asking before using the guess | [`DESIGN-v0.20`](docs/DESIGN-v0.20-SUBTREE-GUESS.md) |
+| v0.21 | One version-constraint language for git addons and NuGet packages | [`DESIGN-v0.21`](docs/DESIGN-v0.21-VERSION-CONSTRAINTS.md) |
+| v0.22 | Never install Git LFS placeholders as an addon | [`DESIGN-v0.22`](docs/DESIGN-v0.22-GIT-LFS.md) |
+| v0.23 | The recorded content hash ignores line endings | [`DESIGN-v0.23`](docs/DESIGN-v0.23-LINE-ENDINGS.md) |
+
+Feature numbers and release numbers are separate sequences: features are numbered by design doc,
+releases by CI (see [CI/CD and releases](#cicd-and-releases)). That is why the v0.22 and v0.23
+features shipped inside release v0.21.0.
 
 ## Quick start
 
@@ -56,23 +72,27 @@ walkthrough.
 | `install` | Make `addons/` and `.csproj` match the lockfile exactly — the reproducible, no-network-resolution path for a fresh clone or CI. |
 | `update [name]` | Re-resolve one dependency (or all of them, if omitted) and reinstall. |
 | `list` | Show installed dependencies with their versions. |
+| `graph` | Show the dependency graph: who requires what, and where it conflicts. `--resolve` re-walks it against live refs. |
+| `override <name>` | Force one addon to a specific version, branch, or commit — the conflict escape hatch. |
+| `source` | Declare, list, or remove the NuGet feeds this project searches, in order. |
+| `link <name> <path>` | Develop a dependency in place: point an addon at a local folder, or a `[dotnet]` package at a local `.csproj`. Per machine, never recorded in the lockfile. |
 | `outdated` | Check for newer versions without cloning anything (`git ls-remote` / NuGet metadata only). |
 | `status` | Diff disk against the lockfile: clean / patched as expected / modified / missing. |
 | `patch <name>` | Capture hand-edits to an installed addon as a patch file, replayed via 3-way merge on future `install`/`update`. |
 | `doctor` | Run sanity checks: git on PATH, dangling lockfile entries, `plugin.cfg` version drift, orphaned `addons/` folders. |
+| `login <host>` / `logout <host>` | Store or forget credentials for a private feed or git host. |
 | `mcp` | Start dotquay as a stdio MCP server, exposing reads and guarded writes as tools for coding agents — see [`docs/SPEC.md` §20](docs/SPEC.md#20-mcp-server-v018). |
 | `self check` | Ask whether a newer dotquay exists. Exits 3 when one does. |
 | `self update` | Download, verify and install the newest dotquay, replacing this executable. |
 | `self rollback` | Put back the dotquay the last update replaced. |
+| `self notify on\|off` | Turn the once-a-day "new release" notice on or off. |
 
-Run `dotquay --help` or `dotquay <command> --help` for the full option list.
+Run `dotquay --help` or `dotquay <command> --help` for the full option list. Every command takes
+`-C/--project <dir>`, and most take `--json` for a single machine-readable document (SPEC.md §17).
 
 ## The manifest (`dotquay.toml`)
 
 ```toml
-[project]
-godot = "4.3"
-
 [addons.dialogue_manager]
 git = "https://github.com/nathanhoad/godot_dialogue_manager"
 version = "~2.44"        # or: branch = "main"   or: rev = "<full-sha>"
@@ -149,9 +169,12 @@ src/Dotquay.Cli/     thin System.CommandLine command layer over Dotquay.Core.
 src/Dotquay.Mcp/     `dotquay mcp`: a stdio MCP server exposing dotquay's read and guarded write
                       operations as tools for coding agents — see docs/SPEC.md §20. Depends only
                       on Dotquay.Core, never Dotquay.Cli.
+src/Dotquay.Godot/   the editor plugin (addons/dotquay/). GDScript only, scene-based UI, no
+                      resolution logic: every button is one `dotquay ... --json` call.
 tests/Dotquay.Tests/ xUnit tests. Everything goes through IFileSystem/IGitClient/INuGetClient/
                       IPatchTool/IDotnetCliRunner fakes, never real disk or network — see
-                      Dotquay.Tests/Support/.
+                      Dotquay.Tests/Support/. The exceptions are the real-process tests under
+                      Git/ and Mcp/, which guard bugs that only exist in a real process tree.
 ```
 
 The `Dotquay.Core` / `Dotquay.Cli` / `Dotquay.Tests` split and the interface seams are a deliberate
@@ -164,6 +187,13 @@ Requires the .NET 10 SDK.
 ```
 dotnet build
 dotnet test
+```
+
+The editor plugin has its own GDScript suite. Run it through the script, which does Godot's import
+pass first (without it every `class_name` fails to resolve):
+
+```
+pwsh src/Dotquay.Godot/run_tests.ps1
 ```
 
 Try it:
@@ -197,23 +227,55 @@ dotnet publish src/Dotquay.Cli -c Release -r win-x64 --self-contained -p:Publish
 
 ## CI/CD and releases
 
-`.gitlab-ci.yml` runs the test suite, then publishes both `linux-x64` (real NativeAOT) and
-`win-x64` (trimmed self-contained fallback, see above) binaries as job artifacts on every
-pipeline. Pushing a tag additionally uploads both binaries to this project's Generic Package
-Registry and creates a GitLab Release with download links:
+Releases are continuous: every green push to `main` that changes something under `src/` becomes a
+release, with no version to bump by hand. Pushes that only touch tests, docs, or the pipeline run the
+suite and release nothing.
+
+| Stage | Jobs | What happens |
+|---|---|---|
+| test | `test` | The full xUnit suite. |
+| tag | `auto-tag` | Reserves the next patch version and pushes it as a `vX.Y.Z` tag (`main` + `src/` changes only). |
+| build | `build:linux-x64`, `build:windows-x64`, `smoke:linux-x64` | Real NativeAOT for linux-x64, the trimmed self-contained fallback for win-x64 (see above), then the linux binary is run for real — `--version`, `init`, and the `--json` envelopes — before anything ships. |
+| release | `upload:*`, `release:auto` / `release:tagged` | Binaries, checksums and `manifest.json` go to the Generic Package Registry, then a GitLab Release links to them. |
+
+**Choosing a version yourself.** To cut a specific major or minor, push the tag by hand. That tag
+gets its own pipeline through the same build and release jobs, and `auto-tag` bumps the patch from
+it next time:
 
 ```
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.22.0
+git push origin v0.22.0
 ```
 
-Released binaries then show up under **Deployments → Releases**.
+**What `auto-tag` relies on:**
 
-Tagging also triggers `bump-version`, which pushes a follow-up commit to `main` bumping
-`Dotquay.Cli.csproj`'s patch version (e.g. `0.5.0` → `0.5.1`) so subsequent work is already
-developed under the next version. This job runs independently of test/build/release — it moves
-the version forward even if the build breaks — and needs a `VERSION_BUMP_TOKEN` CI/CD variable
-(a Maintainer-scoped access token with `write_repository`) to push to the protected branch.
+- **The version never goes backwards.** It takes the higher of the newest `v*` tag and
+  `Dotquay.Cli.csproj`'s `<Version>`, and bumps the patch from that. CI stamps the version into the
+  binary at publish time, so the csproj's `<Version>` is only a floor.
+- **The tag is pushed with `$CI_JOB_TOKEN`.** That needs **Settings → CI/CD → Job token permissions
+  → "Allow Git push requests to the repository"** turned on. Without it the push fails with "You are
+  not allowed to push code to this project". The push uses `-o ci.skip` so the tag doesn't start a
+  second, racing release pipeline.
+- **The remote's tags win.** Each runner slot (`concurrent-0`, `concurrent-1`, …) keeps its own
+  build volume, and a tag from a run whose push failed survives in that volume. So `auto-tag`
+  fetches with `--tags --force --prune --prune-tags`: tags missing from the remote are dropped, and
+  tags that exist on both sides are overwritten with the remote's. Without `--force`, a stale tag
+  sharing its name with a shipped one made the fetch refuse with "would clobber existing tag" and
+  fail the job with an empty log (job 6147).
+
+**Release layout.** Files are stored under the version **without** its `v`:
+
+```
+packages/generic/dotquay/0.21.0/dotquay-linux-x64          (+ .sha256)
+packages/generic/dotquay/0.21.0/dotquay-windows-x64.exe    (+ .sha256)
+packages/generic/dotquay/0.21.0/manifest.json
+```
+
+`manifest.json` names every binary with its SHA-256 and size, and it is what `dotquay self update`
+reads; a release without it is invisible to the updater. Both release jobs build their links from
+`PACKAGE_VERSION`, which `upload:manifest` writes from the exact version it uploaded under. Links
+built straight from the tag pointed at `.../v0.21.0/` while the files were in `.../0.21.0/`, which
+left the first hand-tagged release with five dead links.
 
 ## Installing, and staying current
 
