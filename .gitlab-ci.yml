@@ -535,10 +535,25 @@ upload:manifest:
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file manifest.json \
         "$BASE/manifest.json"
 
+      # The release links must name the directory the files actually landed in, so they take
+      # their version from here rather than re-deriving it. See the note above `.release`.
+      echo "PACKAGE_VERSION=$PKG_VERSION" > package.env
+  artifacts:
+    reports:
+      dotenv: package.env
+
 # Two release jobs with disjoint rules rather than one, because `release:tag_name` is expanded as a
 # CI variable and cannot take the shell fallback the upload jobs use for PKG_VERSION. A
 # human-pushed tag and auto-tag's reserved version arrive by different routes, so each job states
 # the spelling it can know statically.
+#
+# The asset links are the exception: both jobs take them from $PACKAGE_VERSION, the dotenv
+# upload:manifest writes from the exact PKG_VERSION it uploaded under. The registry directory has
+# no leading `v` (PKG_VERSION strips it), so a link built from $CI_COMMIT_TAG pointed at
+# packages/generic/dotquay/v0.21.0/ while the files sat in .../0.21.0/ - the first hand-tagged
+# release shipped five dead links, manifest.json among them, and `dotquay self update` could not
+# see it. Deriving the link from the upload rather than spelling the version a second time is
+# what makes the two unable to disagree. Hence `needs: upload:manifest` WITH artifacts below.
 .release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
@@ -555,7 +570,6 @@ release:tagged:
     - job: upload:windows-x64
       artifacts: false
     - job: upload:manifest
-      artifacts: false
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
   variables:
@@ -567,17 +581,17 @@ release:tagged:
     assets:
       links:
         - name: "dotquay-linux-x64"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-linux-x64"
         - name: "dotquay-windows-x64.exe"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-windows-x64.exe"
         # The link `dotquay self update` looks for by name. Without it a release is invisible to the
         # self-updater, which reports "publishes no binaries at all" rather than guessing at URLs.
         - name: "manifest.json"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/manifest.json"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/manifest.json"
         - name: "dotquay-linux-x64.sha256"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-linux-x64.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-linux-x64.sha256"
         - name: "dotquay-windows-x64.exe.sha256"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${CI_COMMIT_TAG}/dotquay-windows-x64.exe.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-windows-x64.exe.sha256"
 
 release:auto:
   extends: .release
@@ -591,7 +605,6 @@ release:auto:
     - job: upload:windows-x64
       artifacts: false
     - job: upload:manifest
-      artifacts: false
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes: *shippable-changes
@@ -604,12 +617,12 @@ release:auto:
     assets:
       links:
         - name: "dotquay-linux-x64"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-linux-x64"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-linux-x64"
         - name: "dotquay-windows-x64.exe"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-windows-x64.exe"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-windows-x64.exe"
         - name: "manifest.json"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/manifest.json"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/manifest.json"
         - name: "dotquay-linux-x64.sha256"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-linux-x64.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-linux-x64.sha256"
         - name: "dotquay-windows-x64.exe.sha256"
-          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${RELEASE_VERSION}/dotquay-windows-x64.exe.sha256"
+          url: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/dotquay/${PACKAGE_VERSION}/dotquay-windows-x64.exe.sha256"
