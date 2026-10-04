@@ -1,6 +1,7 @@
 # DESIGN v0.23 — the recorded hash ignores line endings
 
-**Status: shipped on branch `feature/lfs-safeguard`** (second commit). Fold into SPEC.md §7.3 on merge.
+**Status: shipped 2026-10-03 on `main` (`d3bfb5a`), first released in v0.21.0.** Not yet folded into
+SPEC.md §7.3 — until it is, this file is the reference.
 
 ## Problem
 

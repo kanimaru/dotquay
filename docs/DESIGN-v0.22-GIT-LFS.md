@@ -1,7 +1,7 @@
 # DESIGN v0.22 — Git LFS
 
-**Status: shipped on branch `feature/lfs-safeguard`.** Written as a separate file rather than as a SPEC.md
-edit; fold it into SPEC.md when the branch is merged.
+**Status: shipped 2026-10-03 on `main` (`9aeeefd`), first released in v0.21.0.** Written as a separate file
+rather than as a SPEC.md edit, and not yet folded into SPEC.md — until it is, this file is the reference.
 
 ## Problem
 

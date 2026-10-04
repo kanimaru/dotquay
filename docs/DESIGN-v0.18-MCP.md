@@ -1,8 +1,9 @@
 # DESIGN v0.18 — dotquay as an MCP server
 
-Status: proposed, not implemented. Decisions in §1 were taken with kani on 2026-09-16. Phase 0 (§9)
-ran the same day: the verdict in §3.1 is measured, not proposed, and §3/§3.2/§8/§10 below already
-reflect it. Everything else is still a plan open to revision once Phase 1 starts.
+Status: **shipped 2026-09-17**, all four phases in §9, each verified against a real NativeAOT binary.
+The contract now lives in SPEC.md §20, which wins where the two disagree. The decisions in §1 were
+taken with kani on 2026-09-16, and Phase 0 (§9) ran the same day. The rest of this document is kept
+as the design record.
 
 ## The problem
 

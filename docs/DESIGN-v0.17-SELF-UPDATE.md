@@ -1,6 +1,6 @@
 # DESIGN v0.17 — dotquay updates itself
 
-Status: proposed, implemented in this same change (see SPEC.md §19 once it lands).
+Status: **shipped 2026-09-11**, verified against a real NativeAOT binary. The contract now lives in SPEC.md §19.
 
 ## The problem
 
