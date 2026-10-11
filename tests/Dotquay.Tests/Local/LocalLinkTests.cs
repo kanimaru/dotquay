@@ -174,6 +174,38 @@ public class LocalLinkTests
     }
 
     [Fact]
+    public async Task InstallAsync_WithALinkToANeverFetchedCommit_DoesNotFetchJustToDateIt()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
+        gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
+        var installer = new AddonInstaller(fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+
+        var locked = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
+
+        // A link exists to skip the fetch. The label is display-only, so it falls back to today rather
+        // than costing a clone; nothing about the commit it names changes.
+        Assert.Empty(gitClient.FetchCalls);
+        Assert.Empty(gitClient.CommitDateCalls);
+        Assert.Matches(@"^0\.0\.0-\d{8}-aaaaaaa$", locked.Version);
+    }
+
+    [Fact]
+    public async Task InstallAsync_WithALinkToACachedCommit_DatesItByTheCommit()
+    {
+        var fileSystem = BuildFileSystemWithSource();
+        var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
+        gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
+        var cache = new RepoCache(fileSystem, gitClient, "cache");
+        await cache.GetOrFetchAsync(RepoUrl, Sha);
+        var installer = new AddonInstaller(fileSystem, cache, new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+
+        var locked = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
+
+        Assert.Equal("0.0.0-20260930-aaaaaaa", locked.Version);
+    }
+
+    [Fact]
     public async Task InstallAsync_LinkingOverAModifiedAddon_Refuses()
     {
         var fileSystem = BuildFileSystemWithSource();

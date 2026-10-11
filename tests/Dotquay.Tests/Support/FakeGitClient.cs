@@ -33,6 +33,19 @@ public sealed class FakeGitClient : IGitClient
     /// specifically about the "git missing" doctor check need to set this false.</summary>
     public bool IsGitAvailable { get; set; } = true;
 
+    /// <summary>Backs <see cref="GetCommitDateAsync"/>, keyed by commit SHA. A SHA with no entry has no
+    /// date, as for a checkout git can't read.</summary>
+    public Dictionary<string, DateTimeOffset> CommitDates { get; } = new();
+
+    public List<(string CheckoutPath, string Sha)> CommitDateCalls { get; } = [];
+
+    public Task<DateTimeOffset?> GetCommitDateAsync(
+        string checkoutPath, string commitSha, CancellationToken cancellationToken = default)
+    {
+        CommitDateCalls.Add((checkoutPath, commitSha));
+        return Task.FromResult<DateTimeOffset?>(CommitDates.TryGetValue(commitSha, out var date) ? date : null);
+    }
+
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(IsGitAvailable);
 
     public Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default) =>

@@ -100,7 +100,7 @@ public sealed class AddonInstaller
 
         if (link is not null)
         {
-            return InstallAsLink(resolved, projectDirectory, previous, force, link);
+            return await InstallAsLinkAsync(resolved, projectDirectory, previous, force, link, cancellationToken);
         }
 
         var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
@@ -183,7 +183,7 @@ public sealed class AddonInstaller
             Name = resolved.Name,
             Git = resolved.Git,
             Resolved = resolved.ResolvedSha,
-            Version = resolved.DisplayVersion ?? BuildPseudoVersion(resolved.ResolvedSha),
+            Version = await VersionForAsync(resolved, cancellationToken),
             Path = resolved.Path,
             Folder = resolved.InstallAs,
             ContentHash = contentHash,
@@ -247,8 +247,13 @@ public sealed class AddonInstaller
     /// vacate kept satisfying every path it was meant to redirect.
     /// </para>
     /// </remarks>
-    private LockedAddon InstallAsLink(
-        ResolvedAddon resolved, string projectDirectory, LockedAddon? previous, bool force, LocalLink link)
+    private async Task<LockedAddon> InstallAsLinkAsync(
+        ResolvedAddon resolved,
+        string projectDirectory,
+        LockedAddon? previous,
+        bool force,
+        LocalLink link,
+        CancellationToken cancellationToken)
     {
         var destinationPath = InstallPaths.For(_fileSystem, projectDirectory, resolved);
 
@@ -298,7 +303,7 @@ public sealed class AddonInstaller
         var lockedSha = previous is not null ? previous.Resolved : resolved.ResolvedSha;
         var lockedVersion = previous is not null
             ? previous.Version
-            : resolved.DisplayVersion ?? BuildPseudoVersion(resolved.ResolvedSha);
+            : await VersionForAsync(resolved, cancellationToken);
         var lockedContentHash = previous?.ContentHash;
 
         return new LockedAddon
@@ -433,11 +438,29 @@ public sealed class AddonInstaller
         }
     }
 
+    /// <summary>The lockfile's <c>version</c>: the tag when there is one, else a pseudo-version.</summary>
+    private async Task<string> VersionForAsync(ResolvedAddon resolved, CancellationToken cancellationToken)
+    {
+        if (resolved.DisplayVersion is not null)
+        {
+            return resolved.DisplayVersion;
+        }
+
+        var commitDate = await _cache.GetCommitDateAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
+        return BuildPseudoVersion(resolved.ResolvedSha, commitDate ?? DateTimeOffset.UtcNow);
+    }
+
     /// <summary>Pseudo-version for untagged repos, e.g. <c>"0.0.0-20260821-9f2c1ab"</c> (SPEC.md
     /// §6) — display-only, never parsed back.</summary>
-    private static string BuildPseudoVersion(string commitSha)
+    /// <remarks>
+    /// The date is the commit's, in UTC, so the same commit always gets the same label. It used to be
+    /// the install date, which rewrote the lockfile whenever an unchanged commit was reinstalled on a
+    /// different day. Today is only the fallback for a commit git can't date — a linked addon whose
+    /// commit was never fetched into the cache.
+    /// </remarks>
+    private static string BuildPseudoVersion(string commitSha, DateTimeOffset commitDate)
     {
         var shortSha = commitSha.Length > 7 ? commitSha[..7] : commitSha;
-        return $"0.0.0-{DateTime.UtcNow:yyyyMMdd}-{shortSha}";
+        return $"0.0.0-{commitDate.UtcDateTime:yyyyMMdd}-{shortSha}";
     }
 }

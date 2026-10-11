@@ -60,6 +60,45 @@ public class AddonInstallerTests
     }
 
     [Fact]
+    public async Task InstallAsync_NoDisplayVersion_DatesThePseudoVersionByTheCommit()
+    {
+        var (installer, _, gitClient, _) = Build();
+        gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
+        var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
+
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous: null, force: false);
+
+        // The install date made the same commit read 20260930 one day and 20261010 the next, so a
+        // reinstall that changed nothing still rewrote the lockfile.
+        Assert.Equal("0.0.0-20260930-1111111", locked.Version);
+    }
+
+    [Fact]
+    public async Task InstallAsync_NoDisplayVersion_DatesThePseudoVersionInUtc()
+    {
+        var (installer, _, gitClient, _) = Build();
+        // 01:30 on 1 October in UTC+2 is still 30 September in UTC. Every machine has to agree on the
+        // label whatever its own time zone, or two teammates rewrite each other's lockfile.
+        gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 10, 1, 1, 30, 0, TimeSpan.FromHours(2));
+        var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
+
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous: null, force: false);
+
+        Assert.Equal("0.0.0-20260930-1111111", locked.Version);
+    }
+
+    [Fact]
+    public async Task InstallAsync_WithDisplayVersion_DoesNotAskGitForADate()
+    {
+        var (installer, _, gitClient, _) = Build();
+        var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: "v2.44.0", "addons/dialogue_manager");
+
+        await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous: null, force: false);
+
+        Assert.Empty(gitClient.CommitDateCalls);
+    }
+
+    [Fact]
     public async Task InstallAsync_DirtyDestinationWithoutForce_ThrowsSyncException()
     {
         var (installer, fileSystem, _, _) = Build();

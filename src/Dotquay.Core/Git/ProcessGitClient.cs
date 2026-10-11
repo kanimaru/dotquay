@@ -114,6 +114,18 @@ public sealed class ProcessGitClient : IGitClient
         await _lfs.EnsureResolvedAsync(destinationPath, "origin", cancellationToken);
     }
 
+    public async Task<DateTimeOffset?> GetCommitDateAsync(
+        string checkoutPath, string commitSha, CancellationToken cancellationToken = default)
+    {
+        // %ct is the committer date as Unix seconds: no time zone or locale to parse. A shallow
+        // fetch still holds the commit object itself, so this works on every cache entry.
+        var result = await RunGitAsync(checkoutPath, ["show", "--no-patch", "--format=%ct", commitSha], cancellationToken);
+
+        return result.ExitCode == 0 && long.TryParse(result.StdOut.Trim(), out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
+    }
+
     public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
         => _lfs.EnsureResolvedAsync(checkoutPath, "origin", cancellationToken);
 

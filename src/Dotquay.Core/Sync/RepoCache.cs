@@ -59,6 +59,18 @@ public sealed class RepoCache
         return path;
     }
 
+    /// <summary>When <paramref name="repositoryUrl"/>@<paramref name="commitSha"/> was committed, read
+    /// from its cache entry. Never fetches: null when the commit isn't cached or git can't say.</summary>
+    public async Task<DateTimeOffset?> GetCommitDateAsync(
+        string repositoryUrl, string commitSha, CancellationToken cancellationToken = default)
+    {
+        var path = GetCachePath(repositoryUrl, commitSha);
+
+        return _fileSystem.FileExists(_fileSystem.CombinePath(path, CompletionMarkerFileName))
+            ? await _gitClient.GetCommitDateAsync(path, commitSha, cancellationToken)
+            : null;
+    }
+
     private static string MarkerContent(string commitSha) => $"{commitSha}\n{LfsVerifiedToken}";
 
     public string GetCachePath(string repositoryUrl, string commitSha)

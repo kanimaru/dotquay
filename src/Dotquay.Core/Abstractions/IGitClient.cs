@@ -36,6 +36,18 @@ public interface IGitClient
     Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
+    /// <summary>
+    /// Reads when <paramref name="commitSha"/> was committed, from a checkout this client produced —
+    /// local only, no network. Dates an untagged commit's pseudo-version, which has to name the
+    /// commit rather than the day it happened to be installed, or reinstalling the same commit on
+    /// another day rewrites the lockfile.
+    /// </summary>
+    /// <returns>The committer date, or null when the checkout cannot say.</returns>
+    /// <remarks>Defaults to null so implementations with no real checkout (test doubles) need not care.</remarks>
+    Task<DateTimeOffset?> GetCommitDateAsync(
+        string checkoutPath, string commitSha, CancellationToken cancellationToken = default)
+        => Task.FromResult<DateTimeOffset?>(null);
+
     /// <summary>Resolves a tracked branch's current tip to a full commit SHA.</summary>
     Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default);
 

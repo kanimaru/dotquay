@@ -582,7 +582,7 @@ Machine-written TOML, committed to the repo. One entry per resolved dependency:
 name = "dialogue_manager"
 git = "https://github.com/nathanhoad/godot_dialogue_manager"
 resolved = "e4f7a21c..."           # always a full commit SHA
-version = "2.46.1"                 # display only; pseudo-version if untagged
+version = "2.46.1"                 # display only; pseudo-version if untagged (0.0.0-<commit date, UTC>-<short sha>)
 path = "addons/dialogue_manager"   # source subtree in the addon's repo
 folder = "Godot-MToon-Shader"      # install destination; omitted when it equals name (v0.5)
 content_hash = "sha256:..."        # hash of installed tree, for dirty detection (§7.3.1)
