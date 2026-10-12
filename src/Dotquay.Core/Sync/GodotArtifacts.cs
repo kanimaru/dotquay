@@ -40,12 +40,26 @@ public static class GodotArtifacts
     /// </remarks>
     private static readonly string[] Directories = [".godot", ".import"];
 
+    /// <summary>Marks a file name as a temporary copy the editor made of a native library.</summary>
+    /// <remarks>
+    /// When the editor loads a GDExtension it does not load the library in place: it copies
+    /// <c>GDMP.windows.dll</c> to <c>~GDMP.windows.dll</c> beside it and loads the copy, so the
+    /// original can be rebuilt or replaced while the editor is open (hot reload). The copy is
+    /// byte-identical to the original and exists only on the machine that opened the project.
+    /// </remarks>
+    private const char TemporaryPrefix = '~';
+
     /// <summary>
     /// True when <paramref name="relativePath"/> — forward-slashed and relative to the addon folder —
     /// is editor-generated.
     /// </summary>
     public static bool IsArtifact(string relativePath)
     {
+        if (IsEditorTemporary(relativePath))
+        {
+            return true;
+        }
+
         var normalized = relativePath.Replace('\\', '/');
 
         foreach (var extension in Extensions)
@@ -70,5 +84,24 @@ public static class GodotArtifacts
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// True when <paramref name="relativePath"/> names a temporary copy the editor made of a native
+    /// library (<c>~name.dll</c>): a file whose name — not a folder above it — starts with
+    /// <c>~</c>.
+    /// </summary>
+    /// <remarks>
+    /// A subset of <see cref="IsArtifact"/> with one extra property: it is <em>not</em> worth
+    /// preserving. A <c>.uid</c> carries an identity other files reference, so the swap carries it
+    /// over. A <c>~</c> copy carries nothing — Godot recreates it on the next load — and carrying
+    /// it over would put a stale copy of the <em>old</em> library beside the new one. Reading it
+    /// can also fail outright while the editor has it mapped.
+    /// </remarks>
+    public static bool IsEditorTemporary(string relativePath)
+    {
+        var fileName = relativePath.Substring(relativePath.LastIndexOfAny(['/', '\\']) + 1);
+
+        return fileName.Length > 1 && fileName[0] == TemporaryPrefix;
     }
 }

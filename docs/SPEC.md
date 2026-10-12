@@ -423,10 +423,13 @@ That is not cosmetic. `install` and `update` refuse to overwrite a modified addo
 find is `--force` — and a guard that fires on every project teaches everyone to bypass it, at which
 point it protects nothing.
 
-`content_hash` therefore excludes editor-generated paths: `*.uid`, `*.import`, and anything under
-`.godot/` or `.import/` (`GodotArtifacts`). A fixed list, not configuration — these are facts about
-Godot, and making them a setting means every user must discover and get them right before install
-works.
+`content_hash` therefore excludes editor-generated paths: `*.uid`, `*.import`, anything under
+`.godot/` or `.import/`, and any file whose *name* starts with `~` (`GodotArtifacts`). The last is
+the editor's hot-reload copy of a GDExtension library: loading `GDMP.windows.dll` makes it write
+`~GDMP.windows.dll` beside it and load that, so an untouched addon grows a copy of its own native
+library. Unlike a `.uid`, that copy carries no identity, so the swap does **not** carry it over —
+Godot recreates it on the next load. A fixed list, not configuration — these are facts about Godot,
+and making them a setting means every user must discover and get them right before install works.
 
 Three consequences, each load-bearing:
 

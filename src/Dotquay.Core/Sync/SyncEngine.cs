@@ -148,7 +148,9 @@ public sealed class SyncEngine
         {
             var relative = Relative(file, destinationPath);
 
+            // A "~name.dll" copy is regenerated on the next load and would be stale after the swap.
             if (!GodotArtifacts.IsArtifact(relative)
+                || GodotArtifacts.IsEditorTemporary(relative)
                 || _fileSystem.FileExists(_fileSystem.CombinePath(stagingPath, relative)))
             {
                 continue;

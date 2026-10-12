@@ -27,6 +27,10 @@ public class GodotArtifactTests
     [InlineData(".godot/uid_cache.bin")]
     [InlineData("nested/.godot/anything")]
     [InlineData(".import/legacy-godot-3-cache")]
+    // The editor's hot-reload copy of a GDExtension library, beside the original.
+    [InlineData("libs/x86_64/~GDMP.windows.dll")]
+    [InlineData("~libGDMP.linux.so")]
+    [InlineData(@"libs\x86_64\~GDMP.windows.dll")]
     public void IsArtifact_EditorGeneratedPaths_AreRecognised(string relativePath) =>
         Assert.True(GodotArtifacts.IsArtifact(relativePath));
 
@@ -41,12 +45,50 @@ public class GodotArtifactTests
     // Segment-wise matching: a real folder whose name merely starts with a reserved one.
     [InlineData("my.godot-stuff/thing.gd")]
     [InlineData(".godotignore")]
+    // A tilde elsewhere in the name, or on a folder, is not the editor's copy marker.
+    [InlineData("libs/GDMP~backup.dll")]
+    [InlineData("~tmp/thing.gd")]
     public void IsArtifact_AddonContent_IsNot(string relativePath) =>
         Assert.False(GodotArtifacts.IsArtifact(relativePath));
 
     [Fact]
     public void IsArtifact_AcceptsWindowsSeparators() =>
         Assert.True(GodotArtifacts.IsArtifact(@"images\Folder.svg.import"));
+
+    // -- the editor's native-library copies -------------------------------------------------
+
+    [Fact]
+    public void HashDirectory_IsUnchangedByTheEditorLoadingAGdExtension()
+    {
+        // The bug, reduced: the editor loads GDMP.windows.dll by copying it to ~GDMP.windows.dll and
+        // loading the copy, so an untouched addon grew a 13 MB file and read as modified.
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText("addons/GDMP/libs/x86_64/GDMP.windows.dll", "native library");
+
+        var atInstall = ContentHasher.HashDirectory(fileSystem, "addons/GDMP");
+
+        fileSystem.WriteAllText("addons/GDMP/libs/x86_64/~GDMP.windows.dll", "native library");
+
+        Assert.Equal(atInstall, ContentHasher.HashDirectory(fileSystem, "addons/GDMP"));
+    }
+
+    [Fact]
+    public void SwapAndHash_DoesNotCarryOverTheEditorsLibraryCopy()
+    {
+        // Unlike a .uid it carries no identity, and after the swap it would be a stale copy of the
+        // library that was just replaced.
+        var fileSystem = new InMemoryFileSystem();
+        fileSystem.WriteAllText("addons/GDMP/libs/GDMP.windows.dll", "v1");
+        fileSystem.WriteAllText("addons/GDMP/libs/~GDMP.windows.dll", "v1");
+        var installed = ContentHasher.HashDirectory(fileSystem, "addons/GDMP");
+
+        fileSystem.WriteAllText("staging/libs/GDMP.windows.dll", "v2");
+
+        new SyncEngine(fileSystem).SwapAndHash("staging", "addons/GDMP", installed, force: false);
+
+        Assert.Equal("v2", fileSystem.ReadAllText("addons/GDMP/libs/GDMP.windows.dll"));
+        Assert.False(fileSystem.FileExists("addons/GDMP/libs/~GDMP.windows.dll"));
+    }
 
     // -- the hash ---------------------------------------------------------------------------
 
