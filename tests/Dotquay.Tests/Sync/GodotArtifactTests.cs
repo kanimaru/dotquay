@@ -202,7 +202,7 @@ public class GodotArtifactTests
         fileSystem.WriteAllText("addons/gut/gut.gd", "extends Node # my edit");
         fileSystem.WriteAllText("staging/gut.gd", "extends Node");
 
-        Assert.Throws<SyncException>(() =>
+        Assert.Throws<ModifiedAddonException>(() =>
             new SyncEngine(fileSystem).SwapAndHash("staging", "addons/gut", "sha256:stale", force: false));
 
         Assert.Equal("extends Node # my edit", fileSystem.ReadAllText("addons/gut/gut.gd"));

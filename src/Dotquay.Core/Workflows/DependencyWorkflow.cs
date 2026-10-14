@@ -1172,6 +1172,52 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
+    /// Refuses, before anything is written, to link <paramref name="name"/> over an installed folder
+    /// holding hand-edits — the same refusal the install would reach, with the same message and the
+    /// changed files named.
+    /// </summary>
+    /// <remarks>
+    /// <c>dotquay link</c> declares the link and then installs. When the install refused, the
+    /// declaration had already landed in <c>dotquay.local.toml</c>: the folder kept its real content,
+    /// yet every later <c>update</c> treated the addon as linked and held it back. A refusal has to
+    /// leave the project as it was, so the check runs before the declaration does. The installer keeps
+    /// its own check; this one only moves the answer earlier for the case that can be known up front,
+    /// an addon the lockfile already records.
+    /// </remarks>
+    public async Task EnsureAddonLinkableAsync(
+        string projectDirectory,
+        string name,
+        string linkPath,
+        bool force,
+        CancellationToken cancellationToken = default)
+    {
+        if (force)
+        {
+            return;
+        }
+
+        var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
+        var locked = lockfile.Addons.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.Ordinal));
+
+        if (locked is null)
+        {
+            return;
+        }
+
+        var installPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
+
+        if (_fileSystem.IsDirectoryLink(installPath)
+            || !DirtyChecker.Check(_fileSystem, installPath, locked.ContentHash).IsDirty)
+        {
+            return;
+        }
+
+        var changes = await DescribeLocalChangesAsync(projectDirectory, locked, installPath, cancellationToken);
+        throw new WorkflowException(
+            AddonInstaller.DescribeLinkOverModified(name, locked.EffectiveFolder, linkPath) + changes);
+    }
+
+    /// <summary>
     /// Drops this machine's link for <paramref name="name"/>: removes the declaration and, when
     /// <c>addons/&lt;folder&gt;</c> is a directory link, removes the link itself. Returns false when
     /// nothing was declared.
@@ -2636,6 +2682,12 @@ public sealed partial class DependencyWorkflow
         catch (LocalLinkException ex)
         {
             throw new WorkflowException(ex.Message, ex);
+        }
+        catch (ModifiedAddonException ex)
+        {
+            var changes = await DescribeLocalChangesAsync(
+                projectDirectory, previous, ex.ModifiedPath, cancellationToken);
+            throw new WorkflowException(ex.Message + changes, ex);
         }
         catch (SyncException ex)
         {

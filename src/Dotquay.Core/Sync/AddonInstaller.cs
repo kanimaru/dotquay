@@ -29,6 +29,16 @@ public sealed class AddonInstaller
         _patchReapplier = new PatchReapplier(fileSystem, cache, patchTool);
     }
 
+    /// <summary>The refusal for linking over hand-edits. Shared with the check <c>dotquay link</c>
+    /// runs before it declares anything, so both say the same thing about the same state.</summary>
+    internal static string DescribeLinkOverModified(string name, string folder, string linkPath)
+    {
+        return $"'{name}' is being replaced by a link to '{linkPath}', but addons/{folder} has local "
+            + "modifications that don't match the lockfile. Linking would discard them. Run "
+            + $"'dotquay patch {name}' to capture them first, or pass --force to discard them "
+            + "(SPEC.md requirement P0-6).";
+    }
+
     /// <summary>
     /// Points the addon at the subtree's real casing, and — when nothing said otherwise — installs it
     /// under that real name rather than the one derived from the repository's URL.
@@ -279,11 +289,8 @@ public sealed class AddonInstaller
         if (!force && !_fileSystem.IsDirectoryLink(destinationPath)
             && DirtyChecker.Check(_fileSystem, destinationPath, previous?.ContentHash).IsDirty)
         {
-            throw new SyncException(
-                $"'{resolved.Name}' is being replaced by a link to '{link.Path}', but addons/"
-                + $"{resolved.EffectiveFolder} has local modifications that don't match the lockfile. Linking "
-                + $"would discard them. Run 'dotquay patch {resolved.Name}' to capture them first, or pass "
-                + "--force to discard them (SPEC.md requirement P0-6).");
+            throw new ModifiedAddonException(
+                DescribeLinkOverModified(resolved.Name, resolved.EffectiveFolder, link.Path), destinationPath);
         }
 
         // Re-pointing an existing link is deliberately free: a link holds no content of its own, so
@@ -372,11 +379,12 @@ public sealed class AddonInstaller
         // the patched tree as the new baseline, so ContentHash is still the right comparison.
         if (DirtyChecker.Check(_fileSystem, oldPath, previous.ContentHash).IsDirty)
         {
-            throw new SyncException(
+            throw new ModifiedAddonException(
                 $"'{previous.Name}' is being moved from addons/{previous.EffectiveFolder} to a different folder, "
                 + $"but addons/{previous.EffectiveFolder} has local modifications that don't match the lockfile. "
                 + $"Moving it would delete them. Run 'dotquay patch {previous.Name}' to capture them first, or "
-                + "pass --force to discard them (SPEC.md requirement P0-6).");
+                + "pass --force to discard them (SPEC.md requirement P0-6).",
+                oldPath);
         }
     }
 

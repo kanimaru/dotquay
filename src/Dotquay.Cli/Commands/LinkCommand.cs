@@ -97,6 +97,16 @@ internal static class LinkCommand
                 // project already says whether a name is an addon or a NuGet package, and asking the
                 // user to repeat it is two things to remember for one concept.
                 var packageId = ResolveDotnetPackageId(projectDirectory, name);
+                var noInstall = parseResult.GetValue(noInstallOption);
+                var force = parseResult.GetValue(forceOption);
+
+                // Before the declaration is written, not after: an install that refuses has to leave
+                // no link behind, or every later update treats the untouched folder as linked.
+                if (!remove && packageId is null && !noInstall)
+                {
+                    await WorkflowFactory.Create().EnsureAddonLinkableAsync(
+                        projectDirectory, name, path!, force, cancellationToken);
+                }
 
                 var message = remove
                     ? Unlink(links, projectDirectory, name, packageId)
@@ -107,11 +117,10 @@ internal static class LinkCommand
 
                 // Reinstalling is what actually swaps the folder for a link (or the link back for the
                 // real addon). Skipped when nothing changed, so an idempotent re-run is free.
-                var installed = !parseResult.GetValue(noInstallOption) && !message.Contains("nothing to do");
+                var installed = !noInstall && !message.Contains("nothing to do");
                 if (installed)
                 {
-                    await WorkflowFactory.Create().InstallAsync(
-                        projectDirectory, parseResult.GetValue(forceOption), cancellationToken);
+                    await WorkflowFactory.Create().InstallAsync(projectDirectory, force, cancellationToken);
                 }
 
                 if (json)

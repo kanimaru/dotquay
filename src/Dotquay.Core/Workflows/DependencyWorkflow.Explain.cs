@@ -1,3 +1,4 @@
+using System.Text;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Patch;
 using Dotquay.Core.Sync;
@@ -29,6 +30,11 @@ public sealed partial class DependencyWorkflow
     /// read-only scratch copy for diffing, following the precedent
     /// <c>&lt;name&gt;-patch-base</c> set in <see cref="PatchAsync"/>.</summary>
     private const string ExplainStagingSuffix = "-explain-base";
+
+    /// <summary>How many changed files a refusal names before pointing at
+    /// <c>status --explain</c> for the rest. A refusal is read in a terminal mid-command; past a
+    /// handful the list stops answering "what did I change?" and starts hiding the advice under it.</summary>
+    private const int MaxListedLocalChanges = 5;
 
     /// <summary>
     /// <see cref="Status"/>, optionally with an <see cref="AddonExplanation"/> attached to every
@@ -118,6 +124,89 @@ public sealed partial class DependencyWorkflow
         {
             _fileSystem.DeleteDirectory(baselinePath);
         }
+    }
+
+    /// <summary>
+    /// The lines a P0-6 refusal appends to name what is modified: the first
+    /// <see cref="MaxListedLocalChanges"/> files that differ from <paramref name="locked"/>'s commit,
+    /// and a pointer at <c>status --explain</c> when there are more. Empty when there is nothing
+    /// trustworthy to list.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Built on <see cref="ExplainAsync"/>, so "changed" means here exactly what it means to
+    /// <c>status --explain</c> — patch-aware baseline included. Editor artifacts are left out: they are
+    /// not hashed, so they can never be why an install refused, and naming them would point the reader
+    /// at files that are not the problem.
+    /// </para>
+    /// <para>
+    /// Only the folder <paramref name="locked"/> describes can be explained against it. A refusal over
+    /// some other folder (a rename's destination already occupied) has no locked tree to compare with,
+    /// and an empty answer is better than a list measured against the wrong one. Likewise when the
+    /// baseline cannot be rebuilt (offline, commit gone): the refusal still stands on its own.
+    /// </para>
+    /// </remarks>
+    private async Task<string> DescribeLocalChangesAsync(
+        string projectDirectory, LockedAddon? locked, string modifiedPath, CancellationToken cancellationToken)
+    {
+        if (locked is null
+            || !string.Equals(
+                InstallPaths.For(_fileSystem, projectDirectory, locked), modifiedPath, StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        var explanation = await ExplainAsync(ReadLayout(projectDirectory), locked, cancellationToken);
+
+        var hashed = explanation.Changes.Where(change => change.Class != ChangeClass.EditorArtifact).ToList();
+        if (explanation.Verdict == ExplainVerdict.Unavailable || hashed.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        // From the exact counts, not the list: the list is capped at MaxReportedChanges.
+        var total = explanation.Counts.Total - explanation.Counts.EditorArtifact;
+        var newLine = Environment.NewLine;
+
+        var builder = new StringBuilder();
+        builder.Append($"{newLine}  Changed locally ({total} file{(total == 1 ? "" : "s")}):");
+
+        foreach (var change in hashed.Take(MaxListedLocalChanges))
+        {
+            var kind = DescribeChangeKind(change.Kind);
+            builder.Append($"{newLine}    {kind,-8} {change.Path}{DescribeChangeClass(change.Class)}");
+        }
+
+        if (total > MaxListedLocalChanges)
+        {
+            builder.Append(
+                $"{newLine}    ... and {total - MaxListedLocalChanges} more. "
+                + "Run 'dotquay status --explain' for the full list.");
+        }
+
+        return builder.ToString();
+    }
+
+    private static string DescribeChangeKind(ChangeKind kind)
+    {
+        return kind switch
+        {
+            ChangeKind.Added => "added",
+            ChangeKind.Removed => "removed",
+            _ => "changed",
+        };
+    }
+
+    /// <summary>Flags the changes nobody made by hand, so the reader can tell editor churn from their
+    /// own work at a glance. A real content change carries no suffix: it is the default reading.</summary>
+    private static string DescribeChangeClass(ChangeClass @class)
+    {
+        return @class switch
+        {
+            ChangeClass.UidOnly => "  (uid only)",
+            ChangeClass.LineEndingsOnly => "  (line endings only)",
+            _ => string.Empty,
+        };
     }
 
     /// <param name="IncludesPatch">The addon's captured patch was re-applied onto the baseline.</param>

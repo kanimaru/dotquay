@@ -214,7 +214,7 @@ public class LocalLinkTests
 
         fileSystem.WriteAllText(fileSystem.CombinePath(InstalledPath(fileSystem), "thing.gd"), "// my edits");
 
-        var exception = await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false, new LocalLink("my-addon", SourceDirectory)));
+        var exception = await Assert.ThrowsAsync<ModifiedAddonException>(() => installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false, new LocalLink("my-addon", SourceDirectory)));
 
         Assert.Contains("local modifications", exception.Message);
     }

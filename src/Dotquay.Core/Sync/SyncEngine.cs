@@ -32,9 +32,10 @@ public sealed class SyncEngine
 
         if (dirty.IsDirty && !force && !MatchesIncomingVersion(stagingPath, destinationPath))
         {
-            throw new SyncException(
+            throw new ModifiedAddonException(
                 $"'{destinationPath}' has local modifications that don't match the lockfile. "
-                + "Run 'dotquay patch' to capture them, or pass --force to overwrite (SPEC.md requirement P0-6).");
+                + "Run 'dotquay patch' to capture them, or pass --force to overwrite (SPEC.md requirement P0-6).",
+                destinationPath);
         }
 
         // Read before the move, because the move is what destroys them.

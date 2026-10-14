@@ -105,7 +105,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "hand-edited");
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
-        await Assert.ThrowsAsync<SyncException>(
+        await Assert.ThrowsAsync<ModifiedAddonException>(
             () => installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), PreviousWithContentHash("sha256:original"), force: false));
     }
 
@@ -118,7 +118,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "hand-edited");
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
-        await Assert.ThrowsAsync<SyncException>(
+        await Assert.ThrowsAsync<ModifiedAddonException>(
             () => installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), PreviousWithContentHash("sha256:original"), force: false));
 
         Assert.False(fileSystem.DirectoryExists("project/.dotquay/staging/dialogue_manager"));

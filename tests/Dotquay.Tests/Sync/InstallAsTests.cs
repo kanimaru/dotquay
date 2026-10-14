@@ -122,7 +122,7 @@ public class InstallAsTests
         fileSystem.WriteAllText(
             fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader", "mtoon.gdshader"), "// my changes");
 
-        var exception = await Assert.ThrowsAsync<SyncException>(
+        var exception = await Assert.ThrowsAsync<ModifiedAddonException>(
             () => installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false));
 
         // Without this guard, renaming would be the one way to make dotquay destroy hand-edits without
@@ -140,7 +140,7 @@ public class InstallAsTests
         fileSystem.WriteAllText(
             fileSystem.CombinePath(ProjectDirectory, "addons", "mtoon-shader", "mtoon.gdshader"), "// my changes");
 
-        await Assert.ThrowsAsync<SyncException>(
+        await Assert.ThrowsAsync<ModifiedAddonException>(
             () => installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous, force: false));
 
         // Checked before anything is written, so a refusal is a no-op rather than a half-done move.
