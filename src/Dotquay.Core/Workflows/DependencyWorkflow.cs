@@ -2618,7 +2618,26 @@ public sealed partial class DependencyWorkflow
         }
     }
 
+    /// <remarks>
+    /// The git calls here are the first contact <c>add</c> has with a new URL, so this is where an
+    /// unreachable or refusing remote surfaces. Every other git call site in this workflow turns a
+    /// <see cref="GitCommandException"/> into a <see cref="WorkflowException"/>; this one did not,
+    /// and a refused ssh key escaped the CLI as an unhandled exception with a stack trace.
+    /// </remarks>
     private async Task<AddonSpec> BuildDefaultSpecAsync(
+        string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await BuildDefaultSpecCoreAsync(name, gitUrl, pathOverride, installAs, cancellationToken);
+        }
+        catch (GitCommandException ex)
+        {
+            throw new WorkflowException($"'{name}': {ex.Message}", ex);
+        }
+    }
+
+    private async Task<AddonSpec> BuildDefaultSpecCoreAsync(
         string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken)
     {
         var refs = await _gitClient.ListRemoteRefsAsync(gitUrl, cancellationToken);

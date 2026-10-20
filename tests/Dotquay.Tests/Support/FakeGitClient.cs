@@ -48,8 +48,14 @@ public sealed class FakeGitClient : IGitClient
 
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(IsGitAvailable);
 
+    /// <summary>Remotes that refuse: <see cref="ListRemoteRefsAsync"/> throws the configured exception
+    /// for these URLs, as the real client does when git exits non-zero.</summary>
+    public Dictionary<string, Exception> RemoteFailuresByUrl { get; } = new();
+
     public Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RemoteRefsByUrl.TryGetValue(repositoryUrl, out var refs) ? refs : []);
+        RemoteFailuresByUrl.TryGetValue(repositoryUrl, out var failure)
+            ? Task.FromException<IReadOnlyList<GitRef>>(failure)
+            : Task.FromResult(RemoteRefsByUrl.TryGetValue(repositoryUrl, out var refs) ? refs : []);
 
     public Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default)
     {
