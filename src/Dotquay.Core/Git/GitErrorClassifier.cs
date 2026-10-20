@@ -205,9 +205,19 @@ public static class GitErrorClassifier
                 + "run is older than the server expects. Check with 'ssh -V' -- on Windows the OpenSSH in "
                 + "System32 often shadows the newer one shipped with Git.",
 
+            // Split by transport because the remedies share nothing. dotquay hands its stored token to
+            // git through a credential helper, and git only asks a helper over https - an ssh fetch
+            // never sees it. Found on a second developer's PC: they ran 'dotquay login' exactly as the
+            // old single message suggested, and the ssh fetch failed identically, because no token
+            // can answer "Permission denied (publickey)".
+            GitFailureKind.Authentication when IsSsh(repositoryUrl) =>
+                $"the server {hostText} refused the ssh key, or none was offered. A token stored with 'dotquay login' is never "
+                + "used for an ssh URL like this one. Either register a key with your account on "
+                + $"{hostText} and check it with 'ssh -T git@{hostText}', or fetch over https, where a stored login "
+                + "does apply: add an [overrides.<addon>] entry to dotquay.toml with the repository's https URL.",
+
             GitFailureKind.Authentication =>
-                $"git was refused for want of credentials. 'dotquay login {hostText}' stores a token for this host; "
-                + "for an ssh URL, check that your key is loaded and registered with the server.",
+                $"git was refused for want of credentials. 'dotquay login {hostText}' stores a token for this host.",
 
             GitFailureKind.HostUnreachable =>
                 $"{hostText} could not be reached at all -- check the hostname, your network, and any VPN the host "
@@ -285,6 +295,33 @@ public static class GitErrorClassifier
         return Remediation(kind, repositoryUrl) is { } remediation
             ? message + " " + char.ToUpperInvariant(remediation[0]) + remediation[1..]
             : message;
+    }
+
+    /// <summary>
+    /// The message for any other failed remote operation (<c>ls-remote</c> and friends):
+    /// <paramref name="failure"/>, what git said, and what to do.
+    /// </summary>
+    /// <remarks>
+    /// The fetch path has had remediation since v0.15; the ls-remote path - the very first thing
+    /// <c>dotquay add</c> does with a new URL - printed git's stderr raw. An ssh key refusal there
+    /// read as git's boilerplate about access rights and nothing else.
+    /// </remarks>
+    public static string DescribeRemoteFailure(string failure, string repositoryUrl, string? stderr)
+    {
+        var detail = (stderr ?? string.Empty).Trim();
+        var message = detail.Length > 0 ? $"{failure}: {detail}" : failure;
+
+        if (Remediation(Classify(stderr), repositoryUrl) is not { } remediation)
+        {
+            return message;
+        }
+
+        if (!message.EndsWith('.'))
+        {
+            message += ".";
+        }
+
+        return message + " " + char.ToUpperInvariant(remediation[0]) + remediation[1..];
     }
 
     private static bool Any(string loweredStdErr, string[] markers) =>

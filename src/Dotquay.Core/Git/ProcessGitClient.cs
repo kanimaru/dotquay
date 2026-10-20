@@ -34,7 +34,9 @@ public sealed class ProcessGitClient : IGitClient
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--tags", "--heads", repositoryUrl], cancellationToken);
         if (result.ExitCode != 0)
         {
-            throw Failure($"git ls-remote failed for {repositoryUrl}: {result.StdErr.Trim()}", result.StdErr);
+            throw Failure(
+                GitErrorClassifier.DescribeRemoteFailure($"git ls-remote failed for {repositoryUrl}", repositoryUrl, result.StdErr),
+                result.StdErr);
         }
 
         return ParseRefs(result.StdOut);
@@ -45,7 +47,10 @@ public sealed class ProcessGitClient : IGitClient
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--heads", repositoryUrl, branch], cancellationToken);
         if (result.ExitCode != 0)
         {
-            throw Failure($"git ls-remote failed for {repositoryUrl} branch '{branch}': {result.StdErr.Trim()}", result.StdErr);
+            throw Failure(
+                GitErrorClassifier.DescribeRemoteFailure(
+                    $"git ls-remote failed for {repositoryUrl} branch '{branch}'", repositoryUrl, result.StdErr),
+                result.StdErr);
         }
 
         var refs = ParseRefs(result.StdOut);
