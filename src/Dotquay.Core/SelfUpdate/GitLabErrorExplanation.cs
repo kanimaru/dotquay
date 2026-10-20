@@ -46,7 +46,7 @@ public static class GitLabErrorExplanation
 
         // GitLab's own words first and verbatim when it gave any. Nothing this method could add
         // beats a server naming the permission it wants.
-        if (!string.IsNullOrWhiteSpace(detail))
+        if (!string.IsNullOrWhiteSpace(detail) && !IsStatusEcho(status, detail))
         {
             var quoted = $"{opening} GitLab said: {detail.Trim()}";
 
@@ -65,6 +65,18 @@ public static class GitLabErrorExplanation
                 : opening;
         }
 
+        if (authenticated && status == HttpStatusCode.Unauthorized)
+        {
+            // 401 with a credential means GitLab does not recognise the token at all - a 403 is
+            // what a real token lacking a permission gets. So scope advice would be a wrong guess
+            // here; what helps is saying the token itself is the problem, and that a bare-host
+            // login was never checked when it was stored.
+            return opening + " The stored credential was sent and GitLab does not recognise it - it is "
+                + "mistyped, expired or revoked. Store a fresh one with "
+                + $"'dotquay login {host}'; a login for a bare host is saved without being checked, so a bad "
+                + "token can sit there unnoticed until something like this uses it.";
+        }
+
         return authenticated
             ? opening + " The stored credential was sent and refused. If it is a fine-grained token, "
                 + "check that it grants read access to this project's releases; if it is a classic "
@@ -78,4 +90,36 @@ public static class GitLabErrorExplanation
                 + "not exist and one you are not allowed to see, so this is either the wrong channel "
                 + $"URL or a project that wants a login - 'dotquay login {host}'.";
     }
+
+    /// <summary>
+    /// Whether <paramref name="detail"/> only restates the status line, e.g.
+    /// <c>{"message":"401 Unauthorized"}</c>.
+    /// </summary>
+    /// <remarks>
+    /// GitLab's API answers most refusals with exactly that body. Treating it as "GitLab's own
+    /// words" printed <c>answered 401 Unauthorized ... GitLab said: 401 Unauthorized</c> and, worse,
+    /// returned before the advice that would have said a stored credential was sent and refused -
+    /// which is the one fact the reader needed. Only an exact restatement counts: a body that adds
+    /// anything (<c>404 Project Not Found</c>, a fine-grained permission list) is still quoted.
+    /// </remarks>
+    public static bool IsStatusEcho(HttpStatusCode status, string? detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return false;
+        }
+
+        var code = ((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var trimmed = detail.Trim();
+        if (!trimmed.StartsWith(code, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var rest = Squash(trimmed[code.Length..]);
+        return rest.Length == 0 || rest == Squash(status.ToString());
+    }
+
+    private static string Squash(string text) =>
+        new(text.Where(char.IsLetter).Select(char.ToLowerInvariant).ToArray());
 }

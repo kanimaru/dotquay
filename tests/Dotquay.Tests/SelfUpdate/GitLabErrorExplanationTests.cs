@@ -92,4 +92,43 @@ public class GitLabErrorExplanationTests
     public void Auth_failures_are_classified_so_a_ui_can_offer_a_login(
         HttpStatusCode status, bool authenticated, bool expected) =>
         Assert.Equal(expected, GitLabErrorExplanation.IsAuthFailure(status, authenticated));
+
+    [Fact]
+    public void GitLabs_bare_status_echo_does_not_crowd_out_the_advice()
+    {
+        // The literal message a second developer's PC printed. GitLab's body was
+        // {"message":"401 Unauthorized"}, quoted as if it explained something, and the sentence
+        // saying a stored credential had been sent and refused never appeared.
+        var message = GitLabErrorExplanation.Describe(
+            HttpStatusCode.Unauthorized, "401 Unauthorized", authenticated: true, Host, "looking up the newest release");
+
+        Assert.DoesNotContain("GitLab said", message);
+        Assert.Contains("does not recognise", message);
+        Assert.Contains($"dotquay login {Host}", message);
+    }
+
+    [Fact]
+    public void An_authenticated_401_blames_the_token_not_its_scopes()
+    {
+        // 403 is what a real token lacking a permission gets; 401 means GitLab does not know the
+        // token at all, so scope advice would be a confident wrong guess.
+        var message = GitLabErrorExplanation.Describe(
+            HttpStatusCode.Unauthorized, detail: null, authenticated: true, Host, "looking up the newest release");
+
+        Assert.Contains("mistyped, expired or revoked", message);
+        Assert.DoesNotContain("read_api", message);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, "401 Unauthorized", true)]
+    [InlineData(HttpStatusCode.Forbidden, "403 Forbidden", true)]
+    [InlineData(HttpStatusCode.NotFound, "404 Not found", true)]
+    [InlineData(HttpStatusCode.NotFound, "  404  ", true)]
+    [InlineData(HttpStatusCode.NotFound, "404 Project Not Found", false)]
+    [InlineData(HttpStatusCode.Unauthorized, "403 Forbidden", false)]
+    [InlineData(HttpStatusCode.Forbidden, "requires [Release: Read]", false)]
+    [InlineData(HttpStatusCode.Forbidden, null, false)]
+    public void Only_an_exact_restatement_of_the_status_counts_as_an_echo(
+        HttpStatusCode status, string? detail, bool expected) =>
+        Assert.Equal(expected, GitLabErrorExplanation.IsStatusEcho(status, detail));
 }
