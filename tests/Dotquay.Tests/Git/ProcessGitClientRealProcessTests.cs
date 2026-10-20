@@ -65,6 +65,12 @@ public sealed class ProcessGitClientRealProcessTests
             using var server = Process.Start(startInfo)
                 ?? throw new InvalidOperationException($"Process.Start returned null for '{cliExe}'.");
 
+            // Drained, never just redirected: dotquay mcp writes its request trace - and under
+            // DOTQUAY_VERBOSE its diagnostics (docs/DESIGN-v0.24-VERBOSE.md) - to stderr, and a
+            // redirected stream nobody reads fills its pipe buffer and blocks the server mid-response.
+            server.ErrorDataReceived += (_, _) => { };
+            server.BeginErrorReadLine();
+
             try
             {
                 await SendAsync(server.StandardInput, new
@@ -162,7 +168,11 @@ public sealed class ProcessGitClientRealProcessTests
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Process.Start returned null for '{exePath}'.");
 
+        // Both streams drained concurrently, for the same full-pipe reason as the server above.
+        var drainOutput = process.StandardOutput.ReadToEndAsync();
+        var drainError = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
+        await Task.WhenAll(drainOutput, drainError);
         var exitCode = process.ExitCode;
         Assert.True(exitCode == 0, $"'{exePath} {string.Join(' ', args)}' exited with code {exitCode}.");
     }
