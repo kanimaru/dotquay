@@ -34,6 +34,10 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     private readonly string? _privateToken;
     private readonly string _describe;
 
+    /// <summary>Whether requests still carry the stored credential. Cleared for the rest of this
+    /// instance's life the first time GitLab refuses it on a read anonymous access can answer.</summary>
+    private bool _credentialActive;
+
     /// <param name="projectApiUrl">The project's API root, e.g.
     /// <c>https://gitlab.example.com/api/v4/projects/128</c>. The numeric ID, like every other
     /// GitLab endpoint dotquay talks to (see reference_gitlab_api_status_codes).</param>
@@ -57,12 +61,24 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
             var raw = Encoding.UTF8.GetBytes($"{credential.Username}:{credential.Token}");
             _authHeader = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(raw));
             _privateToken = credential.Token;
+            _credentialActive = true;
         }
 
         _describe = Uri.TryCreate(_projectApiUrl, UriKind.Absolute, out var uri) ? uri.Host : _projectApiUrl;
     }
 
     public string Describe => _describe;
+
+    /// <summary>
+    /// True once GitLab refused the stored credential and the same request then succeeded without
+    /// it.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so a caller can say so: the update itself went through, but the credential that
+    /// was refused is the same one git and NuGet will offer this host, where there may be no
+    /// anonymous fallback to hide behind.
+    /// </remarks>
+    public bool StoredCredentialRejected { get; private set; }
 
     public async Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default)
     {
@@ -95,8 +111,9 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
 
     public async Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default)
     {
-        using var response = await SendAsync(asset.Url, $"downloading {asset.FileName}", cancellationToken);
-        await ThrowIfUnsuccessfulAsync(response, $"downloading {asset.FileName}", cancellationToken);
+        var (response, authenticated) = await SendAsync(asset.Url, $"downloading {asset.FileName}", cancellationToken);
+        using var _ = response;
+        await ThrowIfUnsuccessfulAsync(response, authenticated, $"downloading {asset.FileName}", cancellationToken);
 
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
@@ -158,9 +175,10 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
         CancellationToken cancellationToken,
         bool nullOnNotFound = false)
     {
-        using var response = await SendAsync(url, what, cancellationToken);
+        var (response, authenticated) = await SendAsync(url, what, cancellationToken);
+        using var _ = response;
 
-        if (nullOnNotFound && response.StatusCode == HttpStatusCode.NotFound && _authHeader is not null)
+        if (nullOnNotFound && response.StatusCode == HttpStatusCode.NotFound && authenticated)
         {
             // Only with a credential. Without one, GitLab answers 404 for "no such release" and
             // "you cannot see this project" identically, and silently reporting the second as the
@@ -168,21 +186,69 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
             return default;
         }
 
-        await ThrowIfUnsuccessfulAsync(response, what, cancellationToken);
+        await ThrowIfUnsuccessfulAsync(response, authenticated, what, cancellationToken);
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         return await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken);
     }
 
-    private async Task<HttpResponseMessage> SendAsync(string url, string what, CancellationToken cancellationToken)
+    /// <summary>
+    /// Sends a GET, falling back to anonymous once when GitLab refuses the stored credential.
+    /// </summary>
+    /// <remarks>
+    /// <para>Found on a second developer's PC: <c>dotquay login gitlab.kemomi.de</c> stores a token
+    /// for a bare host without verifying it (there is no URL to check), so a mistyped or expired one
+    /// is stored silently. GitLab answers a request carrying an unrecognised token with 401 even on a
+    /// project anyone may read anonymously, so that stale token turned a public channel into a
+    /// failure. Measured 2026-10-20 against project 128: anonymous 200, bogus PRIVATE-TOKEN 401.</para>
+    /// <para>401 and 403 both retry: 401 is a token GitLab does not recognise, 403 a real one lacking a
+    /// permission (a fine-grained token without <c>Release: Read</c>) - and on a public project
+    /// anonymous access needs neither. Anything else is returned as is: a 404 or a 500 is not about
+    /// the credential, and retrying it anonymously would only turn one answer into two.</para>
+    /// <para>When the anonymous attempt fails too, the <em>original</em> response is what gets
+    /// reported. The channel genuinely wants a login, and the refused credential is the thing to fix -
+    /// an anonymous 404 would point at the URL instead.</para>
+    /// </remarks>
+    private async Task<(HttpResponseMessage Response, bool Authenticated)> SendAsync(
+        string url, string what, CancellationToken cancellationToken)
+    {
+        if (!_credentialActive)
+        {
+            return (await SendOnceAsync(url, what, withCredential: false, cancellationToken), false);
+        }
+
+        var response = await SendOnceAsync(url, what, withCredential: true, cancellationToken);
+        if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+        {
+            return (response, true);
+        }
+
+        var anonymous = await SendOnceAsync(url, what, withCredential: false, cancellationToken);
+        if (!anonymous.IsSuccessStatusCode)
+        {
+            anonymous.Dispose();
+            return (response, true);
+        }
+
+        response.Dispose();
+
+        // For the rest of this instance: an update is three requests (release, manifest, binary), and
+        // offering a credential already refused would cost a doubled round trip on each.
+        _credentialActive = false;
+        StoredCredentialRejected = true;
+        return (anonymous, false);
+    }
+
+    private async Task<HttpResponseMessage> SendOnceAsync(
+        string url, string what, bool withCredential, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (_authHeader is not null)
+        if (withCredential && _authHeader is not null)
         {
             request.Headers.Authorization = _authHeader;
         }
 
-        if (_privateToken is not null)
+        if (withCredential && _privateToken is not null)
         {
             request.Headers.Add("PRIVATE-TOKEN", _privateToken);
         }
@@ -207,14 +273,18 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// scopes - which is worse than saying nothing, because the guess sounds authoritative.
     /// See <see cref="GitLabErrorExplanation"/> for the rest of the reasoning.
     /// </remarks>
-    private async Task ThrowIfUnsuccessfulAsync(HttpResponseMessage response, string what, CancellationToken cancellationToken)
+
+    /// <param name="authenticated">Whether the request that produced <paramref name="response"/>
+    /// carried the credential - not whether one is configured. After a fallback they differ, and the
+    /// advice for each is different.</param>
+    private async Task ThrowIfUnsuccessfulAsync(
+        HttpResponseMessage response, bool authenticated, string what, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
         {
             return;
         }
 
-        var authenticated = _authHeader is not null || _privateToken is not null;
         var message = GitLabErrorExplanation.Describe(
             response.StatusCode,
             await ReadErrorDetailAsync(response, cancellationToken),
