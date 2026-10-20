@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 
 namespace Dotquay.Core.Sync;
 
@@ -43,6 +44,8 @@ public sealed class RepoCache
 
         if (_fileSystem.FileExists(marker))
         {
+            DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache", $"hit {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)} -> {path}");
+
             if (!_fileSystem.ReadAllText(marker).Contains(LfsVerifiedToken, StringComparison.Ordinal))
             {
                 await _gitClient.EnsureFilesResolvedAsync(path, cancellationToken);
@@ -52,6 +55,7 @@ public sealed class RepoCache
             return path;
         }
 
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache", $"miss {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)}, fetching into {path}");
         _fileSystem.DeleteDirectory(path); // clear out any partial fetch from an interrupted run
         await _gitClient.FetchCommitAsync(repositoryUrl, commitSha, path, cancellationToken);
         _fileSystem.WriteAllText(marker, MarkerContent(commitSha));
@@ -70,6 +74,8 @@ public sealed class RepoCache
             ? await _gitClient.GetCommitDateAsync(path, commitSha, cancellationToken)
             : null;
     }
+
+    private static string Short(string sha) => sha.Length > 10 ? sha[..10] : sha;
 
     private static string MarkerContent(string commitSha) => $"{commitSha}\n{LfsVerifiedToken}";
 

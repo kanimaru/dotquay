@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Dotquay.Core.Diagnostics;
 
 namespace Dotquay.Core.SelfUpdate;
 
@@ -21,6 +22,8 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
 
     public async Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default)
     {
+        var trace = ProcessTrace.Start(path, ["--version"], workingDirectory: null, category: "probe");
+
         try
         {
             using var process = Process.Start(new ProcessStartInfo
@@ -35,6 +38,7 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
 
             if (process is null)
             {
+                trace.Failed(new InvalidOperationException("Process.Start returned no process."));
                 return null;
             }
 
@@ -43,6 +47,7 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
 
             var output = await process.StandardOutput.ReadToEndAsync(timeout.Token);
             await process.WaitForExitAsync(timeout.Token);
+            trace.Completed(process.ExitCode, output);
 
             if (process.ExitCode != 0)
             {
@@ -56,14 +61,16 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
 
             return string.IsNullOrEmpty(first) ? null : first;
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
+            trace.Failed(new TimeoutException($"No answer within {_timeout.TotalSeconds:0} s.", ex));
             return null;
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             // Not executable, wrong architecture, or gone between the check and the start. All of
             // them mean the same thing to the caller.
+            trace.Failed(ex);
             return null;
         }
     }

@@ -27,7 +27,7 @@ public sealed class NuGetV3ClientFactory : INuGetClientFactory
     public NuGetV3ClientFactory(CredentialResolver credentials, HttpClient? httpClient = null)
     {
         _credentials = credentials;
-        _httpClient = httpClient ?? new HttpClient();
+        _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
     }
 
     public INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null)

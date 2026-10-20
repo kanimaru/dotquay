@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 
 namespace Dotquay.Core.Dotnet;
 
@@ -32,6 +33,7 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
         }
 
         using var process = new Process { StartInfo = startInfo };
+        var trace = ProcessTrace.Start("dotnet", startInfo.ArgumentList, workingDirectory: null);
 
         try
         {
@@ -39,6 +41,7 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
         }
         catch (Win32Exception ex)
         {
+            trace.Failed(ex);
             throw new DotnetSyncException("Could not start 'dotnet'. Is the .NET SDK installed and on PATH?", ex);
         }
 
@@ -49,6 +52,8 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
 
         var stdOut = await stdOutTask;
         var stdErr = await stdErrTask;
+
+        trace.Completed(process.ExitCode, stdOut, stdErr);
 
         if (process.ExitCode != 0)
         {

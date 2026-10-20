@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Core.IO;
 
 namespace Dotquay.Core.Git;
@@ -262,6 +263,7 @@ public sealed class ProcessGitClient : IGitClient
         }
 
         using var process = new Process { StartInfo = startInfo };
+        var trace = ProcessTrace.Start("git", args, workingDirectory);
 
         try
         {
@@ -269,6 +271,7 @@ public sealed class ProcessGitClient : IGitClient
         }
         catch (Win32Exception ex)
         {
+            trace.Failed(ex);
             throw new GitCommandException("Could not start 'git'. Is it installed and on PATH?", ex);
         }
 
@@ -277,11 +280,20 @@ public sealed class ProcessGitClient : IGitClient
         var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException ex)
+        {
+            trace.Failed(ex);
+            throw;
+        }
 
         var stdOut = await stdOutTask;
         var stdErr = await stdErrTask;
 
+        trace.Completed(process.ExitCode, stdOut, stdErr);
         return (process.ExitCode, stdOut, stdErr);
     }
 }

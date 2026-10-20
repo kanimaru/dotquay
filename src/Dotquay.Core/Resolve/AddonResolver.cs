@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Versioning;
 
@@ -29,14 +30,18 @@ public sealed class AddonResolver
             _ => throw new UnreachableException($"Unknown {nameof(AddonSourceKind)}: {spec.SourceKind}"),
         };
 
-    private static ResolvedAddon ResolveRev(AddonSpec spec) =>
+    private static ResolvedAddon ResolveRev(AddonSpec spec)
+    {
         // A hard pin: the manifest already names the exact commit. No pseudo-version needed —
         // display the rev as given (SPEC.md §7.1, "hard pin for untagged repos").
-        new(spec.Name, spec.Git, spec.Rev!, DisplayVersion: null, spec.EffectivePath, spec.InstallAs);
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "resolve", $"{spec.Name}: rev pin {spec.Rev}, no lookup needed");
+        return new(spec.Name, spec.Git, spec.Rev!, DisplayVersion: null, spec.EffectivePath, spec.InstallAs);
+    }
 
     private async Task<ResolvedAddon> ResolveBranchAsync(AddonSpec spec, CancellationToken cancellationToken)
     {
         var sha = await _gitClient.ResolveBranchTipAsync(spec.Git, spec.Branch!, cancellationToken);
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "resolve", $"{spec.Name}: branch '{spec.Branch}' tip is {sha}");
         return new ResolvedAddon(spec.Name, spec.Git, sha, DisplayVersion: null, spec.EffectivePath, spec.InstallAs);
     }
 
@@ -49,6 +54,12 @@ public sealed class AddonResolver
 
         var refs = await _gitClient.ListRemoteRefsAsync(spec.Git, cancellationToken);
         var match = TagSelector.SelectHighestMatching(refs, constraint);
+
+        DiagnosticLog.Write(
+            DiagnosticLevel.Verbose,
+            "resolve",
+            $"{spec.Name}: '{spec.Version}' against {refs.Count(r => r.Kind == GitRefKind.Tag)} tag(s) -> "
+                + (match is null ? "no match" : $"{match.Version.OriginalTag} ({match.Ref.CommitSha})"));
 
         if (match is null)
         {

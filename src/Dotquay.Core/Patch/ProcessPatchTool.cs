@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 
 namespace Dotquay.Core.Patch;
 
@@ -184,6 +185,7 @@ public sealed class ProcessPatchTool : IPatchTool
         }
 
         using var process = new Process { StartInfo = startInfo };
+        var trace = ProcessTrace.Start("git", args, workingDirectory, category: "patch");
 
         try
         {
@@ -191,6 +193,7 @@ public sealed class ProcessPatchTool : IPatchTool
         }
         catch (Win32Exception ex)
         {
+            trace.Failed(ex);
             throw new PatchException("Could not start 'git'. Is it installed and on PATH?", ex);
         }
 
@@ -202,6 +205,7 @@ public sealed class ProcessPatchTool : IPatchTool
         var stdOut = await stdOutTask;
         var stdErr = await stdErrTask;
 
+        trace.Completed(process.ExitCode, stdOut, stdErr);
         return (process.ExitCode, stdOut, stdErr);
     }
 }

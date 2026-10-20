@@ -69,7 +69,7 @@ public sealed class NuGetV3Client : INuGetClient
         string? sourceName = null)
     {
         _serviceIndexUrl = serviceIndexUrl;
-        _httpClient = httpClient ?? new HttpClient();
+        _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
         _isPublicDefault = string.Equals(serviceIndexUrl, DefaultServiceIndexUrl, StringComparison.OrdinalIgnoreCase);
         _sourceName = sourceName ?? (_isPublicDefault ? Manifest.NuGetSourceSpec.PublicName : serviceIndexUrl);
 

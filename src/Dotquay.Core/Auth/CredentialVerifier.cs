@@ -19,7 +19,7 @@ public sealed class CredentialVerifier
 
     public CredentialVerifier(HttpClient? httpClient = null)
     {
-        _httpClient = httpClient ?? new HttpClient();
+        _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
     }
 
     public enum Result

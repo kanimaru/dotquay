@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Git;
 using Dotquay.Core.IO;
 using Dotquay.Core.Workflows;
@@ -60,7 +61,9 @@ internal static class WorkflowFactory
             : DenyAllSourceApproval.Instance;
 
         return (
-            Create(approval, generatorAssetDecision, subtreeChoice).WithProgress(reporter),
+            // The diagnostic wrapper goes outside the spinner, so the log keeps every step even
+            // under --json, where the spinner itself is the null reporter.
+            Create(approval, generatorAssetDecision, subtreeChoice).WithProgress(DiagnosticProgressReporter.Wrap(reporter)),
             reporter as IDisposable ?? NullDisposable.Instance);
     }
 
@@ -87,9 +90,16 @@ internal static class WorkflowFactory
     /// <c>--explain</c> asks it to fetch. Its own parameter rather than passing <c>json: true</c> to
     /// suppress the spinner: that argument also selects how NuGet source approval behaves, and
     /// borrowing it to mean "quiet" is how the second meaning eventually gets used by accident.
+    /// <para>
+    /// Quiet means no spinner, not no log: under <c>--verbose</c> its steps still reach the
+    /// diagnostic log, which is where someone asking why <c>status --explain</c> is slow will look.
+    /// </para>
     /// </remarks>
     public static (DependencyWorkflow Workflow, IDisposable Progress) CreateQuiet() =>
-        (Create(), NullDisposable.Instance);
+        (DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose)
+            ? Create().WithProgress(new DiagnosticProgressReporter(Dotquay.Core.Progress.NullProgressReporter.Instance))
+            : Create(),
+         NullDisposable.Instance);
 
     private sealed class NullDisposable : IDisposable
     {

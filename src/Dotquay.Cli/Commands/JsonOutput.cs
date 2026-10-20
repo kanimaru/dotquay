@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Json;
 
 namespace Dotquay.Cli.Commands;
@@ -53,6 +54,14 @@ internal static class JsonOutput
     public static int Fail(bool json, string command, Exception exception)
     {
         var (kind, message) = JsonErrorClassifier.Classify(exception);
+
+        // The user-facing line is one sentence by design; the log gets the whole chain - type,
+        // inner exceptions, stack - because "which call threw" is the first thing a debugger needs.
+        DiagnosticLog.Write(
+            DiagnosticLevel.Verbose,
+            "error",
+            $"{command} failed ({kind}):\n{SecretRedactor.Redact(exception.ToString())}");
+
         return Fail(json, command, kind, message);
     }
 

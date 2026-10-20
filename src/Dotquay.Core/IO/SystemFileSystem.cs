@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 
 namespace Dotquay.Core.IO;
 
@@ -21,6 +22,7 @@ public sealed class SystemFileSystem : IFileSystem
             Directory.CreateDirectory(directory);
         }
 
+        DiagnosticLog.Write(DiagnosticLevel.Trace, "fs", $"write {path} ({contents.Length} chars)");
         File.WriteAllText(path, contents);
     }
 
@@ -36,6 +38,7 @@ public sealed class SystemFileSystem : IFileSystem
             Directory.CreateDirectory(directory);
         }
 
+        DiagnosticLog.Write(DiagnosticLevel.Trace, "fs", $"write {path} ({contents.Length} bytes)");
         File.WriteAllBytes(path, contents);
     }
 
@@ -54,10 +57,12 @@ public sealed class SystemFileSystem : IFileSystem
         // leaves the target untouched.
         if (IsDirectoryLink(path))
         {
+            DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"delete link {path} (target left untouched)");
             Directory.Delete(path, recursive: false);
             return;
         }
 
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"delete tree {path}");
         DeleteTree(new DirectoryInfo(path));
     }
 
@@ -145,6 +150,7 @@ public sealed class SystemFileSystem : IFileSystem
         }
 
         var target = Path.GetFullPath(targetPath);
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"link {linkPath} -> {target}");
 
         if (OperatingSystem.IsWindows())
         {
@@ -164,21 +170,38 @@ public sealed class SystemFileSystem : IFileSystem
     /// there is no supported .NET API for creating a junction.</summary>
     private static void CreateWindowsJunction(string linkPath, string targetPath)
     {
-        var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        var arguments = new[] { "/c", "mklink", "/J", linkPath, targetPath };
+        var trace = ProcessTrace.Start("cmd.exe", arguments, workingDirectory: null);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "cmd.exe",
-            ArgumentList = { "/c", "mklink", "/J", linkPath, targetPath },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-        }) ?? throw new IOException($"Could not start cmd.exe to link '{linkPath}'.");
+        };
 
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = System.Diagnostics.Process.Start(startInfo)
+            ?? throw new IOException($"Could not start cmd.exe to link '{linkPath}'.");
+
+        // Drained before waiting, and concurrently: mklink's output is tiny, but reading a redirected
+        // stream only once the child has exited is the textbook full-pipe deadlock, and tracing now
+        // wants both streams anyway.
+        var standardErrorTask = process.StandardError.ReadToEndAsync();
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = standardErrorTask.GetAwaiter().GetResult();
         process.WaitForExit();
+        trace.Completed(process.ExitCode, standardOutput, standardError);
 
         if (process.ExitCode != 0)
         {
-            var error = process.StandardError.ReadToEnd().Trim();
+            var error = standardError.Trim();
             throw new IOException(
                 $"Could not create a directory junction at '{linkPath}' -> '{targetPath}'."
                 + (error.Length > 0 ? $" {error}" : string.Empty));
@@ -189,6 +212,7 @@ public sealed class SystemFileSystem : IFileSystem
     {
         if (File.Exists(path))
         {
+            DiagnosticLog.Write(DiagnosticLevel.Trace, "fs", $"delete {path}");
             File.Delete(path);
         }
     }
@@ -201,6 +225,7 @@ public sealed class SystemFileSystem : IFileSystem
             Directory.CreateDirectory(directory);
         }
 
+        DiagnosticLog.Write(DiagnosticLevel.Trace, "fs", $"move {source} -> {destination}");
         File.Move(source, destination, overwrite);
     }
 
@@ -251,6 +276,7 @@ public sealed class SystemFileSystem : IFileSystem
 
         // Directory.Move is atomic when source and destination are on the same volume, which
         // holds for the cache-to-project moves the sync engine performs (SPEC.md §9 step 5).
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"move tree {source} -> {destination}");
         Directory.Move(source, destination);
     }
 

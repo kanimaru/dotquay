@@ -47,7 +47,7 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     public GitLabReleaseChannel(string projectApiUrl, CredentialResolver? credentials = null, HttpClient? httpClient = null)
     {
         _projectApiUrl = projectApiUrl.TrimEnd('/');
-        _httpClient = httpClient ?? new HttpClient();
+        _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
 
         var credential = credentials?.ForGitRepository(_projectApiUrl).Credential;
         if (credential is not null)

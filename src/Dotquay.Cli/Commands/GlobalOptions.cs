@@ -21,6 +21,31 @@ internal static class GlobalOptions
         Recursive = true,
     };
 
+    /// <summary>
+    /// Logs every external command, HTTP request, pipeline step and destructive file operation to
+    /// stderr (docs/DESIGN-v0.24-VERBOSE.md).
+    /// </summary>
+    /// <remarks>
+    /// Read once, in <c>Program.cs</c>, before any command runs - so it covers argument parsing
+    /// and the background update check too, and no command has to remember to honour it. stderr
+    /// only: <c>--json</c> output and <c>dotquay mcp</c>'s stdout stay byte-identical with or without
+    /// it.
+    /// </remarks>
+    public static readonly Option<bool> Verbose = new("--verbose", "-v")
+    {
+        Description = "Log what dotquay is doing (git/dotnet commands, HTTP requests, steps, file operations) "
+            + "to stderr for debugging. Also: DOTQUAY_VERBOSE=1.",
+        Recursive = true,
+    };
+
+    /// <summary><see cref="Verbose"/> plus each subprocess's captured output and every file write.</summary>
+    public static readonly Option<bool> Trace = new("--trace")
+    {
+        Description = "Like --verbose, plus the output of every git/dotnet command and every file write. "
+            + "Also: DOTQUAY_VERBOSE=trace.",
+        Recursive = true,
+    };
+
     /// <summary>Always returns an absolute path: a relative <c>--project</c> resolved against a
     /// caller's unknown working directory is exactly the ambiguity this option exists to remove.</summary>
     public static string Resolve(ParseResult parseResult)
