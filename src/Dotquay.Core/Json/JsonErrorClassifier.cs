@@ -1,4 +1,5 @@
 using Dotquay.Core.Auth;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Dotnet;
 using Dotquay.Core.Git;
 using Dotquay.Core.Resolve;
@@ -19,7 +20,20 @@ namespace Dotquay.Core.Json;
 /// </remarks>
 public static class JsonErrorClassifier
 {
-    public static (string Kind, string Message) Classify(Exception exception) => exception switch
+    /// <summary>
+    /// The category and the message to show, with credentials masked.
+    /// </summary>
+    /// <remarks>
+    /// Masked here as well as in <see cref="JsonError"/> because the plain (non-<c>--json</c>) CLI
+    /// output prints this message directly, without ever building a <see cref="JsonError"/>.
+    /// </remarks>
+    public static (string Kind, string Message) Classify(Exception exception)
+    {
+        var (kind, message) = ClassifyUnredacted(exception);
+        return (kind, SecretRedactor.Redact(message));
+    }
+
+    private static (string Kind, string Message) ClassifyUnredacted(Exception exception) => exception switch
     {
         WorkflowException when exception.Message.Contains("Run 'dotquay init' first", StringComparison.Ordinal) =>
             (JsonErrorKind.NoManifest, exception.Message),

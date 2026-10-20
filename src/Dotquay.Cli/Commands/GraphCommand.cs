@@ -72,7 +72,7 @@ internal static class GraphCommand
                     foreach (var warning in warnings)
                     {
                         Console.WriteLine();
-                        ConsoleOutput.WriteLine(ConsoleColor.Yellow, warning);
+                        ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
                     }
                 }
 
@@ -140,7 +140,7 @@ internal static class GraphCommand
         foreach (var conflict in report.Conflicts)
         {
             Console.WriteLine();
-            ConsoleOutput.WriteLine(ConsoleColor.Red, conflict.Message);
+            ConsoleOutput.WriteRedacted(ConsoleColor.Red, conflict.Message);
 
             foreach (var candidate in conflict.Candidates.Take(5))
             {

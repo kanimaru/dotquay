@@ -41,7 +41,7 @@ internal static class JsonOutput
         }
         else
         {
-            ConsoleOutput.WriteLine(ConsoleColor.Red, message);
+            ConsoleOutput.WriteRedacted(ConsoleColor.Red, message);
         }
 
         return 1;

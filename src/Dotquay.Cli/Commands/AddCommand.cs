@@ -356,7 +356,7 @@ internal static class AddCommand
 
         foreach (var warning in preview.Warnings)
         {
-            ConsoleOutput.WriteLine(ConsoleColor.Yellow, warning);
+            ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
         }
 
         return exitCode;

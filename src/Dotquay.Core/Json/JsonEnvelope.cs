@@ -1,3 +1,5 @@
+using Dotquay.Core.Diagnostics;
+
 namespace Dotquay.Core.Json;
 
 /// <summary>
@@ -34,16 +36,48 @@ public sealed record JsonEnvelope<T>(
     public const string ToolName = "dotquay";
 
     public static JsonEnvelope<T> Success(string command, T data, IReadOnlyList<string>? warnings = null) =>
-        new(CurrentSchema, ToolName, DotquayVersion.Current, command, Ok: true, data, Error: null, warnings ?? []);
+        new(CurrentSchema, ToolName, DotquayVersion.Current, command, Ok: true, data, Error: null, Redact(warnings));
 
     public static JsonEnvelope<T> Failure(string command, JsonError error, IReadOnlyList<string>? warnings = null) =>
-        new(CurrentSchema, ToolName, DotquayVersion.Current, command, Ok: false, Data: null, error, warnings ?? []);
+        new(CurrentSchema, ToolName, DotquayVersion.Current, command, Ok: false, Data: null, error, Redact(warnings));
+
+    /// <summary>
+    /// Warnings are prose built from exception messages and git output, both of which can quote a
+    /// remote URL with its credential in it. Masked here, at the one place every envelope is built,
+    /// so no command has to remember to (see <see cref="SecretRedactor"/>).
+    /// </summary>
+    /// <remarks>
+    /// Only the free-text fields are masked: <see cref="Error"/> and <see cref="Warnings"/>.
+    /// <see cref="Data"/> carries structured facts the caller owns - the git URL an addon was
+    /// declared with, for instance - and rewriting those would make the payload lie about the
+    /// project it describes.
+    /// </remarks>
+    private static IReadOnlyList<string> Redact(IReadOnlyList<string>? warnings) =>
+        warnings is null or { Count: 0 } ? [] : warnings.Select(SecretRedactor.Redact).ToList();
 }
 
 /// <summary><paramref name="Kind"/> is a stable machine-readable category, not free text — a UI can
 /// react to <c>"no_manifest"</c> by offering an "Initialise project" button, which it can't do with a
 /// message string.</summary>
-public sealed record JsonError(string Kind, string Message);
+/// <remarks>
+/// <see cref="Message"/> is redacted on construction, whoever builds the error: the CLI's
+/// <c>--json</c> failures, every MCP tool failure and write-guard refusal, and anything added later.
+/// Error messages routinely quote the git URL that failed, and a URL can carry a token
+/// (<c>https://oauth2:glpat-...@host</c>) that would otherwise be printed straight back to the
+/// terminal, the editor plugin, or an agent's context (docs/DESIGN-v0.24-VERBOSE.md).
+/// </remarks>
+public sealed record JsonError(string Kind, string Message)
+{
+    private readonly string _message = SecretRedactor.Redact(Message);
+
+    // An explicit init accessor, not an initializer alone: `with { Message = ... }` assigns through
+    // init and would otherwise skip the redaction the constructor applies.
+    public string Message
+    {
+        get => _message;
+        init => _message = SecretRedactor.Redact(value);
+    }
+}
 
 /// <summary>Error categories carried by <see cref="JsonError.Kind"/>. Strings rather than an enum
 /// because this is a wire contract that outlives any one C# type.</summary>

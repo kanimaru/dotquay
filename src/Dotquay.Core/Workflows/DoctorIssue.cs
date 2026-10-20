@@ -1,3 +1,5 @@
+using Dotquay.Core.Diagnostics;
+
 namespace Dotquay.Core.Workflows;
 
 /// <summary>One finding from <see cref="DependencyWorkflow.DoctorAsync"/>. <see cref="Message"/> is
@@ -5,7 +7,23 @@ namespace Dotquay.Core.Workflows;
 /// <see cref="Kind"/> needed (unlike <see cref="AddonStatusInfo"/>/<see cref="AddonStatusKind"/>,
 /// where the CLI picks the color and wording; doctor's issues are heterogeneous enough that
 /// per-kind templates would just duplicate what's already in the message).</summary>
-public sealed record DoctorIssue(DoctorIssueKind Kind, string Message, UidReferenceFix? UidFix = null);
+/// <remarks>
+/// <see cref="Message"/> is redacted on construction. Doctor's checks quote remotes (fetch failures,
+/// ssh host checks) and its output is the thing people paste when asking for help - including the
+/// secret scanner's own findings, which must name where a token is without repeating it.
+/// </remarks>
+public sealed record DoctorIssue(DoctorIssueKind Kind, string Message, UidReferenceFix? UidFix = null)
+{
+    private readonly string _message = SecretRedactor.Redact(Message);
+
+    // An explicit init accessor, not an initializer alone: `with { Message = ... }` assigns through
+    // init and would otherwise skip the redaction the constructor applies.
+    public string Message
+    {
+        get => _message;
+        init => _message = SecretRedactor.Redact(value);
+    }
+}
 
 /// <summary>The three facts <see cref="DoctorIssueKind.FragileUidReference"/> already knows about its
 /// own fix: which script named the uid, the literal token it wrote, and the res:// path that same

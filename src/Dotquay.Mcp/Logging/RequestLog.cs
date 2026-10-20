@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Mcp.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -73,7 +74,10 @@ public sealed class RequestLog(TextWriter writer, bool ownsWriter, LoggingLevelS
         }
     }
 
-    private static string FirstLine(string text) => text.Split('\n', 2)[0].TrimEnd('\r');
+    /// <summary>The first line of an exception message, credentials masked: it goes both to a local
+    /// file or stderr and, via <see cref="NotifyClientAsync"/>, into the client's - often an agent's -
+    /// context.</summary>
+    private static string FirstLine(string text) => SecretRedactor.Redact(text.Split('\n', 2)[0].TrimEnd('\r'));
 
     /// <summary>Disposes the underlying writer only when this <see cref="RequestLog"/> owns it — the
     /// stderr fallback (no <c>--log</c> file given) must never close <see cref="Console.Error"/> for

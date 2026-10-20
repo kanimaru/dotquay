@@ -72,7 +72,7 @@ internal static class UpdateCommand
                 foreach (var warning in result.Warnings)
                 {
                     Console.WriteLine();
-                    ConsoleOutput.WriteLine(ConsoleColor.Yellow, warning);
+                    ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
                 }
 
                 return 0;

@@ -121,7 +121,7 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
         }
         catch (ScopeException ex)
         {
-            throw new McpException(ex.Message, ex);
+            throw new McpException(Dotquay.Core.Diagnostics.SecretRedactor.Redact(ex.Message), ex);
         }
 
         var store = new ProjectFileStore(fileSystem);
