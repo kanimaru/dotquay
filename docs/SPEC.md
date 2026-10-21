@@ -660,6 +660,27 @@ Implemented as a junction on Windows and a symlink elsewhere. Windows only permi
 symlink creation with Developer Mode enabled, which is off by default; junctions have no such
 requirement and Godot follows both identically.
 
+**Local .NET links, and the overlay** (v0.11; `docs/DESIGN-v0.11-LOCAL-DOTNET-LINK.md`). A `[dotnet]`
+package can be linked the same way, to a local `.csproj` (`dotquay link <package> <path>`;
+`--analyzer` for a Roslyn analyzer or source generator). The link lives in `dotquay.local.toml`, and
+dotquay turns it into `dotquay.local.targets`, a generated, per-machine, gitignored MSBuild file next
+to the project that swaps the `PackageReference` for a `ProjectReference`. The committed `.csproj`
+carries only one inert line importing it (`Condition="Exists(...)"`), so a link can never be
+committed. The overlay is rewritten whole by `install`, `add`, `update` and `override` (and so by
+`link` and `link --remove`, which end in an install), and deleted when the last link goes; an overlay
+from an older dotquay is therefore upgraded by the next such command, with no relink.
+
+For an `--analyzer` link the overlay also carries the target `DotquayStageLinkedAnalyzers`. Roslyn
+hosts (an IDE, a Roslyn MCP server) load an analyzer in place and hold a file lock on it, which would
+stop the linked generator from ever being rebuilt. The target compiles against a copy of every
+locally built analyzer, in `obj/<config>/<tfm>/linked-analyzers/<name>-<sha256>/`, and sweeps the
+copies of earlier builds. Set `DisableDotquayAnalyzerStaging=true` to opt out. Unlinking deletes the
+overlay and with it the sweep, so the copies from the last builds stay in `obj/` until it is cleaned;
+at most one copy per generator build accumulates while the link lives, and a copy a host still holds
+is removed by a later build once that host has exited. Why the copy keeps the file name and carries
+the hash in its directory is in the design document.
+
+
 ## 8. Resolution
 
 The resolver walks the dependency graph breadth-first, reading each dotquay-aware addon's package manifest, and collects all constraints per addon name. Godot's flat `addons/` folder allows exactly one copy of each addon, so the policy is **unification, not side-by-side**:

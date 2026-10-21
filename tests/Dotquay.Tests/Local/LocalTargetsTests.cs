@@ -254,6 +254,23 @@ public class LocalTargetsTests
     }
 
     [Fact]
+    public void Sync_OverAnOverlayFromBeforeTheStagingTarget_ReplacesItWhole()
+    {
+        // Every command that reaches DependencyWorkflow.SyncLocalTargets (install, add, update, and
+        // so link/unlink, which end in an install) rewrites the overlay wholesale. An existing user
+        // therefore gets the staging target on their next such command, without relinking.
+        var fileSystem = Build();
+        var overlayPath = fileSystem.CombinePath(ProjectDirectory, LocalTargetsWriter.FileName);
+        fileSystem.WriteAllText(overlayPath, "<Project><!-- written before staging existed --></Project>");
+
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
+
+        var overlay = fileSystem.ReadAllText(overlayPath);
+        Assert.Contains(LocalTargetsWriter.AnalyzerStagingTarget, overlay);
+        Assert.DoesNotContain("written before staging existed", overlay);
+    }
+
+    [Fact]
     public void Sync_NoLinks_DeletesTheOverlayButKeepsTheHook()
     {
         var fileSystem = Build();
