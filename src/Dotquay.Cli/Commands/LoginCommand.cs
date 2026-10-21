@@ -132,14 +132,15 @@ internal static class LoginCommand
         var verified = false;
         if (!noVerify)
         {
-            var (outcome, detail) = await VerifyAsync(target, credential, cancellationToken);
+            var (outcome, detail) = await VerifyAsync(target, scope, credential, projectDirectory, cancellationToken);
             switch (outcome)
             {
                 case CredentialVerifier.Result.Rejected:
                     return JsonOutput.Fail(
                         json, CommandName, JsonErrorKind.Auth,
                         $"{scope.Key} rejected that credential ({detail}). Nothing was stored. "
-                        + "Check the username and token, or pass --no-verify to store it anyway.");
+                        + "Check the token and the username - GitLab wants the account's username, not its "
+                        + "email address - or pass --no-verify to store it anyway.");
 
                 case CredentialVerifier.Result.Inconclusive:
                     // Not fatal. "I couldn't reach the server" is a different statement from "your
@@ -336,18 +337,38 @@ internal static class LoginCommand
         }
     }
 
-    /// <summary>Verifies against a real URL only. A bare host has no meaningful endpoint to try —
-    /// guessing one (a well-known path, a repository name) would produce confident failures against
-    /// servers that simply don't have it.</summary>
+    /// <summary>
+    /// Verifies against a real URL: the one given, or — for a bare host — the URLs the project's own
+    /// manifest already uses on that host (its NuGet feeds, then its git remotes). Guessing a
+    /// well-known path instead would produce confident failures against servers that simply don't
+    /// have it, so with no project to borrow URLs from the check is skipped and says so.
+    /// </summary>
     private static async Task<(CredentialVerifier.Result Outcome, string? Detail)> VerifyAsync(
-        string target, Credential credential, CancellationToken cancellationToken)
+        string target,
+        CredentialScope scope,
+        Credential credential,
+        string projectDirectory,
+        CancellationToken cancellationToken)
     {
-        if (!target.Contains("://", StringComparison.Ordinal))
+        var verifier = new CredentialVerifier();
+
+        if (target.Contains("://", StringComparison.Ordinal))
         {
-            return (CredentialVerifier.Result.Inconclusive, "no URL to check — pass the full feed URL to verify");
+            return await verifier.VerifyAsync(target, credential, cancellationToken);
         }
 
-        return await new CredentialVerifier().VerifyAsync(target, credential, cancellationToken);
+        var manifest = TryReadManifest(projectDirectory);
+        IReadOnlyList<string> urls = manifest is null ? [] : CredentialProbeTargets.For(scope, manifest);
+
+        if (urls.Count == 0)
+        {
+            return (
+                CredentialVerifier.Result.Inconclusive,
+                "no URL to check — pass the full feed URL, or run this inside a project whose dotquay.toml "
+                + $"uses {scope.Key}");
+        }
+
+        return await verifier.VerifyAnyAsync(urls, credential, cancellationToken);
     }
 
     /// <summary>The project's only NuGet source host, when there is exactly one. Convenience only —
@@ -355,19 +376,22 @@ internal static class LoginCommand
     /// <c>login</c> is a user-level command that must work outside a project.</summary>
     private static string? InferHost(string projectDirectory)
     {
+        var sources = TryReadManifest(projectDirectory)?.NuGetSources
+            .Where(source => !source.IsPublicDefault)
+            .ToList();
+
+        return sources is { Count: 1 } ? sources[0].Url : null;
+    }
+
+    /// <summary>The project's manifest, or null when there is none or it doesn't parse — same
+    /// reasoning as <see cref="InferHost"/>: <c>login</c> never fails because of the project it
+    /// happens to be run from.</summary>
+    private static Core.Manifest.ProjectManifest? TryReadManifest(string projectDirectory)
+    {
         try
         {
-            var fileSystem = new SystemFileSystem();
-            var store = new Core.Workflows.ProjectFileStore(fileSystem);
-            if (!store.HasManifest(projectDirectory))
-            {
-                return null;
-            }
-
-            var (manifest, _) = store.ReadManifestOrThrow(projectDirectory);
-            var sources = manifest.NuGetSources.Where(source => !source.IsPublicDefault).ToList();
-
-            return sources.Count == 1 ? sources[0].Url : null;
+            var store = new Core.Workflows.ProjectFileStore(new SystemFileSystem());
+            return store.HasManifest(projectDirectory) ? store.ReadManifestOrThrow(projectDirectory).Manifest : null;
         }
         catch (Exception ex) when (ex is Core.Workflows.WorkflowException or Core.Manifest.ManifestParseException)
         {

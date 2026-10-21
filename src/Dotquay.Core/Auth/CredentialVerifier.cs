@@ -11,7 +11,9 @@ namespace Dotquay.Core.Auth;
 /// <remarks>
 /// Worth the round trip: without it, a mistyped token is accepted silently and surfaces three
 /// commands later as a restore failure, at which point the token is the last thing anyone suspects.
-/// Verifying at the moment of entry puts the error next to the typo.
+/// Verifying at the moment of entry puts the error next to the typo. The username is part of what
+/// gets checked — GitLab rejects a valid token paired with the wrong username (an email address, say)
+/// exactly as it rejects a wrong token.
 /// </remarks>
 public sealed class CredentialVerifier
 {
@@ -67,5 +69,33 @@ public sealed class CredentialVerifier
         {
             return (Result.Inconclusive, "the request timed out");
         }
+    }
+
+    /// <summary>
+    /// Tries several URLs on one host, in order, stopping at the first decisive answer. The same
+    /// credential goes to all of them, so a rejection anywhere is decisive, and so is an acceptance;
+    /// the check as a whole is inconclusive only when every URL was.
+    /// </summary>
+    /// <returns>The outcome, with the detail naming the URL that produced it so a rejection can be
+    /// told apart from "the feed URL in dotquay.toml is wrong".</returns>
+    public async Task<(Result Outcome, string? Detail)> VerifyAnyAsync(
+        IReadOnlyList<string> urls, Credential credential, CancellationToken cancellationToken = default)
+    {
+        string? lastDetail = null;
+
+        foreach (var url in urls)
+        {
+            var (outcome, detail) = await VerifyAsync(url, credential, cancellationToken);
+            var located = detail is null ? null : $"{detail} for {url}";
+
+            if (outcome != Result.Inconclusive)
+            {
+                return (outcome, located);
+            }
+
+            lastDetail = located;
+        }
+
+        return (Result.Inconclusive, lastDetail ?? "no URL to check");
     }
 }
