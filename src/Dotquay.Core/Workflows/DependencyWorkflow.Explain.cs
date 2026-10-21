@@ -184,7 +184,45 @@ public sealed partial class DependencyWorkflow
                 + "Run 'dotquay status --explain' for the full list.");
         }
 
+        builder.Append(newLine).Append(DescribeVerdict(explanation.Counts));
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// The sentence that answers "do I have to care?": which of the changes are churn nobody made by
+    /// hand (whitespace, uid rewrites, line endings) and which are real edits.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the same counts <c>status --explain</c> reports, with editor artifacts left out for
+    /// the reason the list leaves them out. Advice only — the refusal itself has already been decided.
+    /// </remarks>
+    private static string DescribeVerdict(ChangeCounts counts)
+    {
+        var newLine = Environment.NewLine;
+
+        if (counts.Content > 0)
+        {
+            var one = counts.Content == 1;
+            return $"  {counts.Content} real content change{(one ? "" : "s")}: --force would discard "
+                + $"{(one ? "it" : "them")}. Capture {(one ? "it" : "them")} with 'dotquay patch' first if "
+                + $"you want to keep {(one ? "it" : "them")}.";
+        }
+
+        var parts = new List<string>(3);
+        AppendCount(parts, counts.WhitespaceOnly, "whitespace-only change", "whitespace-only changes");
+        AppendCount(parts, counts.UidOnly, "uid-only rewrite", "uid-only rewrites");
+        AppendCount(parts, counts.LineEndingsOnly, "line-ending change", "line-ending changes");
+
+        return $"  Only {string.Join(", ", parts)} — no real edits (an editor or formatter probably "
+            + $"rewrote them).{newLine}  'dotquay update --force' is safe.";
+    }
+
+    private static void AppendCount(List<string> parts, int count, string singular, string plural)
+    {
+        if (count > 0)
+        {
+            parts.Add($"{count} {(count == 1 ? singular : plural)}");
+        }
     }
 
     private static string DescribeChangeKind(ChangeKind kind)
@@ -204,6 +242,7 @@ public sealed partial class DependencyWorkflow
         return @class switch
         {
             ChangeClass.UidOnly => "  (uid only)",
+            ChangeClass.WhitespaceOnly => "  (whitespace only)",
             ChangeClass.LineEndingsOnly => "  (line endings only)",
             _ => string.Empty,
         };

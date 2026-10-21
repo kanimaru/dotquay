@@ -347,3 +347,27 @@ Per the project's standing discipline, no step below was sufficient alone.
    the published binary — a live contract test that runs `status --explain --json` for real and parses
    it. 435 assertions, 0 failures. The fixture suite alone would not have noticed the CLI rejecting
    the flag or renaming the envelope command.
+
+## Addendum: whitespace-only changes, and the verdict on a refusal
+
+Field report: the installed `vrm` addon read as modified because something (the Godot script editor,
+a formatter) had trimmed the tabs off nine blank lines in `vrm1_extension.gd`. The hash is
+line-ending independent (v0.23) but, correctly, not whitespace independent, so `update` refused, and
+the refusal listed the file without saying it was nothing.
+
+- **New class `whitespace_only`** (`ChangeClass.WhitespaceOnly`, wire string `whitespace_only`). A file
+  is whitespace-only when, after line endings are normalised and `uid://` values masked, it is equal
+  once spaces and tabs at the end of every line and blank lines at the end of the file are dropped.
+  **Leading whitespace is never ignored**: GDScript is indentation-sensitive, so moving a line in or out
+  of a block is a real edit. Whitespace inside a line is not ignored either. It is benign, like
+  `uid_only` and `line_endings_only`, and a tree with only these is `safe_to_force`.
+- **The hash is still the authority.** Nothing here makes a whitespace edit stop counting as
+  *modified*; the guard still refuses. Ignoring whitespace in the hash would hide real edits to
+  whitespace-sensitive files, and the classifier cannot tell those from trimming without parsing.
+- **A P0-6 refusal now ends with a verdict line.** The list of changed files already carried
+  `(uid only)` / `(line endings only)` suffixes; it now also says `(whitespace only)`, and closes with
+  either `N real content change(s): --force would discard them` or
+  `Only 2 whitespace-only changes, ... no real edits ... 'dotquay update --force' is safe.` Editor
+  artifacts are left out of both, as before. Still advice: it does not change what `--force` does.
+- Wire/plugin: `counts.whitespace_only` is additive. The editor plugin's benign allowlist gained the
+  class; an older plugin treats an unrecognised class as a real change, which is the safe direction.

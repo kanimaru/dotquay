@@ -64,9 +64,10 @@ public static class TreeComparer
     {
         ChangeClass.Content => 0,
         ChangeClass.UidOnly => 1,
-        ChangeClass.LineEndingsOnly => 2,
-        ChangeClass.EditorArtifact => 3,
-        _ => 4,
+        ChangeClass.WhitespaceOnly => 2,
+        ChangeClass.LineEndingsOnly => 3,
+        ChangeClass.EditorArtifact => 4,
+        _ => 5,
     };
 
     private static Dictionary<string, string> Index(IFileSystem fileSystem, string root)

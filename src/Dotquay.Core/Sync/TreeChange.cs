@@ -45,6 +45,16 @@ public enum ChangeClass
     /// </remarks>
     UidOnly,
 
+    /// <summary>
+    /// Identical once line endings are normalised, uid values are masked, and trailing whitespace
+    /// (spaces and tabs at the end of a line, blank lines at the end of the file) is ignored.
+    /// </summary>
+    /// <remarks>
+    /// The signature of an editor or formatter that trims on save. Indentation is deliberately not
+    /// ignored: GDScript is indentation-sensitive, so a leading-whitespace change is a real change.
+    /// </remarks>
+    WhitespaceOnly,
+
     /// <summary>A real difference — and anything that could not be proven to be one of the above.</summary>
     Content,
 }

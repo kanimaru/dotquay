@@ -268,6 +268,8 @@ public sealed record StatusChangeCountsJson
 
     public int UidOnly { get; init; }
 
+    public int WhitespaceOnly { get; init; }
+
     public int LineEndingsOnly { get; init; }
 
     public int EditorArtifact { get; init; }
@@ -277,7 +279,7 @@ public sealed record StatusChangeCountsJson
 
 /// <param name="Kind"><c>added</c> | <c>removed</c> | <c>changed</c>, from the installed tree's point
 /// of view.</param>
-/// <param name="Class"><c>content</c> | <c>uid_only</c> | <c>line_endings_only</c> |
+/// <param name="Class"><c>content</c> | <c>uid_only</c> | <c>whitespace_only</c> | <c>line_endings_only</c> |
 /// <c>editor_artifact</c>. Only <c>content</c> is a reason not to force.</param>
 public sealed record StatusChangeJson(string Path, string Kind, string Class);
 

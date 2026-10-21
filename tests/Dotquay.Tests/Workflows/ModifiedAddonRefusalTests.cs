@@ -73,6 +73,38 @@ public class ModifiedAddonRefusalTests
     }
 
     /// <summary>
+    /// The field report: an editor trimmed trailing whitespace and every later update was blocked.
+    /// The refusal must say so, and say that forcing is safe.
+    /// </summary>
+    [Fact]
+    public async Task InstallAsync_OverWhitespaceOnlyEdits_SaysNothingRealChangedAndForceIsSafe()
+    {
+        var (workflow, fileSystem) = await InstalledAsync();
+        fileSystem.WriteAllText($"{AddonDir}/x.gd", "extends Node   \n\n");
+
+        var exception = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.InstallAsync(ProjectDir, force: false));
+
+        Assert.Contains("changed  x.gd  (whitespace only)", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Only 1 whitespace-only change", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("'dotquay update --force' is safe", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InstallAsync_OverRealAndWhitespaceEdits_WarnsAboutTheRealOnes()
+    {
+        var (workflow, fileSystem) = await InstalledAsync();
+        fileSystem.WriteAllText($"{AddonDir}/x.gd", "extends Node   \n");
+        fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
+
+        var exception = await Assert.ThrowsAsync<WorkflowException>(
+            () => workflow.InstallAsync(ProjectDir, force: false));
+
+        Assert.Contains("1 real content change: --force would discard it", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("is safe", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Editor output is not hashed, so it can never be why an install refused — listing it would
     /// point at files that are not the problem.
     /// </summary>

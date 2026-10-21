@@ -67,6 +67,7 @@ const CHANGE_KIND_CHANGED := "changed"
 ## force — the rest is churn the editor regenerates on its own.
 const CHANGE_CLASS_CONTENT := "content"
 const CHANGE_CLASS_UID_ONLY := "uid_only"
+const CHANGE_CLASS_WHITESPACE_ONLY := "whitespace_only"
 const CHANGE_CLASS_LINE_ENDINGS_ONLY := "line_endings_only"
 const CHANGE_CLASS_EDITOR_ARTIFACT := "editor_artifact"
 

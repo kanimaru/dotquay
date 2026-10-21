@@ -72,6 +72,25 @@ func test_a_real_content_change_is_never_benign() -> void:
 	runner.equal(explanation.changes[0].marker(), "+", "an added file is marked with a plus")
 
 
+## An editor trimming trailing whitespace on save is the commonest reason an addon reads as modified.
+func test_whitespace_only_changes_are_benign_and_counted() -> void:
+	var counts := {"content": 0, "uid_only": 0, "whitespace_only": 2, "line_endings_only": 0,
+		"editor_artifact": 0, "total": 2}
+	var status: DotquayExplain = EXPLAIN.from_payload({
+		"addons": [_entry("vrm", "modified", _explanation(
+			DotquayWire.VERDICT_SAFE_TO_FORCE,
+			counts,
+			[{"path": "vrm1/vrm1_extension.gd", "kind": "changed", "class": "whitespace_only"}]))],
+	})
+
+	var explanation: DotquayExplain.Explanation = status.explanation_for("vrm")
+
+	runner.check(explanation.changes[0].is_benign(), "a whitespace-only change is benign")
+	runner.equal(explanation.changes[0].describe_class(), "whitespace only", "the class should read plainly")
+	runner.equal(explanation.counts.whitespace_only, 2, "the whitespace count should parse")
+	runner.equal(explanation.counts.describe_benign(), "2 whitespace-only changes", "and be named in the summary")
+
+
 ## The forward-compatibility rule, from both sides. This is the one that stops a newer CLI from
 ## turning "I don't know what that is" into an enabled Force update button.
 func test_unknown_verdicts_and_classes_read_as_unsafe() -> void:

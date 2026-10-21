@@ -326,6 +326,7 @@ public static class JsonMapper
             {
                 Content = explanation.Counts.Content,
                 UidOnly = explanation.Counts.UidOnly,
+                WhitespaceOnly = explanation.Counts.WhitespaceOnly,
                 LineEndingsOnly = explanation.Counts.LineEndingsOnly,
                 EditorArtifact = explanation.Counts.EditorArtifact,
                 Total = explanation.Counts.Total,
@@ -362,6 +363,7 @@ public static class JsonMapper
         Sync.ChangeClass.EditorArtifact => "editor_artifact",
         Sync.ChangeClass.LineEndingsOnly => "line_endings_only",
         Sync.ChangeClass.UidOnly => "uid_only",
+        Sync.ChangeClass.WhitespaceOnly => "whitespace_only",
         Sync.ChangeClass.Content => "content",
         _ => "unknown",
     };

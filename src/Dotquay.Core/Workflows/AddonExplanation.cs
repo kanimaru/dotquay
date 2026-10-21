@@ -82,11 +82,13 @@ public sealed record ChangeCounts
 
     public int UidOnly { get; init; }
 
+    public int WhitespaceOnly { get; init; }
+
     public int LineEndingsOnly { get; init; }
 
     public int EditorArtifact { get; init; }
 
-    public int Total => Content + UidOnly + LineEndingsOnly + EditorArtifact;
+    public int Total => Content + UidOnly + WhitespaceOnly + LineEndingsOnly + EditorArtifact;
 
     public static ChangeCounts From(IEnumerable<TreeChange> changes)
     {
@@ -101,6 +103,7 @@ public sealed record ChangeCounts
         {
             Content = counts.GetValueOrDefault(ChangeClass.Content),
             UidOnly = counts.GetValueOrDefault(ChangeClass.UidOnly),
+            WhitespaceOnly = counts.GetValueOrDefault(ChangeClass.WhitespaceOnly),
             LineEndingsOnly = counts.GetValueOrDefault(ChangeClass.LineEndingsOnly),
             EditorArtifact = counts.GetValueOrDefault(ChangeClass.EditorArtifact),
         };

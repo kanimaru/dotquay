@@ -183,11 +183,16 @@ internal static class StatusCommand
     /// check rather than one they have to take on trust.</summary>
     private static string Summarize(ChangeCounts counts)
     {
-        var parts = new List<string>(3);
+        var parts = new List<string>(4);
 
         if (counts.UidOnly > 0)
         {
             parts.Add($"{counts.UidOnly} uid-only rewrite{(counts.UidOnly == 1 ? "" : "s")}");
+        }
+
+        if (counts.WhitespaceOnly > 0)
+        {
+            parts.Add($"{counts.WhitespaceOnly} whitespace-only change{(counts.WhitespaceOnly == 1 ? "" : "s")}");
         }
 
         if (counts.LineEndingsOnly > 0)
@@ -215,6 +220,7 @@ internal static class StatusCommand
         ChangeClass.EditorArtifact => "editor artifact",
         ChangeClass.LineEndingsOnly => "line endings only",
         ChangeClass.UidOnly => "uid only",
+        ChangeClass.WhitespaceOnly => "whitespace only",
         _ => "real content",
     };
 }

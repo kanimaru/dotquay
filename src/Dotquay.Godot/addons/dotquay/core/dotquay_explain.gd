@@ -36,6 +36,7 @@ class Change extends RefCounted:
 	## an enabled Force update button on the strength of not recognising it.
 	const BENIGN_CLASSES := [
 		DotquayWire.CHANGE_CLASS_UID_ONLY,
+		DotquayWire.CHANGE_CLASS_WHITESPACE_ONLY,
 		DotquayWire.CHANGE_CLASS_LINE_ENDINGS_ONLY,
 		DotquayWire.CHANGE_CLASS_EDITOR_ARTIFACT,
 	]
@@ -63,6 +64,8 @@ class Change extends RefCounted:
 				return "real content"
 			DotquayWire.CHANGE_CLASS_UID_ONLY:
 				return "uid only"
+			DotquayWire.CHANGE_CLASS_WHITESPACE_ONLY:
+				return "whitespace only"
 			DotquayWire.CHANGE_CLASS_LINE_ENDINGS_ONLY:
 				return "line endings only"
 			DotquayWire.CHANGE_CLASS_EDITOR_ARTIFACT:
@@ -78,6 +81,9 @@ class Change extends RefCounted:
 			DotquayWire.CHANGE_CLASS_UID_ONLY:
 				return ("Only a uid:// value differs. Godot rewrites these itself from the path beside "
 					+ "them, so a reinstall regenerates it.")
+			DotquayWire.CHANGE_CLASS_WHITESPACE_ONLY:
+				return ("Only trailing whitespace differs, typically an editor trimming on save. Indentation "
+					+ "is not ignored, so this is never a changed line of code.")
 			DotquayWire.CHANGE_CLASS_LINE_ENDINGS_ONLY:
 				return "Only the line endings differ (CRLF vs LF). The text is identical."
 			DotquayWire.CHANGE_CLASS_EDITOR_ARTIFACT:
@@ -91,6 +97,7 @@ class Change extends RefCounted:
 class Counts extends RefCounted:
 	var content: int = 0
 	var uid_only: int = 0
+	var whitespace_only: int = 0
 	var line_endings_only: int = 0
 	var editor_artifact: int = 0
 	var total: int = 0
@@ -99,6 +106,7 @@ class Counts extends RefCounted:
 		var counts := Counts.new()
 		counts.content = int(payload.get("content", 0))
 		counts.uid_only = int(payload.get("uid_only", 0))
+		counts.whitespace_only = int(payload.get("whitespace_only", 0))
 		counts.line_endings_only = int(payload.get("line_endings_only", 0))
 		counts.editor_artifact = int(payload.get("editor_artifact", 0))
 		counts.total = int(payload.get("total", 0))
@@ -111,6 +119,8 @@ class Counts extends RefCounted:
 
 		if uid_only > 0:
 			parts.append(DotquayText.plural(uid_only, "%d uid-only rewrite", "%d uid-only rewrites"))
+		if whitespace_only > 0:
+			parts.append(DotquayText.plural(whitespace_only, "%d whitespace-only change", "%d whitespace-only changes"))
 		if line_endings_only > 0:
 			parts.append(DotquayText.plural(line_endings_only, "%d line-ending change", "%d line-ending changes"))
 		if editor_artifact > 0:

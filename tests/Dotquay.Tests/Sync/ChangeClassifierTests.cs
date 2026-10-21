@@ -57,6 +57,41 @@ public class ChangeClassifierTests
             ChangeClass.UidOnly,
             ChangeClassifier.Classify("main.tscn", Bytes("a\nuid://aaa\nb\n"), Bytes("a\r\nuid://bbb\r\nb\r\n")));
 
+    /// <summary>The field report: an editor trimmed the tabs off blank lines, nothing else.</summary>
+    [Fact]
+    public void Classify_OnlyTrailingWhitespaceChanged_IsWhitespaceOnly() =>
+        Assert.Equal(
+            ChangeClass.WhitespaceOnly,
+            ChangeClassifier.Classify(
+                "ext.gd",
+                Bytes("func a():\n\treturn OK\n\t\n\treturn 1 \n"),
+                Bytes("func a():\n\treturn OK\n\n\treturn 1\n")));
+
+    [Fact]
+    public void Classify_BlankLinesAddedAtEndOfFile_IsWhitespaceOnly() =>
+        Assert.Equal(
+            ChangeClass.WhitespaceOnly,
+            ChangeClassifier.Classify("ext.gd", Bytes("a\nb"), Bytes("a\nb\n\n")));
+
+    [Fact]
+    public void Classify_WhitespaceUidAndLineEndingsTogether_IsWhitespaceOnly() =>
+        Assert.Equal(
+            ChangeClass.WhitespaceOnly,
+            ChangeClassifier.Classify("main.tscn", Bytes("a \nuid://aaa\nb\n"), Bytes("a\r\nuid://bbb\r\nb\r\n")));
+
+    /// <summary>GDScript is indentation-sensitive: moving a line into or out of a block is a real edit.</summary>
+    [Fact]
+    public void Classify_LeadingWhitespaceChanged_IsContent() =>
+        Assert.Equal(
+            ChangeClass.Content,
+            ChangeClassifier.Classify("ext.gd", Bytes("if x:\n\tfoo()\n"), Bytes("if x:\nfoo()\n")));
+
+    [Fact]
+    public void Classify_WhitespaceInsideALineChanged_IsContent() =>
+        Assert.Equal(
+            ChangeClass.Content,
+            ChangeClassifier.Classify("ext.gd", Bytes("var a = [1, 2]\n"), Bytes("var a = [1,  2]\n")));
+
     [Fact]
     public void Classify_RealEdit_IsContent() =>
         Assert.Equal(
