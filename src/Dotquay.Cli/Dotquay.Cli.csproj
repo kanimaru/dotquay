@@ -10,8 +10,15 @@
     <InvariantGlobalization>true</InvariantGlobalization>
 
     <!-- Reported in every JSON envelope (SPEC.md §17) so the editor plugin can tell an older
-         dotquay from a newer one before blaming the payload. -->
-    <Version>0.18.0</Version>
+         dotquay from a newer one before blaming the payload.
+
+         There is deliberately no version number in the tree. CI stamps the release version at publish
+         time (-p:Version=<tag>, see .gitlab-ci.yml), and a local build derives its own from git in the
+         DotquayVersionFromGit target below. This line only marks "nobody supplied one": an unset
+         Version becomes a sentinel the target recognises, and stays one if git is unavailable.
+         A hard-coded number here went stale (0.18.0 while the releases were at 0.21.x) and made every
+         local build announce that a newer dotquay was available. -->
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
 
     <!-- Distribution decision (SPEC.md §12, OQ-6): NativeAOT is the target. Spectre.Console.Cli
          was tried first (§12 OQ-1) but a real `dotnet publish -p:PublishAot=true` build+run proved
@@ -39,5 +46,36 @@
          not reference this one back, so this stays a one-directional edge. -->
     <ProjectReference Include="..\Dotquay.Mcp\Dotquay.Mcp.csproj" />
   </ItemGroup>
+
+  <!--
+    A local build's version, from the nearest release tag: v0.21.1 plus 9 commits is 0.21.2-dev.9.
+    The next patch, because that is what CI will tag the commit as, and a prerelease, because it is not a
+    release. That sorts above the last release (so `self update` does not offer a build you already have
+    something newer than) and below the one this work will become (so it does offer that one).
+    Exactly on a tag it is just that version. Skipped when CI passed -p:Version, and left at the
+    0.0.0-dev sentinel when git or the tags are not there (a source tarball, a shallow clone).
+  -->
+  <Target Name="DotquayVersionFromGit"
+          BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo;InitializeSourceControlInformation"
+          Condition="'$(Version)' == '0.0.0-dev'">
+    <Exec Command="git describe --tags --long --match &quot;v[0-9]*.[0-9]*.[0-9]*&quot;"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          StandardOutputImportance="low"
+          StandardErrorImportance="low"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_DotquayDescribe" />
+      <Output TaskParameter="ExitCode" PropertyName="_DotquayDescribeExitCode" />
+    </Exec>
+
+    <PropertyGroup Condition="'$(_DotquayDescribeExitCode)' == '0' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_DotquayDescribe)', '^v\d+\.\d+\.\d+-\d+-g[0-9a-f]+$'))">
+      <_DotquayParts>$([System.Text.RegularExpressions.Regex]::Replace('$(_DotquayDescribe)', '^v(\d+)\.(\d+)\.(\d+)-(\d+)-g[0-9a-f]+$', '$1.$2.$3 $4'))</_DotquayParts>
+      <_DotquayTag>$(_DotquayParts.Split(' ')[0])</_DotquayTag>
+      <_DotquayCommits>$(_DotquayParts.Split(' ')[1])</_DotquayCommits>
+      <_DotquayNextPatch>$([MSBuild]::Add($(_DotquayTag.Split('.')[2]), 1))</_DotquayNextPatch>
+      <Version Condition="'$(_DotquayCommits)' == '0'">$(_DotquayTag)</Version>
+      <Version Condition="'$(_DotquayCommits)' != '0'">$(_DotquayTag.Split('.')[0]).$(_DotquayTag.Split('.')[1]).$(_DotquayNextPatch)-dev.$(_DotquayCommits)</Version>
+    </PropertyGroup>
+  </Target>
 
 </Project>

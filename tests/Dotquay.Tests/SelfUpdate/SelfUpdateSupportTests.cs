@@ -25,6 +25,16 @@ public class VersionOrderTests
     }
 
     [Fact]
+    public void A_local_build_ahead_of_the_last_release_is_not_offered_that_release()
+    {
+        // Dotquay.Cli.csproj derives 0.21.2-dev.N for a build N commits past v0.21.1. It must not be
+        // told 0.21.1 is available (the stale hard-coded 0.18.0 did exactly that), but must be told
+        // about 0.21.2 when the work it contains ships.
+        Assert.False(VersionOrder.IsNewer("0.21.1", "0.21.2-dev.10"));
+        Assert.True(VersionOrder.IsNewer("0.21.2", "0.21.2-dev.10"));
+    }
+
+    [Fact]
     public void An_unparseable_version_still_orders_rather_than_throwing()
     {
         // Reached from the background update check, which must never be able to fail a command.
