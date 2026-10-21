@@ -153,7 +153,10 @@ public sealed class ProcessTrace
 
     private static string CategoryFor(string fileName)
     {
-        var name = Path.GetFileNameWithoutExtension(fileName);
+        // Split on both separators by hand: Path treats a backslash as an ordinary character off
+        // Windows, and an executable path from a Windows-flavoured config should name the same
+        // category wherever dotquay runs.
+        var name = Path.GetFileNameWithoutExtension(fileName[(fileName.LastIndexOfAny(['/', '\\']) + 1)..]);
         return string.IsNullOrEmpty(name) ? "process" : name.ToLowerInvariant();
     }
 
