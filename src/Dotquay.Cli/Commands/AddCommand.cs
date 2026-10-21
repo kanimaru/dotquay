@@ -46,10 +46,20 @@ internal static class AddCommand
                 + "what it finds. Pass it to overrule that, or to answer it up front in a script.",
         };
 
-        var installAsOption = new Option<string?>("--install-as")
+        // `--install_as` too: the manifest key and the MCP argument are both spelled install_as, so the
+        // underscore is the spelling people carry over -- and refusing it only to suggest the hyphen
+        // helps nobody.
+        var installAsOption = new Option<string?>("--install-as", "--install_as")
         {
             Description = "Git sources only. Folder to install into under addons/, if it shouldn't be the "
                 + "addon's own name — some addons are preloaded by an exact path and must land under it.",
+        };
+
+        var nameOption = new Option<string?>("--name")
+        {
+            Description = "Git sources only. The [addons.<name>] key to write instead of the repository's "
+                + "name. Rarely needed: when a repository ships several addons and its name is already "
+                + "taken, add names the next one after --install-as or the last segment of --path on its own.",
         };
 
         var versionOption = new Option<string?>("--version")
@@ -118,6 +128,7 @@ internal static class AddCommand
             sourceArgument,
             pathOption,
             installAsOption,
+            nameOption,
             versionOption,
             branchOption,
             revOption,
@@ -174,6 +185,7 @@ internal static class AddCommand
                 Rev = parseResult.GetValue(revOption),
                 Path = parseResult.GetValue(pathOption),
                 InstallAs = parseResult.GetValue(installAsOption),
+                Name = parseResult.GetValue(nameOption),
                 Force = parseResult.GetValue(forceOption),
                 NuGetSource = parseResult.GetValue(nuGetSourceOption),
             };
@@ -271,6 +283,13 @@ internal static class AddCommand
 
         var summary = $"Added '{locked.Name}' @ {locked.Version} ({ShortSha(locked.Resolved)}) -> addons/{locked.EffectiveFolder}";
 
+        // A name nobody typed gets one line saying where it came from (AddonNaming's fallback).
+        var urlName = AddonNaming.DeriveFromUrl(gitUrl);
+        var renamed = options.Name is null && !string.Equals(locked.Name, urlName, StringComparison.Ordinal)
+            ? $"Named it '{locked.Name}' because '{urlName}' is already declared for a different addon. "
+                + "Pass --name to choose another key."
+            : null;
+
         // Pseudo-version means no explicit source was given and BuildDefaultSpecAsync fell back to
         // pinning the default branch's tip (SPEC.md §6: "No tags found -> ... print a hint"). Naming a
         // ref yourself is a deliberate choice, so the nudge would just be noise.
@@ -298,7 +317,7 @@ internal static class AddCommand
                             To = locked.Version ?? ShortSha(locked.Resolved),
                         },
                     ],
-                    Messages = [summary],
+                    Messages = renamed is null ? [summary] : [summary, renamed],
                 },
                 untagged ? [hint] : null);
 
@@ -306,6 +325,11 @@ internal static class AddCommand
         }
 
         ConsoleOutput.WriteLine(ConsoleColor.Green, summary);
+
+        if (renamed is not null)
+        {
+            ConsoleOutput.WriteLine(ConsoleColor.Yellow, renamed);
+        }
 
         if (untagged)
         {
@@ -511,6 +535,7 @@ internal static class AddCommand
             ("--rev", options.Rev is not null),
             ("--path", options.Path is not null),
             ("--install-as", options.InstallAs is not null),
+            ("--name", options.Name is not null),
             ("--force", options.Force),
         }.Where(o => o.Set).Select(o => o.Flag).ToList();
 

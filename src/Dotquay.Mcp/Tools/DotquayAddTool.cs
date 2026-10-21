@@ -48,6 +48,7 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate, Client
             "rev": { "type": "string", "description": "An exact commit." },
             "path": { "type": "string", "description": "Subtree to extract, if the addon isn't at the repo root." },
             "install_as": { "type": "string", "description": "Folder to install into under addons/, if it shouldn't be the addon's own name." },
+            "name": { "type": "string", "description": "The [addons.<name>] key to write instead of the repository's name. Rarely needed: a second addon from a repository whose name is taken is named after install_as or the last segment of path automatically." },
             "nuget_source": {
               "type": "string",
               "description": "Not valid here — NuGet feeds only apply to dotquay_add_dotnet. Setting this is refused, matching the CLI."
@@ -93,6 +94,7 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate, Client
             Rev = McpArgs.GetString(arguments, "rev"),
             Path = McpArgs.GetString(arguments, "path"),
             InstallAs = McpArgs.GetString(arguments, "install_as"),
+            Name = McpArgs.GetString(arguments, "name"),
         };
 
         try

@@ -12,6 +12,11 @@ namespace Dotquay.Core.Workflows;
 /// </remarks>
 public sealed record AddonAddOptions
 {
+    /// <summary>The <c>[addons.&lt;name&gt;]</c> key to write instead of the one <see cref="AddonNaming"/>
+    /// would choose. Only needed when the repository's name, <see cref="InstallAs"/> and the last
+    /// segment of <see cref="Path"/> are all already taken.</summary>
+    public string? Name { get; init; }
+
     /// <summary>Version constraint, e.g. <c>"~2.5"</c> or an exact tag.</summary>
     public string? Version { get; init; }
 

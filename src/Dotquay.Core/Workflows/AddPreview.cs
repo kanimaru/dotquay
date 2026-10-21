@@ -13,8 +13,8 @@ namespace Dotquay.Core.Workflows;
 /// </remarks>
 public sealed record AddPreview
 {
-    /// <summary>The name <c>add</c> would derive from the URL, and therefore the key it would write
-    /// into <c>[addons.*]</c>.</summary>
+    /// <summary>The key <c>add</c> would write into <c>[addons.*]</c>, as <see cref="AddonNaming"/> chooses it:
+    /// the URL's name, or — for a second addon of the same repository — its install_as or path leaf.</summary>
     public required string Name { get; init; }
 
     public required string Git { get; init; }

@@ -411,7 +411,7 @@ public static class ManifestReader
     /// nobody in the dependency chain necessarily audited, so this is checked at parse time, before
     /// the value can reach a path operation.
     /// </remarks>
-    private static bool IsSafeFolderName(string folder) =>
+    internal static bool IsSafeFolderName(string folder) =>
         !string.IsNullOrWhiteSpace(folder)
         && folder is not ("." or "..")
         && folder.IndexOfAny(['/', '\\', ':']) < 0

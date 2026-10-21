@@ -131,8 +131,8 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
-    /// Derives the addon's name from its URL and builds the manifest spec <c>add</c> would write,
-    /// refusing a name the manifest already declares.
+    /// Chooses the addon's name (<see cref="AddonNaming"/>) and builds the manifest spec <c>add</c>
+    /// would write, refusing a re-add of an addon the manifest already declares.
     /// </summary>
     /// <remarks>
     /// Shared verbatim by <see cref="AddAsync"/> and <see cref="PreviewAddAsync"/>. Two copies of
@@ -151,12 +151,10 @@ public sealed partial class DependencyWorkflow
         bool previewing,
         CancellationToken cancellationToken)
     {
-        var name = DeriveAddonName(gitUrl);
-        if (manifest.Addons.ContainsKey(name))
-        {
-            throw new WorkflowException(
-                $"'{name}' is already declared in {manifestPath}. Use 'dotquay update {name}' instead.");
-        }
+        // One authority for the manifest key. The URL's name as always -- but a second addon out of a
+        // repository that ships several falls back to its --install-as / --path leaf instead of being
+        // refused as though it were the first one again.
+        var name = AddonNaming.Choose(gitUrl, options, manifest.Addons, manifestPath).Name;
 
         // An explicitly named source skips the newest-tag guess entirely — the whole point of saying
         // "--branch main" is that you do not want whatever the tag heuristic would have chosen.

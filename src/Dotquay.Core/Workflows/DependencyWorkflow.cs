@@ -3197,11 +3197,7 @@ public sealed partial class DependencyWorkflow
     /// <c>"https://github.com/nathanhoad/godot_dialogue_manager.git"</c> -> <c>"godot_dialogue_manager"</c>.
     /// <c>add</c> takes no separate name argument (SPEC.md §6 CLI table), so the URL is the only
     /// source of a name.</summary>
-    internal static string DeriveAddonName(string gitUrl)
-    {
-        var trimmed = gitUrl.TrimEnd('/');
-        var lastSeparator = trimmed.LastIndexOfAny(['/', ':']);
-        var last = lastSeparator < 0 ? trimmed : trimmed[(lastSeparator + 1)..];
-        return last.EndsWith(".git", StringComparison.OrdinalIgnoreCase) ? last[..^4] : last;
-    }
+    /// <remarks>Only the URL half of naming; <see cref="AddonNaming.Choose"/> is what <c>add</c> asks,
+    /// since it also honours <c>--name</c> and the multi-addon-repository fallback.</remarks>
+    internal static string DeriveAddonName(string gitUrl) => AddonNaming.DeriveFromUrl(gitUrl);
 }
