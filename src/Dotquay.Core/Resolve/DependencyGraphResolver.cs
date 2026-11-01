@@ -48,12 +48,18 @@ public sealed class DependencyGraphResolver
     /// subtree far enough to peek at its <c>dotquay.toml</c> — deleted in full once the graph walk
     /// finishes. Distinct from the real install staging path (<c>.dotquay/staging/&lt;name&gt;</c>):
     /// this is a read-only, throwaway concern, not the atomic-swap pipeline.</param>
+    /// <remarks>The git client is wrapped in a <see cref="MemoizingGitClient"/> owned by this instance:
+    /// discovery and unification ask the same remotes the same questions, and one resolver is one
+    /// resolution, which is exactly the lifetime a ref answer may be trusted for. Create a new resolver
+    /// per resolution - never keep one around.</remarks>
     public DependencyGraphResolver(IFileSystem fileSystem, IGitClient gitClient, RepoCache cache, string discoveryStagingRoot)
     {
         _fileSystem = fileSystem;
         _cache = cache;
-        _addonResolver = new AddonResolver(gitClient);
-        _unifier = new AddonUnifier(gitClient);
+
+        var memoizing = MemoizingGitClient.Wrap(gitClient);
+        _addonResolver = new AddonResolver(memoizing);
+        _unifier = new AddonUnifier(memoizing);
         _discoveryStagingRoot = discoveryStagingRoot;
     }
 
@@ -177,9 +183,15 @@ public sealed class DependencyGraphResolver
         var transport = GitTransportPreference.FromProjectUrls(
             rootAddons.Values.Concat(overrides.Values).Select(spec => spec.Git));
 
+        // Warms the remote lookups the walk is about to make, a few at a time, without changing what it
+        // makes or in which order (see RefPrefetcher). Disposed in the finally below, so no prefetch
+        // outlives this walk.
+        var prefetcher = new RefPrefetcher(_addonResolver, cancellationToken);
+
         foreach (var spec in rootAddons.Values)
         {
             queue.Enqueue(new AddonRequirement(GraphConflict.ProjectRequirerName, spec));
+            prefetcher.Warm(SpecForDiscovery(spec, overrides));
         }
 
         try
@@ -202,7 +214,7 @@ public sealed class DependencyGraphResolver
                     continue; // already expanded this addon's own manifest once
                 }
 
-                var specForDiscovery = overrides.TryGetValue(name, out var overrideSpec) ? overrideSpec : requirement.Spec;
+                var specForDiscovery = SpecForDiscovery(requirement.Spec, overrides);
                 var packageManifest = await TryReadPackageManifestAsync(
                     specForDiscovery, requirement.Requirer, warnings, cancellationToken);
 
@@ -217,6 +229,7 @@ public sealed class DependencyGraphResolver
                     var childSpec = ApplyTransportPreference(transport, name, declaredChildSpec, warnings);
                     childNames.Add(childSpec.Name);
                     queue.Enqueue(new AddonRequirement(name, childSpec));
+                    prefetcher.Warm(SpecForDiscovery(childSpec, overrides));
                 }
 
                 dependencyNamesByAddon[name] = childNames;
@@ -272,6 +285,7 @@ public sealed class DependencyGraphResolver
         }
         finally
         {
+            await prefetcher.DisposeAsync();
             _fileSystem.DeleteDirectory(_discoveryStagingRoot);
         }
 
@@ -283,6 +297,11 @@ public sealed class DependencyGraphResolver
                 kv => kv.Key, kv => (IReadOnlyList<AddonDotnetRequirement>)kv.Value, StringComparer.Ordinal),
         };
     }
+
+    /// <summary>The spec a name is discovered (and its package manifest read) with: its override when
+    /// the project declares one, otherwise whichever requirement reached it first.</summary>
+    private static AddonSpec SpecForDiscovery(AddonSpec requested, IReadOnlyDictionary<string, AddonSpec> overrides) =>
+        overrides.TryGetValue(requested.Name, out var overrideSpec) ? overrideSpec : requested;
 
     /// <summary>
     /// Re-expresses a discovered dependency's URL over the transport this project uses for that
