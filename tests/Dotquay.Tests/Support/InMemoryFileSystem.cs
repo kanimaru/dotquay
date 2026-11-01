@@ -180,10 +180,16 @@ public sealed class InMemoryFileSystem : IFileSystem
         }
     }
 
+    /// <summary>Every <see cref="MoveDirectory"/> call, in order. A move is how a staged addon is
+    /// swapped into <c>addons/</c>, so this is what tells a test whether an install wrote the folder or
+    /// left it alone - content alone cannot, since both end with the same files.</summary>
+    public List<(string Source, string Destination)> DirectoryMoves { get; } = [];
+
     public void MoveDirectory(string source, string destination)
     {
         var sourceKey = Normalize(source);
         var destinationKey = Normalize(destination);
+        DirectoryMoves.Add((sourceKey, destinationKey));
 
         DeleteDirectory(destinationKey);
 

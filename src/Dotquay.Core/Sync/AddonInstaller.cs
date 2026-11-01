@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Local;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Patch;
@@ -116,6 +117,19 @@ public sealed class AddonInstaller
         var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
 
         resolved = CorrectFolderCase(resolved, cachedRepoPath);
+
+        if (InstalledAddonCheck.IsAlreadyInPlace(_fileSystem, layout, resolved, previous))
+        {
+            // Nothing to write: the folder already is this commit, byte for byte (editor artifacts
+            // aside). Only the display version is recomputed, so the entry is exactly what a full
+            // reinstall would have produced - see InstalledAddonCheck for what "in place" requires.
+            DiagnosticLog.Write(
+                DiagnosticLevel.Verbose,
+                "sync",
+                $"{resolved.Name}: already installed at this commit, leaving addons/{resolved.EffectiveFolder} as it is");
+
+            return previous! with { Version = await VersionForAsync(resolved, cancellationToken) };
+        }
 
         var stagingPath = layout.StagingPath(_fileSystem, resolved.Name);
 
