@@ -1,7 +1,7 @@
 # ADR / Design — v0.26: Packages the project already builds from source
 
-**Status:** **Proposed, not implemented.** Written 2026-11-02 from a read of the code and of vbeami's history. Nothing
-in this document has been run yet.
+**Status:** **Accepted 2026-11-03, implementation in progress.** Written 2026-11-02 from a read of the code and of
+vbeami's history; the three open questions were decided on 2026-11-03 (see *Decisions*).
 **Deciders:** Kani
 
 A project can declare a NuGet package in `dotquay.toml` and *also* build that same library from source through a
@@ -97,9 +97,11 @@ ever remove a write that a readable, unconditional reference already makes redun
 The check sits in `DotnetInstaller.InstallAsync`, the one choke point, so all three paths above inherit it:
 
 - **Provided from source, no `PackageReference` present:** write nothing. Return the same `LockedDotnet` as today.
-- **Provided from source, a `PackageReference` present:** remove it, and say so. The lockfile lists the package, so
-  dotquay manages that reference, and the duplicate is exactly the shadowing hazard. *(This is open question 1: the
-  alternative is to leave it and only report it.)*
+- **Provided from source, a `PackageReference` present:** remove it, and say so. dotquay cannot prove it wrote that
+  line - the lockfile records that the package is managed, not who typed the reference - but a `PackageReference`
+  beside an unconditional `ProjectReference` to the same package is never a valid setup: MSBuild picks one, and the
+  project cannot tell which. Removing it is what makes an affected project (vbeami) repair itself on its next
+  `install`. *(Decided 2026-11-03.)*
 - **Not provided from source:** unchanged.
 - **Restore** still runs when it would have. `NuGet.Config` is still written; a source mapping for an unused package
   is harmless.
@@ -115,22 +117,32 @@ already surface verbatim, so no wire change is needed:
 VBeami.Core: built from source by ..\src\VBeami.Core\VBeami.Core.csproj (0.7.50), so no PackageReference was written.
 ```
 
-When the source project's `Version` does not satisfy the manifest's constraint (using v0.21's constraint rules), a
-second line says so, as a warning and never a failure: that is the honest description of what compiles, and it is
-exactly the vbeami situation (0.7.50 from source, 0.7.20 pinned).
+When it removed a duplicate, the line says that too. A version difference between the source project and the
+lockfile is **not** reported here: `update` reaches this code only on a change, so a warning here would appear
+inconsistently. It belongs to `doctor`, which checks every time (C). *(Decided 2026-11-03.)*
 
-### C. `doctor`: `package_also_built_from_source`
+### C. `doctor`: two new kinds
 
-A new `DoctorIssueKind.PackageAlsoBuiltFromSource` for a project whose `.csproj` holds a `PackageReference` and a
-`ProjectReference` to the same package's project, in either of two forms:
+Both apply only to packages the lockfile records, so `doctor` keeps to what dotquay manages.
+
+**`package_also_built_from_source`** (`DoctorIssueKind.PackageAlsoBuiltFromSource`) for a project whose `.csproj`
+holds a `PackageReference` and a `ProjectReference` to the same package's project, in either of two forms:
 
 - **Unconditional provider:** "`VBeami.Core` is built from source by `..\src\VBeami.Core\VBeami.Core.csproj` and also
   referenced as a package; the package can shadow the source build. `dotquay install` removes the package reference."
 - **Conditional provider:** names the condition, says the package still covers the other configurations, and leaves the
   decision to the user. dotquay changes nothing here.
 
-This is a **wire contract change**: `core/dotquay_doctor.gd` needs an entry for the new kind (title, severity, the fix
-line), and `test_dotquay_doctor.gd` a case, or the plugin drops it silently. Same pattern as
+**`source_build_version_mismatch`** (`DoctorIssueKind.SourceBuildVersionMismatch`) when an unconditional provider
+declares a literal `Version` that differs from the version the lockfile resolves: "`VBeami.Core` compiles from
+source at 0.7.50 (`..\src\VBeami.Core\VBeami.Core.csproj`), but the lockfile resolves 0.7.20 from the feed. Anyone
+installing this project's addons gets 0.7.20, which is not what this project builds and tests against." Compared
+against the lockfile rather than the manifest constraint: the locked version always satisfies the constraint, and
+it is what a consumer actually restores. A provider without a literal version is not reported. *(Decided
+2026-11-03: `doctor` only, not `install`.)*
+
+Both are **wire contract changes**: `core/dotquay_doctor.gd` needs an entry for each kind (title, severity, the fix
+line), and `test_dotquay_doctor.gd` a case each, or the plugin drops them silently. Same pattern as
 `package_asset_metadata_drift`.
 
 ### D. What does not change
@@ -146,7 +158,9 @@ line), and `test_dotquay_doctor.gd` a case, or the plugin drops it silently. Sam
 
 A local link adds an overlay `ProjectReference` and a `PackageReference Remove`. For a package already provided from
 source, that overlay would add a *second* `ProjectReference`, possibly to a different checkout. `dotquay link` for such
-a package should refuse, naming the committed reference. *(Open question 3.)*
+a package **refuses**, naming the committed reference. This applies to any `ProjectReference` to the package's
+project, conditional or not: a conditional one still builds from source in its configuration, and the overlay would
+duplicate it there. *(Decided 2026-11-03.)*
 
 ## Alternatives considered
 
@@ -170,25 +184,26 @@ a package should refuse, naming the committed reference. *(Open question 3.)*
   - a `Condition` on the element, on its `ItemGroup`, and inside `Choose`;
   - a missing target, an unparsable target, and both path separators;
   - case-insensitive id matching.
-- **`DotnetInstaller` tests:** nothing written when the package is provided from source; a dotquay-written duplicate
+- **`DotnetInstaller` tests:** nothing written when the package is provided from source; an existing duplicate
   removed; the `PackageReference` written as today in every "unknown" case; the `messages` line present.
-- **Workflow tests:** `install` twice on a project with the `ProjectReference` leaves the `.csproj` byte-identical; the
-  `doctor` kind in both forms.
-- **GDScript:** a `test_dotquay_doctor.gd` case for the new kind, run through `run_tests.ps1`.
-- **Real binary, NativeAOT:** on a copy of vbeami, `dotquay install` leaves `godot/VBeami.csproj` byte-identical and
-  prints the source line with 0.7.50 and the version warning; `dotnet build` of the copy succeeds; `--json` and
-  `doctor --json` carry the new line and kind.
+- **Workflow tests:** `install` twice on a project with the `ProjectReference` leaves the `.csproj` byte-identical;
+  both `doctor` kinds, including both forms of the first; `link` refusing.
+- **GDScript:** a `test_dotquay_doctor.gd` case per new kind, run through `run_tests.ps1`.
+- **Real binary, NativeAOT:** on a copy of vbeami, `dotquay install` removes the duplicate once, then leaves
+  `godot/VBeami.csproj` byte-identical and prints the source line; `doctor --json` reports the 0.7.50/0.7.20 mismatch;
+  `dotquay link` on the package refuses; `dotnet build` of the copy succeeds.
 
 ## Phasing
 
 1. **Core (A, B).** Detection, the installer change, the `messages` line. Fixes vbeami on its own; no plugin change.
-2. **`doctor` (C)** plus the plugin entry for the new wire kind.
-3. **Optional:** the `link` refusal (E), and a "from source" marker on the graph view's NuGet node.
+2. **`doctor` (C)** plus the plugin entries for the two new wire kinds.
+3. **The `link` refusal (E).**
+4. **Optional, later:** a "from source" marker on the graph view's NuGet node.
 
-## Open questions for Kani
+## Decisions (2026-11-03, Kani)
 
-1. **An existing duplicate `PackageReference`:** should `install` remove it (proposed), or leave it and only report it
-   through `doctor`?
-2. **Version mismatch** between the source project and the manifest (vbeami today: 0.7.50 against 0.7.20): is a warning
-   right, or should `doctor` also flag it so it shows in the plugin?
-3. **`dotquay link` on a source-provided package:** refuse (proposed), or allow it with a warning?
+1. **An existing duplicate `PackageReference` is removed** by `install` (and by any other path that writes the
+   package), and the removal is reported.
+2. **A version difference is reported by `doctor` only** (`source_build_version_mismatch`), never as an `install` or
+   `update` warning.
+3. **`dotquay link` refuses** a package that already has a `ProjectReference` to its project, conditional or not.
