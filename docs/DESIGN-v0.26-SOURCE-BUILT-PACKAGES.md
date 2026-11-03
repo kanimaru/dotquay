@@ -1,7 +1,8 @@
 # ADR / Design — v0.26: Packages the project already builds from source
 
-**Status:** **Accepted 2026-11-03, implementation in progress.** Written 2026-11-02 from a read of the code and of
-vbeami's history; the three open questions were decided on 2026-11-03 (see *Decisions*).
+**Status:** **Shipped 2026-11-03** (phases 1-3: `7fc5a88`, `335b2af`, `038724f`), verified against a real NativeAOT
+binary and a copy of vbeami (see *Verification*). Phase 4 (graph badge) is still an idea. Written 2026-11-02; the three
+open questions were decided on 2026-11-03 (see *Decisions*).
 **Deciders:** Kani
 
 A project can declare a NuGet package in `dotquay.toml` and *also* build that same library from source through a
@@ -207,3 +208,17 @@ duplicate it there. *(Decided 2026-11-03.)*
 2. **A version difference is reported by `doctor` only** (`source_build_version_mismatch`), never as an `install` or
    `update` warning.
 3. **`dotquay link` refuses** a package that already has a `ProjectReference` to its project, conditional or not.
+
+## Verification (2026-11-03)
+
+NativeAOT build of `038724f` (23 MB), run against a full copy of vbeami with its mtoon-shader junction recreated:
+
+- With the Nov 1 duplicate put back into `godot/VBeami.csproj`, `install` removed it and said so; the file came out
+  byte-identical to the committed one. A second `install` wrote nothing and said why. Both runs exit 0.
+- `install --json` carries the note in `data.messages`.
+- `doctor --json` reports `source_build_version_mismatch` (0.7.50 from source, 0.7.20 locked), and with the duplicate
+  present also `package_also_built_from_source`.
+- `dotquay link VBeami.Core <src>` refuses (exit 1, JSON `ok: false`) and leaves `dotquay.local.toml` untouched.
+- `dotnet build godot/VBeami.csproj` succeeds, and `project.assets.json` resolves `VBeami.Core/0.7.50` as`n  `type: project` from `../src/VBeami.Core/VBeami.Core.csproj`: the build compiles the source, not the package.
+- C# suite 1752 green (80 new); GDScript suite 1152 assertions green. With detection disabled, the six behaviour tests
+  fail; with the new GDScript expectation broken, that test fails.
