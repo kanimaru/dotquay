@@ -1,5 +1,6 @@
 using Dotquay.Core.Abstractions;
 using Dotquay.Core.Dotnet;
+using Dotquay.Core.Dotnet.SourceBuild;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -218,6 +219,8 @@ public sealed class LocalLinks
     /// </summary>
     public void SetDotnet(string projectDirectory, string packageId, string localPath, bool analyzer)
     {
+        RefuseIfBuiltFromSource(projectDirectory, packageId);
+
         var resolved = _fileSystem.GetFullPath(localPath);
 
         string projectFile;
@@ -255,6 +258,42 @@ public sealed class LocalLinks
         Write(projectDirectory, current with { Dotnet = dotnet });
     }
 
+    /// <summary>
+    /// Refuses a link for a package the project's <c>.csproj</c> already builds from source
+    /// (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §E, decision 3).
+    /// </summary>
+    /// <remarks>
+    /// The overlay works by removing the package and adding a <c>ProjectReference</c>. Beside a committed
+    /// <c>ProjectReference</c> to the same package that is a second one, possibly to a different checkout,
+    /// and MSBuild then builds whichever it settles on. Conditional or not: a conditional source reference
+    /// still builds from source in its configuration, and the overlay would duplicate it there. Checked
+    /// before anything about the local path, because no path makes this link safe.
+    /// </remarks>
+    private void RefuseIfBuiltFromSource(string projectDirectory, string packageId)
+    {
+        string csprojPath;
+        try
+        {
+            csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
+        }
+        catch (DotnetSyncException)
+        {
+            // No .csproj (or several): nothing to collide with here, and the install that follows says so.
+            return;
+        }
+
+        var existing = SourceProvidedPackages.ReferencesTo(_fileSystem, csprojPath, packageId).FirstOrDefault();
+        if (existing is null)
+        {
+            return;
+        }
+
+        var when = existing.IsUnconditional ? string.Empty : $" when {existing.Condition}";
+        throw new LocalLinkException(
+            $"'{packageId}' is already built from source by {existing.Include} in {csprojPath}{when}. A local "
+            + "link would add a second ProjectReference to the same package. Point that ProjectReference at the "
+            + "checkout you want to build instead, or remove it before linking.");
+    }
     /// <summary>Removes one addon link. Returns false when there was nothing to remove, so a caller can
     /// say so rather than reporting a change that didn't happen.</summary>
     public bool Remove(string projectDirectory, string name)
