@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Dotquay.Core.Json;
 using Dotquay.Core.Progress;
 using Dotquay.Mcp.Guards;
@@ -75,7 +75,7 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, 
         var payload = new OperationJson
         {
             Changes = [JsonMapper.ToChange(declaration)],
-            Messages = [declaration.Describe(nuGetSource)],
+            Messages = declaration.Messages(nuGetSource),
         };
 
         return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));

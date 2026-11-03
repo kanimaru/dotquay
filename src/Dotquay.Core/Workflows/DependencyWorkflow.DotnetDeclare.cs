@@ -1,6 +1,7 @@
 using Dotquay.Core.Dotnet;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
+using Dotquay.Core.Dotnet.SourceBuild;
 
 namespace Dotquay.Core.Workflows;
 
@@ -35,11 +36,12 @@ public sealed partial class DependencyWorkflow
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Dotnet.FirstOrDefault(d => d.Name == packageId);
         var declared = manifest.Dotnet.GetValueOrDefault(packageId);
+        var sourceBuilt = new List<SourceBuiltPackage>();
 
         if (declared is null && locked is null)
         {
-            var added = await AddDotnetAsync(projectDirectory, packageId, version, pinnedSourceName, cancellationToken);
-            return new DotnetDeclaration(added, DotnetDeclarationOutcome.Added, PreviousResolved: null);
+            var added = await AddDotnetCoreAsync(projectDirectory, packageId, version, pinnedSourceName, sourceBuilt, cancellationToken);
+            return new DotnetDeclaration(added, DotnetDeclarationOutcome.Added, PreviousResolved: null) { SourceBuilt = sourceBuilt };
         }
 
         if (version is null && declared is not null)
@@ -66,6 +68,7 @@ public sealed partial class DependencyWorkflow
             pinnedSourceName ?? declared?.Source,
             // What the entry declared, or failing that what dotquay last wrote for the addon's declaration.
             declared?.Assets ?? locked?.Assets ?? PackageAssets.None,
+            sourceBuilt,
             cancellationToken);
 
         // A range re-declared as it was, still resolving where it did, changed nothing. The early return
@@ -75,7 +78,7 @@ public sealed partial class DependencyWorkflow
             : declared.Version == version && locked?.Resolved == relocked.Resolved && pinnedSourceName is null
                 ? DotnetDeclarationOutcome.Unchanged
                 : DotnetDeclarationOutcome.Changed;
-        return new DotnetDeclaration(relocked, outcome, locked?.Resolved);
+        return new DotnetDeclaration(relocked, outcome, locked?.Resolved) { SourceBuilt = sourceBuilt };
     }
 
     /// <summary>
@@ -89,6 +92,7 @@ public sealed partial class DependencyWorkflow
         string? requestedVersion,
         string? sourceName,
         PackageAssets assets,
+        ICollection<SourceBuiltPackage> sourceBuilt,
         CancellationToken cancellationToken)
     {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
@@ -110,7 +114,7 @@ public sealed partial class DependencyWorkflow
             projectDirectory,
             () => InstallDotnetOrThrowAsync(
                 projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
-                cancellationToken, assets, previouslyWritten: previous?.Assets));
+                cancellationToken, assets, previouslyWritten: previous?.Assets, sourceBuilt: sourceBuilt));
 
         WriteManifest(manifestPath, manifest with
         {

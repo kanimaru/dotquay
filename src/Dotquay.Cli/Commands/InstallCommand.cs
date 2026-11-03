@@ -52,6 +52,12 @@ internal static class InstallCommand
 
                 ConsoleOutput.WriteLine(
                     ConsoleColor.Green, $"Installed {result.Addons.Count} addon(s), {result.Dotnet.Count} dotnet package(s).");
+
+                // After the summary, like update's warnings: the result someone waits for comes first.
+                foreach (var note in result.SourceBuildNotes)
+                {
+                    ConsoleOutput.WriteLine(ConsoleColor.Yellow, note);
+                }
                 return 0;
             }
             catch (WorkflowException ex)

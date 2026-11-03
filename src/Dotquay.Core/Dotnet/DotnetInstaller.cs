@@ -1,5 +1,7 @@
 using Dotquay.Core.Abstractions;
 using Dotquay.Core.Auth;
+using Dotquay.Core.Diagnostics;
+using Dotquay.Core.Dotnet.SourceBuild;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 
@@ -50,11 +52,37 @@ public sealed class DotnetInstaller
         bool writeSourceMapping = true,
         Manifest.PackageAssets? assets = null,
         Manifest.PackageAssets? previouslyWritten = null,
+        CancellationToken cancellationToken = default) =>
+        (await InstallWithOutcomeAsync(
+            projectDirectory, packageId, version, sources, restore, resolvedSourceName, pinnedPackages,
+            writeSourceMapping, assets, previouslyWritten, cancellationToken)).Locked;
+
+    /// <summary>
+    /// <see cref="InstallAsync"/>, also saying whether the <c>.csproj</c> was left without a reference
+    /// because the project builds the package from source (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md).
+    /// </summary>
+    /// <remarks>
+    /// The check lives here, not in the workflow, because this is the one place a
+    /// <c>PackageReference</c> is written: <c>install</c>, <c>update</c>, <c>add</c> and the graph sync
+    /// all arrive through it, so none of them can forget. Everything else this method does - feeds,
+    /// restore, the lockfile entry - is the same either way: the lockfile still records the published
+    /// version, so the entry stays meaningful on a machine or branch without the source reference.
+    /// </remarks>
+    public async Task<DotnetInstallOutcome> InstallWithOutcomeAsync(
+        string projectDirectory,
+        string packageId,
+        string version,
+        NuGetSourceSet? sources = null,
+        bool restore = true,
+        string? resolvedSourceName = null,
+        IReadOnlyDictionary<string, string>? pinnedPackages = null,
+        bool writeSourceMapping = true,
+        Manifest.PackageAssets? assets = null,
+        Manifest.PackageAssets? previouslyWritten = null,
         CancellationToken cancellationToken = default)
     {
         var csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
-        CsprojPackageReferenceWriter.AddOrUpdate(
-            _fileSystem, csprojPath, packageId, version, assets, previouslyWritten);
+        var sourceBuilt = ReferenceUnlessBuiltFromSource(csprojPath, packageId, version, assets, previouslyWritten);
 
         var effectiveSources = sources ?? NuGetSourceSet.PublicOnly;
 
@@ -72,13 +100,45 @@ public sealed class DotnetInstaller
         // Records what was written, not what was asked for — they are the same here, but the lockfile's
         // job is to be the record of the action, so the next sync can remove metadata a manifest has
         // since withdrawn.
-        return new LockedDotnet
+        var locked = new LockedDotnet
         {
             Name = packageId,
             Resolved = version,
             Source = resolvedSourceName,
             Assets = assets ?? Manifest.PackageAssets.None,
         };
+
+        return new DotnetInstallOutcome(locked, sourceBuilt);
+    }
+
+    /// <summary>Writes the package's <c>PackageReference</c>, unless an unconditional
+    /// <c>ProjectReference</c> already builds it - then makes sure there is none, and says so.</summary>
+    private SourceBuiltPackage? ReferenceUnlessBuiltFromSource(
+        string csprojPath,
+        string packageId,
+        string version,
+        Manifest.PackageAssets? assets,
+        Manifest.PackageAssets? previouslyWritten)
+    {
+        var provider = SourceProvidedPackages.FindProvider(_fileSystem, csprojPath, packageId);
+
+        if (provider is null)
+        {
+            CsprojPackageReferenceWriter.AddOrUpdate(_fileSystem, csprojPath, packageId, version, assets, previouslyWritten);
+            return null;
+        }
+
+        // Decision 1 (2026-11-03): beside an unconditional source build a PackageReference is never valid -
+        // MSBuild picks one of the two and the project cannot tell which - so it goes, whoever wrote it.
+        var removed = CsprojPackageReferenceWriter.Remove(_fileSystem, csprojPath, packageId);
+
+        DiagnosticLog.Write(
+            DiagnosticLevel.Verbose,
+            "dotnet",
+            $"{packageId}: built from source by {provider.Include} ({provider.ProjectPath}); "
+                + (removed ? "removed its PackageReference" : "no PackageReference written"));
+
+        return new SourceBuiltPackage(packageId, provider, removed);
     }
 
     /// <summary>Removes the PackageReference if present. Does not restore — an obj/ cache one

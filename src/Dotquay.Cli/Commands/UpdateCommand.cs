@@ -75,6 +75,12 @@ internal static class UpdateCommand
                     ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
                 }
 
+                foreach (var note in result.SourceBuildNotes)
+                {
+                    Console.WriteLine();
+                    ConsoleOutput.WriteLine(ConsoleColor.Yellow, note);
+                }
+
                 return 0;
             }
             catch (WorkflowException ex)

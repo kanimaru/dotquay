@@ -560,12 +560,17 @@ internal static class AddCommand
             JsonOutput.WriteOperation(CommandName, new OperationJson
             {
                 Changes = [JsonMapper.ToChange(declaration)],
-                Messages = [summary],
+                Messages = declaration.Messages(options.NuGetSource),
             });
             return 0;
         }
 
         ConsoleOutput.WriteLine(ConsoleColor.Green, summary);
+        foreach (var note in declaration.SourceBuilt)
+        {
+            ConsoleOutput.WriteLine(ConsoleColor.Yellow, note.Describe());
+        }
+
         return 0;
     }
 

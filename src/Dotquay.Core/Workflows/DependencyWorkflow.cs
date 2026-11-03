@@ -5,6 +5,7 @@ using Dotquay.Core.Abstractions;
 using Dotquay.Core.Auth;
 using Dotquay.Core.Doctor;
 using Dotquay.Core.Dotnet;
+using Dotquay.Core.Dotnet.SourceBuild;
 using Dotquay.Core.Git;
 using Dotquay.Core.IO;
 using Dotquay.Core.Local;
@@ -348,12 +349,23 @@ public sealed partial class DependencyWorkflow
     /// <param name="pinnedSourceName">A declared <c>[nuget.sources.*]</c> name to resolve from, instead
     /// of searching every feed in order (v0.14's <c>--source</c>). Written to the manifest as
     /// <c>source = "..."</c>, so the pin survives into every later resolve.</param>
-    public async Task<LockedDotnet> AddDotnetAsync(
+    public Task<LockedDotnet> AddDotnetAsync(
         string projectDirectory,
         string packageId,
         string? versionOverride = null,
         string? pinnedSourceName = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        AddDotnetCoreAsync(projectDirectory, packageId, versionOverride, pinnedSourceName, sourceBuilt: null, cancellationToken);
+
+    /// <summary><see cref="AddDotnetAsync"/>, reporting a package the project builds from source into
+    /// <paramref name="sourceBuilt"/> (DESIGN-v0.26) for callers that surface it.</summary>
+    private async Task<LockedDotnet> AddDotnetCoreAsync(
+        string projectDirectory,
+        string packageId,
+        string? versionOverride,
+        string? pinnedSourceName,
+        ICollection<SourceBuiltPackage>? sourceBuilt,
+        CancellationToken cancellationToken)
     {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
@@ -387,7 +399,7 @@ public sealed partial class DependencyWorkflow
             projectDirectory,
             () => InstallDotnetOrThrowAsync(
                 projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
-                cancellationToken, assets));
+                cancellationToken, assets, sourceBuilt: sourceBuilt));
 
         WriteManifest(manifestPath, manifest with
         {
@@ -499,6 +511,7 @@ public sealed partial class DependencyWorkflow
         }
 
         var installedDotnet = new List<LockedDotnet>();
+        var sourceBuilt = new List<SourceBuiltPackage>();
         foreach (var dependency in lockfile.Dotnet)
         {
             // dependency.Source is replayed, not re-resolved: install reproduces the lockfile
@@ -510,7 +523,7 @@ public sealed partial class DependencyWorkflow
             // the version would. 'doctor' reports the resulting drift so the edit isn't silent.
             installedDotnet.Add(await InstallDotnetOrThrowAsync(
                 projectDirectory, dependency.Name, dependency.Resolved, manifest, lockfile.Dotnet, restore: false,
-                dependency.Source, cancellationToken, dependency.Assets, dependency.Assets));
+                dependency.Source, cancellationToken, dependency.Assets, dependency.Assets, sourceBuilt));
         }
 
         // Before the restore, not after: restore evaluates the project, and the overlay is what
@@ -523,7 +536,7 @@ public sealed partial class DependencyWorkflow
         }
 
         WriteLockfile(lockfilePath, lockfile with { Addons = installedAddons, Dotnet = installedDotnet });
-        return new InstallResult(installedAddons, installedDotnet);
+        return new InstallResult(installedAddons, installedDotnet) { SourceBuilt = sourceBuilt };
     }
 
     /// <summary>
@@ -656,9 +669,10 @@ public sealed partial class DependencyWorkflow
         }
 
         var previousDotnetByName = lockfile.Dotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
+        var sourceBuilt = new List<SourceBuiltPackage>();
         var syncedDotnet = await SyncDotnetAsync(
             projectDirectory, manifest, lockfile.Dotnet, dotnetTargetNames, pruneUnreachable: !resync && name is null, cancellationToken,
-            refusalHints, addonDeclaredDotnet, addonDotnetRequirements);
+            refusalHints, addonDeclaredDotnet, addonDotnetRequirements, sourceBuilt);
 
 
         var syncedDotnetByName = syncedDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
@@ -673,7 +687,10 @@ public sealed partial class DependencyWorkflow
         }
 
         WriteLockfile(lockfilePath, lockfile with { Addons = addons, Dotnet = syncedDotnet });
-        return new UpdateResult(addonResults, dotnetResults, graphWarnings.Select(w => w.Message).ToList());
+        return new UpdateResult(addonResults, dotnetResults, graphWarnings.Select(w => w.Message).ToList())
+        {
+            SourceBuilt = sourceBuilt,
+        };
     }
 
     /// <summary>Removes an addon or a dotnet dependency (whichever <paramref name="name"/> matches)
@@ -2495,11 +2512,12 @@ public sealed partial class DependencyWorkflow
         string? resolvedSourceName,
         CancellationToken cancellationToken,
         PackageAssets? assets = null,
-        PackageAssets? previouslyWritten = null)
+        PackageAssets? previouslyWritten = null,
+        ICollection<SourceBuiltPackage>? sourceBuilt = null)
     {
         try
         {
-            return await _dotnetInstaller.InstallAsync(
+            var outcome = await _dotnetInstaller.InstallWithOutcomeAsync(
                 projectDirectory,
                 packageId,
                 version,
@@ -2511,6 +2529,13 @@ public sealed partial class DependencyWorkflow
                 assets,
                 previouslyWritten,
                 cancellationToken);
+
+            if (outcome.SourceBuilt is not null)
+            {
+                sourceBuilt?.Add(outcome.SourceBuilt);
+            }
+
+            return outcome.Locked;
         }
         catch (DotnetSyncException ex)
         {
@@ -3008,14 +3033,15 @@ public sealed partial class DependencyWorkflow
         CancellationToken cancellationToken,
         IReadOnlyDictionary<string, string>? refusalHints = null,
         IReadOnlyList<DotnetSpec>? addonDeclared = null,
-        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements = null)
+        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements = null,
+        ICollection<SourceBuiltPackage>? sourceBuilt = null)
     {
         var snapshot = DotnetFilesSnapshot.Capture(_fileSystem, projectDirectory);
         try
         {
             return await SyncDotnetUnguardedAsync(
                 projectDirectory, manifest, previousDotnet, targetNames, pruneUnreachable, cancellationToken,
-                refusalHints, addonDeclared, addonRequirements);
+                refusalHints, addonDeclared, addonRequirements, sourceBuilt);
         }
         catch
         {
@@ -3033,7 +3059,8 @@ public sealed partial class DependencyWorkflow
         CancellationToken cancellationToken,
         IReadOnlyDictionary<string, string>? refusalHints,
         IReadOnlyList<DotnetSpec>? addonDeclared,
-        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements)
+        IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements,
+        ICollection<SourceBuiltPackage>? sourceBuilt)
     {
         var sources = manifest.SourceSet();
         var addonDeclaredByName = addonDeclared?.ToDictionary(s => s.Name, StringComparer.Ordinal);
@@ -3096,7 +3123,7 @@ public sealed partial class DependencyWorkflow
             resultByName[targetName] = changed
                 ? await InstallDotnetOrThrowAsync(
                     projectDirectory, targetName, version, manifest, KnownDotnet(previousByName, resultByName),
-                    restore: false, resolvedSource, cancellationToken, assets, previous?.Assets)
+                    restore: false, resolvedSource, cancellationToken, assets, previous?.Assets, sourceBuilt)
                 : previous!;
 
             anyChanged |= changed;

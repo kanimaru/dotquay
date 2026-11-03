@@ -1,3 +1,4 @@
+using Dotquay.Core.Dotnet.SourceBuild;
 using Dotquay.Core.Lockfile;
 
 namespace Dotquay.Core.Workflows;
@@ -28,6 +29,15 @@ public enum DotnetDeclarationOutcome
 /// locked. Reported as <c>changes[].from</c>.</param>
 public sealed record DotnetDeclaration(LockedDotnet Locked, DotnetDeclarationOutcome Outcome, string? PreviousResolved)
 {
+    /// <summary>Set when the project builds the package from source, so its <c>.csproj</c> got no
+    /// <c>PackageReference</c> (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md).</summary>
+    public IReadOnlyList<SourceBuiltPackage> SourceBuilt { get; init; } = [];
+
+    /// <summary><see cref="Describe"/> followed by any source-build note: the <c>messages</c> the CLI and
+    /// the MCP tool both send.</summary>
+    public IReadOnlyList<string> Messages(string? pinnedSourceName) =>
+        [Describe(pinnedSourceName), .. SourceBuilt.Select(s => s.Describe())];
+
     /// <summary>A one-line human summary, shared by the CLI and the MCP tool so both say the same
     /// thing about the same outcome.</summary>
     public string Describe(string? pinnedSourceName)

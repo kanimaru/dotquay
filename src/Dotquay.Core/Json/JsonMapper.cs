@@ -218,7 +218,7 @@ public static class JsonMapper
                 To = d.Locked.Resolved,
             }))
             .ToList(),
-        Messages = messages ?? [],
+        Messages = messages ?? update.SourceBuildNotes,
     };
 
     public static OperationJson ToJson(InstallResult install, IReadOnlyList<string>? messages = null) => new()
@@ -241,7 +241,7 @@ public static class JsonMapper
                 To = d.Resolved,
             }))
             .ToList(),
-        Messages = messages ?? [],
+        Messages = messages ?? install.SourceBuildNotes,
     };
 
     /// <summary>
