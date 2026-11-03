@@ -1335,6 +1335,30 @@ public sealed partial class DependencyWorkflow
     /// have an opinion on, so a hand-added <c>&lt;ExcludeAssets&gt;</c> beside a declared
     /// <c>&lt;PrivateAssets&gt;</c> is left alone here exactly as the writer leaves it alone.
     /// </remarks>
+    /// <summary>
+    /// A locked package the <c>.csproj</c> both builds from source and references as a package, or builds
+    /// at a version other than the locked one (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
+    /// </summary>
+    /// <remarks>Needs only the lockfile, not the manifest: an addon-declared package is built from source
+    /// just the same.</remarks>
+    private void CheckSourceBuilds(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    {
+        if (lockfile.Dotnet.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            issues.AddRange(SourceBuildChecker.Check(_fileSystem, CsprojLocator.Locate(_fileSystem, projectDirectory), lockfile));
+        }
+        catch (DotnetSyncException)
+        {
+            // No .csproj, several, or one that isn't valid XML: the same reasons CheckPackageAssetDrift
+            // stays quiet, and anything that actually writes the file reports them.
+        }
+    }
+
     private void CheckPackageAssetDrift(
         string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
     {
@@ -1502,6 +1526,8 @@ public sealed partial class DependencyWorkflow
             CheckPackageAssetDrift(projectDirectory, manifest, lockfile, issues);
             CheckNuGetSourceMappingDrift(projectDirectory, manifest, lockfile, issues);
         }
+
+        CheckSourceBuilds(projectDirectory, lockfile, issues);
 
         foreach (var locked in lockfile.Addons)
         {

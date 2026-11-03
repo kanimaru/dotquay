@@ -222,4 +222,27 @@ public enum DoctorIssueKind
     /// (<see cref="Doctor.LfsPointerScanner"/>).
     /// </remarks>
     LfsPointerFile,
+
+    /// <summary>
+    /// A locked package is built from source by a <c>ProjectReference</c> and also referenced as a package
+    /// in the same <c>.csproj</c> (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
+    /// </summary>
+    /// <remarks>
+    /// MSBuild then picks one of the two and the project cannot tell which, so an edit to the source can
+    /// compile against the published package without any error. For an unconditional source reference
+    /// <c>install</c> removes the package reference; a conditional one is left to the author, because the
+    /// package is what builds outside the condition.
+    /// </remarks>
+    PackageAlsoBuiltFromSource,
+
+    /// <summary>
+    /// The project builds a locked package from source at a literal <c>Version</c> other than the one the
+    /// lockfile resolves from the feed (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
+    /// </summary>
+    /// <remarks>
+    /// The project compiles and tests against its source; everyone installing its addons restores the
+    /// locked version. Reported by <c>doctor</c> only, never as an install warning, because <c>update</c>
+    /// reaches the installer only on a change and a warning there would come and go (decision 2).
+    /// </remarks>
+    SourceBuildVersionMismatch,
 }

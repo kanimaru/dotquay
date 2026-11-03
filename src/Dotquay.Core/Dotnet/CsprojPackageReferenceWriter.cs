@@ -90,6 +90,13 @@ public static class CsprojPackageReferenceWriter
         return true;
     }
 
+    /// <summary>Whether the <c>.csproj</c> references <paramref name="packageId"/> as a package at all.</summary>
+    public static bool HasReference(IFileSystem fileSystem, string csprojPath, string packageId)
+    {
+        var (_, project) = Load(fileSystem, csprojPath);
+        return FindReference(project, packageId) is not null;
+    }
+
     /// <summary>
     /// The asset metadata currently on a package's reference, or null when the package has no
     /// reference at all. Used by <c>doctor</c> to compare the file against the manifest.

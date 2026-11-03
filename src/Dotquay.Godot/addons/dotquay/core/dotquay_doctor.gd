@@ -169,6 +169,16 @@ const KIND_WORDING := {
 		"many": "ssh hosts this machine has no trusted key for",
 		"detail": "The fetch fails deep inside git with \"Host key verification failed\", which reads like a credentials problem and is not one. Connect to the host once by hand to record its key.",
 	},
+	"package_also_built_from_source": {
+		"one": "package referenced twice: from source and from NuGet",
+		"many": "packages referenced twice: from source and from NuGet",
+		"detail": "The .csproj builds it from a ProjectReference and also pulls the published package, so the build may compile against the package instead of your source. An install removes the PackageReference, unless the source reference has a condition.",
+	},
+	"source_build_version_mismatch": {
+		"one": "package built from source at a different version than locked",
+		"many": "packages built from source at a different version than locked",
+		"detail": "This project compiles the source version, but anyone installing its addons gets the locked one from the feed. Publish the source version, or align its <Version> with the lockfile.",
+	},
 	"nuget_source_mapping_drift": {
 		"one": "package NuGet.Config doesn't bind to its locked feed",
 		"many": "packages NuGet.Config doesn't bind to their locked feed",

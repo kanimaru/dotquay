@@ -266,3 +266,20 @@ func test_copy_text_joins_every_fix_line() -> void:
 	runner.equal(group.copy_text(),
 		"a.gd  |  uid://one  ->  res://addons/x/one.gd\nb.gd  |  uid://two  ->  res://addons/x/two.gd",
 		"one line per issue, ready to paste as-is")
+
+func test_source_build_kinds_are_worded_and_name_the_package() -> void:
+	# DESIGN-v0.26 §C. Both kinds lead with 'Package' like every other doctor message, so the group can name
+	# the package as its subject, and both explanations say what to do about it.
+	var doctor: DotquayDoctor = DOCTOR.from_payload({"healthy": false, "issues": [
+		_issue("package_also_built_from_source", "'VBeami.Core' is built from source by ..\\src\\VBeami.Core\\VBeami.Core.csproj and also referenced as a package."),
+		_issue("source_build_version_mismatch", "'VBeami.Core' compiles from source at 0.7.50, but the lockfile resolves 0.7.20 from the feed."),
+	]})
+	var groups: Array = doctor.groups()
+
+	runner.equal(groups.size(), 2, "two kinds are two groups")
+	for group in groups:
+		runner.check(DotquayDoctor.KIND_WORDING.has(group.kind), "%s has wording of its own" % group.kind)
+		runner.equal(group.subjects()[0], "VBeami.Core", "%s names the package as its subject" % group.kind)
+		runner.check(group.headline() != "1 issue", "%s says what is wrong, not just that something is" % group.kind)
+	runner.check(groups[0].detail().contains("install removes"), "the duplicate's explanation names the fix")
+	runner.check(groups[1].detail().contains("Publish"), "the mismatch's explanation names the fix")

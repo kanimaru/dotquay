@@ -401,6 +401,8 @@ public static class JsonMapper
         DoctorIssueKind.NuGetSourceMappingDrift => "nuget_source_mapping_drift",
         DoctorIssueKind.AddonFolderIsGodotProject => "addon_folder_is_godot_project",
         DoctorIssueKind.LfsPointerFile => "lfs_pointer_file",
+        DoctorIssueKind.PackageAlsoBuiltFromSource => "package_also_built_from_source",
+        DoctorIssueKind.SourceBuildVersionMismatch => "source_build_version_mismatch",
         _ => "unknown",
     };
 
