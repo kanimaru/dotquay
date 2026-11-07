@@ -12,7 +12,7 @@ namespace Dotquay.Mcp.Tools;
 /// <summary>MCP mirror of <c>dotquay init</c>: scaffolds a project or package manifest. See
 /// <c>Dotquay.Cli.Commands.InitCommand</c>.</summary>
 /// <remarks>
-/// No write guard applies (Â§4.2's table lists none for <c>dotquay_init</c>): scaffolding a manifest
+/// No write guard applies (§4.2's table lists none for <c>dotquay_init</c>): scaffolding a manifest
 /// touches nothing that was ever going to prompt a human, and refuses to overwrite an existing
 /// manifest on its own (reported as <c>unchanged</c>, not an error — the same "the state you asked for
 /// already exists" reasoning <c>InitCommand</c> uses).

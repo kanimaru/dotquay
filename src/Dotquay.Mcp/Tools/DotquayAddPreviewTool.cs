@@ -11,7 +11,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay add --preview</c>: resolves what adding a git addon would do —
 /// the full transitive graph, NuGet packages it brings in, and any feeds it would ask this project to
-/// trust — without writing anything (SPEC.md Â§6, Â§11.3). See <c>Dotquay.Cli.Commands.AddCommand</c>.
+/// trust — without writing anything (SPEC.md §6, §11.3). See <c>Dotquay.Cli.Commands.AddCommand</c>.
 /// </summary>
 /// <remarks>
 /// Git addons only, matching the CLI flag it mirrors: a NuGet add resolves one version from feeds the

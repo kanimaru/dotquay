@@ -5,7 +5,7 @@ using Xunit;
 namespace Dotquay.Tests.Mcp;
 
 /// <summary>
-/// Design doc Â§7: the three canned prompt workflows list correctly, render their placeholders, and
+/// Design doc §7: the three canned prompt workflows list correctly, render their placeholders, and
 /// validate their required arguments.
 /// </summary>
 public sealed class PromptTests : IAsyncDisposable

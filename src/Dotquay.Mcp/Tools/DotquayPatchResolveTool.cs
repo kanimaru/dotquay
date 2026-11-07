@@ -9,7 +9,7 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay patch &lt;name&gt; --resolve</c>: finishes a conflicted patch
-/// re-apply and recaptures against the new upstream commit (SPEC.md Â§10). See
+/// re-apply and recaptures against the new upstream commit (SPEC.md §10). See
 /// <c>Dotquay.Cli.Commands.PatchCommand</c>.</summary>
 /// <remarks>Not destructive and unguarded: it only proceeds once every conflict marker in staging is
 /// gone (<c>DependencyWorkflow.ResolvePatchAsync</c> refuses otherwise), so there is nothing left for

@@ -10,7 +10,7 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay patch &lt;name&gt;</c>: captures hand-edits to an installed
-/// addon as a patch file (SPEC.md Â§10). See <c>Dotquay.Cli.Commands.PatchCommand</c>.</summary>
+/// addon as a patch file (SPEC.md §10). See <c>Dotquay.Cli.Commands.PatchCommand</c>.</summary>
 /// <remarks>Not destructive and unguarded: it only ever writes a patch file describing what's already
 /// on disk, and re-applying it on the next install/update is automatic (see the project's own
 /// "Patches" notes on why that's easy to mistake for broken).</remarks>

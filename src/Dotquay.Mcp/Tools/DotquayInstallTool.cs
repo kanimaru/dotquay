@@ -10,7 +10,7 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay install</c>: replays the lockfile exactly — never re-resolves
-/// (SPEC.md Â§5). See <c>Dotquay.Cli.Commands.InstallCommand</c>.</summary>
+/// (SPEC.md §5). See <c>Dotquay.Cli.Commands.InstallCommand</c>.</summary>
 /// <remarks>
 /// Never adopts a NuGet feed even with <see cref="Dotquay.Core.Abstractions.PreApprovedSourceApproval"/>
 /// available — <c>Dotquay.Cli.Commands.WorkflowFactory.CreateWithProgress</c>'s own remarks explain why

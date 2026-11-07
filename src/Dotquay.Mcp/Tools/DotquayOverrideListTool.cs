@@ -11,7 +11,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of a bare <c>dotquay override</c> (no name): lists the project's current
 /// <c>[overrides.*]</c> entries, dotquay's unconditional escape hatch out of a dependency conflict
-/// (SPEC.md Â§7.1/Â§8). See <c>Dotquay.Cli.Commands.OverrideCommand</c>.</summary>
+/// (SPEC.md §7.1/§8). See <c>Dotquay.Cli.Commands.OverrideCommand</c>.</summary>
 /// <remarks>
 /// Reuses <see cref="OperationJson"/>/<see cref="ChangeJson"/> exactly as the CLI's own listing does
 /// (<c>OverrideCommand.ListOverrides</c>): an override entry already fits that shape (name, kind,

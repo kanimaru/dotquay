@@ -9,7 +9,7 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay graph</c>: the dependency graph, who requires what, and where it
-/// conflicts (SPEC.md Â§8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
+/// conflicts (SPEC.md §8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
 public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_graph";
