@@ -84,6 +84,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     [InlineData("dotquay.lock", "dotquay_status")]
     [InlineData("dotquay.lock", "dotquay_doctor")]
     [InlineData("dotquay.toml", "dotquay_doctor")]
+    [InlineData("dotquay.local.toml", "dotquay_doctor")]
     [InlineData("dotquay.toml", "dotquay_add_preview")]
     public async Task A_malformed_project_file_is_a_tool_error_of_kind_invalid_project_file(string file, string tool)
     {

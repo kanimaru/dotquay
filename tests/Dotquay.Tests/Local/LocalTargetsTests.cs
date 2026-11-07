@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Dotquay.Core.Dotnet;
+using Dotquay.Core.Json;
 using Dotquay.Core.Local;
 using Dotquay.Core.Workflows;
 using Dotquay.Tests.Support;
@@ -550,6 +551,21 @@ public class LocalTargetsTests
         // The link now does nothing at all and the build silently uses the published package. This is
         // the one failure mode the overlay design has that the .csproj-editing design didn't.
         Assert.Contains(issues, i => i.Kind == DoctorIssueKind.LocalOverlayNotImported);
+    }
+
+    [Fact]
+    public async Task Doctor_AMalformedLocalFile_FailsLikeABrokenLockfile()
+    {
+        var fileSystem = Build();
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, LocalLinks.FileName), "this is [ not toml\n");
+
+        // Doctor reads dotquay.toml and dotquay.lock for real and fails on either when it doesn't
+        // parse (invalid_project_file). The local links file is the third project file; it used to
+        // come back as a linked_project_missing issue, which names a link that was never read.
+        var exception = await Assert.ThrowsAsync<LocalLinksParseException>(() => DoctorAsync(fileSystem));
+
+        Assert.Contains(LocalLinks.FileName, exception.Message, StringComparison.Ordinal);
+        Assert.Equal(JsonErrorKind.InvalidProjectFile, JsonErrorClassifier.Classify(exception).Kind);
     }
 
     [Fact]

@@ -1135,7 +1135,9 @@ Design decisions, and why:
   `dotquay.lock` or `dotquay.local.toml` is not valid TOML, or not the shape dotquay writes. The
   envelope has no extra fields for it: `message` names the file and, for a syntax error, the
   parser's `(line,column)`. Every command that reads the file fails the same way until it is fixed
-  by hand, so a UI says "fix this file" rather than offering an action. A malformed `dotquay.toml`
+  by hand, so a UI says "fix this file" rather than offering an action. `doctor` is one of them: it
+  reads all three before its checks, so a broken file is its failure, not one of its issues (a
+  broken `dotquay.local.toml` was once a `linked_project_missing` issue). A malformed `dotquay.toml`
   an *addon* ships is not this kind: it is a warning or a doctor issue (§7.2). User-level files
   are `invalid_config_file`, below. MCP tools report it the same way (§20.3).
 

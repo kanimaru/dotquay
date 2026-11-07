@@ -1136,15 +1136,6 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>
-    /// The two ways a local .NET link (v0.11) stops working without saying so: its target project is
-    /// gone, or the overlay is no longer imported.
-    /// </summary>
-    /// <remarks>
-    /// Both fail in ways that never mention dotquay — the first as an MSBuild error about a project
-    /// path, the second not at all. The second is the more dangerous: the build simply keeps using the
-    /// published package, which is the exact silence the overlay design was chosen to avoid.
-    /// </remarks>
-    /// <summary>
     /// Reports an <c>addons/&lt;folder&gt;</c> that is a directory link disagreeing with what this
     /// machine declares (v0.16).
     /// </summary>
@@ -1156,20 +1147,10 @@ public sealed partial class DependencyWorkflow
     /// refusing mid-install is a worse place to learn this than a check that costs nothing — so the
     /// same classifier answers here, rather than a second implementation that can drift from it.
     /// </remarks>
-    private void CheckAddonLinks(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
+    private void CheckAddonLinks(
+        string projectDirectory, DotquayLockfile lockfile, IReadOnlyDictionary<string, LocalLink> declared,
+        List<DoctorIssue> issues)
     {
-        IReadOnlyDictionary<string, LocalLink> declared;
-        try
-        {
-            declared = _localLinks.Read(projectDirectory);
-        }
-        catch (LocalLinkException)
-        {
-            // An unreadable local file is its own problem and is reported where it is read for real.
-            // It says nothing about any particular addon's folder, so this check has no opinion.
-            return;
-        }
-
         foreach (var locked in lockfile.Addons)
         {
             declared.TryGetValue(locked.Name, out var link);
@@ -1275,19 +1256,18 @@ public sealed partial class DependencyWorkflow
         return declarationRemoved || linkRemoved;
     }
 
-    private void CheckDotnetLinks(string projectDirectory, List<DoctorIssue> issues)
+    /// <summary>
+    /// The two ways a local .NET link (v0.11) stops working without saying so: its target project is
+    /// gone, or the overlay is no longer imported.
+    /// </summary>
+    /// <remarks>
+    /// Both fail in ways that never mention dotquay — the first as an MSBuild error about a project
+    /// path, the second not at all. The second is the more dangerous: the build simply keeps using the
+    /// published package, which is the exact silence the overlay design was chosen to avoid.
+    /// </remarks>
+    private void CheckDotnetLinks(
+        string projectDirectory, IReadOnlyDictionary<string, DotnetLink> links, List<DoctorIssue> issues)
     {
-        IReadOnlyDictionary<string, DotnetLink> links;
-        try
-        {
-            links = _localLinks.ReadDotnet(projectDirectory);
-        }
-        catch (LocalLinkException ex)
-        {
-            issues.Add(new DoctorIssue(DoctorIssueKind.LinkedProjectMissing, ex.Message));
-            return;
-        }
-
         foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal))
         {
             if (!_fileSystem.FileExists(link.ProjectPath))
@@ -1518,6 +1498,12 @@ public sealed partial class DependencyWorkflow
 
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
 
+        // Read up front, like the manifest and the lockfile: a dotquay.local.toml that doesn't parse
+        // fails doctor as invalid_project_file (SPEC.md section 17). It used to become a
+        // linked_project_missing issue, which named a link nobody could read, while the commands that
+        // read the file for real refused with the parser's message.
+        var localLinks = _localLinks.ReadAll(projectDirectory);
+
         if (manifest is not null)
         {
             CheckDanglingLockfileEntries(projectDirectory, manifest, lockfile, issues);
@@ -1543,8 +1529,8 @@ public sealed partial class DependencyWorkflow
         CheckCredentialFilePermissions(issues);
         CheckSshHostTrust(lockfile, issues);
         CheckFragileUidReferences(projectDirectory, issues);
-        CheckDotnetLinks(projectDirectory, issues);
-        CheckAddonLinks(projectDirectory, lockfile, issues);
+        CheckDotnetLinks(projectDirectory, localLinks.Dotnet, issues);
+        CheckAddonLinks(projectDirectory, lockfile, localLinks.Addons, issues);
 
         return new DoctorResult(issues) { Trust = SummarizeTrust(manifest) };
     }

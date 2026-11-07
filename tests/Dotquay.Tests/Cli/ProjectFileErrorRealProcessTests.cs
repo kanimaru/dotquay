@@ -30,6 +30,7 @@ public sealed class ProjectFileErrorRealProcessTests
         { "dotquay.toml", ["doctor", "--json"] },
         { "dotquay.toml", ["install", "--json"] },
         { "dotquay.toml", ["outdated", "--json"] },
+        { "dotquay.local.toml", ["doctor", "--json"] },
         { "dotquay.local.toml", ["install", "--json"] },
         { "dotquay.local.toml", ["update", "--json"] },
     };
