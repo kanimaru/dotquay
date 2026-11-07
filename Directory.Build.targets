@@ -1,0 +1,35 @@
+<Project>
+
+  <!-- Floor for the .NET 10 runtime bits that get compiled into a published dotquay binary.
+
+       NativeAOT does not run on the installed runtime: `-p:PublishAot=true` statically links the
+       Microsoft.DotNet.ILCompiler package and the Microsoft.NETCore.App.Runtime.NativeAOT.<rid>
+       runtime pack into dotquay.exe, and a trimmed self-contained publish (CI's win-x64 fallback)
+       ships the Microsoft.NETCore.App.Runtime.<rid> pack. The SDK picks those versions itself, from
+       the runtime it was released with: SDK 10.0.101 names 10.0.1. Every 10.0 version below 10.0.14
+       has a Brotli decoder out-of-bounds write, GHSA-p3jp-9v83-76w9 (CVE-2026-111497); a build
+       with such an SDK reports NU1903 for the ILCompiler package and would publish the flaw.
+
+       This raises those versions to the floor and never lowers them, so a newer SDK (CI's floating
+       `sdk:10.0-noble` image) keeps its own. Framework-dependent builds and the tests are
+       untouched: they run on whatever runtime is installed, which the machine's own update covers.
+       Raise the floor with the next .NET security release that touches the published bits. -->
+  <PropertyGroup>
+    <DotquayMinimumNet10RuntimePatch>10.0.14</DotquayMinimumNet10RuntimePatch>
+  </PropertyGroup>
+
+  <Target Name="DotquayRaiseNet10RuntimePackFloor" BeforeTargets="ProcessFrameworkReferences">
+    <ItemGroup>
+      <KnownILCompilerPack Condition="'%(KnownILCompilerPack.Identity)' == 'Microsoft.DotNet.ILCompiler' and '%(KnownILCompilerPack.TargetFramework)' == 'net10.0' and $([MSBuild]::VersionLessThan('%(KnownILCompilerPack.ILCompilerPackVersion)', '$(DotquayMinimumNet10RuntimePatch)'))">
+        <ILCompilerPackVersion>$(DotquayMinimumNet10RuntimePatch)</ILCompilerPackVersion>
+      </KnownILCompilerPack>
+      <KnownRuntimePack Condition="'%(KnownRuntimePack.Identity)' == 'Microsoft.NETCore.App' and '%(KnownRuntimePack.TargetFramework)' == 'net10.0' and '%(KnownRuntimePack.RuntimePackLabels)' == 'NativeAOT' and $([MSBuild]::VersionLessThan('%(KnownRuntimePack.LatestRuntimeFrameworkVersion)', '$(DotquayMinimumNet10RuntimePatch)'))">
+        <LatestRuntimeFrameworkVersion>$(DotquayMinimumNet10RuntimePatch)</LatestRuntimeFrameworkVersion>
+      </KnownRuntimePack>
+      <KnownFrameworkReference Condition="'%(KnownFrameworkReference.Identity)' == 'Microsoft.NETCore.App' and '%(KnownFrameworkReference.TargetFramework)' == 'net10.0' and $([MSBuild]::VersionLessThan('%(KnownFrameworkReference.LatestRuntimeFrameworkVersion)', '$(DotquayMinimumNet10RuntimePatch)'))">
+        <LatestRuntimeFrameworkVersion>$(DotquayMinimumNet10RuntimePatch)</LatestRuntimeFrameworkVersion>
+      </KnownFrameworkReference>
+    </ItemGroup>
+  </Target>
+
+</Project>
