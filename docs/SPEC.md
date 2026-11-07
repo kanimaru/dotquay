@@ -1383,11 +1383,13 @@ client configures dotquay exactly like any other MCP server — point it at the 
 
 `--project` is optional. With none given, the working directory is the only root a call may touch;
 with one or more given, the `project` argument on every tool defaults to the single root and is
-required once there is more than one. A client that declares the `roots` capability widens this list
-further: dotquay reads the client's roots on `initialize` and again on every
-`notifications/roots/list_changed`, so a project opened later in the same editor session becomes
-reachable without restarting the server. A `project` argument outside every known root is refused with
-a `scope` error (§20.3), naming the roots that would have worked.
+required once there is more than one. The list is fixed for the life of the server process. dotquay
+does not use the MCP `roots` capability: the specification deprecates it as of version 2026-07-28
+(SEP-2577) and points servers at tool arguments and server configuration instead, which is what
+`project` and `--project` already are. A client that still declares `roots` is not asked for them, so
+a project outside the working directory needs its own `--project` (or a restart in that directory).
+A `project` argument outside every root is refused with a `scope` error (§20.3), naming the roots that
+would have worked.
 
 ### 20.2 Tools
 
@@ -1453,11 +1455,14 @@ Every call gets its own `CancellationTokenSource`; a client's `notifications/can
 in-flight operation and releases the project's write slot (§20.2) in a `finally`, the same as a normal
 completion.
 
-`--log <file>` opts into a structured log of every request (falling back to stderr, never stdout, if
-the file can't be opened) and raises the minimum level a running server reports over
-`notifications/message` in response to `logging/setLevel` — for warnings and above by default, so a
-client's own log viewer sees the same "something's wrong" signal a console user would have seen
-printed inline.
+Every request is traced as one plain-text line (id, method, duration, and on failure the first line
+of the error, with credentials masked): to the file named by `--log <file>`, appended to, or to stderr
+when no file is given, never to stdout. That trace is the server's only log output. dotquay does not
+use the MCP Logging feature: the specification deprecates it as of version 2026-07-28 (SEP-2577) in
+favour of stderr, so the server never sends `notifications/message`, whatever level a client asks
+for. The MCP SDK still lists the `logging` capability and answers `logging/setLevel` by itself on
+older protocol versions; that answer changes nothing. A failed call still reaches the client as the
+error result of that call (§20.3).
 
 ### 20.5 Resources and prompts
 
@@ -1491,9 +1496,10 @@ Code:
 claude mcp add dotquay -- dotquay mcp --project /path/to/a/godot/project
 ```
 
-or, for a client that supports the `roots` capability instead of a fixed `--project`, omit `--project`
-entirely and open the Godot project as the client's own workspace root — dotquay picks it up on
-`initialize` with no restart needed if the workspace changes later in the session.
+or omit `--project` entirely when the client starts the server in the Godot project's own directory
+(a client that spawns stdio servers in its workspace directory): the working directory is then the
+one root. A project elsewhere needs its own `--project`; dotquay does not read the client's
+`roots` (§20.1).
 
 Once connected, `tools/list` returns all nineteen tools with their schemas; a first useful call is
 almost always `dotquay_status` (read-only, no approvals needed) to establish what the agent is looking

@@ -15,7 +15,7 @@ namespace Dotquay.Mcp;
 
 /// <summary>
 /// Assembles the Generic Host that hosts dotquay's MCP server: every tool, prompt, and resource, the
-/// client-roots sync, the request log, and the transport.
+/// project scope, the request log, and the transport.
 /// </summary>
 /// <remarks>
 /// The <see cref="IHost"/> is built here but never run here — <see cref="RunStdioAsync"/> is the one
@@ -53,15 +53,13 @@ public static class McpServerBuilder
 
         var scope = new ProjectScope(projectRoots);
         var gate = new ProjectGate();
-        var rootsSync = new ClientRootsSync(scope);
         var fileSystem = new SystemFileSystem();
-        var toolRegistry = new ToolRegistry(BuildTools(scope, gate, rootsSync));
+        var toolRegistry = new ToolRegistry(BuildTools(scope, gate));
         var resourceRegistry = new ResourceRegistry(fileSystem, scope);
         var promptRegistry = new PromptRegistry(BuildPrompts());
 
-        var levelState = new LoggingLevelState();
         var (logWriter, ownsLogWriter) = OpenLogWriter(logFile);
-        var requestLog = new RequestLog(logWriter, ownsLogWriter, levelState);
+        var requestLog = new RequestLog(logWriter, ownsLogWriter);
 
         var mcpBuilder = builder.Services
             .AddMcpServer(options =>
@@ -74,21 +72,22 @@ public static class McpServerBuilder
             .WithReadResourceHandler(resourceRegistry.ReadAsync)
             .WithListPromptsHandler(promptRegistry.ListAsync)
             .WithGetPromptHandler(promptRegistry.GetAsync)
-            .WithSetLoggingLevelHandler(levelState.HandleSetLevelAsync)
             .WithRequestFilters(filters =>
             {
                 // One filter per request kind this server actually handles (design doc §6): every
-                // request id, method, and duration goes to `requestLog`, win or lose, and a failure
-                // additionally reaches the client as `notifications/message` when it asked for that
-                // severity via `logging/setLevel`. RequestLoggingFilters.Create is the one place that
-                // logic lives — see its own remarks for why this isn't seven near-identical filters.
+                // request id, method, and duration goes to `requestLog`, win or lose. The protocol's
+                // Logging feature is deprecated as of 2026-07-28 (SEP-2577), so the log stays on the
+                // --log file or stderr and nothing is ever sent as `notifications/message`; a failure
+                // reaches the client only as the error result of its own request. (The SDK still
+                // answers `logging/setLevel` by itself on older protocol versions — harmless here.)
+                // RequestLoggingFilters.Create is the one place that logic lives — see its own
+                // remarks for why this isn't six near-identical filters.
                 filters.AddListToolsFilter(RequestLoggingFilters.Create<ListToolsRequestParams, ListToolsResult>("tools/list", requestLog));
                 filters.AddCallToolFilter(RequestLoggingFilters.Create<CallToolRequestParams, CallToolResult>("tools/call", requestLog));
                 filters.AddListResourcesFilter(RequestLoggingFilters.Create<ListResourcesRequestParams, ListResourcesResult>("resources/list", requestLog));
                 filters.AddReadResourceFilter(RequestLoggingFilters.Create<ReadResourceRequestParams, ReadResourceResult>("resources/read", requestLog));
                 filters.AddListPromptsFilter(RequestLoggingFilters.Create<ListPromptsRequestParams, ListPromptsResult>("prompts/list", requestLog));
                 filters.AddGetPromptFilter(RequestLoggingFilters.Create<GetPromptRequestParams, GetPromptResult>("prompts/get", requestLog));
-                filters.AddSetLoggingLevelFilter(RequestLoggingFilters.Create<SetLevelRequestParams, EmptyResult>("logging/setLevel", requestLog));
             });
 
         if (stdio)
@@ -117,30 +116,30 @@ public static class McpServerBuilder
     /// <summary>The eight Phase 1 read tools plus Phase 2's eleven guarded write tools
     /// (docs/DESIGN-v0.18-MCP.md §4.1/§4.2). Adding another is one line here —
     /// <see cref="Tools.ToolRegistry"/> needs no other change.</summary>
-    private static IReadOnlyList<IMcpTool> BuildTools(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) =>
+    private static IReadOnlyList<IMcpTool> BuildTools(IProjectScope scope, ProjectGate gate) =>
     [
         // Reads (Phase 1).
-        new DotquayStatusTool(scope, gate, rootsSync),
-        new DotquayListTool(scope, gate, rootsSync),
-        new DotquayGraphTool(scope, gate, rootsSync),
-        new DotquayOutdatedTool(scope, gate, rootsSync),
-        new DotquayDoctorTool(scope, gate, rootsSync),
-        new DotquayAddPreviewTool(scope, gate, rootsSync),
-        new DotquaySourceListTool(scope, gate, rootsSync),
-        new DotquayOverrideListTool(scope, gate, rootsSync),
+        new DotquayStatusTool(scope, gate),
+        new DotquayListTool(scope, gate),
+        new DotquayGraphTool(scope, gate),
+        new DotquayOutdatedTool(scope, gate),
+        new DotquayDoctorTool(scope, gate),
+        new DotquayAddPreviewTool(scope, gate),
+        new DotquaySourceListTool(scope, gate),
+        new DotquayOverrideListTool(scope, gate),
 
         // Guarded writes (Phase 2).
-        new DotquayInitTool(scope, gate, rootsSync),
-        new DotquayAddTool(scope, gate, rootsSync),
-        new DotquayAddDotnetTool(scope, gate, rootsSync),
-        new DotquayInstallTool(scope, gate, rootsSync),
-        new DotquayUpdateTool(scope, gate, rootsSync),
-        new DotquayRemoveTool(scope, gate, rootsSync),
-        new DotquayPatchCaptureTool(scope, gate, rootsSync),
-        new DotquayPatchResolveTool(scope, gate, rootsSync),
-        new DotquayPatchAbandonTool(scope, gate, rootsSync),
-        new DotquayOverrideSetTool(scope, gate, rootsSync),
-        new DotquayOverrideClearTool(scope, gate, rootsSync),
+        new DotquayInitTool(scope, gate),
+        new DotquayAddTool(scope, gate),
+        new DotquayAddDotnetTool(scope, gate),
+        new DotquayInstallTool(scope, gate),
+        new DotquayUpdateTool(scope, gate),
+        new DotquayRemoveTool(scope, gate),
+        new DotquayPatchCaptureTool(scope, gate),
+        new DotquayPatchResolveTool(scope, gate),
+        new DotquayPatchAbandonTool(scope, gate),
+        new DotquayOverrideSetTool(scope, gate),
+        new DotquayOverrideClearTool(scope, gate),
     ];
 
     /// <summary>The three Phase 3 prompts (docs/DESIGN-v0.18-MCP.md §7).</summary>

@@ -5,7 +5,7 @@ namespace Dotquay.Cli.Commands;
 
 /// <summary>
 /// <c>dotquay mcp</c> — runs dotquay as a Model Context Protocol server over stdio: the read tools
-/// (Phase 1), the guarded write tools (Phase 2), and prompts/client-roots/request logging (Phase 3)
+/// (Phase 1), the guarded write tools (Phase 2), and prompts/request logging (Phase 3)
 /// (docs/DESIGN-v0.18-MCP.md).
 /// </summary>
 /// <remarks>
@@ -14,9 +14,8 @@ namespace Dotquay.Cli.Commands;
 /// on one command would be its own kind of bug, and <see cref="Dotquay.Mcp.Scope.ProjectScope"/> is
 /// built to take more than one root should a future <c>--project-root</c> (repeatable) ever need it —
 /// nothing here forecloses that, it's simply not what this command exposes yet. Every tool resolves
-/// its own <c>project</c> argument against this one root (plus whatever the client's <c>roots</c>
-/// capability adds at runtime — design doc §4.3), matching every other command's implicit "current
-/// directory unless told otherwise" default (<see cref="GlobalOptions.Resolve"/>).
+/// its own <c>project</c> argument against this one root, matching every other command's implicit
+/// "current directory unless told otherwise" default (<see cref="GlobalOptions.Resolve"/>).
 /// </remarks>
 internal static class McpCommand
 {

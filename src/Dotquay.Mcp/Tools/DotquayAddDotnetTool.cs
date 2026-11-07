@@ -10,7 +10,7 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay add &lt;package-id&gt;</c>: resolves the latest (or an explicit)
-/// version of a NuGet package, wires it into the project's <c>.csproj</c>, and restores (SPEC.md Â§11).
+/// version of a NuGet package, wires it into the project's <c>.csproj</c>, and restores (SPEC.md §11).
 /// See <c>Dotquay.Cli.Commands.AddCommand.AddDotnetAsync</c>.</summary>
 /// <remarks>
 /// No feed adoption here — a NuGet add resolves from feeds the project already declares, matching why
@@ -18,7 +18,7 @@ namespace Dotquay.Mcp.Tools;
 /// feed question to preview). <see cref="GeneratorPrivacyPolicy"/> still applies: the package itself
 /// might be the generator.
 /// </remarks>
-public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_add_dotnet";
 

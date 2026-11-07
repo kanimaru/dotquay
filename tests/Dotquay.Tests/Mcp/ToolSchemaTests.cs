@@ -6,7 +6,7 @@ using Xunit;
 namespace Dotquay.Tests.Mcp;
 
 /// <summary>
-/// Design doc Â§8 test layer 3: every tool's advertised schema is well-formed and internally
+/// Design doc §8 test layer 3: every tool's advertised schema is well-formed and internally
 /// consistent, independent of any running server.
 /// </summary>
 public sealed class ToolSchemaTests
@@ -15,18 +15,17 @@ public sealed class ToolSchemaTests
     {
         var scope = new ProjectScope([Directory.GetCurrentDirectory()]);
         var gate = new ProjectGate();
-        var rootsSync = new ClientRootsSync(scope);
 
         IMcpTool[] tools =
         [
-            new DotquayStatusTool(scope, gate, rootsSync),
-            new DotquayListTool(scope, gate, rootsSync),
-            new DotquayGraphTool(scope, gate, rootsSync),
-            new DotquayOutdatedTool(scope, gate, rootsSync),
-            new DotquayDoctorTool(scope, gate, rootsSync),
-            new DotquayAddPreviewTool(scope, gate, rootsSync),
-            new DotquaySourceListTool(scope, gate, rootsSync),
-            new DotquayOverrideListTool(scope, gate, rootsSync),
+            new DotquayStatusTool(scope, gate),
+            new DotquayListTool(scope, gate),
+            new DotquayGraphTool(scope, gate),
+            new DotquayOutdatedTool(scope, gate),
+            new DotquayDoctorTool(scope, gate),
+            new DotquayAddPreviewTool(scope, gate),
+            new DotquaySourceListTool(scope, gate),
+            new DotquayOverrideListTool(scope, gate),
         ];
 
         foreach (var tool in tools)
@@ -46,7 +45,7 @@ public sealed class ToolSchemaTests
     {
         Assert.False(string.IsNullOrWhiteSpace(tool.Description));
 
-        // Every Phase 1 tool is read-only (design doc Â§4.1); the description is the one place a
+        // Every Phase 1 tool is read-only (design doc §4.1); the description is the one place a
         // model deciding whether to call it learns that without reading the source.
         Assert.Contains("read-only", tool.Description, StringComparison.OrdinalIgnoreCase);
     }

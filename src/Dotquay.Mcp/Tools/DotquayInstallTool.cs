@@ -10,14 +10,14 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay install</c>: replays the lockfile exactly — never re-resolves
-/// (SPEC.md Â§5). See <c>Dotquay.Cli.Commands.InstallCommand</c>.</summary>
+/// (SPEC.md §5). See <c>Dotquay.Cli.Commands.InstallCommand</c>.</summary>
 /// <remarks>
 /// Never adopts a NuGet feed even with <see cref="Dotquay.Core.Abstractions.PreApprovedSourceApproval"/>
 /// available — <c>Dotquay.Cli.Commands.WorkflowFactory.CreateWithProgress</c>'s own remarks explain why
 /// on principle: a command whose whole contract is "replay the lockfile" should never be one refactor
 /// away from acquiring a feed. Guarded by <see cref="ForceConfirmationPolicy"/> only.
 /// </remarks>
-public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_install";
 

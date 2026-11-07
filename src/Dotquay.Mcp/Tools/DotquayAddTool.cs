@@ -11,21 +11,21 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay add &lt;git-url&gt;</c>: resolves, locks, and installs a git
-/// addon (SPEC.md Â§6). See <c>Dotquay.Cli.Commands.AddCommand</c>.
+/// addon (SPEC.md §6). See <c>Dotquay.Cli.Commands.AddCommand</c>.
 /// </summary>
 /// <remarks>
 /// Git sources only — <see cref="DotquayAddDotnetTool"/> is the NuGet twin, matching the design's
-/// split of one CLI command into two tools (docs/DESIGN-v0.18-MCP.md Â§4.2). Like
+/// split of one CLI command into two tools (docs/DESIGN-v0.18-MCP.md §4.2). Like
 /// <see cref="DotquayAddPreviewTool"/>, this tool does not accept the CLI's <c>&lt;url&gt;#ref</c>
 /// shorthand: an agent names <c>version</c>/<c>branch</c>/<c>rev</c> explicitly instead. Guarded by
 /// <see cref="SourceApprovalPolicy"/> (a git addon can declare NuGet feeds transitively) and
 /// <see cref="GeneratorPrivacyPolicy"/> (it can also pull in a source generator) — never by
-/// <see cref="ForceConfirmationPolicy"/>, which the table (Â§4.2) reserves for <c>dotquay_install</c>/
+/// <see cref="ForceConfirmationPolicy"/>, which the table (§4.2) reserves for <c>dotquay_install</c>/
 /// <c>dotquay_update</c>; <c>AddonAddOptions.Force</c> is a different, narrower escape hatch (an
 /// addon occupying its folder without a matching lock entry) that this tool does not expose, matching
 /// the table's own argument list.
 /// </remarks>
-public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_add";
 
@@ -130,7 +130,7 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate, Client
         var locked = await workflow.AddAsync(projectDirectory, gitUrl, options, cancellationToken);
 
         // Pseudo-version means no explicit source was given and the default fell back to pinning the
-        // default branch's tip (SPEC.md Â§6) — see AddCommand.AddGitAsync's identical check.
+        // default branch's tip (SPEC.md §6) — see AddCommand.AddGitAsync's identical check.
         var untagged = !options.HasExplicitSource
             && locked.Version is not null
             && locked.Version.StartsWith("0.0.0-", StringComparison.Ordinal);

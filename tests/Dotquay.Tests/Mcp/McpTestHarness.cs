@@ -15,7 +15,7 @@ namespace Dotquay.Tests.Mcp;
 /// This is design doc §8 test layer 1, "handler conformance": <see cref="McpServerBuilder.BuildForStreams"/>
 /// is the exact same tool/resource/prompt wiring <c>dotquay mcp</c> uses over real stdio, so a test
 /// built on this harness exercises production's handlers end to end — the initialize handshake, tool/
-/// resource/prompt dispatch, roots capability negotiation, JSON envelope serialization — without
+/// resource/prompt dispatch, capability negotiation, JSON envelope serialization — without
 /// spawning a process or touching a real terminal. Also captures whatever the process under test
 /// writes to <see cref="Console.Out"/> (see <see cref="CapturedStdout"/>), separately from the pipe the
 /// transport itself uses, so a stdout-purity test can assert nothing ever landed there.
@@ -53,9 +53,7 @@ internal sealed class McpTestHarness : IAsyncDisposable
     public string CapturedStdout => _capturedStdout.ToString();
 
     /// <param name="clientOptions">Lets a test configure the simulated client's own capabilities and
-    /// handlers — e.g. <c>Capabilities.Roots</c> plus <c>Handlers.RootsHandler</c>, to exercise the
-    /// server's client-roots sync (design doc §4.3) the same way a real client would answer
-    /// <c>roots/list</c>. Null (the default) matches every pre-Phase-3 test: a client that advertises
+    /// handlers, or pin its protocol version. Null (the default) matches every pre-Phase-3 test: a client that advertises
     /// nothing beyond the SDK's own defaults.</param>
     /// <param name="logFile">Forwarded to <see cref="McpServerBuilder.BuildForStreams"/> so a test can
     /// exercise <c>--log</c> (design doc §6) against the same in-process server.</param>

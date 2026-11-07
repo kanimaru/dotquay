@@ -5,50 +5,22 @@ namespace Dotquay.Tests.Mcp;
 
 /// <summary>
 /// Pure <see cref="ProjectScope"/> behaviour — no server, no client, no fakes needed: this is plain
-/// path bookkeeping, exactly the kind of logic <see cref="ClientRootsSync"/>'s own tests (which do
-/// need a real client/server pair — see <see cref="RootsIntegrationTests"/>) should not have to
-/// re-verify.
+/// path bookkeeping over the fixed set of roots the server was started with.
 /// </summary>
 public sealed class ProjectScopeTests
 {
     [Fact]
-    public void AddRoots_widens_what_Resolve_accepts()
+    public void Resolve_accepts_a_root_and_anything_under_it()
     {
         var root = Directory.CreateTempSubdirectory("dotquay-scope-root-").FullName;
-        var added = Directory.CreateTempSubdirectory("dotquay-scope-added-").FullName;
 
         try
         {
             var scope = new ProjectScope([root]);
+            var nested = Path.Combine(root, "sub", "project");
 
-            Assert.Throws<ScopeException>(() => scope.Resolve(added));
-
-            scope.AddRoots([added]);
-
-            Assert.Equal(Path.GetFullPath(added), scope.Resolve(added));
-            Assert.Contains(Path.GetFullPath(added), scope.Roots);
-            Assert.Contains(Path.GetFullPath(root), scope.Roots);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-            Directory.Delete(added, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void AddRoots_never_duplicates_a_root_already_present()
-    {
-        var root = Directory.CreateTempSubdirectory("dotquay-scope-dup-").FullName;
-
-        try
-        {
-            var scope = new ProjectScope([root]);
-
-            scope.AddRoots([root, root]);
-            scope.AddRoots([root + Path.DirectorySeparatorChar]);
-
-            Assert.Single(scope.Roots);
+            Assert.Equal(Path.GetFullPath(root), scope.Resolve(root));
+            Assert.Equal(Path.GetFullPath(nested), scope.Resolve(nested));
         }
         finally
         {
@@ -57,21 +29,69 @@ public sealed class ProjectScopeTests
     }
 
     [Fact]
-    public void AddRoots_ignores_blank_entries()
+    public void Resolve_defaults_a_missing_project_to_the_first_root()
     {
-        var root = Directory.CreateTempSubdirectory("dotquay-scope-blank-").FullName;
+        var first = Directory.CreateTempSubdirectory("dotquay-scope-first-").FullName;
+        var second = Directory.CreateTempSubdirectory("dotquay-scope-second-").FullName;
+
+        try
+        {
+            var scope = new ProjectScope([first, second]);
+
+            Assert.Equal(Path.GetFullPath(first), scope.Resolve(null));
+            Assert.Equal(Path.GetFullPath(first), scope.Resolve("   "));
+        }
+        finally
+        {
+            Directory.Delete(first, recursive: true);
+            Directory.Delete(second, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Resolve_refuses_a_directory_outside_every_root_and_names_the_allowed_ones()
+    {
+        var root = Directory.CreateTempSubdirectory("dotquay-scope-root-").FullName;
+        var outside = Directory.CreateTempSubdirectory("dotquay-scope-outside-").FullName;
 
         try
         {
             var scope = new ProjectScope([root]);
 
-            scope.AddRoots(["", "   ", null!]);
+            var ex = Assert.Throws<ScopeException>(() => scope.Resolve(outside));
 
-            Assert.Single(scope.Roots);
+            Assert.Contains(Path.GetFullPath(root), ex.Message);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Resolve_refuses_a_sibling_that_only_shares_the_root_as_a_name_prefix()
+    {
+        var root = Directory.CreateTempSubdirectory("dotquay-scope-prefix-").FullName;
+        var sibling = root + "-sibling";
+
+        try
+        {
+            var scope = new ProjectScope([root]);
+
+            Assert.Throws<ScopeException>(() => scope.Resolve(sibling));
         }
         finally
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void No_roots_means_the_working_directory_is_the_only_root()
+    {
+        var scope = new ProjectScope([]);
+
+        Assert.Equal([Path.GetFullPath(Directory.GetCurrentDirectory())], scope.Roots);
     }
 }

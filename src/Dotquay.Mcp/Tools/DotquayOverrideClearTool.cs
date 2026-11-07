@@ -10,12 +10,12 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay override &lt;name&gt; --clear</c>: removes an override and hands
-/// the name back to normal resolution (SPEC.md Â§7.1/Â§8). See <c>Dotquay.Cli.Commands.OverrideCommand</c>.
+/// the name back to normal resolution (SPEC.md §7.1/§8). See <c>Dotquay.Cli.Commands.OverrideCommand</c>.
 /// </summary>
 /// <remarks>A pure manifest edit, same as <see cref="DotquayOverrideSetTool"/> — no follow-on resync.
 /// Clearing an override may resurface the conflict it was hiding; that's the point of an override
 /// being a decision the user can take back.</remarks>
-public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_override_clear";
 
