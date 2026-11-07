@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Toml;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -33,7 +34,7 @@ public static class PluginCfgReader
         TomlTable table;
         try
         {
-            table = TomlSerializer.Deserialize<TomlTable>(fileSystem.ReadAllText(pluginCfgPath)) ?? new TomlTable();
+            table = DotquayToml.Parse(fileSystem.ReadAllText(pluginCfgPath), pluginCfgPath);
         }
         catch (TomlException)
         {

@@ -9,7 +9,10 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <WarningsAsErrors>Nullable</WarningsAsErrors>
+    <!-- IL2026/IL3050 are errors, not warnings: a reflection-based call (Tomlyn's generic
+         TomlSerializer.Deserialize<T> was the last one) builds and runs under JIT and fails only in
+         the NativeAOT binary. TOML is read through Toml/DotquayTomlContext.cs instead. -->
+    <WarningsAsErrors>Nullable;IL2026;IL3050</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

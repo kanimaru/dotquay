@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Toml;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -114,8 +115,7 @@ public sealed class TomlCredentialStore : ICredentialStore
         TomlTable table;
         try
         {
-            table = TomlSerializer.Deserialize<TomlTable>(
-                _fileSystem.ReadAllText(_path), new TomlSerializerOptions { SourceName = _path }) ?? new TomlTable();
+            table = DotquayToml.Parse(_fileSystem.ReadAllText(_path), _path);
         }
         catch (TomlException ex)
         {

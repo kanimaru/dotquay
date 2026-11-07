@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Dotquay.Core.Toml;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -82,10 +83,9 @@ public static partial class LockfileReader
 
     private static TomlTable Parse(string text, string sourcePath)
     {
-        var options = new TomlSerializerOptions { SourceName = sourcePath };
         try
         {
-            return TomlSerializer.Deserialize<TomlTable>(text, options) ?? new TomlTable();
+            return DotquayToml.Parse(text, sourcePath);
         }
         catch (TomlException ex)
         {

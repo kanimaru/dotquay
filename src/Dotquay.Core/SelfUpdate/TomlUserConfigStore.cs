@@ -1,4 +1,5 @@
 using Dotquay.Core.Abstractions;
+using Dotquay.Core.Toml;
 using Dotquay.Core.Workflows;
 using Tomlyn;
 using Tomlyn.Model;
@@ -14,8 +15,8 @@ namespace Dotquay.Core.SelfUpdate;
 /// section in <c>dotquay.toml</c>: which dotquay you run is a property of your machine, and a
 /// project manifest that could pin its collaborators' CLI version would be a project that can
 /// change what runs on someone else's computer.</para>
-/// <para>Read through the same <c>TomlSerializer.Deserialize&lt;TomlTable&gt;</c> call shape as the
-/// credential store — a call shape already proven under NativeAOT — and written as hand-built ASCII
+/// <para>Read through the same <see cref="DotquayToml.Parse"/> call as the credential store, the
+/// source-generated path that needs no reflection under NativeAOT, and written as hand-built ASCII
 /// for the same reason that one is: this file gets opened in whatever editor is to hand.</para>
 /// </remarks>
 public sealed class TomlUserConfigStore
@@ -89,8 +90,7 @@ public sealed class TomlUserConfigStore
         TomlTable table;
         try
         {
-            table = TomlSerializer.Deserialize<TomlTable>(
-                _fileSystem.ReadAllText(_path), new TomlSerializerOptions { SourceName = _path }) ?? new TomlTable();
+            table = DotquayToml.Parse(_fileSystem.ReadAllText(_path), _path);
         }
         catch (TomlException ex)
         {

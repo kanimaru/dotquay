@@ -1,6 +1,7 @@
 using Dotquay.Core.Abstractions;
 using Dotquay.Core.Dotnet;
 using Dotquay.Core.Dotnet.SourceBuild;
+using Dotquay.Core.Toml;
 using Tomlyn;
 using Tomlyn.Model;
 
@@ -97,8 +98,7 @@ public sealed class LocalLinks
         TomlTable table;
         try
         {
-            table = TomlSerializer.Deserialize<TomlTable>(_fileSystem.ReadAllText(path), new TomlSerializerOptions { SourceName = path })
-                ?? new TomlTable();
+            table = DotquayToml.Parse(_fileSystem.ReadAllText(path), path);
         }
         catch (TomlException ex)
         {
