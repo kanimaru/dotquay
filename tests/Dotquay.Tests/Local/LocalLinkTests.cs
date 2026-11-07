@@ -124,7 +124,7 @@ public class LocalLinkTests
 
         // The file exists only because someone deliberately made it; ignoring a mistake in it would
         // leave them watching an addon refuse to link with nothing said about why.
-        var exception = Assert.Throws<LocalLinkException>(() => new LocalLinks(fileSystem).Read(ProjectDirectory));
+        var exception = Assert.Throws<LocalLinksParseException>(() => new LocalLinks(fileSystem).Read(ProjectDirectory));
         Assert.Contains("'path'", exception.Message);
     }
 

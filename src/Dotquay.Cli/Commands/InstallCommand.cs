@@ -1,6 +1,5 @@
 using System.CommandLine;
 using Dotquay.Core.Json;
-using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
@@ -60,7 +59,7 @@ internal static class InstallCommand
                 }
                 return 0;
             }
-            catch (WorkflowException ex)
+            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
             {
                 return JsonOutput.Fail(json, CommandName, ex);
             }

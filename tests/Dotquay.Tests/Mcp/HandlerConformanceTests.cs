@@ -80,6 +80,33 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
         AssertErrorKind(result, "no_manifest");
     }
 
+    [Theory]
+    [InlineData("dotquay.lock", "dotquay_status")]
+    [InlineData("dotquay.lock", "dotquay_doctor")]
+    [InlineData("dotquay.toml", "dotquay_doctor")]
+    [InlineData("dotquay.toml", "dotquay_add_preview")]
+    public async Task A_malformed_project_file_is_a_tool_error_of_kind_invalid_project_file(string file, string tool)
+    {
+        if (file != "dotquay.toml")
+        {
+            File.WriteAllText(Path.Combine(_projectDirectory, "dotquay.toml"), "[project]\n");
+        }
+
+        File.WriteAllText(Path.Combine(_projectDirectory, file), "this is [ not toml\n");
+        var harness = await HarnessAsync();
+
+        var result = await harness.Client.CallToolAsync(
+            tool,
+            new Dictionary<string, object?> { ["project"] = _projectDirectory, ["git"] = "https://example.com/addon.git" });
+
+        Assert.True(result.IsError);
+        AssertErrorKind(result, "invalid_project_file");
+
+        // The broken file is named, and only that one: the manifest written above is valid.
+        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        Assert.Contains($"{file}(1,6)", text);
+    }
+
     [Fact]
     public async Task Add_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash()
     {

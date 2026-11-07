@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Json;
+using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
@@ -20,6 +21,20 @@ internal static class JsonOutput
         Description = "Emit a single machine-readable JSON document on stdout instead of human output. "
             + "Used by the Godot editor plugin (SPEC.md §17).",
     };
+
+    /// <summary>
+    /// The failures a command catches and reports under its own envelope name: a
+    /// <see cref="WorkflowException"/>, or one of the project's own files that can't be read.
+    /// </summary>
+    /// <remarks>
+    /// A malformed <c>dotquay.lock</c> or <c>dotquay.toml</c> throws its parser's exception straight
+    /// out of the workflow, and every command caught only <see cref="WorkflowException"/>, so under
+    /// <c>--json</c> it used to escape as a stack trace with nothing on stdout. Anything else that
+    /// escapes still reaches <see cref="UnhandledFailure"/>, which keeps the envelope promise too, but
+    /// can only guess the command's envelope name from its path.
+    /// </remarks>
+    public static bool IsExpectedFailure(Exception exception) =>
+        exception is WorkflowException || JsonErrorClassifier.IsInvalidProjectFile(exception);
 
     /// <summary>
     /// Emits a failure envelope (or the plain red line, without <c>--json</c>) and returns exit code

@@ -102,6 +102,13 @@ public static class JsonErrorKind
     /// network error, and so a script can tell "fix your token" from "the server is down".</summary>
     public const string Auth = "auth";
 
+    /// <summary>One of the project's own files (<c>dotquay.toml</c>, <c>dotquay.lock</c> or
+    /// <c>dotquay.local.toml</c>) is not valid TOML or not the shape dotquay writes. The message
+    /// names the file and, for a syntax error, the parser's <c>(line,column)</c>. Distinct from
+    /// <see cref="Workflow"/> so a UI can say "fix this file" instead of offering an action that
+    /// would only read it again and fail the same way.</summary>
+    public const string InvalidProjectFile = "invalid_project_file";
+
     /// <summary>Anything unanticipated. A consumer should show the message and stop, not retry.</summary>
     public const string Unexpected = "unexpected";
 }

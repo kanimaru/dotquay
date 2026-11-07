@@ -102,7 +102,7 @@ public sealed class LocalLinks
         }
         catch (TomlException ex)
         {
-            throw new LocalLinkException($"{path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
+            throw new LocalLinksParseException($"{path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         var addons = new Dictionary<string, LocalLink>(StringComparer.Ordinal);
@@ -117,7 +117,7 @@ public sealed class LocalLinks
         {
             if (links[key] is not TomlTable entry)
             {
-                throw new LocalLinkException($"{path}: [{SectionKey}.{key}] must be a table with a 'path' key.");
+                throw new LocalLinksParseException($"{path}: [{SectionKey}.{key}] must be a table with a 'path' key.");
             }
 
             switch (key)
@@ -170,7 +170,7 @@ public sealed class LocalLinks
         {
             if (table[key] is not TomlTable child)
             {
-                throw new LocalLinkException($"{sourcePath}: [{section}.{key}] must be a table with a 'path' key.");
+                throw new LocalLinksParseException($"{sourcePath}: [{section}.{key}] must be a table with a 'path' key.");
             }
 
             if (child.ContainsKey("path"))
@@ -189,7 +189,7 @@ public sealed class LocalLinks
     private static string RequirePath(TomlTable entry, string sourcePath, string section) =>
         entry.TryGetValue("path", out var value) && value is string path && path.Length > 0
             ? path
-            : throw new LocalLinkException($"{sourcePath}: [{section}] is missing required key 'path'.");
+            : throw new LocalLinksParseException($"{sourcePath}: [{section}] is missing required key 'path'.");
 
     /// <summary>Adds or replaces one addon link and writes the file back.</summary>
     public void Set(string projectDirectory, string name, string localPath)
@@ -377,8 +377,10 @@ public sealed class LocalLinks
         "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 }
 
-/// <summary>Thrown for a malformed or unusable <c>dotquay.local.toml</c>.</summary>
-public sealed class LocalLinkException : Exception
+/// <summary>Thrown for a malformed or unusable <c>dotquay.local.toml</c>, or a link target that
+/// can't be used. A file that can't be read at all is the narrower
+/// <see cref="LocalLinksParseException"/>.</summary>
+public class LocalLinkException : Exception
 {
     public LocalLinkException(string message)
         : base(message)

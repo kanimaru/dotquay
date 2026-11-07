@@ -54,7 +54,7 @@ internal static class RemoveCommand
                 ConsoleOutput.WriteLine(removal.KeptForAddons ? ConsoleColor.Yellow : ConsoleColor.Green, removal.Describe(name));
                 return 0;
             }
-            catch (WorkflowException ex)
+            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
             {
                 return JsonOutput.Fail(json, CommandName, ex);
             }

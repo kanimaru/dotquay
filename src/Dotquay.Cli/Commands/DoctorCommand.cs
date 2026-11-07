@@ -51,7 +51,7 @@ internal static class DoctorCommand
 
                 return result.IsHealthy ? 0 : 1;
             }
-            catch (WorkflowException ex)
+            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
             {
                 return JsonOutput.Fail(json, CommandName, ex);
             }

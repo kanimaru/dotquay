@@ -51,7 +51,19 @@ var run = RunDiagnostics.Begin(args, parseResult);
 // (docs/DESIGN-v0.17-SELF-UPDATE.md).
 var notice = UpdateNotice.Start(args);
 
-var exitCode = parseResult.Invoke();
+// The default exception handler is off so nothing escapes as a bare stack trace: under --json that
+// left stdout empty, which breaks the envelope contract (SPEC.md §17). UnhandledFailure reports it
+// instead, as an envelope with --json and as the old trace without it, except for a project file the
+// user has to fix, which gets the parser's message alone.
+int exitCode;
+try
+{
+    exitCode = parseResult.Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
+}
+catch (Exception ex)
+{
+    exitCode = UnhandledFailure.Report(parseResult, ex);
+}
 
 notice?.Report();
 run.End(exitCode);

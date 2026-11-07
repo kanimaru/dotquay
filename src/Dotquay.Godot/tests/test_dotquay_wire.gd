@@ -79,4 +79,6 @@ func test_kind_constants_are_defined_on_the_wire_not_on_result() -> void:
 	runner.equal(WIRE.KIND_CONFLICT, "conflict", "conflict is a wire-reported error kind")
 	runner.equal(WIRE.KIND_GIT, "git", "git is a wire-reported error kind")
 	runner.equal(WIRE.KIND_AUTH, "auth", "auth is a wire-reported error kind")
+	runner.equal(WIRE.KIND_INVALID_PROJECT_FILE, "invalid_project_file",
+		"invalid_project_file is a wire-reported error kind")
 	runner.equal(WIRE.KIND_UNEXPECTED, "unexpected", "unexpected is a wire-reported error kind")

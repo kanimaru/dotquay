@@ -106,7 +106,7 @@ internal static class PatchCommand
 
                 return 0;
             }
-            catch (WorkflowException ex)
+            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
             {
                 return JsonOutput.Fail(json, CommandName, ex);
             }

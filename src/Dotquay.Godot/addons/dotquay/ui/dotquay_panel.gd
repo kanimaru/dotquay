@@ -586,7 +586,12 @@ func _update_setup_banner(result: DotquayResult) -> DotquaySetupBanner.Decision:
 
 	# An empty decision message means the CLI's own error_message is the one worth showing (a wrong
 	# path or a schema mismatch) — DotquaySetupBanner has no way to know that text, only the kind.
-	_setup_message.text = decision.message if not decision.message.is_empty() else result.error_message
+	if decision.message.is_empty():
+		_setup_message.text = result.error_message
+	elif decision.append_cli_message:
+		_setup_message.text = "%s\n\n%s" % [decision.message, result.error_message]
+	else:
+		_setup_message.text = decision.message
 	return decision
 
 

@@ -237,7 +237,7 @@ internal static class AddCommand
                     ? await PreviewGitAsync(workflow, projectDirectory, gitUrl, options, adoptSources, json, progress, cancellationToken)
                     : await AddGitAsync(workflow, projectDirectory, gitUrl, options, json, progress, cancellationToken);
             }
-            catch (WorkflowException ex)
+            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
             {
                 // Reported under the same name the success envelope would have used, so a consumer
                 // that routes results by command handles a preview's failure in the dialog that asked

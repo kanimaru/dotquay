@@ -1128,9 +1128,27 @@ Design decisions, and why:
 - **`tool` is asserted.** The single most likely misconfiguration is a CLI path pointing at some
   other executable; a plugin that checks this can say so instead of showing an empty panel.
 - **`error.kind` is a stable category, not free text** (`workflow`, `no_manifest`, `conflict`,
-  `git`, `auth`, `unexpected`). A UI reacts to `no_manifest` with an "Initialise project" button —
-  something it cannot do with a message string. `auth` (v0.7) is what lets it offer a login prompt
-  instead of showing a 401 as a generic failure.
+  `git`, `auth`, `invalid_project_file`, `unexpected`). A UI reacts to `no_manifest` with an
+  "Initialise project" button — something it cannot do with a message string. `auth` (v0.7) is what
+  lets it offer a login prompt instead of showing a 401 as a generic failure.
+- **`invalid_project_file`: one of the project's own files can't be read.** `dotquay.toml`,
+  `dotquay.lock` or `dotquay.local.toml` is not valid TOML, or not the shape dotquay writes. The
+  envelope has no extra fields for it: `message` names the file and, for a syntax error, the
+  parser's `(line,column)`. Every command that reads the file fails the same way until it is fixed
+  by hand, so a UI says "fix this file" rather than offering an action. A malformed `dotquay.toml`
+  an *addon* ships is not this kind: it is a warning or a doctor issue (§7.2). User-level files
+  (`~/.dotquay/credentials.toml`, `config.toml`) keep their own kinds. MCP tools report it the same
+  way (§20.3).
+
+  ```json
+  {"schema":1,"tool":"dotquay","version":"0.21.5","command":"status","ok":false,"data":null,
+   "error":{"kind":"invalid_project_file","message":"C:/game/dotquay.lock: invalid TOML.\r\nC:/game/dotquay.lock(1,6) : error : Expected `=` after key but was `is`."},
+   "warnings":[]}
+  ```
+- **Every `--json` run prints exactly one envelope, even for a crash.** An exception no command
+  anticipated is reported as `unexpected` in an envelope (the trace goes to `--verbose`), never as a
+  stack trace on stderr with nothing on stdout. Without `--json`, a broken project file prints its
+  message as one red error; anything else still prints its stack trace, since that is a bug.
 - **Optional fields are emitted as `null`, never omitted.** Present-but-null distinguishes "dotquay
   says there is no version" from "this dotquay is too old to have that field".
 - **Enums map to explicit strings** (`JsonMapper`), not to a naming convention. Renaming a C# enum

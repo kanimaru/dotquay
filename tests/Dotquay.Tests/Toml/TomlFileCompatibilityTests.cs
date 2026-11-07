@@ -459,7 +459,7 @@ public sealed class TomlFileCompatibilityTests : IDisposable
         AssertNamesFile(
             lockPath, Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Broken, lockPath)));
         AssertNamesFile(
-            linksPath, Assert.Throws<LocalLinkException>(() => new LocalLinks(_fileSystem).ReadAll(_root)));
+            linksPath, Assert.Throws<LocalLinksParseException>(() => new LocalLinks(_fileSystem).ReadAll(_root)));
         AssertNamesFile(
             credentialPath,
             Assert.Throws<CredentialException>(() => new TomlCredentialStore(_fileSystem, credentialPath).List()));

@@ -87,3 +87,23 @@ func test_a_successful_result_with_no_error_kind_hides_the_banner() -> void:
 	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide("")
 
 	runner.check(not decision.visible, "an empty error_kind (a successful result) should not show any banner")
+
+
+func test_invalid_project_file_explains_and_appends_the_cli_message() -> void:
+	# Every read fails the same way until the file is fixed by hand, so it is the banner's job; the
+	# CLI's message is what names the file and the parser's (line,column), so it goes under the lead.
+	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayWire.KIND_INVALID_PROJECT_FILE)
+
+	runner.check(decision.visible, "a project file that can't be read should show the banner")
+	runner.check(decision.append_cli_message, "the CLI's message names the file and line, so it must be shown")
+	runner.check(decision.message.contains("Refresh"), "the message should say how to retry: %s" % decision.message)
+	runner.check(not decision.show_init, "the project has a dotquay.toml; creating one is not the fix")
+	runner.check(not decision.show_get_dotquay, "dotquay is working; there is nothing to download")
+	runner.check(not decision.show_browse, "the CLI path is not the problem here")
+	runner.check(not decision.show_locate, "the CLI path is not the problem here")
+
+
+func test_only_invalid_project_file_appends_the_cli_message() -> void:
+	for kind in [DotquayWire.KIND_NO_MANIFEST, DotquayResult.KIND_NOT_CONFIGURED, DotquayResult.KIND_LAUNCH_FAILED]:
+		var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(kind)
+		runner.check(not decision.append_cli_message, "%s has its own complete message" % kind)

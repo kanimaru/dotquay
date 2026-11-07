@@ -2,6 +2,9 @@ using Dotquay.Core.Auth;
 using Dotquay.Core.Diagnostics;
 using Dotquay.Core.Dotnet;
 using Dotquay.Core.Git;
+using Dotquay.Core.Local;
+using Dotquay.Core.Lockfile;
+using Dotquay.Core.Manifest;
 using Dotquay.Core.Resolve;
 using Dotquay.Core.Workflows;
 
@@ -33,10 +36,32 @@ public static class JsonErrorClassifier
         return (kind, SecretRedactor.Redact(message));
     }
 
+    /// <summary>
+    /// Whether the exception, or the one a <see cref="WorkflowException"/> wraps, says one of the
+    /// project's own files can't be read.
+    /// </summary>
+    /// <remarks>
+    /// Public because the CLI's last-resort handler uses it to decide which escaped exceptions get a
+    /// clean one-line message instead of a stack trace without <c>--json</c>: these are the user's
+    /// own files, and what they need is where the mistake is, not where dotquay noticed it.
+    /// </remarks>
+    public static bool IsInvalidProjectFile(Exception exception) =>
+        IsParseFailure(exception) || exception is WorkflowException { InnerException: { } inner } && IsParseFailure(inner);
+
+    private static bool IsParseFailure(Exception exception) =>
+        exception is LockfileParseException or ManifestParseException or LocalLinksParseException;
+
     private static (string Kind, string Message) ClassifyUnredacted(Exception exception) => exception switch
     {
         WorkflowException when exception.Message.Contains("Run 'dotquay init' first", StringComparison.Ordinal) =>
             (JsonErrorKind.NoManifest, exception.Message),
+
+        // Before every other WorkflowException case: the workflow wraps an unreadable
+        // dotquay.local.toml in one, and reporting that as a plain workflow failure would hide that
+        // the fix is editing a file, not retrying. The message already names the file and, for a
+        // syntax error, the parser's (line,column).
+        _ when IsInvalidProjectFile(exception) => (JsonErrorKind.InvalidProjectFile, exception.Message),
+
         WorkflowException { InnerException: AddonResolutionException } =>
             (JsonErrorKind.Conflict, exception.Message),
 

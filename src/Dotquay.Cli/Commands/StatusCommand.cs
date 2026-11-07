@@ -71,7 +71,7 @@ internal static class StatusCommand
 
                 return 0;
             }
-            catch (WorkflowException ex)
+            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
             {
                 progress.Dispose();
                 return JsonOutput.Fail(json, CommandName, ex);

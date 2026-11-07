@@ -195,6 +195,29 @@ func test_real_cli_reports_a_missing_manifest_as_data() -> void:
 	runner.equal(result.error_kind, DotquayWire.KIND_NO_MANIFEST,
 		"the CLI should categorise it as no_manifest so the panel can offer to initialise the project")
 
+
+## A malformed dotquay.lock used to crash `status --json` with a stack trace and nothing on stdout,
+## which this addon could only show as "dotquay didn't answer as expected".
+func test_real_cli_reports_a_malformed_lockfile_as_invalid_project_file() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var project := ProjectSettings.globalize_path("user://dotquay_contract_test_broken")
+	DirAccess.make_dir_recursive_absolute(project)
+	_run(cli, PackedStringArray(["init", "--project", project, "--json"]), "init")
+	var lockfile := FileAccess.open(project.path_join("dotquay.lock"), FileAccess.WRITE)
+	lockfile.store_string("this is [ not toml\n")
+	lockfile.close()
+
+	var result := _run(cli, PackedStringArray(["status", "--project", project, "--json"]), "status")
+
+	runner.check(not result.ok, "a lockfile that can't be read is a failure")
+	runner.equal(result.error_kind, DotquayWire.KIND_INVALID_PROJECT_FILE,
+		"the CLI should categorise it as invalid_project_file, not crash")
+	runner.check(result.error_message.contains("dotquay.lock(1,6)"),
+		"the message should name the file and the parser's position: %s" % result.error_message)
+
 ## The three payloads C-24 gave typed views to had no live coverage at all — their field names were
 ## only ever checked against fixtures this plugin wrote itself, which is precisely the gap this suite
 ## exists to close: a renamed key passes every fixture test and empties a panel.
