@@ -103,7 +103,7 @@ public class SecretLeakTests
         // back — error messages travel into bug reports and terminal scrollback.
         fileSystem.WriteAllText("/home/kani/.dotquay/credentials.toml", $"[credential.\"gitlab.example.com\"]\ntoken = \"{Token}\"\n");
 
-        var exception = Assert.Throws<CredentialException>(() => store.List());
+        var exception = Assert.Throws<CredentialsFileException>(() => store.List());
 
         Assert.DoesNotContain(Token, exception.Message, StringComparison.Ordinal);
     }

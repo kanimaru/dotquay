@@ -218,6 +218,35 @@ func test_real_cli_reports_a_malformed_lockfile_as_invalid_project_file() -> voi
 	runner.check(result.error_message.contains("dotquay.lock(1,6)"),
 		"the message should name the file and the parser's position: %s" % result.error_message)
 
+## A broken ~/.dotquay/credentials.toml used to come back as `auth`, so this addon suggested
+## `dotquay login`, which reads the same file. DOTQUAY_HOME points the CLI at a throwaway home, never
+## the developer's own.
+func test_real_cli_reports_a_malformed_credentials_file_as_invalid_config_file() -> void:
+	var cli := _cli_path()
+	if cli.is_empty():
+		return
+
+	var home := ProjectSettings.globalize_path("user://dotquay_contract_test_home")
+	DirAccess.make_dir_recursive_absolute(home.path_join(".dotquay"))
+	var credentials := FileAccess.open(home.path_join(".dotquay").path_join("credentials.toml"), FileAccess.WRITE)
+	credentials.store_string("this is [ not toml\n")
+	credentials.close()
+
+	var previous_home := OS.get_environment("DOTQUAY_HOME")
+	OS.set_environment("DOTQUAY_HOME", home)
+	var result := _run(cli, PackedStringArray(["login", "--list", "--json"]), "login")
+	if previous_home.is_empty():
+		OS.unset_environment("DOTQUAY_HOME")
+	else:
+		OS.set_environment("DOTQUAY_HOME", previous_home)
+	DirAccess.remove_absolute(home.path_join(".dotquay").path_join("credentials.toml"))
+
+	runner.check(not result.ok, "a credentials file that can't be read is a failure")
+	runner.equal(result.error_kind, DotquayWire.KIND_INVALID_CONFIG_FILE,
+		"the CLI should categorise it as invalid_config_file, not auth")
+	runner.check(result.error_message.contains("credentials.toml(1,6)"),
+		"the message should name the file and the parser's position: %s" % result.error_message)
+
 ## The three payloads C-24 gave typed views to had no live coverage at all — their field names were
 ## only ever checked against fixtures this plugin wrote itself, which is precisely the gap this suite
 ## exists to close: a renamed key passes every fixture test and empties a panel.

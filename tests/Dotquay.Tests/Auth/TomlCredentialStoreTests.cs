@@ -113,7 +113,7 @@ public class TomlCredentialStoreTests
         var (store, fileSystem) = Create();
         fileSystem.WriteAllText(Path, $"version = {TomlCredentialStore.CurrentVersion + 1}\n");
 
-        var exception = Assert.Throws<CredentialException>(() => store.List());
+        var exception = Assert.Throws<CredentialsFileException>(() => store.List());
         Assert.Contains("newer dotquay", exception.Message, StringComparison.Ordinal);
     }
 
@@ -123,7 +123,7 @@ public class TomlCredentialStoreTests
         var (store, fileSystem) = Create();
         fileSystem.WriteAllText(Path, "version = 1\n\n[credential.\"gitlab.example.com\"]\nusername = \"kani\"\n");
 
-        var exception = Assert.Throws<CredentialException>(() => store.List());
+        var exception = Assert.Throws<CredentialsFileException>(() => store.List());
         Assert.Contains("dotquay login gitlab.example.com", exception.Message, StringComparison.Ordinal);
     }
 
@@ -133,7 +133,7 @@ public class TomlCredentialStoreTests
         var (store, fileSystem) = Create();
         fileSystem.WriteAllText(Path, "this is not = = toml");
 
-        var exception = Assert.Throws<CredentialException>(() => store.List());
+        var exception = Assert.Throws<CredentialsFileException>(() => store.List());
         Assert.Contains(Path, exception.Message, StringComparison.Ordinal);
     }
 

@@ -5,6 +5,7 @@ extends RefCounted
 ## error_kind string, which is the whole point of pulling this logic out of the panel.
 
 const SETUP_BANNER := preload("res://addons/dotquay/core/dotquay_setup_banner.gd")
+const RESULT := preload("res://addons/dotquay/core/dotquay_result.gd")
 
 var runner: Object
 
@@ -103,7 +104,27 @@ func test_invalid_project_file_explains_and_appends_the_cli_message() -> void:
 	runner.check(not decision.show_locate, "the CLI path is not the problem here")
 
 
-func test_only_invalid_project_file_appends_the_cli_message() -> void:
+func test_invalid_config_file_says_fix_or_delete_and_appends_the_cli_message() -> void:
+	# A broken ~/.dotquay/credentials.toml used to arrive as `auth`, whose hint is `dotquay login` —
+	# which reads the same file and fails the same way. The CLI's message names the file.
+	var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(DotquayWire.KIND_INVALID_CONFIG_FILE)
+
+	runner.check(decision.visible, "a user-level file that can't be read should show the banner")
+	runner.check(decision.append_cli_message, "the CLI's message names the file, so it must be shown")
+	runner.check(decision.message.to_lower().contains("fix or delete"), "the message should say what to do: %s" % decision.message)
+	runner.check(not decision.message.contains("dotquay login"), "logging in reads the same broken file")
+	runner.check(not decision.show_init, "the project's own files are fine; creating one is not the fix")
+	runner.check(not decision.show_get_dotquay, "dotquay is working; there is nothing to download")
+	runner.check(not decision.show_browse, "the CLI path is not the problem here")
+	runner.check(not decision.show_locate, "the CLI path is not the problem here")
+
+
+func test_invalid_config_file_gets_no_login_hint() -> void:
+	runner.equal(RESULT.auth_hint(DotquayWire.KIND_INVALID_CONFIG_FILE), "",
+		"a broken credentials file is not fixed by logging in")
+
+
+func test_only_unreadable_files_append_the_cli_message() -> void:
 	for kind in [DotquayWire.KIND_NO_MANIFEST, DotquayResult.KIND_NOT_CONFIGURED, DotquayResult.KIND_LAUNCH_FAILED]:
 		var decision: DotquaySetupBanner.Decision = SETUP_BANNER.decide(kind)
 		runner.check(not decision.append_cli_message, "%s has its own complete message" % kind)

@@ -109,6 +109,14 @@ public static class JsonErrorKind
     /// would only read it again and fail the same way.</summary>
     public const string InvalidProjectFile = "invalid_project_file";
 
+    /// <summary>One of the user's own dotquay files outside any project
+    /// (<c>~/.dotquay/credentials.toml</c> or <c>~/.dotquay/config.toml</c>) can't be read. The
+    /// message names the file and, for a syntax error, the parser's <c>(line,column)</c>. Distinct
+    /// from <see cref="Auth"/> and <see cref="Workflow"/> because the fix is the same for both files:
+    /// correct or delete it. <c>dotquay login</c>, which an <see cref="Auth"/> failure suggests, reads
+    /// the same file and fails the same way.</summary>
+    public const string InvalidConfigFile = "invalid_config_file";
+
     /// <summary>Anything unanticipated. A consumer should show the message and stop, not retry.</summary>
     public const string Unexpected = "unexpected";
 }

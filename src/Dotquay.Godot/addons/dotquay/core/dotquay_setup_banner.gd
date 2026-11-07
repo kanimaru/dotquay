@@ -5,9 +5,9 @@ extends RefCounted
 ## Decides what the first-run / broken-CLI banner shows, from a [DotquayResult]'s error kind alone
 ## (P0-2, P0-4).
 ##
-## Pulled out of [DotquayPanel] as a pure function so the banner's five states — not configured, a
-## wrong path or broken binary, a schema mismatch, no manifest, and a project file that can't be
-## read — can be tested without
+## Pulled out of [DotquayPanel] as a pure function so the banner's six states — not configured, a
+## wrong path or broken binary, a schema mismatch, no manifest, a project file that can't be read,
+## and a user-level file in ~/.dotquay that can't be read — can be tested without
 ## instantiating the panel scene, an [EditorSettings], or the CLI: nothing here is a [Control].
 
 const NOT_CONFIGURED_MESSAGE := (
@@ -20,6 +20,9 @@ const INVALID_PROJECT_FILE_MESSAGE := (
 	"One of this project's dotquay files can't be read, so nothing here can be shown or changed until "
 	+ "it's fixed. Correct the file at the line named below (or restore it from version control), "
 	+ "then press Refresh.")
+const INVALID_CONFIG_FILE_MESSAGE := (
+	"One of your own dotquay files (outside this project) can't be read. Fix or delete the file "
+	+ "named below, then press Refresh. Deleting credentials.toml removes your stored logins.")
 
 
 ## One banner state. Plain fields rather than a signal or a Dictionary: [DotquayPanel] reads every one
@@ -42,8 +45,8 @@ class Decision extends RefCounted:
 	var show_locate: bool = false
 	var show_init: bool = false
 	## Whether the CLI's own error_message goes under [member message]. Set where the lead sentence
-	## says what happened but only the CLI knows where: a broken project file, whose message names the
-	## file and the parser's (line,column).
+	## says what happened but only the CLI knows where: a broken project or user-level file, whose
+	## message names the file and the parser's (line,column).
 	var append_cli_message: bool = false
 
 
@@ -55,6 +58,9 @@ static func decide(error_kind: String) -> Decision:
 	# Every read the panel makes fails the same way until the file is fixed by hand, so this is a
 	# project-level state for the banner, not one more red line in the log.
 	var invalid_project_file := error_kind == DotquayWire.KIND_INVALID_PROJECT_FILE
+	# The same for ~/.dotquay/credentials.toml or config.toml: whatever reads it fails until it is
+	# fixed or deleted, and `auth`'s login hint would only read it again.
+	var invalid_config_file := error_kind == DotquayWire.KIND_INVALID_CONFIG_FILE
 	# A wrong or stale CLI path — pointed at nothing, at something that isn't dotquay, or at a
 	# crashed process — produces one of these three kinds. Burying that in the 140px log leaves the
 	# graph and sidebar blank with no visible explanation, same as an unconfigured path (P0-4).
@@ -63,7 +69,8 @@ static func decide(error_kind: String) -> Decision:
 		or error_kind == DotquayResult.KIND_BAD_OUTPUT
 		or error_kind == DotquayResult.KIND_SCHEMA_MISMATCH)
 
-	decision.visible = not_configured or no_manifest or invalid_project_file or cli_unusable
+	decision.visible = (
+		not_configured or no_manifest or invalid_project_file or invalid_config_file or cli_unusable)
 	if not decision.visible:
 		return decision
 
@@ -81,6 +88,9 @@ static func decide(error_kind: String) -> Decision:
 		decision.message = NO_MANIFEST_MESSAGE
 	elif invalid_project_file:
 		decision.message = INVALID_PROJECT_FILE_MESSAGE
+		decision.append_cli_message = true
+	elif invalid_config_file:
+		decision.message = INVALID_CONFIG_FILE_MESSAGE
 		decision.append_cli_message = true
 	elif not_configured:
 		decision.message = NOT_CONFIGURED_MESSAGE

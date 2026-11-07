@@ -1,7 +1,9 @@
 using System.CommandLine;
 using System.Text.Json;
 using Dotquay.Cli.Commands;
+using Dotquay.Core.Auth;
 using Dotquay.Core.Lockfile;
+using Dotquay.Core.SelfUpdate;
 using Xunit;
 
 namespace Dotquay.Tests.Cli;
@@ -21,6 +23,9 @@ public sealed class UnhandledFailureTests
 {
     private const string LockfileMessage = @"C:\p\dotquay.lock: invalid TOML.
 C:\p\dotquay.lock(1,6) : error : Expected `=` after key but was `is`.";
+
+    private const string CredentialsMessage = @"C:\home\.dotquay\credentials.toml: invalid TOML.
+C:\home\.dotquay\credentials.toml(1,6) : error : Expected `=` after key but was `is`.";
 
     [Fact]
     public void Json_gets_one_envelope_named_after_the_subcommand_path()
@@ -55,6 +60,33 @@ C:\p\dotquay.lock(1,6) : error : Expected `=` after key but was `is`.";
         Assert.Equal(1, exitCode);
         Assert.Equal(LockfileMessage.ReplaceLineEndings(), stdout.TrimEnd().ReplaceLineEndings());
         Assert.Equal("", stderr);
+    }
+
+    [Fact]
+    public void Json_reports_a_broken_credentials_file_as_invalid_config_file()
+    {
+        var (exitCode, stdout, _) = Report(["status", "--json"], new CredentialsFileException(CredentialsMessage));
+
+        Assert.Equal(1, exitCode);
+        using var document = JsonDocument.Parse(stdout);
+        Assert.Equal("invalid_config_file", document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public void Plain_output_of_a_broken_user_config_file_is_its_message_alone()
+    {
+        foreach (Exception exception in new Exception[]
+        {
+            new CredentialsFileException(CredentialsMessage),
+            new UserConfigFileException(CredentialsMessage),
+        })
+        {
+            var (exitCode, stdout, stderr) = Report(["status"], exception);
+
+            Assert.Equal(1, exitCode);
+            Assert.Equal(CredentialsMessage.ReplaceLineEndings(), stdout.TrimEnd().ReplaceLineEndings());
+            Assert.Equal("", stderr);
+        }
     }
 
     [Fact]

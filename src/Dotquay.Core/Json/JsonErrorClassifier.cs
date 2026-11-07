@@ -6,6 +6,7 @@ using Dotquay.Core.Local;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Resolve;
+using Dotquay.Core.SelfUpdate;
 using Dotquay.Core.Workflows;
 
 namespace Dotquay.Core.Json;
@@ -48,6 +49,28 @@ public static class JsonErrorClassifier
     public static bool IsInvalidProjectFile(Exception exception) =>
         IsParseFailure(exception) || exception is WorkflowException { InnerException: { } inner } && IsParseFailure(inner);
 
+    /// <summary>
+    /// Whether the exception, or one it wraps, says one of the user's own files outside any project
+    /// (<c>~/.dotquay/credentials.toml</c>, <c>~/.dotquay/config.toml</c>) can't be read.
+    /// </summary>
+    /// <remarks>
+    /// Walks the whole chain rather than one <see cref="WorkflowException"/> deep: the credential
+    /// store is read wherever a feed or a git host needs a credential, so its failure can arrive
+    /// wrapped by whichever layer asked.
+    /// </remarks>
+    public static bool IsInvalidConfigFile(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is CredentialsFileException or UserConfigFileException)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool IsParseFailure(Exception exception) =>
         exception is LockfileParseException or ManifestParseException or LocalLinksParseException;
 
@@ -61,6 +84,11 @@ public static class JsonErrorClassifier
         // the fix is editing a file, not retrying. The message already names the file and, for a
         // syntax error, the parser's (line,column).
         _ when IsInvalidProjectFile(exception) => (JsonErrorKind.InvalidProjectFile, exception.Message),
+
+        // Before the auth cases for the same reason: a credentials file that can't be read is a
+        // CredentialException, and "auth" would send the user to 'dotquay login', which reads the
+        // same file and fails the same way.
+        _ when IsInvalidConfigFile(exception) => (JsonErrorKind.InvalidConfigFile, exception.Message),
 
         WorkflowException { InnerException: AddonResolutionException } =>
             (JsonErrorKind.Conflict, exception.Message),

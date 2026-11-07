@@ -94,7 +94,7 @@ public sealed class TomlUserConfigStore
         }
         catch (TomlException ex)
         {
-            throw new WorkflowException($"{_path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
+            throw new UserConfigFileException($"{_path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         if (!table.TryGetValue(UpdateSection, out var raw) || raw is not TomlTable update)

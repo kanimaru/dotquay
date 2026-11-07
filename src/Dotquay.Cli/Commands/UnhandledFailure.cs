@@ -33,7 +33,7 @@ internal static class UnhandledFailure
 
         var json = WantsJson(parseResult);
 
-        if (json || JsonErrorClassifier.IsInvalidProjectFile(exception))
+        if (json || JsonOutput.IsUnreadableFile(exception))
         {
             return JsonOutput.Fail(json, EnvelopeCommandName(parseResult), exception);
         }

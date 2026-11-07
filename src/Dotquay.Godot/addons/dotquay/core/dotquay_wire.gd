@@ -114,6 +114,10 @@ const KIND_AUTH := "auth"
 ## dotquay.toml, dotquay.lock or dotquay.local.toml is not valid TOML or not the shape dotquay
 ## writes. The message names the file and the parser's (line,column); nothing works until it is fixed.
 const KIND_INVALID_PROJECT_FILE := "invalid_project_file"
+## ~/.dotquay/credentials.toml or ~/.dotquay/config.toml is not valid TOML or not the shape dotquay
+## writes. The message names the file; the fix is to correct or delete it, never `dotquay login`
+## (which reads the same file).
+const KIND_INVALID_CONFIG_FILE := "invalid_config_file"
 const KIND_UNEXPECTED := "unexpected"
 
 ## CLI flags a call site chooses to include, spelled once so "--" + something typed by hand can't

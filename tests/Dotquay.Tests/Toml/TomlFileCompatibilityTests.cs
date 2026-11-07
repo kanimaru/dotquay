@@ -372,7 +372,7 @@ public sealed class TomlFileCompatibilityTests : IDisposable
     {
         var path = WriteFixture(TomlCredentialStore.FileName, "version = 2\n", withBom: false, crlf: false);
 
-        var error = Assert.Throws<CredentialException>(
+        var error = Assert.Throws<CredentialsFileException>(
             () => new TomlCredentialStore(_fileSystem, path).List());
 
         Assert.Contains("newer dotquay", error.Message);
@@ -462,10 +462,10 @@ public sealed class TomlFileCompatibilityTests : IDisposable
             linksPath, Assert.Throws<LocalLinksParseException>(() => new LocalLinks(_fileSystem).ReadAll(_root)));
         AssertNamesFile(
             credentialPath,
-            Assert.Throws<CredentialException>(() => new TomlCredentialStore(_fileSystem, credentialPath).List()));
+            Assert.Throws<CredentialsFileException>(() => new TomlCredentialStore(_fileSystem, credentialPath).List()));
         AssertNamesFile(
             configPath,
-            Assert.Throws<Dotquay.Core.Workflows.WorkflowException>(
+            Assert.Throws<UserConfigFileException>(
                 () => new TomlUserConfigStore(_fileSystem, new FakeEnvironmentReader(), configPath).Read()));
     }
 

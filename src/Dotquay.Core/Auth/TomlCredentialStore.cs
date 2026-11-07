@@ -119,13 +119,13 @@ public sealed class TomlCredentialStore : ICredentialStore
         }
         catch (TomlException ex)
         {
-            throw new CredentialException(
+            throw new CredentialsFileException(
                 $"{_path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         if (table.TryGetValue("version", out var versionValue) && versionValue is long version && version > CurrentVersion)
         {
-            throw new CredentialException(
+            throw new CredentialsFileException(
                 $"{_path} was written by a newer dotquay (file version {version}, this build understands "
                 + $"{CurrentVersion}). Refusing to read it rather than risk misinterpreting it.");
         }
@@ -139,19 +139,19 @@ public sealed class TomlCredentialStore : ICredentialStore
         {
             if (credentials[key] is not TomlTable entry)
             {
-                throw new CredentialException($"{_path}: [{CredentialSection}.\"{key}\"] must be a table.");
+                throw new CredentialsFileException($"{_path}: [{CredentialSection}.\"{key}\"] must be a table.");
             }
 
             if (!CredentialScope.TryParse(key, out var scope, out var error))
             {
-                throw new CredentialException($"{_path}: [{CredentialSection}.\"{key}\"] — {error}");
+                throw new CredentialsFileException($"{_path}: [{CredentialSection}.\"{key}\"] — {error}");
             }
 
             var username = GetString(entry, "username");
             var token = GetString(entry, "token");
             if (username is null || token is null)
             {
-                throw new CredentialException(
+                throw new CredentialsFileException(
                     $"{_path}: [{CredentialSection}.\"{key}\"] needs both 'username' and 'token'. "
                     + $"Run 'dotquay login {key}' to rewrite it.");
             }

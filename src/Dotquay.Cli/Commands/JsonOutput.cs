@@ -24,7 +24,8 @@ internal static class JsonOutput
 
     /// <summary>
     /// The failures a command catches and reports under its own envelope name: a
-    /// <see cref="WorkflowException"/>, or one of the project's own files that can't be read.
+    /// <see cref="WorkflowException"/>, or one of the project's own files or the user's own
+    /// <c>~/.dotquay</c> files that can't be read.
     /// </summary>
     /// <remarks>
     /// A malformed <c>dotquay.lock</c> or <c>dotquay.toml</c> throws its parser's exception straight
@@ -34,7 +35,16 @@ internal static class JsonOutput
     /// can only guess the command's envelope name from its path.
     /// </remarks>
     public static bool IsExpectedFailure(Exception exception) =>
-        exception is WorkflowException || JsonErrorClassifier.IsInvalidProjectFile(exception);
+        exception is WorkflowException || IsUnreadableFile(exception);
+
+    /// <summary>
+    /// Whether the exception says one of dotquay's own files can't be read: a project file
+    /// (<c>invalid_project_file</c>) or a user-level one (<c>invalid_config_file</c>). Their message
+    /// names the file and the parser's position, which is all the user needs; a stack trace would
+    /// only bury it.
+    /// </summary>
+    public static bool IsUnreadableFile(Exception exception) =>
+        JsonErrorClassifier.IsInvalidProjectFile(exception) || JsonErrorClassifier.IsInvalidConfigFile(exception);
 
     /// <summary>
     /// Emits a failure envelope (or the plain red line, without <c>--json</c>) and returns exit code
