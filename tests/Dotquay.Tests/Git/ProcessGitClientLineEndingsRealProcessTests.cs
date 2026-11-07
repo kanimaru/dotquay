@@ -7,21 +7,24 @@ using Xunit;
 namespace Dotquay.Tests.Git;
 
 /// <summary>
-/// One commit, fetched by <see cref="ProcessGitClient"/> the way two differently configured machines would fetch
-/// it: the bytes on disk differ (CRLF on one, LF on the other) and the recorded content hash must not.
+/// One commit, fetched by <see cref="ProcessGitClient"/> the way two differently configured
+/// machines would fetch it: the bytes on disk differ (CRLF on one, LF on the other) and the
+/// recorded content hash must not.
 /// </summary>
 /// <remarks>
-/// Needs a real git: it is git's own <c>core.autocrlf</c> / <c>core.eol</c> handling that makes the files differ,
-/// and no fake reproduces that. The machines are made deterministic with <c>GIT_CONFIG_GLOBAL</c> pointing at a
-/// file the test writes, not at whatever the developer running the suite has configured. Returns early, passing,
-/// without git (same convention as the other real-process tests).
+/// Needs a real git: it is git's own <c>core.autocrlf</c> / <c>core.eol</c> handling that makes the
+/// files differ, and no fake reproduces that. The machines are made deterministic with
+/// <c>GIT_CONFIG_GLOBAL</c> pointing at a file the test writes, not at whatever the developer
+/// running the suite has configured. Returns early, passing, without git (same convention as the
+/// other real-process tests).
 /// </remarks>
 public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
     private readonly string _root = Directory.CreateTempSubdirectory("dotquay-eol-real-").FullName;
 
     public void Dispose() {
         try {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
+            foreach (var file in Directory.EnumerateFiles(_root, "*",
+                SearchOption.AllDirectories)) {
                 File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
             }
 
@@ -31,7 +34,8 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
         }
     }
 
-    private static (int Exit, string Out) Git(string dir, IReadOnlyDictionary<string, string> env, params string[] args) {
+    private static (int Exit, string Out) Git(string dir, IReadOnlyDictionary<string, string> env,
+        params string[] args) {
         var info = new ProcessStartInfo("git") {
             WorkingDirectory = dir,
             RedirectStandardOutput = true,
@@ -51,7 +55,10 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
     }
 
     private static bool GitAvailable() {
-        try { return Git(Path.GetTempPath(), new Dictionary<string, string>(), "--version").Exit == 0; } catch { return false; }
+        try {
+            return Git(Path.GetTempPath(), new Dictionary<string, string>(), "--version")
+            .Exit == 0;
+        } catch { return false; }
     }
 
     private Dictionary<string, string> Machine(string name, string config) {
@@ -64,7 +71,8 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
         };
     }
 
-    /// <summary>A bare repository whose commit holds LF text and a binary containing CRLF bytes and a NUL.</summary>
+    /// <summary>A bare repository whose commit holds LF text and a binary containing CRLF bytes and
+    /// a NUL.</summary>
     private (string Remote, string Sha) MakeRemote() {
         var author = Machine("author", "[core]\n\tautocrlf = false\n");
         var remote = Path.Combine(_root, "remote.git");
@@ -77,9 +85,12 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
 
         var addon = Path.Combine(work, "addons", "thing");
         Directory.CreateDirectory(addon);
-        File.WriteAllBytes(Path.Combine(addon, "plugin.cfg"), "[plugin]\nname=\"thing\"\n"u8.ToArray());
-        File.WriteAllBytes(Path.Combine(addon, "main.gd"), "extends Node\nfunc _ready():\n\tpass\n"u8.ToArray());
-        File.WriteAllBytes(Path.Combine(addon, "lib.bin"), [0x7f, 0x45, 0x00, 0x0d, 0x0a, 0x00, 0x0d, 0x0a, 0x01]);
+        File.WriteAllBytes(Path.Combine(addon, "plugin.cfg"),
+            "[plugin]\nname=\"thing\"\n"u8.ToArray());
+        File.WriteAllBytes(Path.Combine(addon, "main.gd"),
+            "extends Node\nfunc _ready():\n\tpass\n"u8.ToArray());
+        File.WriteAllBytes(Path.Combine(addon, "lib.bin"),
+            [0x7f, 0x45, 0x00, 0x0d, 0x0a, 0x00, 0x0d, 0x0a, 0x01]);
 
         Assert.Equal(0, Git(work, author, "add", "-A").Exit);
         Assert.Equal(0, Git(work, author, "commit", "--quiet", "-m", "fixture").Exit);
@@ -87,7 +98,8 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
         return (remote, Git(work, author, "rev-parse", "HEAD").Out.Trim());
     }
 
-    private string Checkout(Dictionary<string, string> machine, string remote, string sha, string name) {
+    private string Checkout(Dictionary<string, string> machine, string remote, string sha,
+        string name) {
         var dest = Path.Combine(_root, name);
         new ProcessGitClient(machine).FetchCommitAsync(remote, sha, dest).GetAwaiter().GetResult();
         return Path.Combine(dest, "addons", "thing");
@@ -98,17 +110,20 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
 
-        var windows = Checkout(Machine("windows", "[core]\n\tautocrlf = true\n"), remote, sha, "dest-windows");
+        var windows = Checkout(Machine("windows", "[core]\n\tautocrlf = true\n"), remote, sha,
+            "dest-windows");
         var linux = Checkout(Machine("linux", ""), remote, sha, "dest-linux");
 
-        // Precondition: the bug is real. These ARE different on disk, so a hash over the bytes would differ.
+        // Precondition: the bug is real. These ARE different on disk, so a hash over the bytes
+        // would differ.
         var windowsText = File.ReadAllText(Path.Combine(windows, "main.gd"));
         var linuxText = File.ReadAllText(Path.Combine(linux, "main.gd"));
         Assert.Contains("\r\n", windowsText);
         Assert.DoesNotContain("\r\n", linuxText);
 
         var fs = new SystemFileSystem();
-        Assert.Equal(ContentHasher.HashDirectory(fs, linux), ContentHasher.HashDirectory(fs, windows));
+        Assert.Equal(ContentHasher.HashDirectory(fs, linux),
+            ContentHasher.HashDirectory(fs, windows));
     }
 
     [Fact]
@@ -116,19 +131,23 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
 
-        // eol applies to files marked text; autocrlf=input leaves LF. Either way the hash must agree with plain LF.
-        var eolCrlf = Checkout(Machine("eol", "[core]\n\teol = crlf\n\tautocrlf = true\n"), remote, sha, "dest-eol");
+        // eol applies to files marked text; autocrlf=input leaves LF. Either way the hash must
+        // agree with plain LF.
+        var eolCrlf = Checkout(Machine("eol", "[core]\n\teol = crlf\n\tautocrlf = true\n"), remote,
+            sha, "dest-eol");
         var plain = Checkout(Machine("plain", ""), remote, sha, "dest-plain");
 
         var fs = new SystemFileSystem();
-        Assert.Equal(ContentHasher.HashDirectory(fs, plain), ContentHasher.HashDirectory(fs, eolCrlf));
+        Assert.Equal(ContentHasher.HashDirectory(fs, plain),
+            ContentHasher.HashDirectory(fs, eolCrlf));
     }
 
     [Fact]
     public void ALockfileWrittenOnEitherMachine_IsCleanOnTheOther_AndNeverRewritten() {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
-        var windows = Checkout(Machine("windows2", "[core]\n\tautocrlf = true\n"), remote, sha, "dest-w2");
+        var windows = Checkout(Machine("windows2", "[core]\n\tautocrlf = true\n"), remote, sha,
+            "dest-w2");
         var linux = Checkout(Machine("linux2", ""), remote, sha, "dest-l2");
         var fs = new SystemFileSystem();
 

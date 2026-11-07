@@ -52,7 +52,8 @@ public class PackageAssetTests {
     [Fact]
     public void Read_UndeclaredLists_AreNullNotEmpty() {
         // Null is "dotquay has no opinion, leave the .csproj alone" — materially different from an
-        // empty list, which would mean "write nothing here", and different again from NuGet's default.
+        // empty list, which would mean "write nothing here", and different again from NuGet's
+        // default.
         var spec = ManifestReader.ReadProject("""
             [dotnet."Newtonsoft.Json"]
             version = "13.0.*"
@@ -91,8 +92,9 @@ public class PackageAssetTests {
 
     [Fact]
     public void Read_AnUnknownTag_IsKeptAndReportedRatherThanRejected() {
-        // 'analyzer' (singular) is the realistic typo. Refusing it would also refuse any tag MSBuild
-        // adds after this code was written, so it passes through and is surfaced as a warning.
+        // 'analyzer' (singular) is the realistic typo. Refusing it would also refuse any tag
+        // MSBuild adds after this code was written, so it passes through and is surfaced as a
+        // warning.
         var spec = ManifestReader.ReadProject("""
             [dotnet."Some.Package"]
             version = "1.0.0"
@@ -166,7 +168,10 @@ public class PackageAssetTests {
     public void Serialize_APackageWithNoAssets_WritesNoAssetKeys() {
         var manifest = new ProjectManifest {
             Dotnet = new Dictionary<string, DotnetSpec> {
-                ["Newtonsoft.Json"] = new DotnetSpec { Name = "Newtonsoft.Json", Version = "13.0.*" },
+                ["Newtonsoft.Json"] = new DotnetSpec {
+                    Name = "Newtonsoft.Json",
+                    Version = "13.0.*"
+                },
             },
         };
 
@@ -184,7 +189,8 @@ public class PackageAssetTests {
                 {
                     Name = "gdUnit4.analyzers",
                     Resolved = "1.0.0",
-                    Assets = new PackageAssets { Private = ["none"], Include = ["runtime", "analyzers"] },
+                    Assets = new PackageAssets { Private = ["none"],
+                        Include = ["runtime", "analyzers"] },
                 },
             ],
         };
@@ -230,7 +236,8 @@ public class PackageAssetTests {
 
     private static async Task<IReadOnlyList<DoctorIssue>> DriftAsync(string csproj) {
         var fileSystem = new InMemoryFileSystem();
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), GdUnitManifest);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"),
+            GdUnitManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), """
             [[dotnet]]
             name = "gdUnit4.analyzers"
@@ -241,7 +248,8 @@ public class PackageAssetTests {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        return result.Issues.Where(i => i.Kind == DoctorIssueKind.PackageAssetMetadataDrift).ToList();
+        return result.Issues.Where(i => i.Kind == DoctorIssueKind.PackageAssetMetadataDrift)
+            .ToList();
     }
 
     [Fact]
@@ -291,7 +299,8 @@ public class PackageAssetTests {
     [Fact]
     public async Task Doctor_AProjectWithNoCsproj_IsNotUnhealthy() {
         var fileSystem = new InMemoryFileSystem();
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), GdUnitManifest);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"),
+            GdUnitManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), """
             [[dotnet]]
             name = "gdUnit4.analyzers"
@@ -301,8 +310,9 @@ public class PackageAssetTests {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        // A GDScript-only project is perfectly healthy. Complaining here would train people to ignore
-        // doctor, which is the one thing it cannot afford.
-        Assert.DoesNotContain(result.Issues, i => i.Kind == DoctorIssueKind.PackageAssetMetadataDrift);
+        // A GDScript-only project is perfectly healthy. Complaining here would train people to
+        // ignore doctor, which is the one thing it cannot afford.
+        Assert.DoesNotContain(result.Issues, i =>
+            i.Kind == DoctorIssueKind.PackageAssetMetadataDrift);
     }
 }

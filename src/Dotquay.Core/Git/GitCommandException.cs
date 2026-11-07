@@ -8,7 +8,8 @@ public sealed class GitCommandException : Exception {
         IsAuthenticationFailure = isAuthenticationFailure;
     }
 
-    public GitCommandException(string message, Exception innerException, bool isAuthenticationFailure = false)
+    public GitCommandException(string message, Exception innerException,
+        bool isAuthenticationFailure = false)
         : base(message, innerException) {
         IsAuthenticationFailure = isAuthenticationFailure;
     }

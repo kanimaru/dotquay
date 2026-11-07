@@ -38,7 +38,8 @@ public static class LinkTargetResolver {
     /// project declares or has adopted; null if it isn't, or if neither file can be read — in which
     /// case an addon link is the right default, as it was before v0.11.
     /// </summary>
-    public static string? ResolveDotnetPackageId(IFileSystem fileSystem, string projectDirectory, string name) {
+    public static string? ResolveDotnetPackageId(IFileSystem fileSystem, string projectDirectory,
+        string name) {
         var store = new ProjectFileStore(fileSystem);
 
         return FromManifest(fileSystem, store, projectDirectory, name)

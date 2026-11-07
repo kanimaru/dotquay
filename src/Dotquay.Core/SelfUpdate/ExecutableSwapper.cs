@@ -25,22 +25,23 @@ public sealed class ExecutableSwapper {
     }
 
     /// <summary>
-    /// Makes <paramref name="stagedPath"/> become <paramref name="executablePath"/>, returning where
-    /// the previous binary was moved to.
+    /// Makes <paramref name="stagedPath"/> become <paramref name="executablePath"/>, returning
+    /// where the previous binary was moved to.
     /// </summary>
     /// <remarks>
     /// The staged file is expected to have been hashed and run already
     /// (<see cref="SelfUpdateWorkflow"/> does both) — by the time anything is renamed, the only
     /// remaining question is whether the filesystem cooperates. If the second rename fails, the
-    /// first is undone, so a failure leaves the installation exactly as it was rather than headless.
+    /// first is undone, so a failure leaves the installation exactly as it was rather than
+    /// headless.
     /// </remarks>
     public string Swap(string executablePath, string stagedPath, string retiringVersion) {
         var retiredPath = ExecutablePaths.Retired(executablePath, retiringVersion);
 
         if (string.Equals(retiredPath, stagedPath, StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException(
-                $"Refusing to swap '{stagedPath}' onto itself. This is a bug: the staged binary and the "
-                + "path the current one would be retired to are the same file.");
+                $"Refusing to swap '{stagedPath}' onto itself. This is a bug: the staged binary "
+                + "and the path the current one would be retired to are the same file.");
         }
 
         _fileSystem.DeleteFile(retiredPath);
@@ -49,9 +50,9 @@ public sealed class ExecutableSwapper {
         try {
             _fileSystem.MoveFile(stagedPath, executablePath, overwrite: true);
         } catch {
-            // The window this exists for is one rename wide, and it is the only window in which this
-            // machine has no dotquay. Putting the old one back is more important than reporting
-            // cleanly, so the restore runs before the original failure is rethrown.
+            // The window this exists for is one rename wide, and it is the only window in which
+            // this machine has no dotquay. Putting the old one back is more important than
+            // reporting cleanly, so the restore runs before the original failure is rethrown.
             if (!_fileSystem.FileExists(executablePath) && _fileSystem.FileExists(retiredPath)) {
                 _fileSystem.MoveFile(retiredPath, executablePath, overwrite: true);
             }
@@ -63,9 +64,10 @@ public sealed class ExecutableSwapper {
         return retiredPath;
     }
 
-    /// <summary>Every retired binary beside <paramref name="executablePath"/>, newest first. Ordered
-    /// by the version in the file name, never by timestamp: a copy, a restore from backup, or an
-    /// archive extraction rewrites mtimes, and this list decides what a rollback restores.</summary>
+    /// <summary>Every retired binary beside <paramref name="executablePath"/>, newest first.
+    /// Ordered by the version in the file name, never by timestamp: a copy, a restore from backup,
+    /// or an archive extraction rewrites mtimes, and this list decides what a rollback
+    /// restores.</summary>
     public IReadOnlyList<RetiredBinary> Retired(string executablePath) {
         var directory = ExecutablePaths.DirectoryOf(executablePath);
         if (directory.Length > 0 && !_fileSystem.DirectoryExists(directory)) {
@@ -74,13 +76,15 @@ public sealed class ExecutableSwapper {
 
         var found = new List<RetiredBinary>();
 
-        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory, recursive: false)) {
+        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory,
+            recursive: false)) {
             if (ExecutablePaths.VersionOfRetired(executablePath, path) is { } version) {
                 found.Add(new RetiredBinary(path, version));
             }
         }
 
-        return found.OrderByDescending(entry => entry.Version, Comparer<string>.Create(VersionOrder.Compare)).ToList();
+        return found.OrderByDescending(entry => entry.Version,
+            Comparer<string>.Create(VersionOrder.Compare)).ToList();
     }
 
     /// <summary>Keeps the newest retired binary and deletes the rest. Best-effort: a file the OS
@@ -112,7 +116,8 @@ public sealed class ExecutableSwapper {
             return;
         }
 
-        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory, recursive: false).ToList()) {
+        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory,
+            recursive: false).ToList()) {
             if (ExecutablePaths.VersionOfStaged(executablePath, path) is not null) {
                 TryDelete(path);
             }

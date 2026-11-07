@@ -10,7 +10,8 @@ namespace Dotquay.Cli.Commands;
 internal static class CredentialFactory {
     public static ICredentialStore CreateStore() {
         var fileSystem = new SystemFileSystem();
-        return new TomlCredentialStore(fileSystem, TomlCredentialStore.DefaultPath(new SystemEnvironmentReader(), fileSystem));
+        return new TomlCredentialStore(fileSystem,
+            TomlCredentialStore.DefaultPath(new SystemEnvironmentReader(), fileSystem));
     }
 
     public static CredentialResolver CreateResolver() =>

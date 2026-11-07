@@ -12,8 +12,8 @@ namespace Dotquay.Tests.Workflows;
 /// The offline half of <see cref="Resolve.GraphWarningTests"/>' project-root warning. It matters on
 /// its own because the person hitting this has usually already run <c>install</c> a second time and
 /// watched it change nothing — the lockfile replays the same <c>path = "."</c> — and the editor's
-/// "plugin missing" gives no hint that the path lives in another addon's package manifest. The check
-/// needs no network: the installed folder <em>is</em> the extracted subtree.
+/// "plugin missing" gives no hint that the path lives in another addon's package manifest. The
+/// check needs no network: the installed folder <em>is</em> the extracted subtree.
 /// </remarks>
 public class DoctorGodotProjectRootTests {
     private const string ProjectDirectory = "project";
@@ -25,7 +25,8 @@ public class DoctorGodotProjectRootTests {
 
     /// <summary>The BotV2 shape: vrm is transitive via vbeami, and its installed folder holds the
     /// whole vrm-addon repository.</summary>
-    private static InMemoryFileSystem BuildTransitiveProject(bool vrmIsProjectRoot = true, string? overrideBlock = null) {
+    private static InMemoryFileSystem BuildTransitiveProject(bool vrmIsProjectRoot = true,
+        string? overrideBlock = null) {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -55,12 +56,15 @@ public class DoctorGodotProjectRootTests {
             path = "."
             """);
 
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "vbeami", "plugin.cfg"), "[plugin]");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "vbeami",
+            "plugin.cfg"), "[plugin]");
 
         if (vrmIsProjectRoot) {
-            WriteVrmAsProjectRoot(fileSystem, fileSystem.CombinePath(ProjectDirectory, "addons", "vrm"));
+            WriteVrmAsProjectRoot(fileSystem,
+                fileSystem.CombinePath(ProjectDirectory, "addons", "vrm"));
         } else {
-            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "vrm", "plugin.cfg"), "[plugin]");
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "vrm",
+                "plugin.cfg"), "[plugin]");
         }
 
         return fileSystem;
@@ -69,13 +73,16 @@ public class DoctorGodotProjectRootTests {
     /// <summary>What vrm-addon's repository root actually looks like after its restructure: a
     /// playable project with its own [project] manifest, and the plugin two levels down.</summary>
     private static void WriteVrmAsProjectRoot(InMemoryFileSystem fileSystem, string folder) {
-        fileSystem.WriteAllText(fileSystem.CombinePath(folder, "project.godot"), "config_version=5");
+        fileSystem.WriteAllText(fileSystem.CombinePath(folder, "project.godot"),
+            "config_version=5");
         fileSystem.WriteAllText(fileSystem.CombinePath(folder, "dotquay.toml"), """
             [project]
             godot = "4.3"
             """);
-        fileSystem.WriteAllText(fileSystem.CombinePath(folder, "addons", "vrm", "plugin.cfg"), "[plugin]");
-        fileSystem.WriteAllText(fileSystem.CombinePath(folder, "addons", "gut", "plugin.cfg"), "[plugin]");
+        fileSystem.WriteAllText(fileSystem.CombinePath(folder, "addons", "vrm", "plugin.cfg"),
+            "[plugin]");
+        fileSystem.WriteAllText(fileSystem.CombinePath(folder, "addons", "gut", "plugin.cfg"),
+            "[plugin]");
     }
 
     private static async Task<DoctorResult> RunAsync(InMemoryFileSystem fileSystem) {
@@ -173,7 +180,8 @@ public class DoctorGodotProjectRootTests {
             resolved = "{VrmSha}"
             path = "."
             """);
-        WriteVrmAsProjectRoot(fileSystem, fileSystem.CombinePath(ProjectDirectory, "addons", "vrm"));
+        WriteVrmAsProjectRoot(fileSystem,
+            fileSystem.CombinePath(ProjectDirectory, "addons", "vrm"));
 
         var result = await RunAsync(fileSystem);
 
@@ -201,7 +209,8 @@ public class DoctorGodotProjectRootTests {
             path = "."
             folder = "godot_vrm"
             """);
-        WriteVrmAsProjectRoot(fileSystem, fileSystem.CombinePath(ProjectDirectory, "addons", "godot_vrm"));
+        WriteVrmAsProjectRoot(fileSystem,
+            fileSystem.CombinePath(ProjectDirectory, "addons", "godot_vrm"));
 
         var result = await RunAsync(fileSystem);
 

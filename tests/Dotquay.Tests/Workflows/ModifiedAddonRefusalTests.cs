@@ -15,7 +15,8 @@ public class ModifiedAddonRefusalTests {
     private const string AddonDir = $"{ProjectDir}/addons/dialogue_manager";
     private const string LinkPath = "elsewhere/dialogue_manager";
 
-    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem)> InstalledAsync() {
+    private static async Task<(DependencyWorkflow Workflow,
+        InMemoryFileSystem FileSystem)> InstalledAsync() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\n");
 
@@ -24,7 +25,8 @@ public class ModifiedAddonRefusalTests {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/x.gd"] = "extends Node\n",
         };
-        gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('a', 40),
+            GitRefKind.Tag)];
 
         var workflow = new DependencyWorkflow(fileSystem, gitClient, "cache");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -59,7 +61,8 @@ public class ModifiedAddonRefusalTests {
         var exception = await Assert.ThrowsAsync<WorkflowException>(
             () => workflow.InstallAsync(ProjectDir, force: false));
 
-        Assert.Contains($"Changed locally ({Edited} files):", exception.Message, StringComparison.Ordinal);
+        Assert.Contains($"Changed locally ({Edited} files):", exception.Message,
+            StringComparison.Ordinal);
         Assert.Contains("extra_4.gd", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("extra_5.gd", exception.Message, StringComparison.Ordinal);
         Assert.Contains("... and 3 more", exception.Message, StringComparison.Ordinal);
@@ -78,9 +81,12 @@ public class ModifiedAddonRefusalTests {
         var exception = await Assert.ThrowsAsync<WorkflowException>(
             () => workflow.InstallAsync(ProjectDir, force: false));
 
-        Assert.Contains("changed  x.gd  (whitespace only)", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("Only 1 whitespace-only change", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("'dotquay update --force' is safe", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("changed  x.gd  (whitespace only)", exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("Only 1 whitespace-only change", exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains("'dotquay update --force' is safe", exception.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -92,7 +98,8 @@ public class ModifiedAddonRefusalTests {
         var exception = await Assert.ThrowsAsync<WorkflowException>(
             () => workflow.InstallAsync(ProjectDir, force: false));
 
-        Assert.Contains("1 real content change: --force would discard it", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("1 real content change: --force would discard it", exception.Message,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("is safe", exception.Message, StringComparison.Ordinal);
     }
 
@@ -124,7 +131,9 @@ public class ModifiedAddonRefusalTests {
         fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
-            () => workflow.EnsureAddonLinkableAsync(ProjectDir, "dialogue_manager", LinkPath, force: false));
+            () =>
+                workflow.EnsureAddonLinkableAsync(ProjectDir, "dialogue_manager", LinkPath,
+                    force: false));
 
         Assert.Contains("is being replaced by a link", exception.Message, StringComparison.Ordinal);
         Assert.Contains("changed  plugin.cfg", exception.Message, StringComparison.Ordinal);
@@ -135,7 +144,8 @@ public class ModifiedAddonRefusalTests {
     public async Task EnsureAddonLinkableAsync_CleanAddon_Allows() {
         var (workflow, _) = await InstalledAsync();
 
-        await workflow.EnsureAddonLinkableAsync(ProjectDir, "dialogue_manager", LinkPath, force: false);
+        await workflow.EnsureAddonLinkableAsync(ProjectDir, "dialogue_manager", LinkPath,
+            force: false);
     }
 
     [Fact]
@@ -143,13 +153,15 @@ public class ModifiedAddonRefusalTests {
         var (workflow, fileSystem) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
 
-        await workflow.EnsureAddonLinkableAsync(ProjectDir, "dialogue_manager", LinkPath, force: true);
+        await workflow.EnsureAddonLinkableAsync(ProjectDir, "dialogue_manager", LinkPath,
+            force: true);
     }
 
     [Fact]
     public async Task EnsureAddonLinkableAsync_NeverInstalled_Allows() {
         var (workflow, _) = await InstalledAsync();
 
-        await workflow.EnsureAddonLinkableAsync(ProjectDir, "not_installed", LinkPath, force: false);
+        await workflow.EnsureAddonLinkableAsync(ProjectDir, "not_installed", LinkPath,
+            force: false);
     }
 }

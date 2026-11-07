@@ -20,21 +20,25 @@ public class DotnetGraphBuilderTests {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> NoAddons =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
 
-    private static DotnetSpec Spec(string name, string version = "1.*") => new() { Name = name, Version = version };
+    private static DotnetSpec Spec(string name, string version = "1.*") =>
+        new() { Name = name, Version = version };
 
     private static ProjectManifest Manifest(params DotnetSpec[] dotnet) => new() {
         Dotnet = dotnet.ToDictionary(d => d.Name, StringComparer.Ordinal),
     };
 
-    private static DotquayLockfile Lockfile(params LockedDotnet[] dotnet) => new() { Dotnet = dotnet };
+    private static DotquayLockfile Lockfile(params LockedDotnet[] dotnet) =>
+        new() { Dotnet = dotnet };
 
-    private static LockedDotnet Locked(string name, string resolved = "1.0.0", string? source = null) =>
+    private static LockedDotnet Locked(string name, string resolved = "1.0.0",
+        string? source = null) =>
         new() { Name = name, Resolved = resolved, Source = source };
 
     [Fact]
     public void Build_ProjectDeclaredPackage_IsARootRequiredByTheProject() {
         var nodes = DotnetGraphBuilder.Build(
-            Manifest(Spec("Newtonsoft.Json", "13.0.*")), Lockfile(Locked("Newtonsoft.Json", "13.0.3")), [], NoAddons);
+            Manifest(Spec("Newtonsoft.Json", "13.0.*")),
+            Lockfile(Locked("Newtonsoft.Json", "13.0.3")), [], NoAddons);
 
         var node = Assert.Single(nodes);
         Assert.Equal(GraphNodeOrigin.Root, node.Origin);
@@ -61,14 +65,17 @@ public class DotnetGraphBuilderTests {
 
     [Fact]
     public void Build_PackageDeclaredByProjectAndAddons_StaysRootAndListsEveryone() {
-        // The project's entry wins (requirement P1-5), so it's a root with the project's constraint. The
-        // addons still get an edge each: "who else needs this" is exactly what someone about to remove
-        // or re-pin it wants to see.
+        // The project's entry wins (requirement P1-5), so it's a root with the project's
+        // constraint. The addons still get an edge each: "who else needs this" is exactly what
+        // someone about to remove or re-pin it wants to see.
         var nodes = DotnetGraphBuilder.Build(
             Manifest(Spec("Serilog", "3.*")),
             Lockfile(Locked("Serilog", "3.1.1")),
             [Spec("Serilog", "2.*")],
-            new Dictionary<string, IReadOnlyList<string>> { ["zeta"] = ["Serilog"], ["alpha"] = ["Serilog"] });
+            new Dictionary<string, IReadOnlyList<string>> {
+                ["zeta"] = ["Serilog"],
+                ["alpha"] = ["Serilog"]
+            });
 
         var node = Assert.Single(nodes);
         Assert.Equal(GraphNodeOrigin.Root, node.Origin);
@@ -78,7 +85,8 @@ public class DotnetGraphBuilderTests {
 
     [Fact]
     public void Build_LockfileOnlyPackage_IsAnOrphanWithNoRequirers() {
-        var nodes = DotnetGraphBuilder.Build(Manifest(), Lockfile(Locked("Ghost.Package", "2.0.0")), [], NoAddons);
+        var nodes = DotnetGraphBuilder.Build(Manifest(), Lockfile(Locked("Ghost.Package", "2.0.0")),
+            [], NoAddons);
 
         var node = Assert.Single(nodes);
         Assert.Equal(GraphNodeOrigin.Orphan, node.Origin);
@@ -90,7 +98,8 @@ public class DotnetGraphBuilderTests {
     [Fact]
     public void Build_CarriesTheLockedFeedName() {
         var nodes = DotnetGraphBuilder.Build(
-            Manifest(Spec("A"), Spec("B")), Lockfile(Locked("A", source: "kemomi"), Locked("B")), [], NoAddons);
+            Manifest(Spec("A"), Spec("B")), Lockfile(Locked("A", source: "kemomi"), Locked("B")),
+            [], NoAddons);
 
         Assert.Equal("kemomi", nodes.Single(n => n.Name == "A").Source);
         // Null means nuget.org, the same convention the lockfile itself uses.
@@ -99,8 +108,9 @@ public class DotnetGraphBuilderTests {
 
     [Fact]
     public void Build_AddonDeclaredButNotYetLocked_IsStillShown() {
-        // An addon updated its manifest and nothing has re-synced yet. Hiding the package would make
-        // the graph disagree with the addon's own file; a node with no resolved version is honest.
+        // An addon updated its manifest and nothing has re-synced yet. Hiding the package would
+        // make the graph disagree with the addon's own file; a node with no resolved version is
+        // honest.
         var nodes = DotnetGraphBuilder.Build(
             Manifest(), Lockfile(), [Spec("New.Thing")],
             new Dictionary<string, IReadOnlyList<string>> { ["a"] = ["New.Thing"] });
@@ -126,7 +136,8 @@ public class DotnetGraphBuilderTests {
     public void Flatten_PicksTheWinnerInOrdinalAddonOrder() {
         // Lockfile mode can't replay the walk's discovery order, so it picks a stable one instead.
         // The same project must show the same constraint on every refresh.
-        var declarations = new Dictionary<string, IReadOnlyList<DotnetSpec>>(StringComparer.Ordinal) {
+        var declarations = new Dictionary<string,
+            IReadOnlyList<DotnetSpec>>(StringComparer.Ordinal) {
             ["zeta"] = [Spec("Shared", "2.*")],
             ["alpha"] = [Spec("Shared", "1.*"), Spec("OnlyAlpha")],
         };

@@ -9,15 +9,16 @@ using Xunit;
 namespace Dotquay.Tests.Local;
 
 /// <summary>
-/// Covers local .NET links (docs/DESIGN-v0.11-LOCAL-DOTNET-LINK.md) — developing a shared library or
-/// source generator in place while a project consumes it as a NuGet package.
+/// Covers local .NET links (docs/DESIGN-v0.11-LOCAL-DOTNET-LINK.md) — developing a shared library
+/// or source generator in place while a project consumes it as a NuGet package.
 /// </summary>
 /// <remarks>
-/// The test that matters most here is <see cref="Sync_TheImportHook_ComesAfterThePackageReferences"/>.
-/// MSBuild evaluates a project in order and <c>&lt;PackageReference Remove&gt;</c> silently no-ops
-/// against an item that has not been declared yet, so an overlay imported too early leaves the build
-/// quietly using the published package — no error, no warning, wrong answer. That ordering is this
-/// feature's equivalent of the addon link's "never recurse through a directory link" rule.
+/// The test that matters most here is
+/// <see cref="Sync_TheImportHook_ComesAfterThePackageReferences"/>. MSBuild evaluates a project in
+/// order and <c>&lt;PackageReference Remove&gt;</c> silently no-ops against an item that has not
+/// been declared yet, so an overlay imported too early leaves the build quietly using the published
+/// package — no error, no warning, wrong answer. That ordering is this feature's equivalent of the
+/// addon link's "never recurse through a directory link" rule.
 /// </remarks>
 public class LocalTargetsTests {
     private const string ProjectDirectory = "project";
@@ -39,14 +40,16 @@ public class LocalTargetsTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"), Csproj);
         fileSystem.WriteAllText(
-            fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+            fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
         return fileSystem;
     }
 
     private static string OverlayPath(InMemoryFileSystem fileSystem) =>
         fileSystem.CombinePath(ProjectDirectory, LocalTargetsWriter.FileName);
 
-    private static IReadOnlyDictionary<string, DotnetLink> Linked(InMemoryFileSystem fileSystem, bool analyzer) {
+    private static IReadOnlyDictionary<string, DotnetLink> Linked(InMemoryFileSystem fileSystem,
+        bool analyzer) {
         var links = new LocalLinks(fileSystem);
         links.SetDotnet(ProjectDirectory, PackageId, GeneratorDirectory, analyzer);
         return links.ReadDotnet(ProjectDirectory);
@@ -60,8 +63,9 @@ public class LocalTargetsTests {
 
         var link = Linked(fileSystem, analyzer: true)[PackageId];
 
-        // Resolved once, at link time — so nothing downstream has to re-derive which project a folder
-        // meant, and a folder that later grows a second .csproj can't change what the link points at.
+        // Resolved once, at link time — so nothing downstream has to re-derive which project a
+        // folder meant, and a folder that later grows a second .csproj can't change what the link
+        // points at.
         Assert.EndsWith("generator.csproj", link.ProjectPath);
         Assert.True(link.Analyzer);
     }
@@ -71,9 +75,11 @@ public class LocalTargetsTests {
         var fileSystem = Build();
         var links = new LocalLinks(fileSystem);
 
-        links.SetDotnet(ProjectDirectory, PackageId, fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"), analyzer: false);
+        links.SetDotnet(ProjectDirectory, PackageId,
+            fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"), analyzer: false);
 
-        Assert.EndsWith("generator.csproj", links.ReadDotnet(ProjectDirectory)[PackageId].ProjectPath);
+        Assert.EndsWith("generator.csproj",
+            links.ReadDotnet(ProjectDirectory)[PackageId].ProjectPath);
     }
 
     [Fact]
@@ -82,13 +88,16 @@ public class LocalTargetsTests {
         var links = new LocalLinks(fileSystem);
 
         Assert.Throws<LocalLinkException>(
-            () => links.SetDotnet(ProjectDirectory, PackageId, "elsewhere/nothing-here", analyzer: false));
+            () =>
+                links.SetDotnet(ProjectDirectory, PackageId, "elsewhere/nothing-here",
+                    analyzer: false));
     }
 
     [Fact]
     public void ReadAll_AddonAndDotnetLinks_AreKeptApart() {
         var fileSystem = Build();
-        fileSystem.WriteAllText(fileSystem.CombinePath("elsewhere/my-addon", "plugin.cfg"), "[plugin]");
+        fileSystem.WriteAllText(fileSystem.CombinePath("elsewhere/my-addon", "plugin.cfg"),
+            "[plugin]");
 
         var links = new LocalLinks(fileSystem);
         links.Set(ProjectDirectory, "my-addon", "elsewhere/my-addon");
@@ -96,7 +105,8 @@ public class LocalTargetsTests {
 
         var all = links.ReadAll(ProjectDirectory);
 
-        // The namespacing exists so an addon and a package that happen to share a name cannot collide.
+        // The namespacing exists so an addon and a package that happen to share a name cannot
+        // collide.
         Assert.Single(all.Addons);
         Assert.Single(all.Dotnet);
     }
@@ -173,9 +183,10 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        // The whole point of the overlay: the tracked file keeps its PackageReference, so no absolute
-        // machine-local path can ever reach git.
-        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        // The whole point of the overlay: the tracked file keeps its PackageReference, so no
+        // absolute machine-local path can ever reach git.
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+            "Game.csproj"));
         Assert.Contains("<PackageReference Include=\"dev.kani.godot.generator\"", csproj);
         Assert.DoesNotContain("ProjectReference", csproj);
     }
@@ -186,22 +197,25 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+            "Game.csproj"));
 
-        // THE load-bearing assertion. MSBuild evaluates in order, and `PackageReference Remove` is a
-        // silent no-op against an item declared later — so an import placed above the ItemGroup would
-        // leave the build using the published package with nothing said. If this ever fails, the
-        // feature is broken in the one way that produces no error message.
+        // THE load-bearing assertion. MSBuild evaluates in order, and `PackageReference Remove` is
+        // a silent no-op against an item declared later — so an import placed above the ItemGroup
+        // would leave the build using the published package with nothing said. If this ever fails,
+        // the feature is broken in the one way that produces no error message.
         Assert.True(
             csproj.IndexOf("<Import", StringComparison.Ordinal)
             > csproj.LastIndexOf("<PackageReference", StringComparison.Ordinal),
-            "the overlay import must come after the PackageReference items, or the Remove silently does nothing");
+            "the overlay import must come after the PackageReference items, or the Remove silently "
+            + "does nothing");
     }
 
     [Fact]
     public void Install_AfterLink_KeepsTheImportHookBelowTheNewPackageReference() {
-        // The other direction: link first, into a project with no PackageReference ItemGroup yet, then
-        // install writes the reference. The writer's new ItemGroup must not land below the hook.
+        // The other direction: link first, into a project with no PackageReference ItemGroup yet,
+        // then install writes the reference. The writer's new ItemGroup must not land below the
+        // hook.
         var fileSystem = new InMemoryFileSystem();
         var csprojPath = fileSystem.CombinePath(ProjectDirectory, "Game.csproj");
         fileSystem.WriteAllText(csprojPath, """
@@ -212,7 +226,8 @@ public class LocalTargetsTests {
             </Project>
             """);
         fileSystem.WriteAllText(
-            fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+            fileSystem.CombinePath(GeneratorDirectory, "generator.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\" />");
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
         CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, csprojPath, PackageId, "1.0.0");
@@ -223,7 +238,8 @@ public class LocalTargetsTests {
         Assert.True(
             csproj.IndexOf("<Import", StringComparison.Ordinal)
             > csproj.LastIndexOf("<PackageReference", StringComparison.Ordinal),
-            "the overlay import must come after the PackageReference items, or the Remove silently does nothing");
+            "the overlay import must come after the PackageReference items, or the Remove silently "
+            + "does nothing");
     }
 
     [Fact]
@@ -234,7 +250,8 @@ public class LocalTargetsTests {
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, links);
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, links);
 
-        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+            "Game.csproj"));
         Assert.Equal(1, csproj.Split("<Import").Length - 1);
     }
 
@@ -245,7 +262,8 @@ public class LocalTargetsTests {
         // therefore gets the staging target on their next such command, without relinking.
         var fileSystem = Build();
         var overlayPath = fileSystem.CombinePath(ProjectDirectory, LocalTargetsWriter.FileName);
-        fileSystem.WriteAllText(overlayPath, "<Project><!-- written before staging existed --></Project>");
+        fileSystem.WriteAllText(overlayPath,
+            "<Project><!-- written before staging existed --></Project>");
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
@@ -265,7 +283,8 @@ public class LocalTargetsTests {
 
         // The hook is inert without the overlay (Condition="Exists"), and removing it would churn a
         // committed file on every link/unlink cycle — for teammates too.
-        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+            "Game.csproj"));
         Assert.Contains("<Import", csproj);
     }
 
@@ -303,8 +322,8 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        // A Roslyn host holds a file lock on every analyzer it loads, for as long as it lives. Point
-        // one at a generator's own build output and that generator can never be rebuilt again
+        // A Roslyn host holds a file lock on every analyzer it loads, for as long as it lives.
+        // Point one at a generator's own build output and that generator can never be rebuilt again
         // (MSB3061/MSB3026) — which takes the consuming project's build down with it.
         var target = StagingTarget(fileSystem);
         Assert.NotNull(target);
@@ -318,8 +337,8 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: false));
 
-        // Nothing loads an ordinary library reference the way Roslyn loads an analyzer, so there is no
-        // lock to dodge and no reason to put a build-time copy in anyone's way.
+        // Nothing loads an ordinary library reference the way Roslyn loads an analyzer, so there is
+        // no lock to dodge and no reason to put a build-time copy in anyone's way.
         Assert.Null(StagingTarget(fileSystem));
     }
 
@@ -332,8 +351,8 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, links.ReadDotnet(ProjectDirectory));
 
-        // The target operates on @(Analyzer) wholesale, so it is emitted per overlay and not per link.
-        // SingleOrDefault in the helper is the assertion that a second copy would trip.
+        // The target operates on @(Analyzer) wholesale, so it is emitted per overlay and not per
+        // link. SingleOrDefault in the helper is the assertion that a second copy would trip.
         Assert.NotNull(StagingTarget(fileSystem));
     }
 
@@ -343,10 +362,11 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        // Roslyn resolves an analyzer by its assembly name. A copy renamed to carry its hash loads as
-        // nothing at all — CS8034, a *warning*, so the build goes on quietly emitting less code than
-        // it should. The hash has to sit in the directory name, and a fresh directory per content hash
-        // is also what makes a rebuilt generator land somewhere nothing has locked yet.
+        // Roslyn resolves an analyzer by its assembly name. A copy renamed to carry its hash loads
+        // as nothing at all — CS8034, a *warning*, so the build goes on quietly emitting less code
+        // than it should. The hash has to sit in the directory name, and a fresh directory per
+        // content hash is also what makes a rebuilt generator land somewhere nothing has locked
+        // yet.
         Assert.Contains(
             "%(Filename)-%(FileHash)\\%(Filename)%(Extension)",
             StagingAttributes(fileSystem));
@@ -371,8 +391,8 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        // Nothing rebuilds an analyzer out of the NuGet cache or out of the SDK, so nothing is waiting
-        // on its lock — copying those would be pure build cost for no benefit.
+        // Nothing rebuilds an analyzer out of the NuGet cache or out of the SDK, so nothing is
+        // waiting on its lock — copying those would be pure build cost for no benefit.
         var attributes = StagingAttributes(fileSystem);
         Assert.Contains("StartsWith('$(NuGetPackageRoot)')", attributes);
         Assert.Contains("StartsWith('$(NetCoreRoot)')", attributes);
@@ -387,8 +407,10 @@ public class LocalTargetsTests {
         // Staging that does not reach @(Analyzer) is a directory of copied files nobody compiles
         // against — the lock stays on the original and the whole target does nothing.
         var analyzers = StagingTarget(fileSystem)!.Descendants("Analyzer").ToList();
-        Assert.Contains(analyzers, a => (string?)a.Attribute("Remove") == "@(_DotquayLinkedAnalyzer)");
-        Assert.Contains(analyzers, a => (string?)a.Attribute("Include") == "@(_DotquayStagedAnalyzer)");
+        Assert.Contains(analyzers, a =>
+            (string?)a.Attribute("Remove") == "@(_DotquayLinkedAnalyzer)");
+        Assert.Contains(analyzers, a =>
+            (string?)a.Attribute("Include") == "@(_DotquayStagedAnalyzer)");
     }
 
     [Fact]
@@ -398,11 +420,12 @@ public class LocalTargetsTests {
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
         // IntermediateOutputPath is defined by the SDK's .targets, which are imported after this
-        // overlay. Read at overlay-evaluation time it is empty, and the staging directory would land
-        // beside the .csproj instead of under obj/ — with nothing said about it.
+        // overlay. Read at overlay-evaluation time it is empty, and the staging directory would
+        // land beside the .csproj instead of under obj/ — with nothing said about it.
         Assert.Empty(Overlay(fileSystem).Elements("PropertyGroup"));
         Assert.Contains(
-            "$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'linked-analyzers'))",
+            "$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', "
+            + "'linked-analyzers'))",
             StagingAttributes(fileSystem));
     }
 
@@ -412,11 +435,12 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        // One directory per generator build, so obj/ grows for as long as the link lives unless they
-        // are swept — and sweeping the one this build just staged into would delete what is about to
-        // be compiled against.
+        // One directory per generator build, so obj/ grows for as long as the link lives unless
+        // they are swept — and sweeping the one this build just staged into would delete what is
+        // about to be compiled against.
         var stale = StagingTarget(fileSystem)!.Descendants("_DotquayStaleStage").Single();
-        Assert.Contains("System.IO.Directory]::GetDirectories", (string?)stale.Attribute("Include"));
+        Assert.Contains("System.IO.Directory]::GetDirectories",
+            (string?)stale.Attribute("Include"));
         Assert.Contains("%(Filename)-%(FileHash)", (string?)stale.Attribute("Exclude"));
     }
 
@@ -437,12 +461,17 @@ public class LocalTargetsTests {
         var sweeps = target.Descendants("Exec").ToList();
         Assert.Equal(2, sweeps.Count);
         Assert.All(sweeps, e => Assert.Equal("true", (string?)e.Attribute("IgnoreExitCode")));
-        Assert.All(sweeps, e => Assert.Equal("low", (string?)e.Attribute("StandardErrorImportance")));
+        Assert.All(sweeps, e =>
+            Assert.Equal("low", (string?)e.Attribute("StandardErrorImportance")));
 
-        // One branch per shell, and each guarded so a build with nothing to sweep spawns no process.
-        Assert.Contains(sweeps, e => ((string?)e.Attribute("Command"))!.StartsWith("rmdir", StringComparison.Ordinal));
-        Assert.Contains(sweeps, e => ((string?)e.Attribute("Command"))!.StartsWith("rm -rf", StringComparison.Ordinal));
-        Assert.All(sweeps, e => Assert.Contains("'@(_DotquayStaleStage)' != ''", (string?)e.Attribute("Condition")));
+        // One branch per shell, and each guarded so a build with nothing to sweep spawns no
+        // process.
+        Assert.Contains(sweeps, e =>
+            ((string?)e.Attribute("Command"))!.StartsWith("rmdir", StringComparison.Ordinal));
+        Assert.Contains(sweeps, e =>
+            ((string?)e.Attribute("Command"))!.StartsWith("rm -rf", StringComparison.Ordinal));
+        Assert.All(sweeps, e =>
+            Assert.Contains("'@(_DotquayStaleStage)' != ''", (string?)e.Attribute("Condition")));
     }
 
     [Fact]
@@ -451,10 +480,11 @@ public class LocalTargetsTests {
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
-        // The staging exists because of a link on one machine. In the tracked .csproj it would ask a
-        // whole team to carry one person's development setup — and it would outlive the link, since
-        // unlinking only deletes the overlay.
-        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        // The staging exists because of a link on one machine. In the tracked .csproj it would ask
+        // a whole team to carry one person's development setup — and it would outlive the link,
+        // since unlinking only deletes the overlay.
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+            "Game.csproj"));
         Assert.DoesNotContain(LocalTargetsWriter.AnalyzerStagingTarget, csproj);
     }
 
@@ -464,7 +494,8 @@ public class LocalTargetsTests {
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
         new LocalLinks(fileSystem).RemoveDotnet(ProjectDirectory, PackageId);
-        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, new LocalLinks(fileSystem).ReadDotnet(ProjectDirectory));
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, new LocalLinks(fileSystem)
+            .ReadDotnet(ProjectDirectory));
 
         // Nothing is left behind to shadow-copy analyzers for a link that no longer exists — the
         // overlay is the only place the target was ever written.
@@ -473,7 +504,8 @@ public class LocalTargetsTests {
 
     // ---- doctor -----------------------------------------------------------
 
-    private static async Task<IReadOnlyList<DoctorIssue>> DoctorAsync(InMemoryFileSystem fileSystem) {
+    private static async Task<IReadOnlyList<DoctorIssue>> DoctorAsync(
+        InMemoryFileSystem fileSystem) {
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
             [dotnet."{PackageId}"]
             version = "1.0.0"
@@ -484,7 +516,8 @@ public class LocalTargetsTests {
             resolved = "1.0.0"
             """);
 
-        var result = await new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache")
+        var result = await new DependencyWorkflow(fileSystem, new FakeGitClient(),
+            cacheRoot: "cache")
             .DoctorAsync(ProjectDirectory);
 
         return result.Issues;
@@ -494,13 +527,14 @@ public class LocalTargetsTests {
     public async Task Doctor_ALinkWhoseProjectIsGone_IsReported() {
         var fileSystem = Build();
         var link = Linked(fileSystem, analyzer: true)[PackageId];
-        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, new Dictionary<string, DotnetLink> { [PackageId] = link });
+        LocalTargetsWriter.Sync(fileSystem, ProjectDirectory,
+            new Dictionary<string, DotnetLink> { [PackageId] = link });
         fileSystem.DeleteFile(link.ProjectPath);
 
         var issues = await DoctorAsync(fileSystem);
 
-        // Otherwise this surfaces as an MSBuild error about a path, with nothing pointing at the link
-        // that named it.
+        // Otherwise this surfaces as an MSBuild error about a path, with nothing pointing at the
+        // link that named it.
         Assert.Contains(issues, i => i.Kind == DoctorIssueKind.LinkedProjectMissing);
     }
 
@@ -514,23 +548,26 @@ public class LocalTargetsTests {
 
         var issues = await DoctorAsync(fileSystem);
 
-        // The link now does nothing at all and the build silently uses the published package. This is
-        // the one failure mode the overlay design has that the .csproj-editing design didn't.
+        // The link now does nothing at all and the build silently uses the published package. This
+        // is the one failure mode the overlay design has that the .csproj-editing design didn't.
         Assert.Contains(issues, i => i.Kind == DoctorIssueKind.LocalOverlayNotImported);
     }
 
     [Fact]
     public async Task Doctor_AMalformedLocalFile_FailsLikeABrokenLockfile() {
         var fileSystem = Build();
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, LocalLinks.FileName), "this is [ not toml\n");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, LocalLinks.FileName),
+            "this is [ not toml\n");
 
         // Doctor reads dotquay.toml and dotquay.lock for real and fails on either when it doesn't
         // parse (invalid_project_file). The local links file is the third project file; it used to
         // come back as a linked_project_missing issue, which names a link that was never read.
-        var exception = await Assert.ThrowsAsync<LocalLinksParseException>(() => DoctorAsync(fileSystem));
+        var exception = await Assert.ThrowsAsync<LocalLinksParseException>(() =>
+            DoctorAsync(fileSystem));
 
         Assert.Contains(LocalLinks.FileName, exception.Message, StringComparison.Ordinal);
-        Assert.Equal(JsonErrorKind.InvalidProjectFile, JsonErrorClassifier.Classify(exception).Kind);
+        Assert.Equal(JsonErrorKind.InvalidProjectFile, JsonErrorClassifier.Classify(exception)
+            .Kind);
     }
 
     [Fact]
@@ -542,6 +579,7 @@ public class LocalTargetsTests {
 
         Assert.DoesNotContain(
             issues,
-            i => i.Kind is DoctorIssueKind.LinkedProjectMissing or DoctorIssueKind.LocalOverlayNotImported);
+            i => i.Kind is DoctorIssueKind.LinkedProjectMissing
+            or DoctorIssueKind.LocalOverlayNotImported);
     }
 }

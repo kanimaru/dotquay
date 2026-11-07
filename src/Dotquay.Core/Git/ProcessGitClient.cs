@@ -24,27 +24,34 @@ public sealed class ProcessGitClient : IGitClient {
     /// real one from <see cref="Environment.ProcessPath"/> — the AOT-safe way to find dotquay's own
     /// binary, since <c>Assembly.Location</c> is empty in a published NativeAOT image.</param>
     public ProcessGitClient(IReadOnlyDictionary<string, string>? childEnvironment = null) {
-        _childEnvironment = childEnvironment ?? GitEnvironment.Build(Environment.ProcessPath, new SystemEnvironmentReader());
+        _childEnvironment = childEnvironment
+            ?? GitEnvironment.Build(Environment.ProcessPath, new SystemEnvironmentReader());
         _lfs = new LfsResolver((directory, args, token) => RunGitAsync(directory, args, token));
     }
 
-    public async Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
-        var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--tags", "--heads", repositoryUrl], cancellationToken);
+    public async Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl,
+        CancellationToken cancellationToken = default) {
+        var result = await RunGitAsync(workingDirectory: null,
+            ["ls-remote", "--tags", "--heads", repositoryUrl], cancellationToken);
         if (result.ExitCode != 0) {
             throw Failure(
-                GitErrorClassifier.DescribeRemoteFailure($"git ls-remote failed for {repositoryUrl}", repositoryUrl, result.StdErr),
+                GitErrorClassifier.DescribeRemoteFailure($"git ls-remote failed for "
+                + $"{repositoryUrl}", repositoryUrl, result.StdErr),
                 result.StdErr);
         }
 
         return ParseRefs(result.StdOut);
     }
 
-    public async Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default) {
-        var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--heads", repositoryUrl, branch], cancellationToken);
+    public async Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch,
+        CancellationToken cancellationToken = default) {
+        var result = await RunGitAsync(workingDirectory: null,
+            ["ls-remote", "--heads", repositoryUrl, branch], cancellationToken);
         if (result.ExitCode != 0) {
             throw Failure(
                 GitErrorClassifier.DescribeRemoteFailure(
-                    $"git ls-remote failed for {repositoryUrl} branch '{branch}'", repositoryUrl, result.StdErr),
+                    $"git ls-remote failed for {repositoryUrl} branch '{branch}'", repositoryUrl,
+                    result.StdErr),
                 result.StdErr);
         }
 
@@ -57,10 +64,13 @@ public sealed class ProcessGitClient : IGitClient {
         return match.CommitSha;
     }
 
-    public async Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
-        var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--symref", repositoryUrl, "HEAD"], cancellationToken);
+    public async Task<string> ResolveDefaultBranchAsync(string repositoryUrl,
+        CancellationToken cancellationToken = default) {
+        var result = await RunGitAsync(workingDirectory: null,
+            ["ls-remote", "--symref", repositoryUrl, "HEAD"], cancellationToken);
         if (result.ExitCode != 0) {
-            throw Failure($"git ls-remote --symref failed for {repositoryUrl}: {result.StdErr.Trim()}", result.StdErr);
+            throw Failure($"git ls-remote --symref failed for {repositoryUrl}: "
+                + $"{result.StdErr.Trim()}", result.StdErr);
         }
 
         // Expected first line: "ref: refs/heads/main\tHEAD"
@@ -69,7 +79,8 @@ public sealed class ProcessGitClient : IGitClient {
             .FirstOrDefault(line => line.StartsWith("ref: refs/heads/", StringComparison.Ordinal));
 
         if (firstLine is null) {
-            throw new GitCommandException($"Could not determine the default branch for {repositoryUrl} (no symref in ls-remote output).");
+            throw new GitCommandException($"Could not determine the default branch for "
+                + $"{repositoryUrl} (no symref in ls-remote output).");
         }
 
         var afterPrefix = firstLine["ref: refs/heads/".Length..];
@@ -84,26 +95,33 @@ public sealed class ProcessGitClient : IGitClient {
         CancellationToken cancellationToken = default) {
         Directory.CreateDirectory(destinationPath);
 
-        await RunGitOrThrowAsync(destinationPath, ["init", "--quiet"], cancellationToken, "git init");
-        await RunGitOrThrowAsync(destinationPath, ["remote", "add", "origin", repositoryUrl], cancellationToken, "git remote add");
+        await RunGitOrThrowAsync(destinationPath, ["init", "--quiet"], cancellationToken,
+            "git init");
+        await RunGitOrThrowAsync(destinationPath, ["remote", "add", "origin", repositoryUrl],
+            cancellationToken, "git remote add");
 
         // Shallow fetch by SHA is the baseline, not an optimization (SPEC.md §9 step 1, §12 OQ-4).
         // Fall back to a full fetch only when the server refuses to shallow-fetch that exact commit
         // (older/self-hosted servers without uploadpack.allowReachableSHA1InWant).
-        var shallow = await RunGitAsync(destinationPath, ["fetch", "--quiet", "--depth", "1", "origin", commitSha], cancellationToken);
+        var shallow = await RunGitAsync(destinationPath,
+            ["fetch", "--quiet", "--depth", "1", "origin", commitSha], cancellationToken);
         if (shallow.ExitCode != 0) {
-            var full = await RunGitAsync(destinationPath, ["fetch", "--quiet", "origin"], cancellationToken);
+            var full = await RunGitAsync(destinationPath, ["fetch", "--quiet", "origin"],
+                cancellationToken);
             if (full.ExitCode != 0) {
                 throw Failure(
-                    GitErrorClassifier.DescribeFetchFailure(repositoryUrl, commitSha, shallow.StdErr, full.StdErr),
+                    GitErrorClassifier.DescribeFetchFailure(repositoryUrl, commitSha,
+                        shallow.StdErr, full.StdErr),
                     full.StdErr + shallow.StdErr);
             }
         }
 
-        await RunGitOrThrowAsync(destinationPath, ["checkout", "--quiet", commitSha], cancellationToken, "git checkout");
+        await RunGitOrThrowAsync(destinationPath, ["checkout", "--quiet", commitSha],
+            cancellationToken, "git checkout");
 
-        // A repository that keeps its binaries in Git LFS checks out as pointer text, not files, unless
-        // the machine has git-lfs installed and activated, and git does not say so. See LfsResolver.
+        // A repository that keeps its binaries in Git LFS checks out as pointer text, not files,
+        // unless the machine has git-lfs installed and activated, and git does not say so. See
+        // LfsResolver.
         await _lfs.EnsureResolvedAsync(destinationPath, "origin", cancellationToken);
     }
 
@@ -111,14 +129,16 @@ public sealed class ProcessGitClient : IGitClient {
         string checkoutPath, string commitSha, CancellationToken cancellationToken = default) {
         // %ct is the committer date as Unix seconds: no time zone or locale to parse. A shallow
         // fetch still holds the commit object itself, so this works on every cache entry.
-        var result = await RunGitAsync(checkoutPath, ["show", "--no-patch", "--format=%ct", commitSha], cancellationToken);
+        var result = await RunGitAsync(checkoutPath,
+            ["show", "--no-patch", "--format=%ct", commitSha], cancellationToken);
 
         return result.ExitCode == 0 && long.TryParse(result.StdOut.Trim(), out var seconds)
             ? DateTimeOffset.FromUnixTimeSeconds(seconds)
             : null;
     }
 
-    public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
+    public Task EnsureFilesResolvedAsync(string checkoutPath,
+        CancellationToken cancellationToken = default)
         => _lfs.EnsureResolvedAsync(checkoutPath, "origin", cancellationToken);
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) {
@@ -127,7 +147,8 @@ public sealed class ProcessGitClient : IGitClient {
             // (Win32Exception — "git" not found on PATH at all); a non-zero exit from a `git`
             // that DID start is vanishingly unlikely for `--version`, but treated the same way
             // either way, "not available" is "not available".
-            var result = await RunGitAsync(workingDirectory: null, ["--version"], cancellationToken);
+            var result = await RunGitAsync(workingDirectory: null, ["--version"],
+                cancellationToken);
             return result.ExitCode == 0;
         } catch (GitCommandException) {
             return false;
@@ -183,12 +204,14 @@ public sealed class ProcessGitClient : IGitClient {
     }
 
     /// <summary>Builds a <see cref="GitCommandException"/> that already knows whether git was
-    /// complaining about credentials, so the CLI doesn't have to re-read the prose (SPEC.md §17).</summary>
+    /// complaining about credentials, so the CLI doesn't have to re-read the prose (SPEC.md
+    /// §17).</summary>
     private static GitCommandException Failure(string message, string stderr) =>
         new(message, GitErrorClassifier.LooksLikeAuthenticationFailure(stderr));
 
     private async Task RunGitOrThrowAsync(
-        string? workingDirectory, string[] args, CancellationToken cancellationToken, string description) {
+        string? workingDirectory, string[] args, CancellationToken cancellationToken,
+        string description) {
         var result = await RunGitAsync(workingDirectory, args, cancellationToken);
         if (result.ExitCode != 0) {
             throw Failure($"{description} failed: {result.StdErr.Trim()}", result.StdErr);
@@ -202,10 +225,10 @@ public sealed class ProcessGitClient : IGitClient {
             RedirectStandardError = true,
             // Redirected even though git never reads it: leaving this false makes the child inherit
             // dotquay's own stdin handle. Under dotquay mcp, that handle is the anonymous pipe the
-            // MCP host reads JSON-RPC requests from -- a console-less, fully-piped process spawning a
-            // console child that way deadlocks the child before it can even print --version, hanging
-            // every doctor/status/graph call that shells out to git. Closed immediately below so the
-            // child sees a clean EOF instead of an open, unread handle.
+            // MCP host reads JSON-RPC requests from -- a console-less, fully-piped process spawning
+            // a console child that way deadlocks the child before it can even print --version,
+            // hanging every doctor/status/graph call that shells out to git. Closed immediately
+            // below so the child sees a clean EOF instead of an open, unread handle.
             RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -233,7 +256,8 @@ public sealed class ProcessGitClient : IGitClient {
             process.Start();
         } catch (Win32Exception ex) {
             trace.Failed(ex);
-            throw new GitCommandException("Could not start 'git'. Is it installed and on PATH?", ex);
+            throw new GitCommandException("Could not start 'git'. Is it installed and on PATH?",
+                ex);
         }
 
         process.StandardInput.Close();

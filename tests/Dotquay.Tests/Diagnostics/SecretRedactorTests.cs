@@ -6,19 +6,23 @@ namespace Dotquay.Tests.Diagnostics;
 public sealed class SecretRedactorTests {
     [Theory]
     // user:password in a URL keeps the user, masks the password.
-    [InlineData("https://oauth2:s3cr3t@gitlab.example/x/y.git", "https://oauth2:***@gitlab.example/x/y.git")]
-    [InlineData("fetching https://kani:hunter2@host/a and more", "fetching https://kani:***@host/a and more")]
+    [InlineData("https://oauth2:s3cr3t@gitlab.example/x/y.git",
+        "https://oauth2:***@gitlab.example/x/y.git")]
+    [InlineData("fetching https://kani:hunter2@host/a and more",
+        "fetching https://kani:***@host/a and more")]
     // A bare user-info on http(s) is how a token is often passed: masked whole.
     [InlineData("https://abcdef123@gitlab.example/x.git", "https://***@gitlab.example/x.git")]
     // An ssh user is not a secret and is what an ssh failure needs to show.
     [InlineData("ssh://git@gitlab.example:2222/x/y.git", "ssh://git@gitlab.example:2222/x/y.git")]
     [InlineData("git@gitlab.example:x/y.git", "git@gitlab.example:x/y.git")]
     // Query-string tokens.
-    [InlineData("https://h/api/v4/projects/1?private_token=abc&per_page=5", "https://h/api/v4/projects/1?private_token=***&per_page=5")]
+    [InlineData("https://h/api/v4/projects/1?private_token=abc&per_page=5",
+        "https://h/api/v4/projects/1?private_token=***&per_page=5")]
     [InlineData("https://h/x?a=1&access_token=abc", "https://h/x?a=1&access_token=***")]
     // Header-shaped text.
     [InlineData("Authorization: Bearer abc.def", "Authorization: Bearer ***")]
-    [InlineData("http.extraHeader=Authorization: Basic dXNlcjpwYXNz", "http.extraHeader=Authorization: Basic ***")]
+    [InlineData("http.extraHeader=Authorization: Basic dXNlcjpwYXNz",
+        "http.extraHeader=Authorization: Basic ***")]
     [InlineData("PRIVATE-TOKEN: abc", "PRIVATE-TOKEN: ***")]
     // Inline option values.
     [InlineData("--token=abc", "--token=***")]
@@ -43,7 +47,8 @@ public sealed class SecretRedactorTests {
         var redacted = SecretRedactor.RedactArguments(
             ["login", "gitlab.example", "--token", "abc123", "--project", "C:\\p", "--TOKEN", "x"]);
 
-        Assert.Equal(["login", "gitlab.example", "--token", "***", "--project", "C:\\p", "--TOKEN", "***"], redacted);
+        Assert.Equal(["login", "gitlab.example", "--token", "***", "--project", "C:\\p", "--TOKEN",
+            "***"], redacted);
     }
 
     [Fact]

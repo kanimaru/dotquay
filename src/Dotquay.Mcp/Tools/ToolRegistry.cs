@@ -14,7 +14,8 @@ namespace Dotquay.Mcp.Tools;
 /// (<see cref="Dotquay.Mcp.McpServerBuilder"/> constructing this registry), never two.
 /// </remarks>
 public sealed class ToolRegistry(IReadOnlyList<IMcpTool> tools) {
-    public ValueTask<ListToolsResult> ListAsync(RequestContext<ListToolsRequestParams> context, CancellationToken cancellationToken) =>
+    public ValueTask<ListToolsResult> ListAsync(RequestContext<ListToolsRequestParams> context,
+        CancellationToken cancellationToken) =>
         ValueTask.FromResult(new ListToolsResult {
             Tools = tools
                 .Select(tool => new Tool {
@@ -25,7 +26,8 @@ public sealed class ToolRegistry(IReadOnlyList<IMcpTool> tools) {
                 .ToList(),
         });
 
-    public ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> context, CancellationToken cancellationToken) {
+    public ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> context,
+        CancellationToken cancellationToken) {
         var name = context.Params?.Name;
         var tool = tools.FirstOrDefault(t => t.Name == name);
 

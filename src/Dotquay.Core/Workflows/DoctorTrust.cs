@@ -17,8 +17,8 @@ public sealed record DoctorTrust(
     IReadOnlyList<DoctorAdoptedSource> AdoptedSources) {
     public static readonly DoctorTrust Empty = new([], []);
 
-    /// <summary>Whether there is anything to show. Nothing is printed for a project that never opted
-    /// in, so the common case gains no noise.</summary>
+    /// <summary>Whether there is anything to show. Nothing is printed for a project that never
+    /// opted in, so the common case gains no noise.</summary>
     public bool IsEmpty => TrustedHosts.Count == 0 && AdoptedSources.Count == 0;
 }
 

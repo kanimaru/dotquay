@@ -5,13 +5,13 @@ using Xunit;
 namespace Dotquay.Tests.Doctor;
 
 /// <summary>
-/// Covers the scan behind <c>doctor</c>'s <c>fragile_uid_reference</c> issue: project code that loads
-/// an addon's resource by a bare <c>uid://</c>.
+/// Covers the scan behind <c>doctor</c>'s <c>fragile_uid_reference</c> issue: project code that
+/// loads an addon's resource by a bare <c>uid://</c>.
 /// </summary>
 /// <remarks>
-/// The value of this check is entirely in its precision. It exists to say "these few lines would break
-/// if an addon's uids changed" — so a scan that also reported the project's references to its own
-/// files, or matched one uid inside another, would bury the answer in noise and get ignored.
+/// The value of this check is entirely in its precision. It exists to say "these few lines would
+/// break if an addon's uids changed" — so a scan that also reported the project's references to its
+/// own files, or matched one uid inside another, would bury the answer in noise and get ignored.
 /// </remarks>
 public class UidReferenceScannerTests {
     private const string Project = "project";
@@ -43,10 +43,12 @@ public class UidReferenceScannerTests {
         // Assets record their uid inside the .import file rather than in a .uid sidecar.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Addons}/gut/icon.png", "binary");
-        fileSystem.WriteAllText($"{Addons}/gut/icon.png.import", "[remap]\nimporter=\"texture\"\nuid=\"uid://cabc123\"");
+        fileSystem.WriteAllText($"{Addons}/gut/icon.png.import",
+            "[remap]\nimporter=\"texture\"\nuid=\"uid://cabc123\"");
         fileSystem.WriteAllText($"{Project}/ui/panel.gd", "var icon = load(\"uid://cabc123\")");
 
-        Assert.Equal("gut/icon.png", Assert.Single(UidReferenceScanner.Scan(fileSystem, Project, Addons)).Target);
+        Assert.Equal("gut/icon.png",
+            Assert.Single(UidReferenceScanner.Scan(fileSystem, Project, Addons)).Target);
     }
 
     [Fact]
@@ -56,7 +58,8 @@ public class UidReferenceScannerTests {
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText(
             $"{Project}/game/main.tscn",
-            "[ext_resource type=\"Script\" uid=\"uid://bxwpwbdv4fm02\" path=\"res://addons/r3/frame.cs\" id=\"1\"]");
+            "[ext_resource type=\"Script\" uid=\"uid://bxwpwbdv4fm02\" "
+            + "path=\"res://addons/r3/frame.cs\" id=\"1\"]");
 
         Assert.Empty(UidReferenceScanner.Scan(fileSystem, Project, Addons));
     }
@@ -74,8 +77,8 @@ public class UidReferenceScannerTests {
 
     [Fact]
     public void Scan_CodeInsideAnAddon_IsNotReported() {
-        // An addon referencing its own resources moves in lockstep with the uids it names, and it is
-        // the author's file, not the user's, so there is nothing here for them to act on.
+        // An addon referencing its own resources moves in lockstep with the uids it names, and it
+        // is the author's file, not the user's, so there is nothing here for them to act on.
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Addons}/r3/plugin.cs", "load(\"uid://bxwpwbdv4fm02\")");
 
@@ -85,7 +88,8 @@ public class UidReferenceScannerTests {
     [Fact]
     public void Scan_AUidThatIsAPrefixOfAnother_IsNotConfused() {
         // uid://abc is a prefix of uid://abc1. Substring matching would report a reference to a
-        // resource the code never mentions — a false alarm on the check whose only value is precision.
+        // resource the code never mentions — a false alarm on the check whose only value is
+        // precision.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Addons}/r3/frame.cs", "class Frame {}");
         fileSystem.WriteAllText($"{Addons}/r3/frame.cs.uid", "uid://abc");
@@ -96,8 +100,8 @@ public class UidReferenceScannerTests {
 
     [Fact]
     public void Scan_GodotCacheFolder_IsSkipped() {
-        // .godot holds uids in bulk and is regenerated wholesale; scanning it would report thousands
-        // of "references" nobody wrote.
+        // .godot holds uids in bulk and is regenerated wholesale; scanning it would report
+        // thousands of "references" nobody wrote.
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Project}/.godot/generated.gd", "uid://bxwpwbdv4fm02");
 
@@ -110,8 +114,8 @@ public class UidReferenceScannerTests {
     [InlineData("tools/.cache/boot.gd")]
     public void Scan_HiddenFolders_AreSkipped(string relative) {
         // Godot skips every file and folder whose name starts with a dot, so code there is never
-        // loaded and cannot break. .dotquay/staging is the case that mattered: an extracted copy of an
-        // addon, whose own uid references were reported as the project's.
+        // loaded and cannot break. .dotquay/staging is the case that mattered: an extracted copy of
+        // an addon, whose own uid references were reported as the project's.
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Project}/{relative}", "load(\"uid://bxwpwbdv4fm02\")");
 
@@ -134,7 +138,8 @@ public class UidReferenceScannerTests {
         fileSystem.WriteAllText($"{Project}/vendor/.gdignore", "");
         fileSystem.WriteAllText($"{Project}/game/boot.gd", "load(\"uid://bxwpwbdv4fm02\")");
 
-        Assert.Equal("game/boot.gd", Assert.Single(UidReferenceScanner.Scan(fileSystem, Project, Addons)).File);
+        Assert.Equal("game/boot.gd",
+            Assert.Single(UidReferenceScanner.Scan(fileSystem, Project, Addons)).File);
     }
 
     [Fact]

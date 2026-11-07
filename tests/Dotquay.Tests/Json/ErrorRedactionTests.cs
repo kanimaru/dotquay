@@ -25,7 +25,8 @@ public sealed class ErrorRedactionTests {
 
     [Fact]
     public void JsonError_masks_a_message_assigned_through_with() {
-        var error = new JsonError(JsonErrorKind.Git, "fine") with { Message = $"failed for {SecretUrl}" };
+        var error = new JsonError(JsonErrorKind.Git,
+            "fine") with { Message = $"failed for {SecretUrl}" };
 
         Assert.Equal($"failed for {MaskedUrl}", error.Message);
     }
@@ -45,7 +46,8 @@ public sealed class ErrorRedactionTests {
         var (kind, message) = JsonErrorClassifier.Classify(exception);
 
         Assert.Equal(JsonErrorKind.Git, kind);
-        Assert.Equal($"'x': git ls-remote failed for {MaskedUrl}: fatal: could not resolve host", message);
+        Assert.Equal($"'x': git ls-remote failed for {MaskedUrl}: fatal: could not resolve host",
+            message);
     }
 
     [Fact]
@@ -53,12 +55,15 @@ public sealed class ErrorRedactionTests {
         var (_, message) = JsonErrorClassifier.Classify(
             new HttpRequestException("https://h/v3/index.json?private_token=abc refused"));
 
-        Assert.Equal("A NuGet source could not be reached: https://h/v3/index.json?private_token=*** refused", message);
+        Assert.Equal("A NuGet source could not be reached: "
+            + "https://h/v3/index.json?private_token=*** refused", message);
     }
 
     [Fact]
     public void Classify_still_recognises_a_missing_manifest() {
-        var (kind, _) = JsonErrorClassifier.Classify(new WorkflowException("No dotquay.toml. Run 'dotquay init' first."));
+        var (kind,
+            _) = JsonErrorClassifier.Classify(new WorkflowException("No dotquay.toml. Run 'dotquay "
+            + "init' first."));
 
         Assert.Equal(JsonErrorKind.NoManifest, kind);
     }
@@ -66,19 +71,22 @@ public sealed class ErrorRedactionTests {
     [Fact]
     public void Serialized_failure_envelope_carries_no_secret_and_keeps_the_wire_shape() {
         var json = DotquayJson.Write(JsonEnvelope<OperationJson>.Failure(
-            "add", new JsonError(JsonErrorKind.Git, $"failed for {SecretUrl}"), [$"warned about {SecretUrl}"]));
+            "add", new JsonError(JsonErrorKind.Git, $"failed for {SecretUrl}"),
+            [$"warned about {SecretUrl}"]));
 
         Assert.DoesNotContain("supersecret", json);
 
         var root = JsonDocument.Parse(json).RootElement;
-        Assert.Equal($"failed for {MaskedUrl}", root.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal($"failed for {MaskedUrl}", root.GetProperty("error").GetProperty("message")
+            .GetString());
         Assert.Equal("git", root.GetProperty("error").GetProperty("kind").GetString());
         Assert.Equal($"warned about {MaskedUrl}", root.GetProperty("warnings")[0].GetString());
     }
 
     [Fact]
     public void Success_envelope_masks_warnings_and_tolerates_none() {
-        var withWarnings = JsonEnvelope<OperationJson>.Success("update", new OperationJson(), [$"pinned {SecretUrl}"]);
+        var withWarnings = JsonEnvelope<OperationJson>.Success("update", new OperationJson(),
+            [$"pinned {SecretUrl}"]);
         var withNone = JsonEnvelope<OperationJson>.Success("update", new OperationJson());
 
         Assert.Equal([$"pinned {MaskedUrl}"], withWarnings.Warnings);
@@ -99,7 +107,8 @@ public sealed class ErrorRedactionTests {
         var writer = new StringWriter();
         using var log = new RequestLog(writer, ownsWriter: false);
 
-        log.WriteFailure("7", "tools/call", TimeSpan.FromMilliseconds(3), new InvalidOperationException($"failed for {SecretUrl}\nsecond line"));
+        log.WriteFailure("7", "tools/call", TimeSpan.FromMilliseconds(3),
+            new InvalidOperationException($"failed for {SecretUrl}\nsecond line"));
 
         var line = writer.ToString();
         Assert.Contains($"error=failed for {MaskedUrl}", line);

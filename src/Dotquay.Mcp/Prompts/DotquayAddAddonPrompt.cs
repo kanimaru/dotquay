@@ -11,8 +11,9 @@ public sealed class DotquayAddAddonPrompt : IMcpPrompt {
     public string Name => "dotquay_add_addon";
 
     public string Description =>
-        "Add a git addon the careful way: dotquay_add_preview, show feeds/generators needing approval, "
-        + "get the user's yes, then dotquay_add with approvals and a follow-up dotquay_doctor.";
+        "Add a git addon the careful way: dotquay_add_preview, show feeds/generators needing "
+        + "approval, get the user's yes, then dotquay_add with approvals and a follow-up "
+        + "dotquay_doctor.";
 
     public IReadOnlyList<PromptArgument> Arguments { get; } =
     [
@@ -24,18 +25,22 @@ public sealed class DotquayAddAddonPrompt : IMcpPrompt {
         },
     ];
 
-    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken) {
+    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context,
+        CancellationToken cancellationToken) {
         var gitUrl = McpArgs.GetString(context.Params?.Arguments, "git_url");
 
         if (string.IsNullOrWhiteSpace(gitUrl)) {
-            throw new McpException("'git_url' is required: the git repository URL of the addon to add.");
+            throw new McpException("'git_url' is required: the git repository URL of the addon to "
+                + "add.");
         }
 
-        var text = McpPromptText.Render("dotquay_add_addon.md", new Dictionary<string, string> { ["git_url"] = gitUrl });
+        var text = McpPromptText.Render("dotquay_add_addon.md",
+            new Dictionary<string, string> { ["git_url"] = gitUrl });
 
         return ValueTask.FromResult(new GetPromptResult {
             Description = Description,
-            Messages = [new PromptMessage { Role = Role.User, Content = new TextContentBlock { Text = text } }],
+            Messages = [new PromptMessage { Role = Role.User,
+                Content = new TextContentBlock { Text = text } }],
         });
     }
 }

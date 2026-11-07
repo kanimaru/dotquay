@@ -20,11 +20,13 @@ public interface IReleaseChannel {
     /// and this is the property most likely to end up in a bug report.</summary>
     string Describe { get; }
 
-    /// <summary>The newest published release, or null when the channel has published none.</summary>
+    /// <summary>The newest published release, or null when the channel has published
+    /// none.</summary>
     Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default);
 
     /// <summary>One specific release, or null when there is no such version.</summary>
-    Task<ReleaseManifest?> GetVersionAsync(string version, CancellationToken cancellationToken = default);
+    Task<ReleaseManifest?> GetVersionAsync(string version,
+        CancellationToken cancellationToken = default);
 
     /// <summary>The asset's bytes. Held in memory rather than streamed to disk: the binary is about
     /// 11 MB, and hashing before anything touches the install directory is worth more than the

@@ -9,7 +9,8 @@ namespace Dotquay.Tests.IO;
 /// nothing here depends on git, the network, or the machine's state.
 /// </summary>
 public sealed class SystemFileSystemTests : IDisposable {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "dotquay-fs-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "dotquay-fs-tests-"
+        + Guid.NewGuid().ToString("N"));
     private readonly SystemFileSystem _fs = new();
 
     public SystemFileSystemTests() => Directory.CreateDirectory(_root);
@@ -17,7 +18,8 @@ public sealed class SystemFileSystemTests : IDisposable {
     public void Dispose() {
         // Undo any read-only bits our own fixtures set, then remove the temp tree.
         if (Directory.Exists(_root)) {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
+            foreach (var file in Directory.EnumerateFiles(_root, "*",
+                SearchOption.AllDirectories)) {
                 File.SetAttributes(file, FileAttributes.Normal);
             }
 
@@ -29,7 +31,8 @@ public sealed class SystemFileSystemTests : IDisposable {
     /// Regression: git marks every pack file it writes read-only, and Directory.Delete refuses
     /// read-only files on Windows. RepoCache clears a half-fetched cache entry before retrying,
     /// so a single failed fetch used to make every later `update` of that addon crash with
-    /// UnauthorizedAccessException on `.git/objects/pack/*.idx` until the cache was deleted by hand.
+    /// UnauthorizedAccessException on `.git/objects/pack/*.idx` until the cache was deleted by
+    /// hand.
     /// </summary>
     [Fact]
     public void DeleteDirectory_RemovesATreeContainingReadOnlyFiles() {
@@ -44,7 +47,8 @@ public sealed class SystemFileSystemTests : IDisposable {
 
         _fs.DeleteDirectory(target);
 
-        Assert.False(Directory.Exists(target), "a read-only pack file must not block deleting the cache entry");
+        Assert.False(Directory.Exists(target),
+            "a read-only pack file must not block deleting the cache entry");
     }
 
     [Fact]

@@ -13,7 +13,8 @@ namespace Dotquay.Tests.Support;
 /// line here and are unreachable from a test that needs a real GitLab project to reproduce them.
 /// </remarks>
 public sealed class FakeReleaseChannel : IReleaseChannel {
-    private readonly Dictionary<string, ReleaseManifest> _releases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string,
+        ReleaseManifest> _releases = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, byte[]> _payloads = new(StringComparer.Ordinal);
 
     public string Describe { get; set; } = "releases.example";
@@ -28,7 +29,8 @@ public sealed class FakeReleaseChannel : IReleaseChannel {
     /// <summary>Publishes a release whose asset really does hash to the checksum it advertises —
     /// the honest case, so a test that wants a mismatch has to ask for one
     /// (<see cref="Corrupt"/>).</summary>
-    public FakeReleaseChannel Publish(string version, string rid = "linux-x64", string? contents = null) {
+    public FakeReleaseChannel Publish(string version, string rid = "linux-x64",
+        string? contents = null) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(contents ?? $"dotquay {version} for {rid}");
         var url = $"https://releases.example/{version}/{rid}";
 
@@ -75,13 +77,16 @@ public sealed class FakeReleaseChannel : IReleaseChannel {
 
     public Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default) {
         LatestQueries++;
-        return Task.FromResult(LatestVersion is null ? null : _releases.GetValueOrDefault(LatestVersion));
+        return Task.FromResult(LatestVersion is null ? null
+            : _releases.GetValueOrDefault(LatestVersion));
     }
 
-    public Task<ReleaseManifest?> GetVersionAsync(string version, CancellationToken cancellationToken = default) =>
+    public Task<ReleaseManifest?> GetVersionAsync(string version,
+        CancellationToken cancellationToken = default) =>
         Task.FromResult(_releases.GetValueOrDefault(version.TrimStart('v')));
 
-    public Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default) {
+    public Task<byte[]> DownloadAsync(ReleaseAsset asset,
+        CancellationToken cancellationToken = default) {
         Downloads++;
         return Task.FromResult(_payloads[asset.Url]);
     }
@@ -110,7 +115,8 @@ public sealed class FakeExecutableProbe : IExecutableProbe {
         return this;
     }
 
-    public Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default) {
+    public Task<string?> ReadVersionAsync(string path,
+        CancellationToken cancellationToken = default) {
         var key = path.Replace('\\', '/').TrimStart('/');
         Probed.Add(key);
 

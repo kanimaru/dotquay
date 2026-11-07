@@ -3,17 +3,18 @@ using System.Text;
 namespace Dotquay.Core.Git;
 
 /// <summary>
-/// Recognises a Git LFS pointer: the few lines of text git keeps in a repository in place of a large
-/// file, and which land in the working tree instead of the real file whenever LFS did not run.
+/// Recognises a Git LFS pointer: the few lines of text git keeps in a repository in place of a
+/// large file, and which land in the working tree instead of the real file whenever LFS did not
+/// run.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Why dotquay cares: it fetches with a plain <c>git fetch</c> and <c>git checkout</c>, so a repository
-/// that stores its binaries in LFS arrives as real files only if the machine has git-lfs installed
-/// <em>and</em> activated (<c>git lfs install</c>). Without it git does not fail — it writes the pointer
-/// text and carries on, and the addon is installed, hashed into the lockfile and reported <c>clean</c>
-/// with a 130-byte stand-in where a 12 MB library should be. Nothing then points back to the cause:
-/// Godot just cannot load the extension.
+/// Why dotquay cares: it fetches with a plain <c>git fetch</c> and <c>git checkout</c>, so a
+/// repository that stores its binaries in LFS arrives as real files only if the machine has git-lfs
+/// installed <em>and</em> activated (<c>git lfs install</c>). Without it git does not fail — it
+/// writes the pointer text and carries on, and the addon is installed, hashed into the lockfile and
+/// reported <c>clean</c> with a 130-byte stand-in where a 12 MB library should be. Nothing then
+/// points back to the cause: Godot just cannot load the extension.
 /// </para>
 /// <para>
 /// The format is fixed by the LFS spec (https://github.com/git-lfs/git-lfs/blob/main/docs/spec.md):

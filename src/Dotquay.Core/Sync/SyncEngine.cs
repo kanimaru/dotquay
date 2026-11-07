@@ -22,7 +22,8 @@ public sealed class SyncEngine {
     /// <paramref name="force"/> is set (requirement P0-6) — dotquay never overwrites hand-edits it
     /// doesn't know about.
     /// </summary>
-    public string SwapAndHash(string stagingPath, string destinationPath, string? expectedContentHash, bool force) {
+    public string SwapAndHash(string stagingPath, string destinationPath,
+        string? expectedContentHash, bool force) {
         RefuseToWriteThroughALink(destinationPath);
 
         var dirty = DirtyChecker.Check(_fileSystem, destinationPath, expectedContentHash);
@@ -30,7 +31,8 @@ public sealed class SyncEngine {
         if (dirty.IsDirty && !force && !MatchesIncomingVersion(stagingPath, destinationPath)) {
             throw new ModifiedAddonException(
                 $"'{destinationPath}' has local modifications that don't match the lockfile. "
-                + "Run 'dotquay patch' to capture them, or pass --force to overwrite (SPEC.md requirement P0-6).",
+                + "Run 'dotquay patch' to capture them, or pass --force to overwrite (SPEC.md "
+                + "requirement P0-6).",
                 destinationPath);
         }
 
@@ -45,14 +47,16 @@ public sealed class SyncEngine {
             _fileSystem.WriteAllBytes(target, contents);
         }
 
-        // The value to record. Normally the canonical hash of what was just written. But when the lockfile
-        // already holds a hash that still describes this tree (the same addon at the same commit, recorded
-        // by a machine with different line endings, or by an older dotquay), keep it: rewriting it would
-        // change the lockfile without any change to the addon, and that diff would flip back on the next
-        // machine that installs. A lockfile entry changes when the content does.
+        // The value to record. Normally the canonical hash of what was just written. But when the
+        // lockfile already holds a hash that still describes this tree (the same addon at the same
+        // commit, recorded by a machine with different line endings, or by an older dotquay), keep
+        // it: rewriting it would change the lockfile without any change to the addon, and that diff
+        // would flip back on the next machine that installs. A lockfile entry changes when the
+        // content does.
         var installed = ContentHasher.HashTree(_fileSystem, destinationPath);
 
-        return expectedContentHash is not null && installed.Accepted.Contains(expectedContentHash, StringComparer.Ordinal)
+        return expectedContentHash is not null
+            && installed.Accepted.Contains(expectedContentHash, StringComparer.Ordinal)
             ? expectedContentHash
             : installed.Canonical;
     }
@@ -75,9 +79,10 @@ public sealed class SyncEngine {
 
         if (target is not null) {
             throw new SyncException(
-                $"Refusing to install into '{destinationPath}': it is a link to '{target}', so the write "
-                + "would land in a folder dotquay does not own. This is a bug in dotquay - the install "
-                + "should have refused earlier, with an explanation (see docs/DESIGN-v0.16-LINK-SAFETY.md).");
+                $"Refusing to install into '{destinationPath}': it is a link to '{target}', so the "
+                + "write would land in a folder dotquay does not own. This is a bug in dotquay - "
+                + "the install should have refused earlier, with an explanation (see "
+                + "docs/DESIGN-v0.16-LINK-SAFETY.md).");
         }
     }
 
@@ -88,14 +93,15 @@ public sealed class SyncEngine {
     /// <remarks>
     /// The acquittal for a recorded hash that can no longer be reconciled with anything. A lockfile
     /// hash describes the tree as it stood at install time; if the editor has since rewritten an
-    /// addon's <c>.import</c> files — and, for an addon that ships its own <c>.uid</c> files, folded
-    /// those into the recorded number too — then neither the current nor the legacy hash can match,
-    /// on content nobody touched. Comparing numbers cannot resolve that. Comparing trees can.
+    /// addon's <c>.import</c> files — and, for an addon that ships its own <c>.uid</c> files,
+    /// folded those into the recorded number too — then neither the current nor the legacy hash can
+    /// match, on content nobody touched. Comparing numbers cannot resolve that. Comparing trees
+    /// can.
     /// <para>
-    /// This cannot mask a real hand-edit: it only excuses a destination that is byte-identical to what
-    /// is about to replace it, and there is by definition nothing to lose in overwriting that. The
-    /// fresh hash returned from the swap then re-baselines the lockfile, so each addon self-heals the
-    /// first time it is installed.
+    /// This cannot mask a real hand-edit: it only excuses a destination that is byte-identical to
+    /// what is about to replace it, and there is by definition nothing to lose in overwriting that.
+    /// The fresh hash returned from the swap then re-baselines the lockfile, so each addon
+    /// self-heals the first time it is installed.
     /// </para>
     /// <para>
     /// Only reached when the hash comparison already failed, so the ordinary path still hashes the
@@ -103,7 +109,8 @@ public sealed class SyncEngine {
     /// </para>
     /// </remarks>
     private bool MatchesIncomingVersion(string stagingPath, string destinationPath) {
-        if (!_fileSystem.DirectoryExists(destinationPath) || !_fileSystem.DirectoryExists(stagingPath)) {
+        if (!_fileSystem.DirectoryExists(destinationPath)
+            || !_fileSystem.DirectoryExists(stagingPath)) {
             return false;
         }
 
@@ -112,22 +119,23 @@ public sealed class SyncEngine {
     }
 
     /// <summary>
-    /// The editor-generated files that exist at the destination and are <em>not</em> in the incoming
-    /// version, so the swap can put them back afterwards.
+    /// The editor-generated files that exist at the destination and are <em>not</em> in the
+    /// incoming version, so the swap can put them back afterwards.
     /// </summary>
     /// <remarks>
-    /// Without this, every update reassigns UIDs. Godot writes a <c>.uid</c> next to each script and a
-    /// <c>uid=</c> line into each <c>.import</c>; a wholesale replace deletes them, and Godot then
-    /// generates <em>new</em> ones — so every <c>uid://</c> reference into the addon points at
+    /// Without this, every update reassigns UIDs. Godot writes a <c>.uid</c> next to each script
+    /// and a <c>uid=</c> line into each <c>.import</c>; a wholesale replace deletes them, and Godot
+    /// then generates <em>new</em> ones — so every <c>uid://</c> reference into the addon points at
     /// something that no longer exists. Godot's scene format carries a path alongside each uid and
-    /// repairs itself on the next save, so this is usually invisible; a bare <c>uid://</c> passed to
-    /// <c>load()</c> has no such fallback and simply breaks. <c>doctor</c> reports those.
+    /// repairs itself on the next save, so this is usually invisible; a bare <c>uid://</c> passed
+    /// to <c>load()</c> has no such fallback and simply breaks. <c>doctor</c> reports those.
     /// <para>
     /// An addon that ships its own artifact wins: it is content the author versioned, and the
     /// author's uid is the one the addon's own scenes reference.
     /// </para>
     /// </remarks>
-    private List<(string Relative, byte[] Contents)> CollectCarriedArtifacts(string stagingPath, string destinationPath) {
+    private List<(string Relative, byte[] Contents)> CollectCarriedArtifacts(string stagingPath,
+        string destinationPath) {
         var carried = new List<(string, byte[])>();
 
         if (!_fileSystem.DirectoryExists(destinationPath)) {

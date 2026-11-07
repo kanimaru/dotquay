@@ -4,8 +4,8 @@ using Xunit;
 
 namespace Dotquay.Tests.Patch;
 
-/// <summary>Exercises every presence-combination branch <see cref="PatchMerger"/> documents (its own
-/// remarks list all eight) directly against three hand-built directory trees — no addon
+/// <summary>Exercises every presence-combination branch <see cref="PatchMerger"/> documents (its
+/// own remarks list all eight) directly against three hand-built directory trees — no addon
 /// install/patch-capture machinery involved, so a failure here points straight at the merge logic
 /// itself.</summary>
 public class PatchMergerTests {
@@ -14,7 +14,8 @@ public class PatchMergerTests {
     private const string TheirsDir = "theirs";
     private const string DestDir = "dest";
 
-    private static (PatchMerger Merger, InMemoryFileSystem FileSystem, FakePatchTool PatchTool) Build() {
+    private static (PatchMerger Merger, InMemoryFileSystem FileSystem,
+        FakePatchTool PatchTool) Build() {
         var fileSystem = new InMemoryFileSystem();
         var patchTool = new FakePatchTool(fileSystem);
         return (new PatchMerger(fileSystem, patchTool), fileSystem, patchTool);

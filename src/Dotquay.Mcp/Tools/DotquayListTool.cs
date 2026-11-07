@@ -8,13 +8,15 @@ using ModelContextProtocol.Protocol;
 
 namespace Dotquay.Mcp.Tools;
 
-/// <summary>MCP mirror of <c>dotquay list</c>: installed addons and NuGet packages, straight from the
-/// lockfile — instant, offline. See <c>Dotquay.Cli.Commands.ListCommand</c>.</summary>
-public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+/// <summary>MCP mirror of <c>dotquay list</c>: installed addons and NuGet packages, straight from
+/// the lockfile — instant, offline. See <c>Dotquay.Cli.Commands.ListCommand</c>.</summary>
+public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_list";
 
     public override string Description =>
-        "Show installed dependencies with their versions, straight from the lockfile. Read-only, offline.";
+        "Show installed dependencies with their versions, straight from the lockfile. Read-only, "
+        + "offline.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -30,12 +32,15 @@ public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate) : Mcp
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var workflow = McpInfrastructure.CreateWorkflow();
         var addons = workflow.ListInstalled(projectDirectory);
         var dotnet = workflow.ListInstalledDotnet(projectDirectory);
         var payload = JsonMapper.ToListJson(addons, dotnet);
 
-        return ValueTask.FromResult(McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<ListJson>.Success(Name, payload))));
+        return ValueTask.FromResult(
+            McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<ListJson>.Success(Name,
+                payload))));
     }
 }

@@ -13,7 +13,8 @@ public class DependencyGraphResolverTests {
     private const string AUrl = "https://example.com/a.git";
     private const string BUrl = "https://example.com/b.git";
 
-    private static (DependencyGraphResolver Resolver, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build() {
+    private static (DependencyGraphResolver Resolver, InMemoryFileSystem FileSystem,
+        FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var cache = new RepoCache(fileSystem, gitClient, "cache");
@@ -37,7 +38,12 @@ public class DependencyGraphResolverTests {
         };
 
         var rootAddons = new Dictionary<string, AddonSpec> {
-            ["leaf"] = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" },
+            ["leaf"] = new AddonSpec {
+                Name = "leaf",
+                Git = LeafUrl,
+                Version = "~1.0",
+                Path = "addons/leaf"
+            },
         };
 
         var result = await resolver.ResolveGraphAsync(rootAddons, NoOverrides());
@@ -60,7 +66,12 @@ public class DependencyGraphResolverTests {
         };
 
         var rootAddons = new Dictionary<string, AddonSpec> {
-            ["leaf"] = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" },
+            ["leaf"] = new AddonSpec {
+                Name = "leaf",
+                Git = LeafUrl,
+                Version = "~1.0",
+                Path = "addons/leaf"
+            },
         };
 
         var result = await resolver.ResolveGraphAsync(rootAddons, NoOverrides());
@@ -69,9 +80,11 @@ public class DependencyGraphResolverTests {
         Assert.Empty(entry.DependencyNames);
     }
 
-    private static void SetUpDiamond(FakeGitClient gitClient, string aCoreConstraint, string bCoreConstraint) {
+    private static void SetUpDiamond(FakeGitClient gitClient, string aCoreConstraint,
+        string bCoreConstraint) {
         SetTags(gitClient, CoreUrl, "v1.2.0", "v1.3.0", "v1.4.0", "v1.4.2", "v2.0.0");
-        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
+        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string,
+            string> { ["addons/core/plugin.cfg"] = "core" };
 
         gitClient.RemoteRefsByUrl[AUrl] = [];
         gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
@@ -112,7 +125,8 @@ public class DependencyGraphResolverTests {
         var (resolver, _, gitClient) = Build();
         // "~1" matches any 1.x.x; "~1.4" matches only 1.4.x -- the overlap is 1.4.x, so the highest
         // tag satisfying both is v1.4.2 (SPEC.md §8's diamond example, expressed in this codebase's
-        // actual tilde-range grammar rather than the illustrative ">=" shorthand in the spec prose).
+        // actual tilde-range grammar rather than the illustrative ">=" shorthand in the spec
+        // prose).
         SetUpDiamond(gitClient, aCoreConstraint: "~1", bCoreConstraint: "~1.4");
 
         var result = await resolver.ResolveGraphAsync(DiamondRoots(), NoOverrides());
@@ -143,7 +157,8 @@ public class DependencyGraphResolverTests {
     public async Task ResolveGraphAsync_ConflictingRevPins_ThrowsNamingBothRequirers() {
         var (resolver, _, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
+        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string,
+            string> { ["addons/core/plugin.cfg"] = "core" };
 
         gitClient.RemoteRefsByUrl[AUrl] = [];
         gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
@@ -221,7 +236,8 @@ public class DependencyGraphResolverTests {
     [Fact]
     public async Task ResolveGraphAsync_OverrideOnConflictingName_WinsUnconditionally() {
         var (resolver, _, gitClient) = Build();
-        SetUpDiamond(gitClient, aCoreConstraint: "~1.2", bCoreConstraint: "~1.4"); // would normally conflict
+        // would normally conflict
+        SetUpDiamond(gitClient, aCoreConstraint: "~1.2", bCoreConstraint: "~1.4");
 
         const string overrideRev = "3333333333333333333333333333333333cccc";
         gitClient.FetchedFilesByUrlAndSha[(CoreUrl, overrideRev)] = new Dictionary<string, string> {
@@ -229,7 +245,12 @@ public class DependencyGraphResolverTests {
         };
 
         var overrides = new Dictionary<string, AddonSpec> {
-            ["core"] = new AddonSpec { Name = "core", Git = CoreUrl, Rev = overrideRev, Path = "addons/core" },
+            ["core"] = new AddonSpec {
+                Name = "core",
+                Git = CoreUrl,
+                Rev = overrideRev,
+                Path = "addons/core"
+            },
         };
 
         var result = await resolver.ResolveGraphAsync(DiamondRoots(), overrides);
@@ -255,7 +276,12 @@ public class DependencyGraphResolverTests {
         };
 
         var rootAddons = new Dictionary<string, AddonSpec> {
-            ["leaf"] = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" },
+            ["leaf"] = new AddonSpec {
+                Name = "leaf",
+                Git = LeafUrl,
+                Version = "~1.0",
+                Path = "addons/leaf"
+            },
         };
 
         var result = await resolver.ResolveGraphAsync(rootAddons, NoOverrides());
@@ -298,7 +324,12 @@ public class DependencyGraphResolverTests {
         };
 
         var rootAddons = new Dictionary<string, AddonSpec> {
-            ["a"] = new AddonSpec { Name = "a", Git = AUrl, Rev = new string('a', 40), Path = "addons/a" },
+            ["a"] = new AddonSpec {
+                Name = "a",
+                Git = AUrl,
+                Rev = new string('a', 40),
+                Path = "addons/a"
+            },
         };
 
         var result = await resolver.ResolveGraphAsync(rootAddons, NoOverrides());

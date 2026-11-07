@@ -3,7 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 namespace Dotquay.Core.Auth;
 
 /// <summary>
-/// What a stored credential applies to: a host, optionally narrowed to a path prefix (SPEC.md §11.2).
+/// What a stored credential applies to: a host, optionally narrowed to a path prefix (SPEC.md
+/// §11.2).
 /// </summary>
 /// <remarks>
 /// Host-first is the whole point. GitLab publishes a NuGet feed per project — a dozen feeds on one
@@ -29,7 +30,8 @@ public sealed record CredentialScope {
     public string Path { get; }
 
     /// <summary>Whether a token may be sent here at all — HTTPS, or a loopback address. Checked at
-    /// the store boundary so no call site can leak a token over cleartext by forgetting to ask.</summary>
+    /// the store boundary so no call site can leak a token over cleartext by forgetting to
+    /// ask.</summary>
     public bool IsSecure { get; }
 
     /// <summary>The canonical text form used as the TOML table key and shown by
@@ -82,13 +84,16 @@ public sealed record CredentialScope {
             return false;
         }
 
-        var isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
-        var isHttp = string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
+        var isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps,
+            StringComparison.OrdinalIgnoreCase);
+        var isHttp = string.Equals(uri.Scheme, Uri.UriSchemeHttp,
+            StringComparison.OrdinalIgnoreCase);
         if (!isHttps && !isHttp) {
-            // ssh:// and git:// carry no token — they authenticate with keys, which is git's job and
-            // works today. Storing a password against them would be storing something unusable.
-            error = $"'{hostOrUrl}' uses the '{uri.Scheme}' scheme. Only http and https credentials are stored; "
-                + "SSH remotes authenticate with keys, which git already handles.";
+            // ssh:// and git:// carry no token — they authenticate with keys, which is git's job
+            // and works today. Storing a password against them would be storing something unusable.
+            error = $"'{hostOrUrl}' uses the '{uri.Scheme}' scheme. Only http and https "
+                + "credentials are stored; SSH remotes authenticate with keys, which git already "
+                + "handles.";
             return false;
         }
 
@@ -96,7 +101,8 @@ public sealed record CredentialScope {
             ? uri.Host.ToLowerInvariant()
             : $"{uri.Host.ToLowerInvariant()}:{uri.Port}";
 
-        scope = new CredentialScope(host, NormalizePath(uri.AbsolutePath), isHttps || uri.IsLoopback);
+        scope = new CredentialScope(host, NormalizePath(uri.AbsolutePath), isHttps
+            || uri.IsLoopback);
         return true;
     }
 

@@ -4,8 +4,8 @@ using Xunit;
 namespace Dotquay.Tests.Git;
 
 /// <summary>
-/// Covers <see cref="GitUrl"/>: parsing git's two URL grammars, deciding when two spellings name one
-/// repository, and re-expressing a repository over another transport.
+/// Covers <see cref="GitUrl"/>: parsing git's two URL grammars, deciding when two spellings name
+/// one repository, and re-expressing a repository over another transport.
 /// </summary>
 /// <remarks>
 /// Worth a dense suite because every consumer of this type makes an irreversible-looking decision
@@ -104,7 +104,8 @@ public class GitUrlTests {
     [Fact]
     public void Parse_SingleLetterHostWithoutASeparator_IsStillAHost() {
         // The drive-letter rule keys on the separator, not on length alone: "c:x/y" is a valid
-        // scp-like URL for a host literally named "c", and a drive reference always has a separator.
+        // scp-like URL for a host literally named "c", and a drive reference always has a
+        // separator.
         var url = GitUrl.Parse("c:x/y");
 
         Assert.Equal(GitTransport.Ssh, url.Transport);
@@ -127,19 +128,22 @@ public class GitUrlTests {
 
     [Fact]
     public void SameRepositoryAs_HostCasing_IsIgnored() =>
-        Assert.True(GitUrl.Parse("https://GitLab.Kemomi.DE/g/r").SameRepositoryAs(GitUrl.Parse("https://gitlab.kemomi.de/g/r")));
+        Assert.True(GitUrl.Parse("https://GitLab.Kemomi.DE/g/r")
+            .SameRepositoryAs(GitUrl.Parse("https://gitlab.kemomi.de/g/r")));
 
     [Fact]
     public void SameRepositoryAs_PathCasing_IsNotIgnored() {
-        // Stricter than GitHub and GitLab need, on purpose: a self-hosted server on a case-sensitive
-        // filesystem really does serve two repositories here. Over-reporting costs one [overrides]
-        // line; under-reporting silently merges two addons into one folder.
-        Assert.False(GitUrl.Parse("https://host/g/Repo").SameRepositoryAs(GitUrl.Parse("https://host/g/repo")));
+        // Stricter than GitHub and GitLab need, on purpose: a self-hosted server on a
+        // case-sensitive filesystem really does serve two repositories here. Over-reporting costs
+        // one [overrides] line; under-reporting silently merges two addons into one folder.
+        Assert.False(GitUrl.Parse("https://host/g/Repo")
+            .SameRepositoryAs(GitUrl.Parse("https://host/g/repo")));
     }
 
     [Fact]
     public void SameRepositoryAs_ExplicitNonDefaultPort_IsPartOfIdentity() =>
-        Assert.False(GitUrl.Parse("ssh://host:2222/g/r").SameRepositoryAs(GitUrl.Parse("git@host:g/r")));
+        Assert.False(GitUrl.Parse("ssh://host:2222/g/r")
+            .SameRepositoryAs(GitUrl.Parse("git@host:g/r")));
 
     [Fact]
     public void SameRepositoryAs_LocalPathAndRemote_IsNeverTrue() {
@@ -171,23 +175,28 @@ public class GitUrlTests {
     public void WithTransportOf_MirrorsTheTemplatesGitSuffixConvention() {
         var declared = GitUrl.Parse("git@host:g/r.git");
 
-        Assert.Equal("https://host/g/r.git", declared.WithTransportOf(GitUrl.Parse("https://host/g/other.git")).Original);
-        Assert.Equal("https://host/g/r", declared.WithTransportOf(GitUrl.Parse("https://host/g/other")).Original);
+        Assert.Equal("https://host/g/r.git",
+            declared.WithTransportOf(GitUrl.Parse("https://host/g/other.git")).Original);
+        Assert.Equal("https://host/g/r",
+            declared.WithTransportOf(GitUrl.Parse("https://host/g/other")).Original);
     }
 
     [Fact]
     public void WithTransportOf_HttpsToSsh_MirrorsTheTemplatesSpelling() {
         var declared = GitUrl.Parse("https://host/g/r");
 
-        Assert.Equal("git@host:g/r.git", declared.WithTransportOf(GitUrl.Parse("git@host:g/other.git")).Original);
-        Assert.Equal("ssh://git@host/g/r", declared.WithTransportOf(GitUrl.Parse("ssh://git@host/g/other")).Original);
+        Assert.Equal("git@host:g/r.git",
+            declared.WithTransportOf(GitUrl.Parse("git@host:g/other.git")).Original);
+        Assert.Equal("ssh://git@host/g/r",
+            declared.WithTransportOf(GitUrl.Parse("ssh://git@host/g/other")).Original);
     }
 
     [Fact]
     public void WithTransportOf_NeverWritesAUserIntoAnHttpsUrl() {
         // git would read it as the credential identity for that remote, changing which stored
         // credential matches. A transport rewrite has no business deciding that.
-        var rewritten = GitUrl.Parse("ssh://deploy@host/g/r").WithTransportOf(GitUrl.Parse("https://host/g/other"));
+        var rewritten = GitUrl.Parse("ssh://deploy@host/g/r")
+            .WithTransportOf(GitUrl.Parse("https://host/g/other"));
 
         Assert.DoesNotContain("@", rewritten.Original, StringComparison.Ordinal);
     }

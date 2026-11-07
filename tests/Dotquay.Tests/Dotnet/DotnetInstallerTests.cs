@@ -13,9 +13,10 @@ namespace Dotquay.Tests.Dotnet;
 /// </summary>
 /// <remarks>
 /// Credentials arrive through <see cref="FakeEnvironmentReader"/> and
-/// <see cref="InMemoryCredentialStore"/> rather than real process environment variables. The previous
-/// save-set-restore approach was safe within this class and raced <c>NuGetV3ClientFactoryTests</c>,
-/// which mutated the same two variables in a class xunit runs in parallel with this one.
+/// <see cref="InMemoryCredentialStore"/> rather than real process environment variables. The
+/// previous save-set-restore approach was safe within this class and raced
+/// <c>NuGetV3ClientFactoryTests</c>, which mutated the same two variables in a class xunit runs in
+/// parallel with this one.
 /// </remarks>
 public class DotnetInstallerTests {
     private const string SdkStyleCsproj = """
@@ -26,13 +27,16 @@ public class DotnetInstallerTests {
         </Project>
         """;
 
-    private const string PrivateSourceUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
-    private const string SecondSourceUrl = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
+    private const string PrivateSourceUrl =
+        "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
+    private const string SecondSourceUrl =
+        "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
 
     private static readonly NuGetSourceSet PrivateSources =
         NuGetSourceSet.From([new NuGetSourceSpec(NuGetSourceSpec.LegacyName, PrivateSourceUrl)]);
 
-    private static (DotnetInstaller Installer, InMemoryFileSystem FileSystem, FakeDotnetCliRunner Runner) Build(
+    private static (DotnetInstaller Installer, InMemoryFileSystem FileSystem,
+        FakeDotnetCliRunner Runner) Build(
         string? username = null, string? token = null, ICredentialStoreSeed? seed = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
@@ -48,7 +52,8 @@ public class DotnetInstallerTests {
         seed?.Invoke(store);
 
         var runner = new FakeDotnetCliRunner();
-        return (new DotnetInstaller(fileSystem, runner, new CredentialResolver(environment, store)), fileSystem, runner);
+        return (new DotnetInstaller(fileSystem, runner, new CredentialResolver(environment, store)),
+            fileSystem, runner);
     }
 
     public delegate void ICredentialStoreSeed(InMemoryCredentialStore store);
@@ -100,13 +105,15 @@ public class DotnetInstallerTests {
         var (installer, _, runner) = Build();
         runner.ThrowOnRestore = true;
 
-        await Assert.ThrowsAsync<DotnetSyncException>(() => installer.InstallAsync("project", "Newtonsoft.Json", "13.0.3"));
+        await Assert.ThrowsAsync<DotnetSyncException>(() =>
+            installer.InstallAsync("project", "Newtonsoft.Json", "13.0.3"));
     }
 
     [Fact]
     public void Remove_ExistingReference_RemovesItAndReturnsTrue() {
         var (installer, fileSystem, _) = Build();
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
         var removed = installer.Remove("project", "Newtonsoft.Json");
 
@@ -169,8 +176,10 @@ public class DotnetInstallerTests {
         await installer.InstallAsync("project", "Acme.Internal", "1.0.0", sources);
 
         var env = runner.RestoreCalls.Single().EnvironmentVariables!;
-        Assert.Equal("Username=kani;Password=glpat-secret", env["NuGetPackageSourceCredentials_dotquay-core"]);
-        Assert.Equal("Username=kani;Password=glpat-secret", env["NuGetPackageSourceCredentials_dotquay-tools"]);
+        Assert.Equal("Username=kani;Password=glpat-secret",
+            env["NuGetPackageSourceCredentials_dotquay-core"]);
+        Assert.Equal("Username=kani;Password=glpat-secret",
+            env["NuGetPackageSourceCredentials_dotquay-tools"]);
 
         // nuget.org is appended to every source set and must never be handed a credential.
         Assert.DoesNotContain(env.Keys, key => key.Contains("nuget.org", StringComparison.Ordinal));

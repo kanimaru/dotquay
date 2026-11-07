@@ -7,7 +7,8 @@ namespace Dotquay.Tests.Doctor;
 
 public class LfsPointerScannerTests {
     private const string Oid = "968c222503ef1c9e27e1071361187c210ee72457ee6c6afebfd46aa845adca77";
-    private const string Pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:" + Oid + "\nsize 2500000\n";
+    private const string Pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:" + Oid
+        + "\nsize 2500000\n";
 
     [Fact]
     public void Scan_FindsPlaceholdersAmongRealFiles_AndReportsThemRelativeToTheAddon() {
@@ -35,7 +36,8 @@ public class LfsPointerScannerTests {
     public void Scan_ADocumentThatQuotesThePointerFormat_IsNotAPointer() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/GDMP/README.md",
-            "A pointer file starts with `version https://git-lfs.github.com/spec/v1`.\nIt also has an oid line.\n");
+            "A pointer file starts with `version https://git-lfs.github.com/spec/v1`.\nIt also has "
+            + "an oid line.\n");
 
         Assert.Empty(LfsPointerScanner.Scan(fs, "addons/GDMP"));
     }

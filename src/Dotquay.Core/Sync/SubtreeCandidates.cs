@@ -17,17 +17,17 @@ public enum SubtreeMatchKind {
 }
 
 /// <summary>One place in a fetched repository the addon could actually be.</summary>
-/// <param name="Path">Repository-relative subtree path, i.e. the value <c>path</c> should be set to.
-/// <c>"."</c> when the addon is the repository root.</param>
+/// <param name="Path">Repository-relative subtree path, i.e. the value <c>path</c> should be set
+/// to. <c>"."</c> when the addon is the repository root.</param>
 /// <param name="Folder">The folder name the addon must install into — its own
 /// <c>res://addons/&lt;folder&gt;/</c> references are written against this, so it is a fact about
 /// the addon and not a preference.</param>
-/// <param name="Kind">Which rule found it, so a prompt can say what it actually observed rather than
-/// asking the user to trust an unexplained suggestion.</param>
+/// <param name="Kind">Which rule found it, so a prompt can say what it actually observed rather
+/// than asking the user to trust an unexplained suggestion.</param>
 public sealed record SubtreeCandidate(string Path, string Folder, SubtreeMatchKind Kind) {
-    /// <summary>The <c>reason</c> wire value (docs/DESIGN-v0.20-SUBTREE-GUESS.md §7). A fixed string
-    /// and therefore a contract with the editor plugin, exactly like <c>DoctorIssueKind</c>: adding a
-    /// third rule means teaching the plugin about it, not hoping it copes.</summary>
+    /// <summary>The <c>reason</c> wire value (docs/DESIGN-v0.20-SUBTREE-GUESS.md §7). A fixed
+    /// string and therefore a contract with the editor plugin, exactly like <c>DoctorIssueKind</c>:
+    /// adding a third rule means teaching the plugin about it, not hoping it copes.</summary>
     public string Reason => Kind == SubtreeMatchKind.NameShape ? "name_shape" : "only_addon";
 
     /// <summary>Half a sentence, for a message that has already named the path it means.</summary>
@@ -38,19 +38,20 @@ public sealed record SubtreeCandidate(string Path, string Folder, SubtreeMatchKi
             : "the only addon in the repository";
 }
 
-/// <summary>What a repository offered when the configured subtree turned out not to be there.</summary>
+/// <summary>What a repository offered when the configured subtree turned out not to be
+/// there.</summary>
 /// <param name="GuessedPath">The path that was looked for and isn't there.</param>
-/// <param name="Candidates">Every place the addon could be, ordinally sorted so a message lists them
-/// stably.</param>
+/// <param name="Candidates">Every place the addon could be, ordinally sorted so a message lists
+/// them stably.</param>
 /// <param name="Suggestion">The single candidate worth offering, or null when the repository gives
 /// no clear answer and the message has to fall back to listing.</param>
 public sealed record SubtreeFinding(
     string GuessedPath, IReadOnlyList<SubtreeCandidate> Candidates, SubtreeCandidate? Suggestion) {
     public bool HasCandidates => Candidates.Count > 0;
 
-    /// <summary>The clause naming where the addon is, or that there is no obvious answer — shared by
-    /// the prompt, the refusal, and <see cref="SubtreeExtractor"/>'s exception so all three describe
-    /// the same repository the same way.</summary>
+    /// <summary>The clause naming where the addon is, or that there is no obvious answer — shared
+    /// by the prompt, the refusal, and <see cref="SubtreeExtractor"/>'s exception so all three
+    /// describe the same repository the same way.</summary>
     public string DescribeWhereTheAddonIs() {
         if (Suggestion is not null) {
             var segment = SubtreeCandidates.LastSegment(GuessedPath);
@@ -72,12 +73,12 @@ public sealed record SubtreeFinding(
 /// <remarks>
 /// <para>
 /// dotquay guesses <c>addons/&lt;name&gt;</c> from the repository's URL.
-/// <see cref="SubtreeExtractor.ResolveSubtreePath"/> repairs that guess's <em>capitalisation</em> and
-/// deliberately nothing else, which leaves the commonest disagreement in the Godot ecosystem
+/// <see cref="SubtreeExtractor.ResolveSubtreePath"/> repairs that guess's <em>capitalisation</em>
+/// and deliberately nothing else, which leaves the commonest disagreement in the Godot ecosystem
 /// uncovered: a PascalCase repository name over a snake_case addon folder.
-/// <c>SproutyLabs/SproutyDialogs</c> holds <c>addons/sprouty_dialogs</c>, which differs by more than
-/// case, so the case correction declines and the user is left with an error naming only the path
-/// that didn't work.
+/// <c>SproutyLabs/SproutyDialogs</c> holds <c>addons/sprouty_dialogs</c>, which differs by more
+/// than case, so the case correction declines and the user is left with an error naming only the
+/// path that didn't work.
 /// </para>
 /// <para>
 /// This finds the path that would have worked. It decides nothing: it reads directories and reports
@@ -96,8 +97,8 @@ public static class SubtreeCandidates {
 
     /// <summary>
     /// Returns what <paramref name="cachedRepoPath"/> offers in place of
-    /// <paramref name="guessedSubtreePath"/>, or null when the guess is fine and there is nothing to
-    /// suggest.
+    /// <paramref name="guessedSubtreePath"/>, or null when the guess is fine and there is nothing
+    /// to suggest.
     /// </summary>
     /// <remarks>
     /// Null is also the answer for a guess that only resolves once
@@ -105,12 +106,14 @@ public static class SubtreeCandidates {
     /// already handled, and re-reporting it here would ask the user to confirm a correction dotquay
     /// makes silently and correctly.
     /// </remarks>
-    public static SubtreeFinding? Find(IFileSystem fileSystem, string cachedRepoPath, string guessedSubtreePath) {
+    public static SubtreeFinding? Find(IFileSystem fileSystem, string cachedRepoPath,
+        string guessedSubtreePath) {
         if (!fileSystem.DirectoryExists(cachedRepoPath)) {
             return null;
         }
 
-        var resolved = SubtreeExtractor.ResolveSubtreePath(fileSystem, cachedRepoPath, guessedSubtreePath);
+        var resolved = SubtreeExtractor.ResolveSubtreePath(fileSystem, cachedRepoPath,
+            guessedSubtreePath);
         var resolvedFull = resolved is "." or ""
             ? cachedRepoPath
             : fileSystem.CombinePath(cachedRepoPath, resolved);
@@ -129,10 +132,10 @@ public static class SubtreeCandidates {
     /// The one candidate worth offering: a single name-shape match, else a single sole-addon match.
     /// </summary>
     /// <remarks>
-    /// Ambiguity is answered with silence on purpose. Two candidates mean the repository has not told
-    /// dotquay which addon this is, and picking one anyway is the layout inference this whole area
-    /// exists not to do — the message lists them instead, which is a question the user can answer in
-    /// one flag.
+    /// Ambiguity is answered with silence on purpose. Two candidates mean the repository has not
+    /// told dotquay which addon this is, and picking one anyway is the layout inference this whole
+    /// area exists not to do — the message lists them instead, which is a question the user can
+    /// answer in one flag.
     /// </remarks>
     private static SubtreeCandidate? Choose(IReadOnlyList<SubtreeCandidate> candidates) {
         var byShape = candidates.Where(c => c.Kind == SubtreeMatchKind.NameShape).ToList();
@@ -149,19 +152,21 @@ public static class SubtreeCandidates {
     /// </summary>
     /// <remarks>
     /// The three searched shapes are tried in order and the first that yields anything wins, so a
-    /// repository with a real <c>addons/</c> is never also offered its own root or a nested project's
-    /// plugins. Mixing them would turn one clear answer into a list, which <see cref="Choose"/> reads
-    /// as "no suggestion".
+    /// repository with a real <c>addons/</c> is never also offered its own root or a nested
+    /// project's plugins. Mixing them would turn one clear answer into a list, which
+    /// <see cref="Choose"/> reads as "no suggestion".
     /// </remarks>
-    private static List<SubtreeCandidate> Collect(IFileSystem fileSystem, string repoPath, string wanted) {
+    private static List<SubtreeCandidate> Collect(IFileSystem fileSystem, string repoPath,
+        string wanted) {
         var folders = AddonFoldersIn(fileSystem, repoPath, AddonsFolder);
 
-        if (folders.Count == 0 && fileSystem.FileExists(fileSystem.CombinePath(repoPath, PluginMarker))) {
+        if (folders.Count == 0
+            && fileSystem.FileExists(fileSystem.CombinePath(repoPath, PluginMarker))) {
             // The addon *is* the repository. SPEC.md §7.1 requires `path = "."` to be stated rather
             // than inferred, which is exactly the statement this suggestion offers to make. The
             // folder stays the name that was being looked for: the cache directory this was read
-            // from is named after a URL and a commit, and nothing in a root-level addon says what it
-            // wants to be called.
+            // from is named after a URL and a commit, and nothing in a root-level addon says what
+            // it wants to be called.
             return [new SubtreeCandidate(".", wanted, SubtreeMatchKind.OnlyAddon)];
         }
 
@@ -191,7 +196,8 @@ public static class SubtreeCandidates {
     private static List<(string Path, string Name, bool HasPlugin)> AddonFoldersIn(
         IFileSystem fileSystem, string repoPath, string container) {
         var found = new List<(string, string, bool)>();
-        var resolvedContainer = SubtreeExtractor.ResolveSubtreePath(fileSystem, repoPath, container);
+        var resolvedContainer = SubtreeExtractor.ResolveSubtreePath(fileSystem, repoPath,
+            container);
         var containerPath = fileSystem.CombinePath(repoPath, resolvedContainer);
 
         if (!fileSystem.DirectoryExists(containerPath)) {
@@ -211,10 +217,10 @@ public static class SubtreeCandidates {
     /// <c>&lt;anything&gt;/addons/*</c>, one level down.
     /// </summary>
     /// <remarks>
-    /// A repository that keeps its Godot project in a subfolder — <c>godot/addons/vbeami</c> — has no
-    /// <c>addons/</c> at its root at all, so without this the common "addon repo that is also a
-    /// playable project" layout offers nothing. One level only: deeper than that, a match stops being
-    /// the repository's structure and starts being a coincidence.
+    /// A repository that keeps its Godot project in a subfolder — <c>godot/addons/vbeami</c> — has
+    /// no <c>addons/</c> at its root at all, so without this the common "addon repo that is also a
+    /// playable project" layout offers nothing. One level only: deeper than that, a match stops
+    /// being the repository's structure and starts being a coincidence.
     /// </remarks>
     private static List<(string Path, string Name, bool HasPlugin)> NestedAddonFolders(
         IFileSystem fileSystem, string repoPath) {
@@ -235,8 +241,9 @@ public static class SubtreeCandidates {
     }
 
     /// <summary>
-    /// Reduces a folder or repository name to its letters and digits, lowercased: the comparison that
-    /// makes <c>SproutyDialogs</c>, <c>sprouty_dialogs</c> and <c>sprouty-dialogs</c> one name.
+    /// Reduces a folder or repository name to its letters and digits, lowercased: the comparison
+    /// that makes <c>SproutyDialogs</c>, <c>sprouty_dialogs</c> and <c>sprouty-dialogs</c> one
+    /// name.
     /// </summary>
     /// <remarks>
     /// Separators are dropped rather than normalised to a common one, which is the same thing said

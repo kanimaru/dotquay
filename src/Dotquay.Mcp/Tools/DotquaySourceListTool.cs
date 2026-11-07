@@ -8,12 +8,14 @@ using ModelContextProtocol.Protocol;
 
 namespace Dotquay.Mcp.Tools;
 
-/// <summary>MCP mirror of <c>dotquay source list</c>: the NuGet feeds this project searches, in order
-/// (SPEC.md §7.1, §11.1). See <c>Dotquay.Cli.Commands.SourceCommand</c>.</summary>
-public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+/// <summary>MCP mirror of <c>dotquay source list</c>: the NuGet feeds this project searches, in
+/// order (SPEC.md §7.1, §11.1). See <c>Dotquay.Cli.Commands.SourceCommand</c>.</summary>
+public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_source_list";
 
-    public override string Description => "Show the declared NuGet feeds this project searches, in order. Read-only.";
+    public override string Description =>
+        "Show the declared NuGet feeds this project searches, in order. Read-only.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -29,7 +31,8 @@ public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate)
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var sources = McpInfrastructure.CreateSources().List(projectDirectory);
         var credentials = McpInfrastructure.CreateCredentialResolver();
 
@@ -40,11 +43,14 @@ public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate)
                     Url = source.Url,
                     Packages = source.Packages,
                     DeclaredByAddon = source.DeclaredByAddon,
-                    HasCredential = !source.IsPublicDefault && credentials.ForNuGetSource(source.Name, source.Url).Credential is not null,
+                    HasCredential = !source.IsPublicDefault
+                    && credentials.ForNuGetSource(source.Name, source.Url).Credential is not null,
                 })
                 .ToList(),
         };
 
-        return ValueTask.FromResult(McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<SourceListJson>.Success(Name, payload))));
+        return ValueTask.FromResult(
+            McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<SourceListJson>.Success(Name,
+                payload))));
     }
 }

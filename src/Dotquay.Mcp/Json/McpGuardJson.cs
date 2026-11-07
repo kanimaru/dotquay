@@ -29,10 +29,11 @@ public sealed record SourceApprovalDetailJson {
 /// policy-specific object naming exactly what the agent must show the user and pass back to retry.
 /// </summary>
 /// <remarks>
-/// A generic type closed over each concrete detail shape, the same trick <see cref="JsonEnvelope{T}"/>
-/// itself uses (and <see cref="DotquayMcpJsonContext"/> already relies on for every payload type) —
-/// not a shared <c>JsonError</c> extension, because <see cref="JsonError"/> is part of the Godot
-/// plugin's wire contract (SPEC.md §17) and this shape exists only at the MCP boundary.
+/// A generic type closed over each concrete detail shape, the same trick
+/// <see cref="JsonEnvelope{T}"/> itself uses (and <see cref="DotquayMcpJsonContext"/> already
+/// relies on for every payload type) — not a shared <c>JsonError</c> extension, because
+/// <see cref="JsonError"/> is part of the Godot plugin's wire contract (SPEC.md §17) and this shape
+/// exists only at the MCP boundary.
 /// </remarks>
 public sealed record McpRefusalJson<TDetail>
     where TDetail : class {

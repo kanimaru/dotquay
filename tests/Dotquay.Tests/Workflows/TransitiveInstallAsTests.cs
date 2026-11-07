@@ -16,14 +16,14 @@ namespace Dotquay.Tests.Workflows;
 /// <remarks>
 /// The graph sync skips reinstalling an addon it considers unchanged, and that check originally
 /// compared only the git URL and the resolved commit. For a transitive addon pinned by <c>rev</c>,
-/// a parent that starts declaring <c>install_as</c> moves nothing about the commit — so the addon was
-/// skipped and stayed in its old folder while the command reported success.
+/// a parent that starts declaring <c>install_as</c> moves nothing about the commit — so the addon
+/// was skipped and stayed in its old folder while the command reported success.
 /// <para>
 /// Found in the field: vbeami began declaring
-/// <c>install_as = "Godot-MToon-Shader"</c> for mtoon-shader, a consuming project ran <c>update</c>,
-/// and the shader stayed in <c>addons/mtoon-shader</c> — where vrm's
-/// <c>preload("res://addons/Godot-MToon-Shader/…")</c> could not find it. Top-level addons never hit
-/// this, because a full update marks every root fresh; only transitive ones were exposed.
+/// <c>install_as = "Godot-MToon-Shader"</c> for mtoon-shader, a consuming project ran
+/// <c>update</c>, and the shader stayed in <c>addons/mtoon-shader</c> — where vrm's
+/// <c>preload("res://addons/Godot-MToon-Shader/…")</c> could not find it. Top-level addons never
+/// hit this, because a full update marks every root fresh; only transitive ones were exposed.
 /// </para>
 /// </remarks>
 public class TransitiveInstallAsTests {
@@ -35,13 +35,15 @@ public class TransitiveInstallAsTests {
 
     private static string ChildSha => new('c', 40);
 
-    /// <param name="childInstallAs">What the parent's package manifest says about the child's folder,
-    /// or null for the pre-fix manifest that said nothing.</param>
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string? childInstallAs) {
+    /// <param name="childInstallAs">What the parent's package manifest says about the child's
+    /// folder, or null for the pre-fix manifest that said nothing.</param>
+    private static (DependencyWorkflow Workflow,
+        InMemoryFileSystem FileSystem) Build(string? childInstallAs) {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
 
-        var installAsLine = childInstallAs is null ? string.Empty : $"install_as = \"{childInstallAs}\"\n";
+        var installAsLine = childInstallAs is null ? string.Empty
+            : $"install_as = \"{childInstallAs}\"\n";
 
         gitClient.RemoteRefsByUrl[ParentUrl] = [new GitRef("v1.0.0", ParentSha, GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[ParentUrl] = new Dictionary<string, string> {
@@ -51,7 +53,8 @@ public class TransitiveInstallAsTests {
                 + $"git = \"{ChildUrl}\"\nrev = \"{ChildSha}\"\npath = \".\"\n{installAsLine}",
         };
 
-        gitClient.FetchedFilesByUrl[ChildUrl] = new Dictionary<string, string> { ["plugin.cfg"] = "child cfg" };
+        gitClient.FetchedFilesByUrl[ChildUrl] = new Dictionary<string,
+            string> { ["plugin.cfg"] = "child cfg" };
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
             [addons.parent]
@@ -61,7 +64,8 @@ public class TransitiveInstallAsTests {
             """);
 
         var cache = new RepoCache(fileSystem, gitClient, "cache");
-        var installer = new AddonInstaller(fileSystem, cache, new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+        var installer = new AddonInstaller(fileSystem, cache, new SyncEngine(fileSystem),
+            new FakePatchTool(fileSystem));
         var workflow = new DependencyWorkflow(fileSystem, gitClient, installer);
 
         return (workflow, fileSystem);
@@ -91,12 +95,14 @@ public class TransitiveInstallAsTests {
         var lockfile = beforeFs.ReadAllText(beforeFs.CombinePath(ProjectDirectory, "dotquay.lock"));
         var (after, afterFs) = Build(childInstallAs: "Renamed-Child");
         afterFs.WriteAllText(afterFs.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
-        afterFs.WriteAllText(afterFs.CombinePath(ProjectDirectory, "addons", "child", "plugin.cfg"), "child cfg");
+        afterFs.WriteAllText(afterFs.CombinePath(ProjectDirectory, "addons", "child", "plugin.cfg"),
+            "child cfg");
 
         await after.UpdateAsync(ProjectDirectory, name: null, force: false);
 
-        // The regression: the child's commit never moved, so the sync called it unchanged and skipped
-        // the reinstall entirely — leaving it in the folder the parent just stopped asking for.
+        // The regression: the child's commit never moved, so the sync called it unchanged and
+        // skipped the reinstall entirely — leaving it in the folder the parent just stopped asking
+        // for.
         Assert.True(HasFolder(afterFs, "Renamed-Child"));
         Assert.False(HasFolder(afterFs, "child"));
     }
@@ -109,13 +115,15 @@ public class TransitiveInstallAsTests {
         var lockfile = beforeFs.ReadAllText(beforeFs.CombinePath(ProjectDirectory, "dotquay.lock"));
         var (after, afterFs) = Build(childInstallAs: "Renamed-Child");
         afterFs.WriteAllText(afterFs.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
-        afterFs.WriteAllText(afterFs.CombinePath(afterFs.CombinePath(ProjectDirectory, "addons", "child"), "plugin.cfg"), "child cfg");
+        afterFs.WriteAllText(afterFs.CombinePath(afterFs.CombinePath(ProjectDirectory, "addons",
+            "child"), "plugin.cfg"), "child cfg");
 
         await after.UpdateAsync(ProjectDirectory, name: null, force: false);
 
-        // Without this, `install` on a fresh clone would replay the old folder and the fix would only
-        // hold on machines that happened to run `update`.
-        var parsed = LockfileReader.Read(afterFs.ReadAllText(afterFs.CombinePath(ProjectDirectory, "dotquay.lock")));
+        // Without this, `install` on a fresh clone would replay the old folder and the fix would
+        // only hold on machines that happened to run `update`.
+        var parsed = LockfileReader.Read(afterFs.ReadAllText(afterFs.CombinePath(ProjectDirectory,
+            "dotquay.lock")));
         Assert.Equal("Renamed-Child", parsed.Addons.Single(a => a.Name == "child").EffectiveFolder);
     }
 
@@ -145,8 +153,8 @@ public class TransitiveInstallAsTests {
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), "");
         await workflow.UpdateAsync(ProjectDirectory, name: null, force: false);
 
-        // Pruning by addon name rather than install folder would delete addons/child — which does not
-        // exist — and leave the real folder behind for Godot to keep loading.
+        // Pruning by addon name rather than install folder would delete addons/child — which does
+        // not exist — and leave the real folder behind for Godot to keep loading.
         Assert.False(HasFolder(fileSystem, "Renamed-Child"));
     }
 }

@@ -60,7 +60,8 @@ public static class GitCredentialProtocol {
             return null;
         }
 
-        var protocol = request.TryGetValue("protocol", out var value) && value.Length > 0 ? value : "https";
+        var protocol = request.TryGetValue("protocol", out var value) && value.Length > 0 ? value
+            : "https";
         var path = request.TryGetValue("path", out var requestPath) && requestPath.Length > 0
             ? "/" + requestPath.TrimStart('/')
             : string.Empty;
@@ -81,9 +82,10 @@ public static class GitCredentialProtocol {
     /// <remarks>
     /// A protocol where the delimiter is a newline and the values come from a user-editable file is
     /// a protocol where an embedded newline injects a field. The store escapes newlines on the way
-    /// in, so this should never fire — it is here because "should never" is not a guarantee, and the
-    /// consequence of being wrong is a forged credential field rather than a rendering glitch.
+    /// in, so this should never fire — it is here because "should never" is not a guarantee, and
+    /// the consequence of being wrong is a forged credential field rather than a rendering glitch.
     /// </remarks>
-    private static string Sanitize(string value) => value.Replace("\r", string.Empty, StringComparison.Ordinal)
+    private static string Sanitize(string value) =>
+        value.Replace("\r", string.Empty, StringComparison.Ordinal)
         .Replace("\n", string.Empty, StringComparison.Ordinal);
 }

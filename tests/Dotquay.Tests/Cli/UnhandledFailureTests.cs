@@ -10,8 +10,8 @@ namespace Dotquay.Tests.Cli;
 
 /// <summary>
 /// <see cref="UnhandledFailure"/>, the last resort for an exception no command caught: one envelope
-/// under <c>--json</c>, the parser's message alone for a broken project file, and the stack trace for
-/// anything else (SPEC.md section 17).
+/// under <c>--json</c>, the parser's message alone for a broken project file, and the stack trace
+/// for anything else (SPEC.md section 17).
 /// </summary>
 /// <remarks>
 /// <see cref="Console.SetOut"/> and <see cref="Console.SetError"/> are process-global, so these run
@@ -28,30 +28,36 @@ C:\home\.dotquay\credentials.toml(1,6) : error : Expected `=` after key but was 
 
     [Fact]
     public void Json_gets_one_envelope_named_after_the_subcommand_path() {
-        var (exitCode, stdout, stderr) = Report(["source", "list", "--json"], new InvalidOperationException("boom"));
+        var (exitCode, stdout, stderr) = Report(["source", "list", "--json"],
+            new InvalidOperationException("boom"));
 
         Assert.Equal(1, exitCode);
         Assert.Equal("", stderr);
 
         using var document = JsonDocument.Parse(stdout);
         Assert.Equal("source-list", document.RootElement.GetProperty("command").GetString());
-        Assert.Equal("unexpected", document.RootElement.GetProperty("error").GetProperty("kind").GetString());
-        Assert.Equal("boom", document.RootElement.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal("unexpected", document.RootElement.GetProperty("error").GetProperty("kind")
+            .GetString());
+        Assert.Equal("boom", document.RootElement.GetProperty("error").GetProperty("message")
+            .GetString());
     }
 
     [Fact]
     public void Json_reports_a_broken_lockfile_as_invalid_project_file() {
-        var (exitCode, stdout, _) = Report(["status", "--json"], new LockfileParseException(LockfileMessage));
+        var (exitCode, stdout, _) = Report(["status", "--json"],
+            new LockfileParseException(LockfileMessage));
 
         Assert.Equal(1, exitCode);
         using var document = JsonDocument.Parse(stdout);
         Assert.Equal("status", document.RootElement.GetProperty("command").GetString());
-        Assert.Equal("invalid_project_file", document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+        Assert.Equal("invalid_project_file", document.RootElement.GetProperty("error")
+            .GetProperty("kind").GetString());
     }
 
     [Fact]
     public void Plain_output_of_a_broken_project_file_is_its_message_alone() {
-        var (exitCode, stdout, stderr) = Report(["status"], new LockfileParseException(LockfileMessage));
+        var (exitCode, stdout, stderr) = Report(["status"],
+            new LockfileParseException(LockfileMessage));
 
         Assert.Equal(1, exitCode);
         Assert.Equal(LockfileMessage.ReplaceLineEndings(), stdout.TrimEnd().ReplaceLineEndings());
@@ -60,11 +66,13 @@ C:\home\.dotquay\credentials.toml(1,6) : error : Expected `=` after key but was 
 
     [Fact]
     public void Json_reports_a_broken_credentials_file_as_invalid_config_file() {
-        var (exitCode, stdout, _) = Report(["status", "--json"], new CredentialsFileException(CredentialsMessage));
+        var (exitCode, stdout, _) = Report(["status", "--json"],
+            new CredentialsFileException(CredentialsMessage));
 
         Assert.Equal(1, exitCode);
         using var document = JsonDocument.Parse(stdout);
-        Assert.Equal("invalid_config_file", document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+        Assert.Equal("invalid_config_file", document.RootElement.GetProperty("error")
+            .GetProperty("kind").GetString());
     }
 
     [Fact]
@@ -77,7 +85,8 @@ C:\home\.dotquay\credentials.toml(1,6) : error : Expected `=` after key but was 
             var (exitCode, stdout, stderr) = Report(["status"], exception);
 
             Assert.Equal(1, exitCode);
-            Assert.Equal(CredentialsMessage.ReplaceLineEndings(), stdout.TrimEnd().ReplaceLineEndings());
+            Assert.Equal(CredentialsMessage.ReplaceLineEndings(), stdout.TrimEnd()
+                .ReplaceLineEndings());
             Assert.Equal("", stderr);
         }
     }
@@ -93,14 +102,16 @@ C:\home\.dotquay\credentials.toml(1,6) : error : Expected `=` after key but was 
 
     [Fact]
     public void A_cancellation_prints_nothing() {
-        var (exitCode, stdout, stderr) = Report(["status", "--json"], new OperationCanceledException());
+        var (exitCode, stdout, stderr) = Report(["status", "--json"],
+            new OperationCanceledException());
 
         Assert.Equal(1, exitCode);
         Assert.Equal("", stdout);
         Assert.Equal("", stderr);
     }
 
-    private static (int ExitCode, string Stdout, string Stderr) Report(string[] args, Exception exception) {
+    private static (int ExitCode, string Stdout, string Stderr) Report(string[] args,
+        Exception exception) {
         var root = new RootCommand("test")
         {
             new Command("status") { JsonOption() },

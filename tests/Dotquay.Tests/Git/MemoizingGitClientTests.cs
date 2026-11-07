@@ -74,7 +74,9 @@ public class MemoizingGitClientTests {
 
     [Fact]
     public async Task ConcurrentCallers_ShareOneInFlightQuery() {
-        var gate = new TaskCompletionSource<IReadOnlyList<GitRef>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate =
+            new TaskCompletionSource<IReadOnlyList<GitRef>>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new ScriptedGitClient { RemoteRefs = _ => gate.Task };
         var client = new MemoizingGitClient(inner);
 
@@ -89,11 +91,16 @@ public class MemoizingGitClientTests {
     [Fact]
     public async Task Failure_IsRemembered_SoARefusingRemoteIsNotAskedAgain() {
         var failure = new GitCommandException("Permission denied (publickey).");
-        var inner = new ScriptedGitClient { RemoteRefs = _ => Task.FromException<IReadOnlyList<GitRef>>(failure) };
+        var inner = new ScriptedGitClient {
+            RemoteRefs = _ =>
+            Task.FromException<IReadOnlyList<GitRef>>(failure)
+        };
         var client = new MemoizingGitClient(inner);
 
-        var first = await Assert.ThrowsAsync<GitCommandException>(() => client.ListRemoteRefsAsync(UrlA));
-        var second = await Assert.ThrowsAsync<GitCommandException>(() => client.ListRemoteRefsAsync(UrlA));
+        var first = await Assert.ThrowsAsync<GitCommandException>(() =>
+            client.ListRemoteRefsAsync(UrlA));
+        var second = await Assert.ThrowsAsync<GitCommandException>(() =>
+            client.ListRemoteRefsAsync(UrlA));
 
         Assert.Same(failure, first);
         Assert.Same(failure, second);
@@ -110,7 +117,8 @@ public class MemoizingGitClientTests {
         };
         var client = new MemoizingGitClient(inner);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ListRemoteRefsAsync(UrlA));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.ListRemoteRefsAsync(UrlA));
         var retried = await client.ListRemoteRefsAsync(UrlA);
 
         Assert.Empty(retried);
@@ -119,7 +127,9 @@ public class MemoizingGitClientTests {
 
     [Fact]
     public async Task CallerWhoStopsWaiting_DoesNotCancelTheSharedQueryForOthers() {
-        var gate = new TaskCompletionSource<IReadOnlyList<GitRef>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate =
+            new TaskCompletionSource<IReadOnlyList<GitRef>>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new ScriptedGitClient { RemoteRefs = _ => gate.Task };
         var client = new MemoizingGitClient(inner);
         using var impatient = new CancellationTokenSource();
@@ -136,9 +146,9 @@ public class MemoizingGitClientTests {
 
     [Fact]
     public async Task DefaultInterfaceMembers_AreForwarded_NotLeftAtTheirNoOpDefaults() {
-        // GetCommitDateAsync and EnsureFilesResolvedAsync have default bodies on IGitClient. A wrapper
-        // that forgot to forward them would compile, and quietly turn off LFS downloads and commit-dated
-        // pseudo-versions for every addon resolved through it.
+        // GetCommitDateAsync and EnsureFilesResolvedAsync have default bodies on IGitClient. A
+        // wrapper that forgot to forward them would compile, and quietly turn off LFS downloads and
+        // commit-dated pseudo-versions for every addon resolved through it.
         var date = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero);
         var inner = new ScriptedGitClient { CommitDate = date };
         IGitClient client = new MemoizingGitClient(inner);
@@ -171,8 +181,8 @@ public class MemoizingGitClientTests {
         Assert.Same(once, MemoizingGitClient.Wrap(once));
     }
 
-    /// <summary>Records every call by a readable key; each query answers something distinct per key so a
-    /// mixed-up cache would show as a wrong value, not only as a wrong count.</summary>
+    /// <summary>Records every call by a readable key; each query answers something distinct per key
+    /// so a mixed-up cache would show as a wrong value, not only as a wrong count.</summary>
     private sealed class ScriptedGitClient : IGitClient {
         private readonly ConcurrentQueue<string> _calls = new();
 
@@ -184,33 +194,40 @@ public class MemoizingGitClientTests {
 
         public int CallCount(string key) => _calls.Count(c => c == key);
 
-        public Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
+        public Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl,
+            CancellationToken cancellationToken = default) {
             _calls.Enqueue($"ls-remote {repositoryUrl}");
             return RemoteRefs?.Invoke(repositoryUrl)
-                ?? Task.FromResult<IReadOnlyList<GitRef>>([new GitRef("v1.0.0", Sha(repositoryUrl), GitRefKind.Tag)]);
+                ?? Task.FromResult<IReadOnlyList<GitRef>>([new GitRef("v1.0.0", Sha(repositoryUrl),
+                    GitRefKind.Tag)]);
         }
 
-        public Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default) {
+        public Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch,
+            CancellationToken cancellationToken = default) {
             _calls.Enqueue($"tip {repositoryUrl}@{branch}");
             return Task.FromResult(Sha(repositoryUrl + "@" + branch));
         }
 
-        public Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
+        public Task<string> ResolveDefaultBranchAsync(string repositoryUrl,
+            CancellationToken cancellationToken = default) {
             _calls.Enqueue($"default {repositoryUrl}");
             return Task.FromResult("main");
         }
 
-        public Task FetchCommitAsync(string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default) {
+        public Task FetchCommitAsync(string repositoryUrl, string commitSha, string destinationPath,
+            CancellationToken cancellationToken = default) {
             _calls.Enqueue($"fetch {repositoryUrl} {commitSha} {destinationPath}");
             return Task.CompletedTask;
         }
 
-        public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default) {
+        public Task EnsureFilesResolvedAsync(string checkoutPath,
+            CancellationToken cancellationToken = default) {
             _calls.Enqueue($"lfs {checkoutPath}");
             return Task.CompletedTask;
         }
 
-        public Task<DateTimeOffset?> GetCommitDateAsync(string checkoutPath, string commitSha, CancellationToken cancellationToken = default) {
+        public Task<DateTimeOffset?> GetCommitDateAsync(string checkoutPath, string commitSha,
+            CancellationToken cancellationToken = default) {
             _calls.Enqueue($"commit-date {checkoutPath} {commitSha}");
             return Task.FromResult(CommitDate);
         }
@@ -221,6 +238,8 @@ public class MemoizingGitClientTests {
         }
 
         private static string Sha(string seed) =>
-            Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
+            Convert.ToHexString(
+                System.Security.Cryptography.SHA1.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
     }
 }

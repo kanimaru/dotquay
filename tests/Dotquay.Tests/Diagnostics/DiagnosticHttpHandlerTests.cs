@@ -11,9 +11,12 @@ public sealed class DiagnosticHttpHandlerTests {
     public async Task Logs_method_redacted_url_status_and_auth_scheme_but_never_the_credential() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
         using (scope) {
-            using var client = new HttpClient(new DiagnosticHttpHandler(new StubHandler(HttpStatusCode.NotFound)));
-            using var request = new HttpRequestMessage(HttpMethod.Get, "https://feed.example/v3/index.json?private_token=abc");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", "dXNlcjpzZWNyZXQ=");
+            using var client =
+                new HttpClient(new DiagnosticHttpHandler(new StubHandler(HttpStatusCode.NotFound)));
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                "https://feed.example/v3/index.json?private_token=abc");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic",
+                "dXNlcjpzZWNyZXQ=");
 
             using var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -21,7 +24,8 @@ public sealed class DiagnosticHttpHandlerTests {
 
         var line = Assert.Single(sink.Messages("http"));
         Assert.Matches(
-            @"^GET https://feed\.example/v3/index\.json\?private_token=\*\*\* \[auth: Basic\] -> 404 Not Found after \d+ ms$",
+            @"^GET https://feed\.example/v3/index\.json\?private_token=\*\*\* "
+            + @"\[auth: Basic\] -> 404 Not Found after \d+ ms$",
             line);
         Assert.DoesNotContain("dXNlcjpzZWNyZXQ=", sink.AllText);
         Assert.DoesNotContain("abc", sink.AllText);
@@ -31,7 +35,8 @@ public sealed class DiagnosticHttpHandlerTests {
     public async Task Says_anonymous_or_token_header_when_there_is_no_Authorization() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
         using (scope) {
-            using var client = new HttpClient(new DiagnosticHttpHandler(new StubHandler(HttpStatusCode.OK)));
+            using var client =
+                new HttpClient(new DiagnosticHttpHandler(new StubHandler(HttpStatusCode.OK)));
             using var anonymous = new HttpRequestMessage(HttpMethod.Get, "https://h/a");
             using var tokened = new HttpRequestMessage(HttpMethod.Get, "https://h/b");
             tokened.Headers.Add("PRIVATE-TOKEN", "glpat-secretsecretsecret");
@@ -53,11 +58,15 @@ public sealed class DiagnosticHttpHandlerTests {
 
         using (scope) {
             using var client = new HttpClient(new DiagnosticHttpHandler(new StubHandler(failure)));
-            var thrown = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("https://h/x"));
+            var thrown = await Assert.ThrowsAsync<HttpRequestException>(() =>
+                client.GetAsync("https://h/x"));
             Assert.Same(failure, thrown);
         }
 
-        Assert.Matches(@"^GET https://h/x \[anonymous\] failed after \d+ ms: HttpRequestException: No such host", Assert.Single(sink.Messages("http")));
+        Assert.Matches(
+            @"^GET https://h/x \[anonymous\] failed after \d+ ms: "
+            + @"HttpRequestException: No such host",
+            Assert.Single(sink.Messages("http")));
     }
 
     [Fact]
@@ -81,7 +90,8 @@ public sealed class DiagnosticHttpHandlerTests {
 
         public int Calls { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken) {
             Calls++;
             return _failure is null
                 ? Task.FromResult(new HttpResponseMessage(_status) { RequestMessage = request })

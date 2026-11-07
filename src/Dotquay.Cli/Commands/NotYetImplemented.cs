@@ -8,7 +8,8 @@ internal static class NotYetImplemented {
     public static int Report(string commandName, string requirementIds) {
         ConsoleOutput.WriteLine(
             ConsoleColor.Yellow,
-            $"`{commandName}` isn't implemented yet (tracked as {requirementIds} — see docs/SPRINT-01.md).");
+            $"`{commandName}` isn't implemented yet (tracked as {requirementIds} — see "
+            + $"docs/SPRINT-01.md).");
         return 1;
     }
 }

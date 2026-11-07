@@ -15,12 +15,14 @@ public class SecretScannerTests {
     [InlineData("github_pat_11ABCDEFG0abcdefghijkl")]
     [InlineData("gldt-abcdefghijklmnop")]
     public void Describe_ProviderTokens_AreFlagged(string token) {
-        Assert.NotNull(SecretScanner.Describe($"nuget_source = \"https://x\"\ntoken = \"{token}\""));
+        Assert.NotNull(SecretScanner.Describe($"nuget_source = \"https://x\"\ntoken = "
+            + $"\"{token}\""));
     }
 
     [Fact]
     public void Describe_UrlWithEmbeddedCredentials_IsFlagged() {
-        var found = SecretScanner.Describe("git = \"https://kani:glsecret@gitlab.example.com/kani/addon.git\"");
+        var found = SecretScanner.Describe("git = "
+            + "\"https://kani:glsecret@gitlab.example.com/kani/addon.git\"");
 
         Assert.Contains("embedded", found, StringComparison.Ordinal);
     }
@@ -50,8 +52,8 @@ public class SecretScannerTests {
 
     [Fact]
     public void Describe_ARealisticLockfile_IsClean() {
-        // Full of 40-character hex strings and sha256 hashes. Any entropy-based heuristic would light
-        // this up, and a check that cries wolf gets ignored.
+        // Full of 40-character hex strings and sha256 hashes. Any entropy-based heuristic would
+        // light this up, and a check that cries wolf gets ignored.
         Assert.Null(SecretScanner.Describe("""
             [[addon]]
             name = "dialogue_manager"
@@ -62,6 +64,7 @@ public class SecretScannerTests {
 
     [Fact]
     public void Describe_UrlWithUsernameButNoPassword_IsNotFlagged() {
-        Assert.Null(SecretScanner.Describe("git = \"https://git@gitlab.example.com/kani/addon.git\""));
+        Assert.Null(SecretScanner.Describe("git = "
+            + "\"https://git@gitlab.example.com/kani/addon.git\""));
     }
 }

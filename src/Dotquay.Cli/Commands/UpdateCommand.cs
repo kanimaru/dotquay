@@ -14,12 +14,14 @@ internal static class UpdateCommand {
         };
 
         var forceOption = new Option<bool>("--force") {
-            Description = "Overwrite a hand-modified addon instead of refusing (bypasses dirty detection, P0-6).",
+            Description = "Overwrite a hand-modified addon instead of refusing (bypasses dirty "
+                + "detection, P0-6).",
         };
 
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command(CommandName, "Re-resolve one dependency (or all of them) and reinstall.")
+        var command = new Command(CommandName,
+            "Re-resolve one dependency (or all of them) and reinstall.")
         {
             nameArgument,
             forceOption,
@@ -30,17 +32,20 @@ internal static class UpdateCommand {
             var name = parseResult.GetValue(nameArgument);
             var force = parseResult.GetValue(forceOption);
             var json = parseResult.GetValue(jsonOption);
-            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json, allowSourceAdoption: true);
+            var (workflow, progress) = WorkflowFactory.CreateWithProgress(json,
+                allowSourceAdoption: true);
 
             try {
-                var result = await workflow.UpdateAsync(GlobalOptions.Resolve(parseResult), name, force, cancellationToken);
+                var result = await workflow.UpdateAsync(GlobalOptions.Resolve(parseResult), name,
+                    force, cancellationToken);
 
-                // Stopped before anything is printed, so the spinner's last frame isn't left sitting
-                // on the line the results are about to occupy.
+                // Stopped before anything is printed, so the spinner's last frame isn't left
+                // sitting on the line the results are about to occupy.
                 progress.Dispose();
 
                 if (json) {
-                    JsonOutput.WriteOperation(CommandName, JsonMapper.ToJson(result), result.Warnings);
+                    JsonOutput.WriteOperation(CommandName, JsonMapper.ToJson(result),
+                        result.Warnings);
                     return 0;
                 }
 
@@ -53,12 +58,13 @@ internal static class UpdateCommand {
                     PrintAddonResult(addon);
                 }
 
-                foreach (var dependency in result.Dotnet.OrderBy(r => r.Name, StringComparer.Ordinal)) {
+                foreach (var dependency in result.Dotnet.OrderBy(r => r.Name,
+                    StringComparer.Ordinal)) {
                     PrintDotnetResult(dependency);
                 }
 
-                // Printed last, and only after the results, so the thing someone is actually waiting
-                // for isn't pushed off screen by an advisory note.
+                // Printed last, and only after the results, so the thing someone is actually
+                // waiting for isn't pushed off screen by an advisory note.
                 foreach (var warning in result.Warnings) {
                     Console.WriteLine();
                     ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
@@ -87,9 +93,12 @@ internal static class UpdateCommand {
             return;
         }
 
-        var from = result.PreviousResolved is null ? "(not previously locked)" : ShortSha(result.PreviousResolved);
+        var from = result.PreviousResolved is null ? "(not previously locked)"
+            : ShortSha(result.PreviousResolved);
         ConsoleOutput.WriteLine(
-            ConsoleColor.Green, $"  {result.Name} @ {result.Locked.Version}: {from} -> {ShortSha(result.Locked.Resolved)}");
+            ConsoleColor.Green,
+            $"  {result.Name} @ {result.Locked.Version}: {from} -> "
+            + $"{ShortSha(result.Locked.Resolved)}");
     }
 
     private static void PrintDotnetResult(DotnetUpdateResult result) {
@@ -99,7 +108,8 @@ internal static class UpdateCommand {
         }
 
         var from = result.PreviousResolved ?? "(not previously locked)";
-        ConsoleOutput.WriteLine(ConsoleColor.Green, $"  {result.Name} (NuGet): {from} -> {result.Locked.Resolved}");
+        ConsoleOutput.WriteLine(ConsoleColor.Green,
+            $"  {result.Name} (NuGet): {from} -> {result.Locked.Resolved}");
     }
 
     private static string ShortSha(string sha) => sha.Length > 7 ? sha[..7] : sha;

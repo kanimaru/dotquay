@@ -3,15 +3,15 @@ namespace Dotquay.Cli;
 /// <summary>
 /// Refuses <c>dotquay mcp</c> when stdin is a real, interactive console instead of the pipe an MCP
 /// client spawns it with (docs/DESIGN-v0.18-MCP.md §12, OQ-2). Without this, someone who runs
-/// <c>dotquay mcp</c> by hand sees nothing at all — the process is just sitting on a pending read of
-/// a JSON-RPC message that will never arrive, which looks exactly like a hang, not like a program
-/// waiting for the thing it was actually built to wait for.
+/// <c>dotquay mcp</c> by hand sees nothing at all — the process is just sitting on a pending read
+/// of a JSON-RPC message that will never arrive, which looks exactly like a hang, not like a
+/// program waiting for the thing it was actually built to wait for.
 /// </summary>
 /// <remarks>
-/// The decision itself (<see cref="ShouldRefuse"/>) is a pure function of one bool so it is testable
-/// without touching the real console — an automated test cannot reproduce a genuine interactive TTY,
-/// but it can assert the boolean logic directly. <see cref="Commands.McpCommand"/> is the one call
-/// site that passes the real <see cref="System.Console.IsInputRedirected"/>.
+/// The decision itself (<see cref="ShouldRefuse"/>) is a pure function of one bool so it is
+/// testable without touching the real console — an automated test cannot reproduce a genuine
+/// interactive TTY, but it can assert the boolean logic directly. <see cref="Commands.McpCommand"/>
+/// is the one call site that passes the real <see cref="System.Console.IsInputRedirected"/>.
 /// </remarks>
 public static class TtyGuard {
     /// <summary>Exit code the design doc names for this specific refusal (OQ-2).</summary>

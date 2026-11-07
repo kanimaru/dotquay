@@ -15,5 +15,6 @@ public interface IWritePolicy {
     /// agent that has seen one refusal recognizes the same policy behind another tool's.</summary>
     string Name { get; }
 
-    ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken);
+    ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context,
+        CancellationToken cancellationToken);
 }

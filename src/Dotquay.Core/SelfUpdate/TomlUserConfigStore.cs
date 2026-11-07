@@ -28,7 +28,8 @@ public sealed class TomlUserConfigStore {
     private readonly IEnvironmentReader _environment;
     private readonly string? _path;
 
-    public TomlUserConfigStore(IFileSystem fileSystem, IEnvironmentReader environment, string? path = null) {
+    public TomlUserConfigStore(IFileSystem fileSystem, IEnvironmentReader environment,
+        string? path = null) {
         _fileSystem = fileSystem;
         _environment = environment;
         _path = path ?? DefaultPath(environment, fileSystem);
@@ -45,7 +46,8 @@ public sealed class TomlUserConfigStore {
     public string? Path => _path;
 
     /// <summary>File first, then environment on top. A malformed file is reported rather than
-    /// silently ignored: a setting that quietly does nothing is worse than one that complains.</summary>
+    /// silently ignored: a setting that quietly does nothing is worse than one that
+    /// complains.</summary>
     public UpdateSettings Read() {
         var settings = ReadFile();
 
@@ -60,8 +62,8 @@ public sealed class TomlUserConfigStore {
         return settings;
     }
 
-    /// <summary>Backs <c>dotquay self notify on|off</c>. Rewrites the file rather than editing it in
-    /// place: dotquay owns it, and every key it can hold is written here.</summary>
+    /// <summary>Backs <c>dotquay self notify on|off</c>. Rewrites the file rather than editing it
+    /// in place: dotquay owns it, and every key it can hold is written here.</summary>
     public void SetNoticeEnabled(bool enabled) {
         if (_path is null) {
             throw new WorkflowException(
@@ -82,7 +84,8 @@ public sealed class TomlUserConfigStore {
         try {
             table = DotquayToml.Parse(_fileSystem.ReadAllText(_path), _path);
         } catch (TomlException ex) {
-            throw new UserConfigFileException($"{_path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
+            throw new UserConfigFileException($"{_path}: invalid "
+                + $"TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         if (!table.TryGetValue(UpdateSection, out var raw) || raw is not TomlTable update) {
@@ -90,11 +93,14 @@ public sealed class TomlUserConfigStore {
         }
 
         return new UpdateSettings(
-            update.TryGetValue("channel", out var channel) && channel is string text && text.Length > 0
+            update.TryGetValue("channel", out var channel) && channel is string text
+            && text.Length > 0
                 ? text.TrimEnd('/')
                 : UpdateSettings.DefaultChannelUrl,
-            NoticeEnabled: !update.TryGetValue("check", out var check) || check is not bool flag || flag,
-            IntervalHours: update.TryGetValue("interval_hours", out var interval) && interval is long hours && hours > 0
+            NoticeEnabled: !update.TryGetValue("check", out var check) || check is not bool flag
+            || flag,
+            IntervalHours: update.TryGetValue("interval_hours", out var interval)
+            && interval is long hours && hours > 0
                 ? (int)Math.Min(hours, int.MaxValue)
                 : UpdateSettings.DefaultIntervalHours);
     }
@@ -102,10 +108,12 @@ public sealed class TomlUserConfigStore {
     private void Write(UpdateSettings settings) {
         var builder = new System.Text.StringBuilder();
         builder.AppendLine("# dotquay settings - written by 'dotquay self notify'.");
-        builder.AppendLine("# Per-user, never per-project: which dotquay you run is a property of this machine.");
+        builder.AppendLine("# Per-user, never per-project: which dotquay you run is a property of "
+            + "this machine.");
         builder.AppendLine();
         builder.AppendLine($"[{UpdateSection}]");
-        builder.AppendLine($"channel = \"{settings.ChannelUrl.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"");
+        builder.AppendLine($"channel = "
+            + $"\"{settings.ChannelUrl.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"");
         builder.AppendLine($"check = {(settings.NoticeEnabled ? "true" : "false")}");
         builder.AppendLine($"interval_hours = {settings.IntervalHours}");
 

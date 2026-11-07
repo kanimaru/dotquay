@@ -7,13 +7,16 @@ using Xunit;
 namespace Dotquay.Tests.Dotnet;
 
 /// <summary>
-/// Covers ordered multi-feed search: first match wins, a miss falls through, and a feed that refuses
-/// to answer stops the search rather than deferring to a public one.
+/// Covers ordered multi-feed search: first match wins, a miss falls through, and a feed that
+/// refuses to answer stops the search rather than deferring to a public one.
 /// </summary>
 public class MultiSourceNuGetClientTests {
-    private static MultiSourceNuGetClient Build(params (string Name, FakeNuGetClient Client)[] feeds) =>
+    private static MultiSourceNuGetClient Build(params (string Name,
+        FakeNuGetClient Client)[] feeds) =>
         new(feeds
-            .Select(feed => (new NuGetSourceSpec(feed.Name, $"https://{feed.Name}.example.com/index.json"), (INuGetClient)feed.Client))
+            .Select(feed =>
+                (new NuGetSourceSpec(feed.Name, $"https://{feed.Name}.example.com/index.json"),
+                    (INuGetClient)feed.Client))
             .ToList());
 
     [Fact]
@@ -24,8 +27,8 @@ public class MultiSourceNuGetClientTests {
 
         var query = await client.GetVersionsAsync("Acme.Internal");
 
-        // Taking the highest version wherever it lives is a dependency-confusion substitution attack:
-        // publishing Acme.Internal 99.0.0 publicly would silently redirect every consumer.
+        // Taking the highest version wherever it lives is a dependency-confusion substitution
+        // attack: publishing Acme.Internal 99.0.0 publicly would silently redirect every consumer.
         Assert.Equal(["1.0.0"], query.Versions);
         Assert.Equal("core", query.SourceName);
     }
@@ -44,7 +47,8 @@ public class MultiSourceNuGetClientTests {
 
     [Fact]
     public async Task GetVersionsAsync_FoundNowhere_ReturnsEmpty() {
-        var client = Build(("core", new FakeNuGetClient("core")), ("tools", new FakeNuGetClient("tools")));
+        var client = Build(("core", new FakeNuGetClient("core")),
+            ("tools", new FakeNuGetClient("tools")));
 
         Assert.False((await client.GetVersionsAsync("Acme.Internal")).Found);
     }
@@ -56,7 +60,8 @@ public class MultiSourceNuGetClientTests {
     /// </summary>
     [Fact]
     public async Task GetVersionsAsync_FoundNowhere_RecordsEveryFeedItChecked() {
-        var client = Build(("core", new FakeNuGetClient("core")), ("tools", new FakeNuGetClient("tools")));
+        var client = Build(("core", new FakeNuGetClient("core")),
+            ("tools", new FakeNuGetClient("tools")));
 
         var query = await client.GetVersionsAsync("Acme.Internal");
 
@@ -81,9 +86,10 @@ public class MultiSourceNuGetClientTests {
             ("core", unauthorized),
             ("nuget.org", new FakeNuGetClient().With("Acme.Internal", "99.0.0")));
 
-        // "This feed might have it and won't say" must stop the search. Deferring to the public feed
-        // here is the exact substitution ordered resolution exists to prevent.
-        await Assert.ThrowsAsync<NuGetAuthenticationException>(() => client.GetVersionsAsync("Acme.Internal"));
+        // "This feed might have it and won't say" must stop the search. Deferring to the public
+        // feed here is the exact substitution ordered resolution exists to prevent.
+        await Assert.ThrowsAsync<NuGetAuthenticationException>(() =>
+            client.GetVersionsAsync("Acme.Internal"));
     }
 
     [Fact]
@@ -96,8 +102,8 @@ public class MultiSourceNuGetClientTests {
 
         Assert.Equal("core", query.SourceName);
 
-        // Not an error — a private feed legitimately mirrors public packages — but the two copies can
-        // differ and only the first is ever used, which is worth saying.
+        // Not an error — a private feed legitimately mirrors public packages — but the two copies
+        // can differ and only the first is ever used, which is worth saying.
         var warning = Assert.Single(client.Warnings);
         Assert.Contains("core", warning, StringComparison.Ordinal);
         Assert.Contains("tools", warning, StringComparison.Ordinal);

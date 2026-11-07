@@ -45,8 +45,8 @@ public sealed record GraphNode {
     /// repos (SPEC.md §6). Null for a plain <c>rev</c>/<c>branch</c> pin.</summary>
     public string? Version { get; init; }
 
-    /// <summary>Full commit SHA, or null when a <see cref="GraphSource.Resolved"/> walk couldn't pin
-    /// this name at all.</summary>
+    /// <summary>Full commit SHA, or null when a <see cref="GraphSource.Resolved"/> walk couldn't
+    /// pin this name at all.</summary>
     public string? ResolvedSha { get; init; }
 
     /// <summary>The subtree extracted from the addon's repo (SPEC.md §7.1) — where it lives
@@ -68,14 +68,15 @@ public sealed record GraphNode {
     /// <see cref="SourceKind"/>.</summary>
     public string? Constraint { get; init; }
 
-    /// <summary>True when an <c>[overrides.*]</c> entry decides this name (SPEC.md §8). The editor's
-    /// conflict picker writes exactly this, so it also means "the user forced this one".</summary>
+    /// <summary>True when an <c>[overrides.*]</c> entry decides this name (SPEC.md §8). The
+    /// editor's conflict picker writes exactly this, so it also means "the user forced this
+    /// one".</summary>
     public bool IsOverridden { get; init; }
 
     public bool IsPatched { get; init; }
 
-    /// <summary>Null when nothing is locked for this name yet (a resolved-mode node the lockfile has
-    /// never seen), since there is no recorded content hash to compare disk against.</summary>
+    /// <summary>Null when nothing is locked for this name yet (a resolved-mode node the lockfile
+    /// has never seen), since there is no recorded content hash to compare disk against.</summary>
     public AddonStatusKind? Status { get; init; }
 
     /// <summary>Direct child addon names (SPEC.md §8 graph edges).</summary>
@@ -96,17 +97,20 @@ public sealed record GraphEdge(string From, string To);
 /// in it.</summary>
 /// <remarks>
 /// <see cref="Origin"/>, <see cref="RequiredBy"/> and <see cref="Source"/> (v0.19) are what let the
-/// editor draw a package as a graph node with an edge from each addon that declared it, instead of a
-/// greyed-out sidebar row that only says "needed by an addon" (DESIGN-v0.19). Built by
+/// editor draw a package as a graph node with an edge from each addon that declared it, instead of
+/// a greyed-out sidebar row that only says "needed by an addon" (DESIGN-v0.19). Built by
 /// <see cref="DotnetGraphBuilder"/>, never by hand, so both graph modes agree.
 /// </remarks>
-public sealed record GraphDotnetNode(string Name, string? Constraint, string? Resolved, bool DeclaredByProject) {
+public sealed record GraphDotnetNode(string Name, string? Constraint, string? Resolved,
+    bool DeclaredByProject) {
     /// <summary>Root when the project declares it, transitive when only addons do, orphan when only
-    /// the lockfile still mentions it. The same meaning as <see cref="GraphNode.Origin"/>.</summary>
-    public GraphNodeOrigin Origin { get; init; } = DeclaredByProject ? GraphNodeOrigin.Root : GraphNodeOrigin.Transitive;
+    /// the lockfile still mentions it. The same meaning as
+    /// <see cref="GraphNode.Origin"/>.</summary>
+    public GraphNodeOrigin Origin { get; init; } = DeclaredByProject ? GraphNodeOrigin.Root
+        : GraphNodeOrigin.Transitive;
 
-    /// <summary>Who declared it: <see cref="GraphConflict.ProjectRequirerName"/> first when the project
-    /// does, then addon names in ordinal order. Empty for an orphan.</summary>
+    /// <summary>Who declared it: <see cref="GraphConflict.ProjectRequirerName"/> first when the
+    /// project does, then addon names in ordinal order. Empty for an orphan.</summary>
     public IReadOnlyList<string> RequiredBy { get; init; } = [];
 
     /// <summary>The <c>[nuget.sources.*]</c> name the lockfile says it resolved from, or null for
@@ -124,7 +128,8 @@ public sealed record GraphReport {
 
     public required string ProjectDirectory { get; init; }
 
-    /// <summary>The project's own <c>[addons.*]</c> keys, in manifest order — the graph's roots.</summary>
+    /// <summary>The project's own <c>[addons.*]</c> keys, in manifest order — the graph's
+    /// roots.</summary>
     public IReadOnlyList<string> RootNames { get; init; } = [];
 
     public IReadOnlyList<GraphNode> Addons { get; init; } = [];
@@ -142,7 +147,7 @@ public sealed record GraphReport {
     /// noticed while deciding it.</summary>
     public IReadOnlyList<GraphWarning> Warnings { get; init; } = [];
 
-    /// <summary>Names with an <c>[overrides.*]</c> entry in the project manifest, whether or not the
-    /// override is currently doing anything.</summary>
+    /// <summary>Names with an <c>[overrides.*]</c> entry in the project manifest, whether or not
+    /// the override is currently doing anything.</summary>
     public IReadOnlyList<string> Overrides { get; init; } = [];
 }

@@ -8,7 +8,8 @@ namespace Dotquay.Core.Workflows;
 /// change and renaming one would break a consumer silently.
 /// </remarks>
 public enum DoctorIssueKind {
-    /// <summary>The <c>git</c> binary isn't on PATH — every git-sourced command is broken.</summary>
+    /// <summary>The <c>git</c> binary isn't on PATH — every git-sourced command is
+    /// broken.</summary>
     GitNotOnPath,
 
     /// <summary>A lockfile entry (addon or dotnet) whose name is no longer declared in the manifest
@@ -16,16 +17,17 @@ public enum DoctorIssueKind {
     DanglingLockfileEntry,
 
     /// <summary>An installed addon's own <c>plugin.cfg</c> reports a different version than what
-    /// dotquay has locked — a sign the folder's contents and the lockfile have drifted apart.</summary>
+    /// dotquay has locked — a sign the folder's contents and the lockfile have drifted
+    /// apart.</summary>
     PluginCfgVersionDrift,
 
     /// <summary>A folder under <c>addons/</c> that no locked addon's name accounts for.</summary>
     OrphanedAddonFolder,
 
-    /// <summary>An installed addon ships a <c>dotquay.toml</c> that isn't a valid package manifest —
-    /// usually a missing <c>[package]</c> header (SPEC.md §7.2). The addon still installs fine, but
-    /// every dependency it declares is being silently ignored. Purely local, so this catches the
-    /// problem without a network round-trip.</summary>
+    /// <summary>An installed addon ships a <c>dotquay.toml</c> that isn't a valid package manifest
+    /// — usually a missing <c>[package]</c> header (SPEC.md §7.2). The addon still installs fine,
+    /// but every dependency it declares is being silently ignored. Purely local, so this catches
+    /// the problem without a network round-trip.</summary>
     UnreadablePackageManifest,
 
     /// <summary>
@@ -33,10 +35,10 @@ public enum DoctorIssueKind {
     /// user-only protection.
     /// </summary>
     /// <remarks>
-    /// Checked rather than assumed. <c>TomlCredentialStore</c> sets <c>0600</c> when it writes, but a
-    /// file can be created by hand, copied from another machine, or restored from a backup that
-    /// flattened permissions — and a world-readable file of plaintext tokens is the one failure this
-    /// design's honesty about plaintext storage depends on not happening quietly.
+    /// Checked rather than assumed. <c>TomlCredentialStore</c> sets <c>0600</c> when it writes, but
+    /// a file can be created by hand, copied from another machine, or restored from a backup that
+    /// flattened permissions — and a world-readable file of plaintext tokens is the one failure
+    /// this design's honesty about plaintext storage depends on not happening quietly.
     /// </remarks>
     CredentialFilePermissions,
 
@@ -65,20 +67,20 @@ public enum DoctorIssueKind {
     TrustedHostUnusable,
 
     /// <summary>
-    /// Project code loads something inside <c>addons/</c> by a bare <c>uid://</c> — the one reference
-    /// shape that breaks when an addon's UIDs change.
+    /// Project code loads something inside <c>addons/</c> by a bare <c>uid://</c> — the one
+    /// reference shape that breaks when an addon's UIDs change.
     /// </summary>
     /// <remarks>
-    /// Godot's scene format records a <c>uid</c> and a <c>path</c> together, so a scene whose uid stops
-    /// resolving silently falls back to the path and repairs itself on the next save. A <c>uid://</c>
-    /// string handed to <c>load()</c> has no such fallback: if the addon's uid changes, that call
-    /// simply fails at runtime.
+    /// Godot's scene format records a <c>uid</c> and a <c>path</c> together, so a scene whose uid
+    /// stops resolving silently falls back to the path and repairs itself on the next save. A
+    /// <c>uid://</c> string handed to <c>load()</c> has no such fallback: if the addon's uid
+    /// changes, that call simply fails at runtime.
     /// <para>
     /// dotquay already avoids causing this — <see cref="Dotquay.Core.Sync.SyncEngine"/> carries
-    /// generated <c>.uid</c> files across an update. But an addon that <em>starts</em> shipping its own
-    /// uids replaces the local ones legitimately, and then only this reference shape breaks. Reported
-    /// rather than rewritten: rewriting means dotquay editing the project's own scenes and scripts,
-    /// which is a boundary the CLI otherwise never crosses (SPEC.md §18).
+    /// generated <c>.uid</c> files across an update. But an addon that <em>starts</em> shipping its
+    /// own uids replaces the local ones legitimately, and then only this reference shape breaks.
+    /// Reported rather than rewritten: rewriting means dotquay editing the project's own scenes and
+    /// scripts, which is a boundary the CLI otherwise never crosses (SPEC.md §18).
     /// </para>
     /// </remarks>
     FragileUidReference,
@@ -114,11 +116,11 @@ public enum DoctorIssueKind {
     /// an <c>install_as</c> added, changed, or removed since the lockfile was written.
     /// </summary>
     /// <remarks>
-    /// Not corruption but a normal consequence of the pipeline: <c>install</c> replays the lockfile and
-    /// never re-reads the manifest (SPEC.md §5), so the manifest can say one folder while the addon
-    /// sits in another until an <c>update</c> re-resolves. Worth its own check because every symptom
-    /// appears somewhere else — unresolved <c>preload("res://addons/…")</c> paths, an addon that looks
-    /// installed twice, or an orphan report for the folder that is actually live.
+    /// Not corruption but a normal consequence of the pipeline: <c>install</c> replays the lockfile
+    /// and never re-reads the manifest (SPEC.md §5), so the manifest can say one folder while the
+    /// addon sits in another until an <c>update</c> re-resolves. Worth its own check because every
+    /// symptom appears somewhere else — unresolved <c>preload("res://addons/…")</c> paths, an addon
+    /// that looks installed twice, or an orphan report for the folder that is actually live.
     /// </remarks>
     InstallFolderDrift,
 
@@ -126,9 +128,9 @@ public enum DoctorIssueKind {
     /// A <c>[link.dotnet.*]</c> entry points at a <c>.csproj</c> that is no longer there (v0.11).
     /// </summary>
     /// <remarks>
-    /// The overlay still names it, so every build fails with an MSBuild error about a missing project
-    /// rather than anything mentioning dotquay. Usually the linked checkout was moved or deleted and
-    /// the link outlived it.
+    /// The overlay still names it, so every build fails with an MSBuild error about a missing
+    /// project rather than anything mentioning dotquay. Usually the linked checkout was moved or
+    /// deleted and the link outlived it.
     /// </remarks>
     LinkedProjectMissing,
 
@@ -139,11 +141,11 @@ public enum DoctorIssueKind {
     /// <remarks>
     /// The junction and the declaration are two independent statements about one folder, kept by
     /// different acts at different times, and they drift routinely: the checkout is moved, the link
-    /// is made from one project while the declaration lives in another, or the gitignored local file
-    /// is dropped by a fresh clone while the junction survives. Silent until an install reaches that
-    /// folder and has to choose between writing a package into somebody else's repository and
-    /// replacing their live link with a frozen copy. dotquay refuses both, so this reports the
-    /// disagreement while it is still cheap. See docs/DESIGN-v0.16-LINK-SAFETY.md.
+    /// is made from one project while the declaration lives in another, or the gitignored local
+    /// file is dropped by a fresh clone while the junction survives. Silent until an install
+    /// reaches that folder and has to choose between writing a package into somebody else's
+    /// repository and replacing their live link with a frozen copy. dotquay refuses both, so this
+    /// reports the disagreement while it is still cheap. See docs/DESIGN-v0.16-LINK-SAFETY.md.
     /// </remarks>
     AddonLinkMismatch,
 
@@ -151,8 +153,8 @@ public enum DoctorIssueKind {
     /// <c>dotquay.local.targets</c> exists but the <c>.csproj</c> does not import it (v0.11).
     /// </summary>
     /// <remarks>
-    /// A link that silently does nothing: the build quietly keeps using the published package, which
-    /// is the exact failure the overlay design exists to prevent. Happens if the
+    /// A link that silently does nothing: the build quietly keeps using the published package,
+    /// which is the exact failure the overlay design exists to prevent. Happens if the
     /// <c>&lt;Import&gt;</c> line is removed by hand or lost in a merge.
     /// </remarks>
     LocalOverlayNotImported,
@@ -170,9 +172,9 @@ public enum DoctorIssueKind {
     /// there. Nothing in the project is wrong, so nothing in the project can be edited to fix it --
     /// and the person hitting it is, by definition, the one least equipped to know that.
     /// <para>
-    /// Revocation shares this kind rather than getting its own: it is rare enough that a second wire
-    /// value, which the editor plugin and every other JSON consumer would have to learn, costs more
-    /// than saying so in the message.
+    /// Revocation shares this kind rather than getting its own: it is rare enough that a second
+    /// wire value, which the editor plugin and every other JSON consumer would have to learn, costs
+    /// more than saying so in the message.
     /// </para>
     /// </remarks>
     SshHostNotTrusted,
@@ -196,52 +198,54 @@ public enum DoctorIssueKind {
 
     /// <summary>
     /// An installed addon folder is a Godot project root — it has <c>project.godot</c> and no
-    /// <c>plugin.cfg</c> — because the manifest that declares the addon points its <c>path</c> at the
-    /// repository root after the addon moved into <c>addons/&lt;name&gt;/</c> (v0.19).
+    /// <c>plugin.cfg</c> — because the manifest that declares the addon points its <c>path</c> at
+    /// the repository root after the addon moved into <c>addons/&lt;name&gt;/</c> (v0.19).
     /// </summary>
     /// <remarks>
     /// Nothing fails on the way here: the subtree exists, extracts, hashes, and installs, and
     /// <c>install</c> replays the same lockfile faithfully. The one symptom is Godot reporting the
-    /// plugin as missing, which points at the editor rather than at a <c>path</c> in somebody else's
-    /// package manifest. The offline half of the resolver's
-    /// <see cref="Resolve.GraphWarningKind.SubtreeIsGodotProject"/>: the installed folder <em>is</em>
-    /// the extracted subtree, so the evidence is already on disk (<see cref="Doctor.GodotProjectRootChecker"/>).
+    /// plugin as missing, which points at the editor rather than at a <c>path</c> in somebody
+    /// else's package manifest. The offline half of the resolver's
+    /// <see cref="Resolve.GraphWarningKind.SubtreeIsGodotProject"/>: the installed folder
+    /// <em>is</em> the extracted subtree, so the evidence is already on disk
+    /// (<see cref="Doctor.GodotProjectRootChecker"/>).
     /// </remarks>
     AddonFolderIsGodotProject,
 
     /// <summary>
-    /// An installed addon contains Git LFS pointer files where its real files belong: it was fetched on a
-    /// machine without git-lfs, so git left placeholder text instead of the binaries.
+    /// An installed addon contains Git LFS pointer files where its real files belong: it was
+    /// fetched on a machine without git-lfs, so git left placeholder text instead of the binaries.
     /// </summary>
     /// <remarks>
     /// The one place this is still visible after the fact. The fetch now repairs or refuses
-    /// (<see cref="Git.LfsResolver"/>), but an addon installed before that is on disk as placeholders with a
-    /// lockfile hash computed over them, so <c>status</c> calls it clean and nothing local fails: the first
-    /// symptom is Godot unable to load a native library. Purely local
-    /// (<see cref="Doctor.LfsPointerScanner"/>).
+    /// (<see cref="Git.LfsResolver"/>), but an addon installed before that is on disk as
+    /// placeholders with a lockfile hash computed over them, so <c>status</c> calls it clean and
+    /// nothing local fails: the first symptom is Godot unable to load a native library. Purely
+    /// local (<see cref="Doctor.LfsPointerScanner"/>).
     /// </remarks>
     LfsPointerFile,
 
     /// <summary>
-    /// A locked package is built from source by a <c>ProjectReference</c> and also referenced as a package
-    /// in the same <c>.csproj</c> (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
+    /// A locked package is built from source by a <c>ProjectReference</c> and also referenced as a
+    /// package in the same <c>.csproj</c> (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
     /// </summary>
     /// <remarks>
-    /// MSBuild then picks one of the two and the project cannot tell which, so an edit to the source can
-    /// compile against the published package without any error. For an unconditional source reference
-    /// <c>install</c> removes the package reference; a conditional one is left to the author, because the
-    /// package is what builds outside the condition.
+    /// MSBuild then picks one of the two and the project cannot tell which, so an edit to the
+    /// source can compile against the published package without any error. For an unconditional
+    /// source reference <c>install</c> removes the package reference; a conditional one is left to
+    /// the author, because the package is what builds outside the condition.
     /// </remarks>
     PackageAlsoBuiltFromSource,
 
     /// <summary>
-    /// The project builds a locked package from source at a literal <c>Version</c> other than the one the
-    /// lockfile resolves from the feed (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
+    /// The project builds a locked package from source at a literal <c>Version</c> other than the
+    /// one the lockfile resolves from the feed (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §C).
     /// </summary>
     /// <remarks>
-    /// The project compiles and tests against its source; everyone installing its addons restores the
-    /// locked version. Reported by <c>doctor</c> only, never as an install warning, because <c>update</c>
-    /// reaches the installer only on a change and a warning there would come and go (decision 2).
+    /// The project compiles and tests against its source; everyone installing its addons restores
+    /// the locked version. Reported by <c>doctor</c> only, never as an install warning, because
+    /// <c>update</c> reaches the installer only on a change and a warning there would come and go
+    /// (decision 2).
     /// </remarks>
     SourceBuildVersionMismatch,
 }

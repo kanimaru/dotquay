@@ -12,8 +12,8 @@ namespace Dotquay.Tests.Workflows;
 /// wrong the moment the dependency graph landed (v0.4): a transitive addon and an addon-declared
 /// NuGet package (requirement P1-5) are both correctly locked while appearing in no manifest the
 /// project owns. The result was doctor flagging every transitive dependency the instant the graph
-/// feature started working — noise arriving exactly when things go right, which is the fastest way to
-/// train someone to ignore a check.
+/// feature started working — noise arriving exactly when things go right, which is the fastest way
+/// to train someone to ignore a check.
 /// </remarks>
 public class DoctorDanglingEntryTests {
     private const string ProjectDirectory = "project";
@@ -23,20 +23,25 @@ public class DoctorDanglingEntryTests {
     private static string Sha(char c) => new(c, 40);
 
     /// <summary>A project declaring only <c>root</c>, whose lockfile also holds <c>child</c> as a
-    /// transitive dependency plus a NuGet package <c>root</c> declares in its own package manifest.</summary>
+    /// transitive dependency plus a NuGet package <c>root</c> declares in its own package
+    /// manifest.</summary>
     private static DependencyWorkflow Build(
         InMemoryFileSystem fileSystem,
         string projectManifest,
         string lockfile,
         string? installedRootPackageManifest) {
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), projectManifest);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"),
+            projectManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root", "plugin.cfg"), "cfg");
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "child", "plugin.cfg"), "cfg");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root",
+            "plugin.cfg"), "cfg");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "child",
+            "plugin.cfg"), "cfg");
 
         if (installedRootPackageManifest is not null) {
             fileSystem.WriteAllText(
-                fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"), installedRootPackageManifest);
+                fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"),
+                installedRootPackageManifest);
         }
 
         return new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
@@ -87,7 +92,8 @@ public class DoctorDanglingEntryTests {
     private static async Task<IReadOnlyList<DoctorIssue>> DanglingAsync(
         string? installedRootPackageManifest, string? lockfileOverride = null) {
         var fileSystem = new InMemoryFileSystem();
-        var workflow = Build(fileSystem, ProjectManifest, lockfileOverride ?? LockfileWith(), installedRootPackageManifest);
+        var workflow = Build(fileSystem, ProjectManifest, lockfileOverride ?? LockfileWith(),
+            installedRootPackageManifest);
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
         return result.Issues.Where(i => i.Kind == DoctorIssueKind.DanglingLockfileEntry).ToList();

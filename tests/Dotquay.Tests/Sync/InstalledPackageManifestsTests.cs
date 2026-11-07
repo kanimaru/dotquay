@@ -26,7 +26,8 @@ public class InstalledPackageManifestsTests {
     }
 
     private static void Install(InMemoryFileSystem fileSystem, string folder, string manifest) =>
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", folder, "dotquay.toml"), manifest);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", folder,
+            "dotquay.toml"), manifest);
 
     private const string DeclaresTwo = """
         [package]
@@ -49,7 +50,8 @@ public class InstalledPackageManifestsTests {
 
         // The dotted ID has to survive intact: the manifest reader walks TOML's dotted tables, and
         // "Newtonsoft.Json" split into two keys would be a package nobody declared.
-        Assert.Equal(["Serilog", "Newtonsoft.Json"], declarations["a"].Select(d => d.Name).ToList());
+        Assert.Equal(["Serilog", "Newtonsoft.Json"], declarations["a"].Select(d => d.Name)
+            .ToList());
         Assert.Equal("3.*", declarations["a"][0].Version);
     }
 
@@ -58,7 +60,8 @@ public class InstalledPackageManifestsTests {
         var (reader, fileSystem) = Build();
         Install(fileSystem, "renamed", DeclaresTwo);
 
-        var declarations = reader.DotnetDeclarationsByAddon(ProjectDirectory, [Addon("a", folder: "renamed")]);
+        var declarations = reader.DotnetDeclarationsByAddon(ProjectDirectory,
+            [Addon("a", folder: "renamed")]);
 
         Assert.True(declarations.ContainsKey("a"));
     }
@@ -68,7 +71,8 @@ public class InstalledPackageManifestsTests {
         var (reader, fileSystem) = Build();
         Install(fileSystem, "plain", "[package]\nname = \"plain\"\nversion = \"1.0.0\"\n");
 
-        var declarations = reader.DotnetDeclarationsByAddon(ProjectDirectory, [Addon("plain"), Addon("missing")]);
+        var declarations = reader.DotnetDeclarationsByAddon(ProjectDirectory,
+            [Addon("plain"), Addon("missing")]);
 
         Assert.Empty(declarations);
     }

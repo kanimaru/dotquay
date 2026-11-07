@@ -15,12 +15,12 @@ namespace Dotquay.Mcp.Json;
 /// </para>
 /// <para>
 /// A separate context rather than reusing <see cref="DotquayJsonContext"/> directly, even though
-/// every Phase 1 tool's payload type is already registered there: the Godot editor plugin depends on
-/// <see cref="DotquayJsonContext"/> as a stable wire contract (SPEC.md §17), and Phase 2's write-guard
-/// tools will need MCP-only request/response shapes that have no CLI <c>--json</c> equivalent (design
-/// doc §5). Registering those in <see cref="DotquayJsonContext"/> later would mean editing the one
-/// file the plugin's compatibility promise is about, for a change the plugin will never see. Owning
-/// this context from Phase 1 means that boundary never has to be crossed.
+/// every Phase 1 tool's payload type is already registered there: the Godot editor plugin depends
+/// on <see cref="DotquayJsonContext"/> as a stable wire contract (SPEC.md §17), and Phase 2's
+/// write-guard tools will need MCP-only request/response shapes that have no CLI <c>--json</c>
+/// equivalent (design doc §5). Registering those in <see cref="DotquayJsonContext"/> later would
+/// mean editing the one file the plugin's compatibility promise is about, for a change the plugin
+/// will never see. Owning this context from Phase 1 means that boundary never has to be crossed.
 /// </para>
 /// </remarks>
 [JsonSourceGenerationOptions(
@@ -40,9 +40,9 @@ namespace Dotquay.Mcp.Json;
 public sealed partial class DotquayMcpJsonContext : JsonSerializerContext {
 }
 
-/// <summary>The write side of the contract — one entry point per payload type so no tool has to pick
-/// the right <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo{T}"/> itself (picking
-/// the wrong one is exactly how an AOT serialization bug gets shipped).</summary>
+/// <summary>The write side of the contract — one entry point per payload type so no tool has to
+/// pick the right <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo{T}"/> itself
+/// (picking the wrong one is exactly how an AOT serialization bug gets shipped).</summary>
 public static class DotquayMcpJson {
     public static string Write(JsonEnvelope<StatusJson> envelope) =>
         JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeStatusJson);
@@ -60,17 +60,21 @@ public static class DotquayMcpJson {
         JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeDoctorJson);
 
     public static string Write(JsonEnvelope<AddPreviewJson> envelope) =>
-        JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeAddPreviewJson);
+        JsonSerializer.Serialize(envelope,
+            DotquayMcpJsonContext.Default.JsonEnvelopeAddPreviewJson);
 
     public static string Write(JsonEnvelope<SourceListJson> envelope) =>
-        JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeSourceListJson);
+        JsonSerializer.Serialize(envelope,
+            DotquayMcpJsonContext.Default.JsonEnvelopeSourceListJson);
 
     public static string Write(JsonEnvelope<OperationJson> envelope) =>
         JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeOperationJson);
 
     public static string Write(McpRefusalJson<ForceConfirmationDetailJson> refusal) =>
-        JsonSerializer.Serialize(refusal, DotquayMcpJsonContext.Default.McpRefusalJsonForceConfirmationDetailJson);
+        JsonSerializer.Serialize(refusal,
+            DotquayMcpJsonContext.Default.McpRefusalJsonForceConfirmationDetailJson);
 
     public static string Write(McpRefusalJson<SourceApprovalDetailJson> refusal) =>
-        JsonSerializer.Serialize(refusal, DotquayMcpJsonContext.Default.McpRefusalJsonSourceApprovalDetailJson);
+        JsonSerializer.Serialize(refusal,
+            DotquayMcpJsonContext.Default.McpRefusalJsonSourceApprovalDetailJson);
 }

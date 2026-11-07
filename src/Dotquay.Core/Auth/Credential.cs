@@ -6,20 +6,23 @@ namespace Dotquay.Core.Auth;
 public sealed record Credential(string Username, string Token);
 
 /// <summary>One entry as <c>dotquay login --list</c> shows it: scope and username, never the token.
-/// Not even a truncated one — a <c>glpat-</c> prefix plus a host is already useful to an attacker and
-/// useless to the person reading it.</summary>
+/// Not even a truncated one — a <c>glpat-</c> prefix plus a host is already useful to an attacker
+/// and useless to the person reading it.</summary>
 public sealed record StoredCredential(string Scope, string Username);
 
-/// <summary>Where a resolved credential came from. Reported by <c>doctor</c> so "which token is this
-/// actually using?" has an answer that isn't "read the source".</summary>
+/// <summary>Where a resolved credential came from. Reported by <c>doctor</c> so "which token is
+/// this actually using?" has an answer that isn't "read the source".</summary>
 public enum CredentialOrigin {
     /// <summary>No credential — the request goes out anonymous.</summary>
     None,
 
-    /// <summary><c>DOTQUAY_NUGET_USERNAME_&lt;SOURCE&gt;</c>/<c>DOTQUAY_NUGET_TOKEN_&lt;SOURCE&gt;</c>.</summary>
+    /// <summary>
+    /// <c>DOTQUAY_NUGET_USERNAME_&lt;SOURCE&gt;</c>/<c>DOTQUAY_NUGET_TOKEN_&lt;SOURCE&gt;</c>.
+    /// </summary>
     SourceEnvironment,
 
-    /// <summary><c>DOTQUAY_NUGET_USERNAME</c>/<c>DOTQUAY_NUGET_TOKEN</c> — the pre-v0.7 pair.</summary>
+    /// <summary><c>DOTQUAY_NUGET_USERNAME</c>/<c>DOTQUAY_NUGET_TOKEN</c> — the pre-v0.7
+    /// pair.</summary>
     GlobalEnvironment,
 
     /// <summary><c>~/.dotquay/credentials.toml</c>, written by <c>dotquay login</c>.</summary>

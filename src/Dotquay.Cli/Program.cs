@@ -42,7 +42,8 @@ var parseResult = rootCommand.Parse(args);
 // update check started next - reports to it without any command having to pass it along
 // (docs/DESIGN-v0.24-VERBOSE.md).
 using var diagnostics = DiagnosticLog.Use(StderrDiagnosticSink.Create(
-    DiagnosticSettings.Resolve(parseResult, Environment.GetEnvironmentVariable(DiagnosticSettings.EnvironmentVariable))));
+    DiagnosticSettings.Resolve(parseResult,
+        Environment.GetEnvironmentVariable(DiagnosticSettings.EnvironmentVariable))));
 var run = RunDiagnostics.Begin(args, parseResult);
 
 // Started before the command and reported after it, so the check overlaps the work instead of
@@ -53,11 +54,12 @@ var notice = UpdateNotice.Start(args);
 
 // The default exception handler is off so nothing escapes as a bare stack trace: under --json that
 // left stdout empty, which breaks the envelope contract (SPEC.md §17). UnhandledFailure reports it
-// instead, as an envelope with --json and as the old trace without it, except for a project file the
-// user has to fix, which gets the parser's message alone.
+// instead, as an envelope with --json and as the old trace without it, except for a project file
+// the user has to fix, which gets the parser's message alone.
 int exitCode;
 try {
-    exitCode = parseResult.Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
+    exitCode =
+        parseResult.Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
 } catch (Exception ex) {
     exitCode = UnhandledFailure.Report(parseResult, ex);
 }

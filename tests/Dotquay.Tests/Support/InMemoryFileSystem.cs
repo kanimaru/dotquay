@@ -26,14 +26,17 @@ public sealed class InMemoryFileSystem : IFileSystem {
 
     public bool DirectoryExists(string path) => _directories.Contains(Resolve(path));
 
-    public string ReadAllText(string path) => System.Text.Encoding.UTF8.GetString(ReadAllBytes(path));
+    public string ReadAllText(string path) =>
+        System.Text.Encoding.UTF8.GetString(ReadAllBytes(path));
 
-    public void WriteAllText(string path, string contents) => WriteAllBytes(path, System.Text.Encoding.UTF8.GetBytes(contents));
+    public void WriteAllText(string path, string contents) =>
+        WriteAllBytes(path, System.Text.Encoding.UTF8.GetBytes(contents));
 
     public byte[] ReadAllBytes(string path) {
         var key = Resolve(path);
         if (!_files.TryGetValue(key, out var contents)) {
-            throw new FileNotFoundException($"No such file in the in-memory filesystem: {path}", path);
+            throw new FileNotFoundException($"No such file in the in-memory filesystem: {path}",
+                path);
         }
 
         return contents;
@@ -62,7 +65,8 @@ public sealed class InMemoryFileSystem : IFileSystem {
 
         foreach (var directory in ReadOnlyDirectories) {
             var normalized = Normalize(directory);
-            if (parent == normalized || parent.StartsWith(normalized + "/", StringComparison.Ordinal)) {
+            if (parent == normalized
+                || parent.StartsWith(normalized + "/", StringComparison.Ordinal)) {
                 throw new UnauthorizedAccessException($"Access to the path '{key}' is denied.");
             }
         }
@@ -81,16 +85,19 @@ public sealed class InMemoryFileSystem : IFileSystem {
     public void DeleteDirectory(string path) {
         var key = Normalize(path);
 
-        // Deleting a link removes the link and nothing else. The target is somebody's own checkout of
-        // the addon; recursing into it would delete their working copy, uncommitted work included.
+        // Deleting a link removes the link and nothing else. The target is somebody's own checkout
+        // of the addon; recursing into it would delete their working copy, uncommitted work
+        // included.
         if (_links.Remove(key)) {
             _directories.Remove(key);
             return;
         }
 
-        _directories.RemoveWhere(d => d == key || d.StartsWith(key + "/", StringComparison.Ordinal));
+        _directories.RemoveWhere(d => d == key
+            || d.StartsWith(key + "/", StringComparison.Ordinal));
 
-        foreach (var file in _files.Keys.Where(f => f == key || f.StartsWith(key + "/", StringComparison.Ordinal)).ToList()) {
+        foreach (var file in _files.Keys.Where(f => f == key
+            || f.StartsWith(key + "/", StringComparison.Ordinal)).ToList()) {
             _files.Remove(file);
         }
     }
@@ -117,7 +124,8 @@ public sealed class InMemoryFileSystem : IFileSystem {
         var to = Resolve(destination);
 
         if (!_files.TryGetValue(from, out var contents)) {
-            throw new FileNotFoundException($"No such file in the in-memory filesystem: {source}", source);
+            throw new FileNotFoundException($"No such file in the in-memory filesystem: {source}",
+                source);
         }
 
         if (!overwrite && _files.ContainsKey(to)) {
@@ -160,8 +168,9 @@ public sealed class InMemoryFileSystem : IFileSystem {
     }
 
     /// <summary>Every <see cref="MoveDirectory"/> call, in order. A move is how a staged addon is
-    /// swapped into <c>addons/</c>, so this is what tells a test whether an install wrote the folder or
-    /// left it alone - content alone cannot, since both end with the same files.</summary>
+    /// swapped into <c>addons/</c>, so this is what tells a test whether an install wrote the
+    /// folder or left it alone - content alone cannot, since both end with the same
+    /// files.</summary>
     public List<(string Source, string Destination)> DirectoryMoves { get; } = [];
 
     public void MoveDirectory(string source, string destination) {
@@ -171,13 +180,15 @@ public sealed class InMemoryFileSystem : IFileSystem {
 
         DeleteDirectory(destinationKey);
 
-        foreach (var file in _files.Keys.Where(f => f == sourceKey || f.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList()) {
+        foreach (var file in _files.Keys.Where(f => f == sourceKey
+            || f.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList()) {
             var suffix = file[sourceKey.Length..];
             _files[destinationKey + suffix] = _files[file];
             _files.Remove(file);
         }
 
-        foreach (var dir in _directories.Where(d => d == sourceKey || d.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList()) {
+        foreach (var dir in _directories.Where(d => d == sourceKey
+            || d.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList()) {
             var suffix = dir[sourceKey.Length..];
             _directories.Add(destinationKey + suffix);
             _directories.Remove(dir);
@@ -213,7 +224,8 @@ public sealed class InMemoryFileSystem : IFileSystem {
         var prefix = key.Length == 0 ? "" : key + "/";
 
         foreach (var dir in _directories) {
-            if (dir.Length == 0 || dir == key || !dir.StartsWith(prefix, StringComparison.Ordinal)) {
+            if (dir.Length == 0 || dir == key
+                || !dir.StartsWith(prefix, StringComparison.Ordinal)) {
                 continue;
             }
 

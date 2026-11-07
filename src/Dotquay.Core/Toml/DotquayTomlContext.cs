@@ -10,9 +10,9 @@ namespace Dotquay.Core.Toml;
 /// generation is what keeps this trim- and NativeAOT-safe: the generic
 /// <c>TomlSerializer.Deserialize&lt;T&gt;(string, TomlSerializerOptions)</c> overload resolves its
 /// converter through reflection (IL2026/IL3050), and the Tomlyn package turns reflection off by
-/// default in a <c>PublishAot</c> build, the same class of failure that forced Spectre.Console.Cli and
-/// NuGet.Protocol out of this project (docs/SPRINT-01.md). Read TOML through <see cref="DotquayToml"/>
-/// rather than calling <c>TomlSerializer</c> directly.
+/// default in a <c>PublishAot</c> build, the same class of failure that forced Spectre.Console.Cli
+/// and NuGet.Protocol out of this project (docs/SPRINT-01.md). Read TOML through
+/// <see cref="DotquayToml"/> rather than calling <c>TomlSerializer</c> directly.
 /// </summary>
 [TomlSerializable(typeof(TomlTable))]
 internal sealed partial class DotquayTomlContext : TomlSerializerContext {
@@ -25,12 +25,13 @@ internal sealed partial class DotquayTomlContext : TomlSerializerContext {
     }
 }
 
-/// <summary>The read side of TOML: one entry point, so no caller has to pick a type info itself.</summary>
+/// <summary>The read side of TOML: one entry point, so no caller has to pick a type info
+/// itself.</summary>
 public static class DotquayToml {
     /// <summary>
     /// Parses <paramref name="text"/> into the untyped model. <paramref name="sourceName"/> is the
-    /// file name Tomlyn puts in front of every error position (null leaves errors unprefixed, which is
-    /// what the reflection overload without options did). Invalid TOML throws
+    /// file name Tomlyn puts in front of every error position (null leaves errors unprefixed, which
+    /// is what the reflection overload without options did). Invalid TOML throws
     /// <see cref="TomlException"/>; an empty document yields an empty table, never null.
     /// </summary>
     public static TomlTable Parse(string text, string? sourceName) {

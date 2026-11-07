@@ -29,7 +29,8 @@ public class PatchLocationTests {
 
         // Not tidiness — patches are re-applied on every install and update (SPEC.md §10 step 3).
         // If changing the default made dotquay stop looking where a project's patches actually are,
-        // those projects would silently start installing unpatched code and status would call it fine.
+        // those projects would silently start installing unpatched code and status would call it
+        // fine.
         Assert.Equal(ProjectLayout.LegacyPatchesDirectory, layout.PatchesDirectory);
     }
 
@@ -49,10 +50,11 @@ public class PatchLocationTests {
         var fileSystem = new InMemoryFileSystem();
         var layout = new ProjectLayout("project", ".dotquay/patches");
 
-        // A configured value is written with forward slashes in TOML; combining it whole would give a
-        // mixed-separator path in every message the user reads.
+        // A configured value is written with forward slashes in TOML; combining it whole would give
+        // a mixed-separator path in every message the user reads.
         Assert.Equal("project/.dotquay/patches", layout.PatchesPath(fileSystem));
-        Assert.Equal("project/.dotquay/patches/leaf.patch", layout.PatchFilePath(fileSystem, "leaf"));
+        Assert.Equal("project/.dotquay/patches/leaf.patch",
+            layout.PatchFilePath(fileSystem, "leaf"));
     }
 
     [Fact]

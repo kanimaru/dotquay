@@ -28,7 +28,8 @@ namespace Dotquay.Tests.Toml;
 public sealed class TomlFileCompatibilityTests : IDisposable {
     private const string Sha = "0123456789abcdef0123456789abcdef01234567";
     private const string OtherSha = "fedcba9876543210fedcba9876543210fedcba98";
-    private const string FeedUrl = "https://gitlab.example.test/api/v4/projects/7/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.example.test/api/v4/projects/7/packages/nuget/index.json";
 
     private readonly string _root;
     private readonly SystemFileSystem _fileSystem = new();
@@ -219,7 +220,8 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
         Assert.Null(lockfile.Addons[1].Folder);
         Assert.Empty(lockfile.Addons[1].Dependencies);
 
-        Assert.Equal(["Kani.Core", "Newtonsoft.Json"], lockfile.Dotnet.Select(package => package.Name));
+        Assert.Equal(["Kani.Core", "Newtonsoft.Json"],
+            lockfile.Dotnet.Select(package => package.Name));
         Assert.Equal("private", lockfile.Dotnet[0].Source);
         Assert.Equal(["compile", "runtime"], lockfile.Dotnet[0].Assets.Include);
         Assert.Null(lockfile.Dotnet[1].Source);
@@ -243,7 +245,8 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
                     Dependencies = ["helper"],
                 },
             ],
-            Dotnet = [new LockedDotnet { Name = "Kani.Core", Resolved = "1.2.3", Source = "private" }],
+            Dotnet = [new LockedDotnet { Name = "Kani.Core", Resolved = "1.2.3",
+                Source = "private" }],
         };
         var path = _fileSystem.CombinePath(_root, "dotquay.lock");
         _fileSystem.WriteAllText(path, LockfileWriter.Serialize(original));
@@ -289,7 +292,8 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
     public void LocalLinks_WrittenByDotquay_ReadBackUnchanged() {
         // Real folders, since setting a link checks its target exists. The space and the
         // platform's separators (backslashes on Windows) are what the writer has to escape.
-        var addonFolder = Directory.CreateDirectory(Path.Combine(_root, "my widget", "addons", "widget")).FullName;
+        var addonFolder = Directory.CreateDirectory(Path.Combine(_root, "my widget", "addons",
+            "widget")).FullName;
         var projectFolder = Directory.CreateDirectory(Path.Combine(_root, "Kani.Core")).FullName;
         var projectFile = Path.Combine(projectFolder, "Kani.Core.csproj");
         File.WriteAllText(projectFile, "<Project />");
@@ -303,7 +307,8 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
         Assert.Equal(
             Path.GetFullPath(addonFolder).TrimEnd(Path.DirectorySeparatorChar),
             Path.GetFullPath(reread.Addons["widget"].Path).TrimEnd(Path.DirectorySeparatorChar));
-        Assert.Equal(Path.GetFullPath(projectFile), Path.GetFullPath(reread.Dotnet["Kani.Core"].ProjectPath));
+        Assert.Equal(Path.GetFullPath(projectFile),
+            Path.GetFullPath(reread.Dotnet["Kani.Core"].ProjectPath));
         Assert.True(reread.Dotnet["Kani.Core"].Analyzer);
     }
 
@@ -346,12 +351,14 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
         Assert.Equal(tricky, new TomlCredentialStore(_fileSystem, path).Find(
             CredentialScope.Parse("gitlab.example.test")));
         var bytes = File.ReadAllBytes(path);
-        Assert.False(bytes is [0xEF, 0xBB, 0xBF, ..], "the credential file must not start with a BOM");
+        Assert.False(bytes is [0xEF, 0xBB, 0xBF, ..],
+            "the credential file must not start with a BOM");
     }
 
     [Fact]
     public void CredentialStore_NewerFileVersion_IsStillRefused() {
-        var path = WriteFixture(TomlCredentialStore.FileName, "version = 2\n", withBom: false, crlf: false);
+        var path = WriteFixture(TomlCredentialStore.FileName, "version = 2\n", withBom: false,
+            crlf: false);
 
         var error = Assert.Throws<CredentialsFileException>(
             () => new TomlCredentialStore(_fileSystem, path).List());
@@ -370,12 +377,15 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
             """;
         var dotquayHome = _fileSystem.CombinePath(_root, ".dotquay");
         Directory.CreateDirectory(dotquayHome);
-        WriteFixture(Path.Combine(".dotquay", TomlUserConfigStore.FileName), Text, withBom: true, crlf: true);
-        var store = new TomlUserConfigStore(_fileSystem, new FakeEnvironmentReader(homeDirectory: _root));
+        WriteFixture(Path.Combine(".dotquay", TomlUserConfigStore.FileName), Text, withBom: true,
+            crlf: true);
+        var store = new TomlUserConfigStore(_fileSystem,
+            new FakeEnvironmentReader(homeDirectory: _root));
 
         var settings = store.Read();
 
-        Assert.Equal(new UpdateSettings("https://releases.example.test/dotquay", false, 48), settings);
+        Assert.Equal(new UpdateSettings("https://releases.example.test/dotquay", false, 48),
+            settings);
     }
 
     [Fact]
@@ -426,23 +436,31 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
         var manifestPath = WriteFixture("dotquay.toml", Broken, withBom: false, crlf: false);
         var lockPath = WriteFixture("dotquay.lock", Broken, withBom: false, crlf: false);
         WriteFixture(LocalLinks.FileName, Broken, withBom: false, crlf: false);
-        var credentialPath = WriteFixture(TomlCredentialStore.FileName, Broken, withBom: false, crlf: false);
+        var credentialPath = WriteFixture(TomlCredentialStore.FileName, Broken, withBom: false,
+            crlf: false);
         var configPath = WriteFixture("config.toml", Broken, withBom: false, crlf: false);
         var linksPath = _fileSystem.CombinePath(_root, LocalLinks.FileName);
 
         AssertNamesFile(
-            manifestPath, Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject(Broken, manifestPath)));
+            manifestPath,
+            Assert.Throws<ManifestParseException>(() =>
+                ManifestReader.ReadProject(Broken, manifestPath)));
         AssertNamesFile(
-            lockPath, Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Broken, lockPath)));
+            lockPath,
+            Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Broken, lockPath)));
         AssertNamesFile(
-            linksPath, Assert.Throws<LocalLinksParseException>(() => new LocalLinks(_fileSystem).ReadAll(_root)));
+            linksPath,
+            Assert.Throws<LocalLinksParseException>(() => new LocalLinks(_fileSystem)
+                .ReadAll(_root)));
         AssertNamesFile(
             credentialPath,
-            Assert.Throws<CredentialsFileException>(() => new TomlCredentialStore(_fileSystem, credentialPath).List()));
+            Assert.Throws<CredentialsFileException>(() =>
+                new TomlCredentialStore(_fileSystem, credentialPath).List()));
         AssertNamesFile(
             configPath,
             Assert.Throws<UserConfigFileException>(
-                () => new TomlUserConfigStore(_fileSystem, new FakeEnvironmentReader(), configPath).Read()));
+                () => new TomlUserConfigStore(_fileSystem, new FakeEnvironmentReader(), configPath)
+                .Read()));
     }
 
     [Fact]
@@ -470,7 +488,8 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
     private string WriteFixture(string relativePath, string text, bool withBom, bool crlf) {
         var path = Path.Combine(_root, relativePath);
         var normalized = text.ReplaceLineEndings(crlf ? "\r\n" : "\n");
-        File.WriteAllText(path, normalized, new UTF8Encoding(encoderShouldEmitUTF8Identifier: withBom));
+        File.WriteAllText(path, normalized,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: withBom));
         return path;
     }
 
@@ -479,7 +498,8 @@ public sealed class TomlFileCompatibilityTests : IDisposable {
 
         public bool Equals(LockedAddon? x, LockedAddon? y) =>
             x is not null && y is not null
-            && x.Name == y.Name && x.Git == y.Git && x.Resolved == y.Resolved && x.Version == y.Version
+            && x.Name == y.Name && x.Git == y.Git && x.Resolved == y.Resolved
+            && x.Version == y.Version
             && x.Path == y.Path && x.Folder == y.Folder && x.ContentHash == y.ContentHash
             && x.PatchHash == y.PatchHash && x.PatchBaseSha == y.PatchBaseSha
             && x.Dependencies.SequenceEqual(y.Dependencies);

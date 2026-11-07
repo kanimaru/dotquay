@@ -3,8 +3,8 @@ using Dotquay.Core.Abstractions;
 namespace Dotquay.Core.Git;
 
 /// <summary>
-/// Builds the environment every <c>git</c> child process gets (SPEC.md §11.2): prompts disabled, and
-/// dotquay appended as a credential helper.
+/// Builds the environment every <c>git</c> child process gets (SPEC.md §11.2): prompts disabled,
+/// and dotquay appended as a credential helper.
 /// </summary>
 /// <remarks>
 /// A pure function in its own type specifically so it is testable. The alternative — building this
@@ -13,17 +13,19 @@ namespace Dotquay.Core.Git;
 /// kind of thing that gets verified once by hand and then silently regresses.
 /// </remarks>
 public static class GitEnvironment {
-    /// <summary>The sub-command git invokes on dotquay. Must match the CLI command's name.</summary>
+    /// <summary>The sub-command git invokes on dotquay. Must match the CLI command's
+    /// name.</summary>
     public const string HelperCommandName = "credential-helper";
 
     /// <summary>
     /// Builds the child environment. <paramref name="executablePath"/> is dotquay's own binary —
-    /// <see cref="Environment.ProcessPath"/>, never <c>Assembly.Location</c>, which returns an empty
-    /// string under NativeAOT. Null or unusable means the helper is simply not registered: a config
-    /// line pointing at nothing is worse than no config line, because git would report a helper
-    /// failure instead of a missing credential.
+    /// <see cref="Environment.ProcessPath"/>, never <c>Assembly.Location</c>, which returns an
+    /// empty string under NativeAOT. Null or unusable means the helper is simply not registered: a
+    /// config line pointing at nothing is worse than no config line, because git would report a
+    /// helper failure instead of a missing credential.
     /// </summary>
-    public static IReadOnlyDictionary<string, string> Build(string? executablePath, IEnvironmentReader environment) {
+    public static IReadOnlyDictionary<string, string> Build(string? executablePath,
+        IEnvironmentReader environment) {
         var result = new Dictionary<string, string>(StringComparer.Ordinal) {
             // The bug fix that stands on its own. ProcessGitClient redirects stdout and stderr but
             // not stdin, so before this, a repository needing credentials made git print a prompt
@@ -41,7 +43,8 @@ public static class GitEnvironment {
         // caller's own config entry.
         var existingCount = ParseCount(environment.GetVariable("GIT_CONFIG_COUNT"));
 
-        result["GIT_CONFIG_COUNT"] = (existingCount + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        result["GIT_CONFIG_COUNT"] = (existingCount + 1)
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
         result[$"GIT_CONFIG_KEY_{existingCount}"] = "credential.helper";
         result[$"GIT_CONFIG_VALUE_{existingCount}"] = helperValue;
 
@@ -53,12 +56,12 @@ public static class GitEnvironment {
     /// </summary>
     /// <remarks>
     /// <para>The leading <c>!</c> tells git to run the value as a shell command rather than looking
-    /// for a <c>git-credential-&lt;value&gt;</c> binary on PATH. It is also what makes quoting work:
-    /// git splits an unquoted helper value on whitespace, so an install at
+    /// for a <c>git-credential-&lt;value&gt;</c> binary on PATH. It is also what makes quoting
+    /// work: git splits an unquoted helper value on whitespace, so an install at
     /// <c>C:\Program Files\dotquay\dotquay.exe</c> would otherwise be invoked as the program
     /// <c>C:\Program</c>.</para>
-    /// <para>Forward slashes because git-for-windows runs the command through its bundled <c>sh</c>,
-    /// where a backslash is an escape character, not a separator.</para>
+    /// <para>Forward slashes because git-for-windows runs the command through its bundled
+    /// <c>sh</c>, where a backslash is an escape character, not a separator.</para>
     /// <para>A path containing a double quote is refused rather than escaped. It cannot occur on
     /// Windows (the character is illegal in paths) and is pathological elsewhere; declining to
     /// register the helper degrades to "no stored credentials for git", while getting the escaping
@@ -67,7 +70,8 @@ public static class GitEnvironment {
     private static bool TryBuildHelperValue(string? executablePath, out string helperValue) {
         helperValue = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(executablePath) || executablePath.Contains('"', StringComparison.Ordinal)) {
+        if (string.IsNullOrWhiteSpace(executablePath)
+            || executablePath.Contains('"', StringComparison.Ordinal)) {
             return false;
         }
 
@@ -76,7 +80,8 @@ public static class GitEnvironment {
     }
 
     private static int ParseCount(string? value) =>
-        int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var count)
+        int.TryParse(value, System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out var count)
         && count >= 0
             ? count
             : 0;

@@ -4,7 +4,8 @@ namespace Dotquay.Core.Workflows;
 
 /// <summary>What <c>dotquay status --explain</c> concluded about one modified addon.</summary>
 public enum ExplainVerdict {
-    /// <summary>Every difference is benign — a force-update would discard nothing of value.</summary>
+    /// <summary>Every difference is benign — a force-update would discard nothing of
+    /// value.</summary>
     SafeToForce,
 
     /// <summary>At least one real content difference. Look before forcing.</summary>
@@ -20,8 +21,8 @@ public enum ExplainVerdict {
 /// locked commit, and whether any of it is worth keeping.
 /// </summary>
 /// <remarks>
-/// Attached to <see cref="AddonStatusInfo"/> only when <c>--explain</c> asked for it. It reports on a
-/// verdict <see cref="AddonStatusEvaluator"/> already reached and never influences one.
+/// Attached to <see cref="AddonStatusInfo"/> only when <c>--explain</c> asked for it. It reports on
+/// a verdict <see cref="AddonStatusEvaluator"/> already reached and never influences one.
 /// </remarks>
 public sealed record AddonExplanation {
     /// <summary>
@@ -41,7 +42,8 @@ public sealed record AddonExplanation {
     /// <see cref="MaxReportedChanges"/>.</summary>
     public IReadOnlyList<TreeChange> Changes { get; init; } = [];
 
-    /// <summary>Exact totals per class, over every difference — not just the reported ones.</summary>
+    /// <summary>Exact totals per class, over every difference — not just the reported
+    /// ones.</summary>
     public ChangeCounts Counts { get; init; } = new();
 
     /// <summary>Set only when <see cref="Verdict"/> is
@@ -52,10 +54,10 @@ public sealed record AddonExplanation {
     /// Whether the baseline had the addon's captured patch re-applied.
     /// </summary>
     /// <remarks>
-    /// <c>dotquay patch</c> records the <em>patched</em> tree as <c>content_hash</c>, so for a patched
-    /// addon the pristine subtree is the wrong thing to compare against — it would report the user's
-    /// own patch as unexplained modification. Surfaced because a reader deciding whether to trust the
-    /// list needs to know which tree it was measured from.
+    /// <c>dotquay patch</c> records the <em>patched</em> tree as <c>content_hash</c>, so for a
+    /// patched addon the pristine subtree is the wrong thing to compare against — it would report
+    /// the user's own patch as unexplained modification. Surfaced because a reader deciding whether
+    /// to trust the list needs to know which tree it was measured from.
     /// </remarks>
     public bool BaselineIncludesPatch { get; init; }
 
@@ -64,16 +66,17 @@ public sealed record AddonExplanation {
     /// include the patch's own edits.
     /// </summary>
     /// <remarks>
-    /// Separate from <see cref="BaselineIncludesPatch"/> being false, which is also what an ordinary
-    /// unpatched addon looks like. Only this flag means the comparison is incomplete — and saying so
-    /// on every unpatched addon would train the reader to skip the line that matters.
+    /// Separate from <see cref="BaselineIncludesPatch"/> being false, which is also what an
+    /// ordinary unpatched addon looks like. Only this flag means the comparison is incomplete — and
+    /// saying so on every unpatched addon would train the reader to skip the line that matters.
     /// </remarks>
     public bool PatchCouldNotBeApplied { get; init; }
 
     public bool IsTruncated => Counts.Total > Changes.Count;
 }
 
-/// <summary>Exact per-class totals, unaffected by <see cref="AddonExplanation.MaxReportedChanges"/>.</summary>
+/// <summary>Exact per-class totals, unaffected by
+/// <see cref="AddonExplanation.MaxReportedChanges"/>.</summary>
 public sealed record ChangeCounts {
     public int Content { get; init; }
 

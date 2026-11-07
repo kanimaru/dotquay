@@ -14,7 +14,8 @@ namespace Dotquay.Tests.Manifest;
 /// which is exactly the failure this file exists to catch early.
 /// </remarks>
 public class VbeamiManifestShapeTests {
-    private const string FeedUrl = "https://gitlab.kemomi.de/api/v4/projects/124/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.kemomi.de/api/v4/projects/124/packages/nuget/index.json";
 
     private const string ProjectManifest = """
         [nuget.sources.vbeami]
@@ -88,7 +89,8 @@ public class VbeamiManifestShapeTests {
         // declared would otherwise resolve to nothing and fall back to searching everything.
         var typo = ProjectManifest.Replace("source = \"vbeami\"", "source = \"vbeamii\"");
 
-        var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject(typo));
+        var exception = Assert.Throws<ManifestParseException>(() =>
+            ManifestReader.ReadProject(typo));
         Assert.Contains("vbeamii", exception.Message);
     }
 

@@ -11,7 +11,8 @@ public class SyncEngineTests {
         fileSystem.WriteAllText("staging/plugin.cfg", "cfg");
         var engine = new SyncEngine(fileSystem);
 
-        var hash = engine.SwapAndHash("staging", "addons/foo", expectedContentHash: null, force: false);
+        var hash = engine.SwapAndHash("staging", "addons/foo", expectedContentHash: null,
+            force: false);
 
         Assert.False(fileSystem.DirectoryExists("staging"));
         Assert.True(fileSystem.FileExists("addons/foo/plugin.cfg"));
@@ -25,7 +26,9 @@ public class SyncEngineTests {
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "hand-edited");
         var engine = new SyncEngine(fileSystem);
 
-        Assert.Throws<ModifiedAddonException>(() => engine.SwapAndHash("staging", "addons/foo", expectedContentHash: "sha256:original", force: false));
+        Assert.Throws<ModifiedAddonException>(() =>
+            engine.SwapAndHash("staging", "addons/foo", expectedContentHash: "sha256:original",
+                force: false));
 
         Assert.True(fileSystem.FileExists("staging/plugin.cfg"));
         Assert.Equal("hand-edited", fileSystem.ReadAllText("addons/foo/plugin.cfg"));
@@ -38,7 +41,8 @@ public class SyncEngineTests {
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "hand-edited");
         var engine = new SyncEngine(fileSystem);
 
-        engine.SwapAndHash("staging", "addons/foo", expectedContentHash: "sha256:original", force: true);
+        engine.SwapAndHash("staging", "addons/foo", expectedContentHash: "sha256:original",
+            force: true);
 
         Assert.Equal("new version", fileSystem.ReadAllText("addons/foo/plugin.cfg"));
     }
@@ -51,7 +55,8 @@ public class SyncEngineTests {
         fileSystem.WriteAllText("staging/plugin.cfg", "updated");
 
         var engine = new SyncEngine(fileSystem);
-        engine.SwapAndHash("staging", "addons/foo", expectedContentHash: expectedHash, force: false);
+        engine.SwapAndHash("staging", "addons/foo", expectedContentHash: expectedHash,
+            force: false);
 
         Assert.Equal("updated", fileSystem.ReadAllText("addons/foo/plugin.cfg"));
     }

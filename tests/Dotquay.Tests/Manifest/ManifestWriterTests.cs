@@ -21,7 +21,10 @@ public class ManifestWriterTests {
                 },
             },
             Dotnet = new Dictionary<string, DotnetSpec> {
-                ["Newtonsoft.Json"] = new DotnetSpec { Name = "Newtonsoft.Json", Version = "13.0.*" },
+                ["Newtonsoft.Json"] = new DotnetSpec {
+                    Name = "Newtonsoft.Json",
+                    Version = "13.0.*"
+                },
             },
             Overrides = new Dictionary<string, AddonSpec> {
                 ["shared_core"] = new AddonSpec {
@@ -53,12 +56,16 @@ public class ManifestWriterTests {
 
     [Fact]
     public void ScaffoldProjectToml_WithNuGetSource_WritesTheNamedSourceForm() {
-        var toml = ManifestWriter.ScaffoldProjectToml(nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
+        var toml =
+            ManifestWriter.ScaffoldProjectToml(
+                nuGetSource: "https://gitlab.example.com/api/v4/projects/1/"
+                    + "packages/nuget/index.json");
         var manifest = ManifestReader.ReadProject(toml);
 
         var source = Assert.Single(manifest.NuGetSources);
         Assert.Equal(NuGetSourceSpec.LegacyName, source.Name);
-        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", source.Url);
+        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json",
+            source.Url);
 
         // Reading the legacy key stays supported forever; writing it stops here, so nothing created
         // from v0.7 onwards has to be migrated twice.
@@ -81,16 +88,22 @@ public class ManifestWriterTests {
 
         Assert.Equal(["core", "tools"], roundTripped.NuGetSources.Select(source => source.Name));
         Assert.Equal(
-            ["https://private.example.com/core/index.json", "https://private.example.com/tools/index.json"],
+            ["https://private.example.com/core/index.json",
+                "https://private.example.com/tools/index.json"],
             roundTripped.NuGetSources.Select(source => source.Url));
     }
 
     [Fact]
     public void Serialize_ThenRead_RoundTripsAPerPackageSourcePin() {
         var manifest = new ProjectManifest {
-            NuGetSources = [new NuGetSourceSpec("core", "https://private.example.com/core/index.json")],
+            NuGetSources = [new NuGetSourceSpec("core",
+                "https://private.example.com/core/index.json")],
             Dotnet = new Dictionary<string, DotnetSpec> {
-                ["Acme.Internal"] = new DotnetSpec { Name = "Acme.Internal", Version = "1.0.0", Source = "core" },
+                ["Acme.Internal"] = new DotnetSpec {
+                    Name = "Acme.Internal",
+                    Version = "1.0.0",
+                    Source = "core"
+                },
             },
         };
 
@@ -102,11 +115,12 @@ public class ManifestWriterTests {
     [Fact]
     public void Serialize_SourceMappingDisabled_EmitsBareNuGetKeysBeforeAnySubTable() {
         // Ordering is load-bearing: writing [nuget.sources.core] first implicitly defines [nuget],
-        // and a later explicit [nuget] header is a redefinition TOML rejects. Asserted by round-trip,
-        // which is exactly the operation that would fail.
+        // and a later explicit [nuget] header is a redefinition TOML rejects. Asserted by
+        // round-trip, which is exactly the operation that would fail.
         var manifest = new ProjectManifest {
             NuGetSourceMapping = false,
-            NuGetSources = [new NuGetSourceSpec("core", "https://private.example.com/core/index.json")],
+            NuGetSources = [new NuGetSourceSpec("core",
+                "https://private.example.com/core/index.json")],
         };
 
         var toml = ManifestWriter.Serialize(manifest);
@@ -114,7 +128,8 @@ public class ManifestWriterTests {
 
         Assert.False(roundTripped.NuGetSourceMapping);
         Assert.Single(roundTripped.NuGetSources);
-        Assert.True(toml.IndexOf("[nuget]", StringComparison.Ordinal) < toml.IndexOf("[nuget.sources", StringComparison.Ordinal));
+        Assert.True(toml.IndexOf("[nuget]",
+            StringComparison.Ordinal) < toml.IndexOf("[nuget.sources", StringComparison.Ordinal));
     }
 
     [Fact]

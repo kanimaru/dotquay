@@ -9,12 +9,13 @@ namespace Dotquay.Core.Doctor;
 /// </summary>
 /// <remarks>
 /// The one reference shape that cannot survive an addon's UIDs changing. Godot's scene and resource
-/// files record a <c>uid</c> next to a <c>path</c>, so a stale uid there falls back to the path and is
-/// repaired on the next save; a <c>uid://</c> string literal in a script has nothing to fall back to.
+/// files record a <c>uid</c> next to a <c>path</c>, so a stale uid there falls back to the path and
+/// is repaired on the next save; a <c>uid://</c> string literal in a script has nothing to fall
+/// back to.
 /// <para>
-/// Read-only by design. dotquay reports these and stops: fixing them means rewriting the project's own
-/// scripts, and the CLI's contract is that it writes <c>dotquay.toml</c>, <c>dotquay.lock</c>, and
-/// <c>addons/</c> — nothing else (SPEC.md §18).
+/// Read-only by design. dotquay reports these and stops: fixing them means rewriting the project's
+/// own scripts, and the CLI's contract is that it writes <c>dotquay.toml</c>, <c>dotquay.lock</c>,
+/// and <c>addons/</c> — nothing else (SPEC.md §18).
 /// </para>
 /// </remarks>
 public static partial class UidReferenceScanner {
@@ -23,8 +24,8 @@ public static partial class UidReferenceScanner {
     /// <param name="Target">The addon-relative file it resolves to.</param>
     public sealed record Finding(string File, string Uid, string Target);
 
-    /// <summary>Where the scan looks for references. Scene and resource files are deliberately absent:
-    /// they carry a path alongside the uid, so they self-heal.</summary>
+    /// <summary>Where the scan looks for references. Scene and resource files are deliberately
+    /// absent: they carry a path alongside the uid, so they self-heal.</summary>
     private static readonly string[] CodeExtensions = [".gd", ".cs"];
 
     /// <summary>
@@ -32,11 +33,12 @@ public static partial class UidReferenceScanner {
     /// <paramref name="addonsDirectory"/>.
     /// </summary>
     /// <remarks>
-    /// Only references that actually land in an addon are reported. A project's uid reference to its
-    /// own resource is nobody's problem — dotquay never touches those files — and reporting them would
-    /// bury the handful that matter.
+    /// Only references that actually land in an addon are reported. A project's uid reference to
+    /// its own resource is nobody's problem — dotquay never touches those files — and reporting
+    /// them would bury the handful that matter.
     /// </remarks>
-    public static IReadOnlyList<Finding> Scan(IFileSystem fileSystem, string projectDirectory, string addonsDirectory) {
+    public static IReadOnlyList<Finding> Scan(IFileSystem fileSystem, string projectDirectory,
+        string addonsDirectory) {
         if (!fileSystem.DirectoryExists(addonsDirectory)) {
             return [];
         }
@@ -54,8 +56,10 @@ public static partial class UidReferenceScanner {
 
             // Code *inside* an addon referencing that addon's own resources is the addon author's
             // business, and it moves in lockstep with the uids it names. Code Godot never scans
-            // (.godot/, .dotquay/staging/, a .gdignore'd folder) is never loaded, so it cannot break.
-            if (!IsCode(relative) || relative.StartsWith("addons/", StringComparison.OrdinalIgnoreCase)
+            // (.godot/, .dotquay/staging/, a .gdignore'd folder) is never loaded, so it cannot
+            // break.
+            if (!IsCode(relative)
+                || relative.StartsWith("addons/", StringComparison.OrdinalIgnoreCase)
                 || !visibility.IsVisible(relative)) {
                 continue;
             }
@@ -75,7 +79,8 @@ public static partial class UidReferenceScanner {
     /// Builds uid → addon file from the two places an addon's uids are recorded: the <c>.uid</c>
     /// sidecar beside a script, and the <c>uid=</c> line in an asset's <c>.import</c>.
     /// </summary>
-    private static Dictionary<string, string> MapUidsToAddonFiles(IFileSystem fileSystem, string addonsDirectory) {
+    private static Dictionary<string, string> MapUidsToAddonFiles(IFileSystem fileSystem,
+        string addonsDirectory) {
         var owners = new Dictionary<string, string>(StringComparer.Ordinal);
         var visibility = new GodotVisibility(fileSystem, addonsDirectory);
 
@@ -114,15 +119,16 @@ public static partial class UidReferenceScanner {
     /// Matches a whole <c>uid://</c> token.
     /// </summary>
     /// <remarks>
-    /// Anchored on the full run of identifier characters rather than matched as a substring, because
-    /// <c>uid://abc</c> is a prefix of <c>uid://abc1</c> — treating one as the other is how a scan
-    /// reports a reference to a resource nobody mentioned.
+    /// Anchored on the full run of identifier characters rather than matched as a substring,
+    /// because <c>uid://abc</c> is a prefix of <c>uid://abc1</c> — treating one as the other is how
+    /// a scan reports a reference to a resource nobody mentioned.
     /// </remarks>
     [GeneratedRegex(@"uid://[a-zA-Z0-9]+", RegexOptions.Compiled)]
     private static partial Regex UidPattern();
 
     private static bool IsCode(string relativePath) =>
-        CodeExtensions.Any(extension => relativePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
+        CodeExtensions.Any(extension =>
+            relativePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
 
     private static string Relative(string filePath, string root) =>
         filePath[root.Length..].TrimStart('/', '\\').Replace('\\', '/');

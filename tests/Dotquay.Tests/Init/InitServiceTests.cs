@@ -36,7 +36,8 @@ public class InitServiceTests {
         // confidently is worse than stating none.
         // Matches the key, not the word — the commented example URL legitimately contains "godot".
         Assert.DoesNotContain("godot =", fileSystem.ReadAllText("project/dotquay.toml"));
-        Assert.Empty(ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml")).NuGetSources);
+        Assert.Empty(ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml"))
+            .NuGetSources);
     }
 
     [Fact]
@@ -44,18 +45,21 @@ public class InitServiceTests {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
-        service.InitProject("project", nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
+        service.InitProject("project",
+            nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
 
         var manifest = ManifestReader.ReadProject(fileSystem.ReadAllText("project/dotquay.toml"));
         var source = Assert.Single(manifest.NuGetSources);
-        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json", source.Url);
+        Assert.Equal("https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json",
+            source.Url);
     }
 
     [Fact]
     public void InitProject_ScaffoldNeverMentionsACredential() {
         var fileSystem = new InMemoryFileSystem();
         new InitService(fileSystem).InitProject(
-            "project", nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
+            "project",
+            nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
 
         var toml = fileSystem.ReadAllText("project/dotquay.toml");
         Assert.DoesNotContain("token", toml, StringComparison.OrdinalIgnoreCase);
@@ -84,7 +88,8 @@ public class InitServiceTests {
         var result = service.InitPackage("addons/kani_core", "kani_core");
 
         Assert.True(result.WasCreated);
-        var package = ManifestReader.ReadPackage(fileSystem.ReadAllText("addons/kani_core/dotquay.toml"));
+        var package =
+            ManifestReader.ReadPackage(fileSystem.ReadAllText("addons/kani_core/dotquay.toml"));
         Assert.Equal("kani_core", package.Name);
     }
 
@@ -95,9 +100,10 @@ public class InitServiceTests {
 
         service.InitPackage("addons/kani_core", "kani_core");
 
-        // plugin.cfg and the git tag already carry the version, and doctor already compares those two
-        // against each other. A third copy only ever drifts.
-        var package = ManifestReader.ReadPackage(fileSystem.ReadAllText("addons/kani_core/dotquay.toml"));
+        // plugin.cfg and the git tag already carry the version, and doctor already compares those
+        // two against each other. A third copy only ever drifts.
+        var package =
+            ManifestReader.ReadPackage(fileSystem.ReadAllText("addons/kani_core/dotquay.toml"));
         Assert.Null(package.Version);
     }
 
@@ -110,7 +116,8 @@ public class InitServiceTests {
         var result = service.InitPackage("addons/kani_core", "renamed");
 
         Assert.False(result.WasCreated);
-        var package = ManifestReader.ReadPackage(fileSystem.ReadAllText("addons/kani_core/dotquay.toml"));
+        var package =
+            ManifestReader.ReadPackage(fileSystem.ReadAllText("addons/kani_core/dotquay.toml"));
         Assert.Equal("kani_core", package.Name);
     }
 }

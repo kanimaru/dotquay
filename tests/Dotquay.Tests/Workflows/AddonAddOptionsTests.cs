@@ -11,7 +11,8 @@ namespace Dotquay.Tests.Workflows;
 public class AddonAddOptionsTests {
     [Fact]
     public void Validate_NothingNamed_IsFine() {
-        // The default path: no source stated, so `add` falls back to picking the newest release tag.
+        // The default path: no source stated, so `add` falls back to picking the newest release
+        // tag.
         new AddonAddOptions().Validate();
         Assert.False(new AddonAddOptions().HasExplicitSource);
     }
@@ -31,8 +32,9 @@ public class AddonAddOptionsTests {
     public void Validate_TwoNamed_Throws() {
         var options = new AddonAddOptions { Branch = "main", Rev = "9f2c1ab" };
 
-        // The manifest allows exactly one of version/branch/rev (SPEC.md §7.1). Catching it here means
-        // the error names the flags the user typed, rather than surfacing later from the writer.
+        // The manifest allows exactly one of version/branch/rev (SPEC.md §7.1). Catching it here
+        // means the error names the flags the user typed, rather than surfacing later from the
+        // writer.
         var exception = Assert.Throws<WorkflowException>(options.Validate);
         Assert.Contains("--branch", exception.Message);
     }
@@ -53,8 +55,8 @@ public class AddonAddOptionsTests {
         var options = new AddonAddOptions { Path = ".", InstallAs = "Godot-MToon-Shader" }
             .WithSource(AddonSourceKind.Branch, "main");
 
-        // `#main` says which commit; --path and --install-as say which files and where. Resolving the
-        // shorthand must not drop the other half of the request.
+        // `#main` says which commit; --path and --install-as say which files and where. Resolving
+        // the shorthand must not drop the other half of the request.
         Assert.Equal(".", options.Path);
         Assert.Equal("Godot-MToon-Shader", options.InstallAs);
         Assert.Equal("main", options.Branch);

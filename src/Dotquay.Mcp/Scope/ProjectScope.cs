@@ -8,10 +8,11 @@
 /// <remarks>
 /// <para>
 /// A path is in scope when it equals a root or sits under one — a prefix check on the normalized
-/// absolute paths, deliberately not delegated to <see cref="Uri"/> or a symlink-resolving API: dotquay
-/// projects are ordinary directories on the same machine the server runs on, and the roots themselves
-/// come from a trusted source (whoever started this process), so nothing here needs to defend against
-/// adversarial path tricks — only against an agent naming a directory it was never given.
+/// absolute paths, deliberately not delegated to <see cref="Uri"/> or a symlink-resolving API:
+/// dotquay projects are ordinary directories on the same machine the server runs on, and the roots
+/// themselves come from a trusted source (whoever started this process), so nothing here needs to
+/// defend against adversarial path tricks — only against an agent naming a directory it was never
+/// given.
 /// </para>
 /// <para>
 /// The set never changes after construction. A client can no longer widen it through the MCP
@@ -56,8 +57,10 @@ public sealed class ProjectScope : IProjectScope {
     /// here because a scope check that disagreed with the filesystem it's guarding would be a hole,
     /// not a safeguard.</summary>
     private static bool IsWithin(string root, string candidate) {
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        var normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar);
 
         return candidate.Equals(normalizedRoot, comparison)
             || candidate.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, comparison);

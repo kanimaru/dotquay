@@ -1,8 +1,8 @@
 namespace Dotquay.Core.Dotnet;
 
 /// <summary>
-/// A NuGet feed answered 401 or 403 — it wanted credentials dotquay didn't have, or rejected the ones
-/// it sent.
+/// A NuGet feed answered 401 or 403 — it wanted credentials dotquay didn't have, or rejected the
+/// ones it sent.
 /// </summary>
 /// <remarks>
 /// <para>A distinct type rather than a status-code check on <see cref="HttpRequestException"/>,

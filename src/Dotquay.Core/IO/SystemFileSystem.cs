@@ -44,12 +44,13 @@ public sealed class SystemFileSystem : IFileSystem {
             return;
         }
 
-        // A link is removed as a link, never recursed into. `addons/<folder>` can be a live link into
-        // a developer's own checkout (SPEC.md §7.4), and a recursive delete through it would destroy
-        // their working copy. Passing recursive: false on a reparse point removes the link itself and
-        // leaves the target untouched.
+        // A link is removed as a link, never recursed into. `addons/<folder>` can be a live link
+        // into a developer's own checkout (SPEC.md §7.4), and a recursive delete through it would
+        // destroy their working copy. Passing recursive: false on a reparse point removes the link
+        // itself and leaves the target untouched.
         if (IsDirectoryLink(path)) {
-            DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"delete link {path} (target left untouched)");
+            DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs",
+                $"delete link {path} (target left untouched)");
             Directory.Delete(path, recursive: false);
             return;
         }
@@ -76,7 +77,8 @@ public sealed class SystemFileSystem : IFileSystem {
     /// </list>
     /// </summary>
     private static void DeleteTree(DirectoryInfo directory) {
-        foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", SearchOption.TopDirectoryOnly)) {
+        foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*",
+            SearchOption.TopDirectoryOnly)) {
             if ((entry.Attributes & FileAttributes.ReadOnly) != 0) {
                 entry.Attributes &= ~FileAttributes.ReadOnly;
             }
@@ -113,8 +115,8 @@ public sealed class SystemFileSystem : IFileSystem {
                 return Path.GetFullPath(final.FullName);
             }
         } catch (IOException) {
-            // A link whose target is gone cannot be walked to the end. The immediate target is still
-            // the claim it makes, and reporting that is what lets the caller say so by name.
+            // A link whose target is gone cannot be walked to the end. The immediate target is
+            // still the claim it makes, and reporting that is what lets the caller say so by name.
         }
 
         var immediate = Directory.ResolveLinkTarget(path, returnFinalTarget: false);
@@ -134,9 +136,10 @@ public sealed class SystemFileSystem : IFileSystem {
 
         if (OperatingSystem.IsWindows()) {
             // A junction, not a symlink. Windows only lets an unprivileged process create a symlink
-            // when Developer Mode is enabled, which is off by default and is not something a package
-            // manager should ask a Godot user to turn on. Directory junctions have no such
-            // requirement, and Godot follows them identically. Confirmed non-elevated on this machine.
+            // when Developer Mode is enabled, which is off by default and is not something a
+            // package manager should ask a Godot user to turn on. Directory junctions have no such
+            // requirement, and Godot follows them identically. Confirmed non-elevated on this
+            // machine.
             CreateWindowsJunction(linkPath, target);
             return;
         }
@@ -145,8 +148,8 @@ public sealed class SystemFileSystem : IFileSystem {
     }
 
     /// <summary>Shells out to <c>cmd /c mklink /J</c>, in the same spirit as this project already
-    /// shelling out to <c>git</c> and <c>dotnet</c> (SPEC.md §12): the OS tool does the real work and
-    /// there is no supported .NET API for creating a junction.</summary>
+    /// shelling out to <c>git</c> and <c>dotnet</c> (SPEC.md §12): the OS tool does the real work
+    /// and there is no supported .NET API for creating a junction.</summary>
     private static void CreateWindowsJunction(string linkPath, string targetPath) {
         var arguments = new[] { "/c", "mklink", "/J", linkPath, targetPath };
         var trace = ProcessTrace.Start("cmd.exe", arguments, workingDirectory: null);
@@ -166,9 +169,9 @@ public sealed class SystemFileSystem : IFileSystem {
         using var process = System.Diagnostics.Process.Start(startInfo)
             ?? throw new IOException($"Could not start cmd.exe to link '{linkPath}'.");
 
-        // Drained before waiting, and concurrently: mklink's output is tiny, but reading a redirected
-        // stream only once the child has exited is the textbook full-pipe deadlock, and tracing now
-        // wants both streams anyway.
+        // Drained before waiting, and concurrently: mklink's output is tiny, but reading a
+        // redirected stream only once the child has exited is the textbook full-pipe deadlock, and
+        // tracing now wants both streams anyway.
         var standardErrorTask = process.StandardError.ReadToEndAsync();
         var standardOutput = process.StandardOutput.ReadToEnd();
         var standardError = standardErrorTask.GetAwaiter().GetResult();
@@ -210,7 +213,8 @@ public sealed class SystemFileSystem : IFileSystem {
         var mode = File.GetUnixFileMode(path);
         File.SetUnixFileMode(
             path,
-            mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute
+                | UnixFileMode.OtherExecute);
     }
 
     public void SetOwnerOnlyPermissions(string path) {
@@ -220,8 +224,8 @@ public sealed class SystemFileSystem : IFileSystem {
 
         if (OperatingSystem.IsWindows()) {
             // No-op by design. The equivalent would be rewriting the file's DACL, which needs
-            // Windows-only ACL APIs; the file already sits under %USERPROFILE%, whose default ACL is
-            // already owner-only. `dotquay doctor` verifies that rather than assuming it.
+            // Windows-only ACL APIs; the file already sits under %USERPROFILE%, whose default ACL
+            // is already owner-only. `dotquay doctor` verifies that rather than assuming it.
             return;
         }
 
@@ -245,10 +249,12 @@ public sealed class SystemFileSystem : IFileSystem {
     }
 
     public IEnumerable<string> EnumerateFiles(string path, bool recursive = true) =>
-        Directory.EnumerateFiles(path, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+        Directory.EnumerateFiles(path, "*", recursive ? SearchOption.AllDirectories
+            : SearchOption.TopDirectoryOnly);
 
     public IEnumerable<string> EnumerateDirectories(string path, bool recursive = false) =>
-        Directory.EnumerateDirectories(path, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
+        Directory.EnumerateDirectories(path, "*", recursive ? SearchOption.AllDirectories
+            : SearchOption.TopDirectoryOnly);
 
     public string CombinePath(params string[] segments) => Path.Combine(segments);
 

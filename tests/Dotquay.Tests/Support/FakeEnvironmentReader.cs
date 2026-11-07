@@ -7,9 +7,9 @@ namespace Dotquay.Tests.Support;
 /// </summary>
 /// <remarks>
 /// Replaces the save-set-restore-the-real-process-variable pattern the credential tests used before
-/// v0.7. That pattern was safe within one class (xunit runs a class's facts sequentially) and unsafe
-/// across classes, which is precisely how it was being used — two classes mutating the same two
-/// <c>DOTQUAY_NUGET_*</c> variables, run in parallel by default. This removes the shared state
+/// v0.7. That pattern was safe within one class (xunit runs a class's facts sequentially) and
+/// unsafe across classes, which is precisely how it was being used — two classes mutating the same
+/// two <c>DOTQUAY_NUGET_*</c> variables, run in parallel by default. This removes the shared state
 /// instead of serialising around it.
 /// </remarks>
 public sealed class FakeEnvironmentReader : IEnvironmentReader {

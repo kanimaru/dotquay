@@ -11,13 +11,13 @@ namespace Dotquay.Tests.Dotnet;
 /// Covers the source-generator question on <c>add</c> (v0.14) and the two gates in front of it.
 /// </summary>
 /// <remarks>
-/// The behaviour worth protecting is mostly <em>silence</em>. The question exists because a generator
-/// referenced with a plain <c>PackageReference</c> really does flow on to downstream consumers
-/// (measured 2026-09-10, three levels deep), so a published library may want to contain it. But for a
-/// Godot game nothing depends on the project, the answer has no consequence, and a prompt on every
-/// generator added to every game is how people learn to dismiss prompts. So: asked only when the
-/// author declared the package a development dependency <em>and</em> the project looks published, and
-/// the only thing ever written is the containment.
+/// The behaviour worth protecting is mostly <em>silence</em>. The question exists because a
+/// generator referenced with a plain <c>PackageReference</c> really does flow on to downstream
+/// consumers (measured 2026-09-10, three levels deep), so a published library may want to contain
+/// it. But for a Godot game nothing depends on the project, the answer has no consequence, and a
+/// prompt on every generator added to every game is how people learn to dismiss prompts. So: asked
+/// only when the author declared the package a development dependency <em>and</em> the project
+/// looks published, and the only thing ever written is the containment.
 /// </remarks>
 public class GeneratorAssetTests {
     private const string ProjectDir = "project";
@@ -53,7 +53,8 @@ public class GeneratorAssetTests {
         }
     }
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient NuGetClient)
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem,
+        FakeNuGetClient NuGetClient)
         Build(string csproj, IGeneratorAssetDecision decision) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "# Dotquay project manifest.\n");
@@ -64,7 +65,8 @@ public class GeneratorAssetTests {
         var runner = new FakeDotnetCliRunner();
 
         var addonInstaller = new AddonInstaller(
-            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem),
+            new FakePatchTool(fileSystem));
 
         var workflow = new DependencyWorkflow(
             fileSystem,
@@ -111,8 +113,9 @@ public class GeneratorAssetTests {
         Assert.DoesNotContain("private_assets", ReadManifest(fileSystem));
     }
 
-    /// <summary>A feed that will not serve a nuspec has said nothing, and "no signal" must not be read
-    /// as "generator" — otherwise the question fires on every package from that feed.</summary>
+    /// <summary>A feed that will not serve a nuspec has said nothing, and "no signal" must not be
+    /// read as "generator" — otherwise the question fires on every package from that
+    /// feed.</summary>
     [Fact]
     public async Task AnUnreadableNuspecIsNotTreatedAsAGenerator() {
         var decision = new RecordingDecision(keepPrivate: true);
@@ -145,7 +148,8 @@ public class GeneratorAssetTests {
 
     [Fact]
     public async Task KeepingItPrivateWritesPrivateAssetsToBothFiles() {
-        var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj, KeepGeneratorPrivateDecision.Instance);
+        var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj,
+            KeepGeneratorPrivateDecision.Instance);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
         nuGetClient.DevelopmentDependencyPackageIds.Add(GeneratorId);
 
@@ -163,7 +167,8 @@ public class GeneratorAssetTests {
 
     [Fact]
     public async Task SharingItWritesNothing() {
-        var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj, ShareGeneratorDecision.Instance);
+        var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj,
+            ShareGeneratorDecision.Instance);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
         nuGetClient.DevelopmentDependencyPackageIds.Add(GeneratorId);
 
@@ -192,7 +197,8 @@ public class GeneratorAssetTests {
             gitClient,
             new FakeNuGetClientFactory(nuGetClient),
             new AddonInstaller(
-                fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem)),
+                fileSystem, new RepoCache(fileSystem, gitClient, "cache"),
+                new SyncEngine(fileSystem), new FakePatchTool(fileSystem)),
             new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()));
 
         var locked = await workflow.AddDotnetAsync(ProjectDir, GeneratorId);
@@ -239,7 +245,8 @@ public class CsprojPackableTests {
             """));
 
     /// <summary>Only an explicit true counts: IsPackable already defaults to true for a library, so
-    /// treating absence as packable would make every project match and the prompt universal.</summary>
+    /// treating absence as packable would make every project match and the prompt
+    /// universal.</summary>
     [Fact]
     public void AnAbsentIsPackableIsNotEvidence() =>
         Assert.Null(Evidence("""
@@ -264,8 +271,9 @@ public class CsprojPackableTests {
             </Project>
             """));
 
-    /// <summary>A malformed .csproj is the build's problem to report, not this probe's. Staying quiet
-    /// means a broken project file never becomes a confusing question about source generators.</summary>
+    /// <summary>A malformed .csproj is the build's problem to report, not this probe's. Staying
+    /// quiet means a broken project file never becomes a confusing question about source
+    /// generators.</summary>
     [Fact]
     public void MalformedXmlIsQuiet() => Assert.Null(Evidence("<Project><PropertyGroup>"));
 
@@ -273,8 +281,8 @@ public class CsprojPackableTests {
     public void AMissingCsprojIsQuiet() =>
         Assert.Null(CsprojPackable.Evidence(new InMemoryFileSystem(), CsprojPath));
 
-    /// <summary>The legacy MSBuild namespace still builds, and a namespace-sensitive match would read
-    /// every property as absent.</summary>
+    /// <summary>The legacy MSBuild namespace still builds, and a namespace-sensitive match would
+    /// read every property as absent.</summary>
     [Fact]
     public void TheLegacyMsbuildNamespaceIsStillRead() =>
         Assert.Equal("PackageId", Evidence("""

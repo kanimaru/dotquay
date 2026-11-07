@@ -15,8 +15,8 @@ namespace Dotquay.Cli.Diagnostics;
 /// <remarks>
 /// The opening line answers the questions every bug report needs answered before the rest of the
 /// log means anything, and that people reliably forget to include: which dotquay, JIT or NativeAOT
-/// (the two have diverged before - see the NativeAOT notes in docs/SPRINT-01.md), which OS, and which
-/// directory <c>--project</c> actually resolved to.
+/// (the two have diverged before - see the NativeAOT notes in docs/SPRINT-01.md), which OS, and
+/// which directory <c>--project</c> actually resolved to.
 /// </remarks>
 internal sealed class RunDiagnostics {
     private readonly long _started = Stopwatch.GetTimestamp();
@@ -34,14 +34,17 @@ internal sealed class RunDiagnostics {
         DiagnosticLog.Write(
             DiagnosticLevel.Verbose,
             "dotquay",
-            $"dotquay {DotquayVersion.Current} ({Runtime()}) on {RuntimeInformation.OSDescription} {RuntimeInformation.OSArchitecture}");
+            $"dotquay {DotquayVersion.Current} ({Runtime()}) on {RuntimeInformation.OSDescription} "
+            + $"{RuntimeInformation.OSArchitecture}");
         DiagnosticLog.Write(
             DiagnosticLevel.Verbose,
             "dotquay",
             $"args: {string.Join(' ', SecretRedactor.RedactArguments(args))}");
-        DiagnosticLog.Write(DiagnosticLevel.Verbose, "dotquay", $"project: {GlobalOptions.Resolve(parseResult)}");
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "dotquay",
+            $"project: {GlobalOptions.Resolve(parseResult)}");
         DiagnosticLog.Write(DiagnosticLevel.Verbose, "dotquay", $"cache: {CachePaths.Root()}");
-        DiagnosticLog.Write(DiagnosticLevel.Verbose, "dotquay", $"diagnostics: {Describe(DiagnosticLog.Current.Level)}");
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "dotquay",
+            $"diagnostics: {Describe(DiagnosticLog.Current.Level)}");
 
         return run;
     }
@@ -50,7 +53,8 @@ internal sealed class RunDiagnostics {
         DiagnosticLog.Write(
             DiagnosticLevel.Verbose,
             "dotquay",
-            $"exit {exitCode} after {DiagnosticLog.FormatDuration(Stopwatch.GetElapsedTime(_started))}");
+            $"exit {exitCode} after "
+            + $"{DiagnosticLog.FormatDuration(Stopwatch.GetElapsedTime(_started))}");
     }
 
     // A switch, not Enum.ToString: enum names are reflection metadata, and this project has been

@@ -5,15 +5,16 @@ namespace Dotquay.Core.Versioning;
 /// <summary>
 /// A <c>version = "..."</c> constraint, for every <c>[addons.*]</c> and <c>[dotnet.*]</c> entry in
 /// every dotquay manifest (DESIGN-v0.21). The grammar is node-semver's: a bare version is exact,
-/// <c>^</c> allows compatible updates, <c>~</c> patch-level ones, <c>1.2.x</c>/<c>*</c> are x-ranges,
-/// and comparators, hyphen ranges and <c>||</c> cover the rest.
+/// <c>^</c> allows compatible updates, <c>~</c> patch-level ones, <c>1.2.x</c>/<c>*</c> are
+/// x-ranges, and comparators, hyphen ranges and <c>||</c> cover the rest.
 /// </summary>
 /// <remarks>
 /// <para>Two dotquay extensions, both from DESIGN-v0.21 §3.2: a fourth component (Phantom Camera's
-/// <c>v0.11.0.3</c>, NuGet's <c>Revision</c>) that is compared like the others but that <c>~</c> and
-/// <c>^</c> never bump, and a comma accepted as a synonym for the space between comparators.</para>
-/// <para>Prereleases follow npm's rule (§3.4): one satisfies a range only when some comparator of that
-/// range names a prerelease of the same version numbers, so <c>^5.0</c> never selects
+/// <c>v0.11.0.3</c>, NuGet's <c>Revision</c>) that is compared like the others but that <c>~</c>
+/// and <c>^</c> never bump, and a comma accepted as a synonym for the space between
+/// comparators.</para>
+/// <para>Prereleases follow npm's rule (§3.4): one satisfies a range only when some comparator of
+/// that range names a prerelease of the same version numbers, so <c>^5.0</c> never selects
 /// <c>5.1.0-rc1</c>, while <c>^5.1.0-rc1</c> accepts <c>5.1.0-rc5</c>.</para>
 /// </remarks>
 public sealed class VersionConstraint {
@@ -76,7 +77,8 @@ public sealed class VersionConstraint {
 
         return !candidate.IsPrerelease
             || range.Any(comparator => comparator.Prerelease is not null
-                && AddonVersion.CompareComponents(comparator.Components, candidate.Components) == 0);
+                && AddonVersion.CompareComponents(comparator.Components,
+                    candidate.Components) == 0);
     }
 
     private static bool TryParseRange(string text, out IReadOnlyList<Comparator> comparators) {
@@ -117,7 +119,8 @@ public sealed class VersionConstraint {
         return tokens;
     }
 
-    private static bool TryParseHyphen(string from, string to, out IReadOnlyList<Comparator> comparators) {
+    private static bool TryParseHyphen(string from, string to,
+        out IReadOnlyList<Comparator> comparators) {
         comparators = [];
         if (!Partial.TryParse(from, out var lower) || !Partial.TryParse(to, out var upper)) {
             return false;
@@ -160,30 +163,35 @@ public sealed class VersionConstraint {
         switch (prefix) {
             case "" or "=":
                 if (full) {
-                    into.Add(new Comparator(Operator.Equal, version.Components, version.Prerelease));
+                    into.Add(new Comparator(Operator.Equal, version.Components,
+                        version.Prerelease));
                 } else if (!any) {
                     into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, null));
-                    into.Add(new Comparator(Operator.Less, version.Bump(version.Specified - 1), null));
+                    into.Add(new Comparator(Operator.Less, version.Bump(version.Specified - 1),
+                        null));
                 }
 
                 return true;
 
             case ">=":
                 if (!any) {
-                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, version.Prerelease));
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components,
+                        version.Prerelease));
                 }
 
                 return true;
 
             case ">":
-                // ">1.2" means above every 1.2.x, as in npm; ">*" would match nothing and is refused.
+                // ">1.2" means above every 1.2.x, as in npm; ">*" would match nothing and is
+                // refused.
                 if (any) {
                     return false;
                 }
 
                 into.Add(full
                     ? new Comparator(Operator.Greater, version.Components, version.Prerelease)
-                    : new Comparator(Operator.GreaterOrEqual, version.Bump(version.Specified - 1), null));
+                    : new Comparator(Operator.GreaterOrEqual, version.Bump(version.Specified - 1),
+                        null));
                 return true;
 
             case "<":
@@ -196,25 +204,31 @@ public sealed class VersionConstraint {
 
             case "<=":
                 if (full) {
-                    into.Add(new Comparator(Operator.LessOrEqual, version.Components, version.Prerelease));
+                    into.Add(new Comparator(Operator.LessOrEqual, version.Components,
+                        version.Prerelease));
                 } else if (!any) {
-                    into.Add(new Comparator(Operator.Less, version.Bump(version.Specified - 1), null));
+                    into.Add(new Comparator(Operator.Less, version.Bump(version.Specified - 1),
+                        null));
                 }
 
                 return true;
 
             case "~":
                 if (!any) {
-                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, version.Prerelease));
-                    into.Add(new Comparator(Operator.Less, version.Bump(Math.Min(version.Specified - 1, 1)), null));
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components,
+                        version.Prerelease));
+                    into.Add(new Comparator(Operator.Less,
+                        version.Bump(Math.Min(version.Specified - 1, 1)), null));
                 }
 
                 return true;
 
             case "^":
                 if (!any) {
-                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components, version.Prerelease));
-                    into.Add(new Comparator(Operator.Less, version.Bump(CaretBumpIndex(version)), null));
+                    into.Add(new Comparator(Operator.GreaterOrEqual, version.Components,
+                        version.Prerelease));
+                    into.Add(new Comparator(Operator.Less, version.Bump(CaretBumpIndex(version)),
+                        null));
                 }
 
                 return true;
@@ -225,9 +239,9 @@ public sealed class VersionConstraint {
     }
 
     /// <summary>
-    /// The component <c>^</c> bumps: the leftmost non-zero of major, minor and patch, or the last one
-    /// written when every written one is zero (<c>^0</c> → &lt;1, <c>^0.0</c> → &lt;0.1). Never the
-    /// fourth.
+    /// The component <c>^</c> bumps: the leftmost non-zero of major, minor and patch, or the last
+    /// one written when every written one is zero (<c>^0</c> → &lt;1, <c>^0.0</c> → &lt;0.1). Never
+    /// the fourth.
     /// </summary>
     private static int CaretBumpIndex(Partial version) {
         var limit = Math.Min(version.Specified, FullComponentCount);
@@ -248,7 +262,8 @@ public sealed class VersionConstraint {
         LessOrEqual,
     }
 
-    private sealed record Comparator(Operator Op, IReadOnlyList<long> Components, string? Prerelease) {
+    private sealed record Comparator(Operator Op, IReadOnlyList<long> Components,
+        string? Prerelease) {
         public bool IsSatisfiedBy(AddonVersion candidate) {
             var cmp = AddonVersion.CompareComponents(candidate.Components, Components);
             if (cmp == 0) {
@@ -267,10 +282,12 @@ public sealed class VersionConstraint {
     }
 
     /// <summary>
-    /// A version as written in a constraint: up to four components, any of them an <c>x</c>/<c>*</c>
-    /// wildcard that ends the specified part, an optional <c>v</c> and an optional prerelease.
+    /// A version as written in a constraint: up to four components, any of them an
+    /// <c>x</c>/<c>*</c> wildcard that ends the specified part, an optional <c>v</c> and an
+    /// optional prerelease.
     /// </summary>
-    private sealed record Partial(IReadOnlyList<long> Components, int Specified, string? Prerelease) {
+    private sealed record Partial(IReadOnlyList<long> Components, int Specified,
+        string? Prerelease) {
         public static bool TryParse(string text, out Partial parsed) {
             parsed = new Partial([], 0, null);
             text = text.Trim();
@@ -290,7 +307,8 @@ public sealed class VersionConstraint {
             }
 
             if (text.Length == 0) {
-                // An empty range means any version; an empty version with a prerelease means nothing.
+                // An empty range means any version; an empty version with a prerelease means
+                // nothing.
                 return prerelease is null;
             }
 
@@ -308,7 +326,9 @@ public sealed class VersionConstraint {
                 }
 
                 // A number after a wildcard ("1.x.3") has no meaning.
-                if (wildcard || !long.TryParse(piece, NumberStyles.None, CultureInfo.InvariantCulture, out var value)) {
+                if (wildcard
+                    || !long.TryParse(piece, NumberStyles.None, CultureInfo.InvariantCulture,
+                        out var value)) {
                     return false;
                 }
 
@@ -324,7 +344,8 @@ public sealed class VersionConstraint {
             return true;
         }
 
-        /// <summary>The first <paramref name="index"/> + 1 components, the last of them incremented.</summary>
+        /// <summary>The first <paramref name="index"/> + 1 components, the last of them
+        /// incremented.</summary>
         public IReadOnlyList<long> Bump(int index) {
             var bumped = Components.Take(index + 1).ToList();
             bumped[index]++;

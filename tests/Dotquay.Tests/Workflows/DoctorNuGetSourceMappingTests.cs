@@ -9,14 +9,16 @@ namespace Dotquay.Tests.Workflows;
 /// that <c>NuGet.Config</c> does not bind there.
 /// </summary>
 /// <remarks>
-/// The check exists because of a failure that reported success everywhere: an <c>add</c> rewrote the
-/// mapping from the one package it was installing and dropped VBeami.Core's binding, and the machine
-/// it happened on restored fine anyway because a local link stood in for the feed. Nothing was wrong
-/// with the lockfile, the manifest, or addons/ - only with a generated file nothing was looking at.
+/// The check exists because of a failure that reported success everywhere: an <c>add</c> rewrote
+/// the mapping from the one package it was installing and dropped VBeami.Core's binding, and the
+/// machine it happened on restored fine anyway because a local link stood in for the feed. Nothing
+/// was wrong with the lockfile, the manifest, or addons/ - only with a generated file nothing was
+/// looking at.
 /// </remarks>
 public class DoctorNuGetSourceMappingTests {
     private const string ProjectDirectory = "project";
-    private const string FeedUrl = "https://gitlab.example.com/api/v4/projects/130/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.example.com/api/v4/projects/130/packages/nuget/index.json";
 
     private const string ManifestWithPrivateFeed = $"""
         [project]
@@ -51,19 +53,22 @@ public class DoctorNuGetSourceMappingTests {
         """;
 
     private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(
-        string manifest = ManifestWithPrivateFeed, string lockfile = LockedToPrivateFeed, string? config = null) {
+        string manifest = ManifestWithPrivateFeed, string lockfile = LockedToPrivateFeed,
+        string? config = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
 
         if (config is not null) {
-            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "NuGet.Config"), config);
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "NuGet.Config"),
+                config);
         }
 
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        return result.Issues.Where(issue => issue.Kind == DoctorIssueKind.NuGetSourceMappingDrift).ToList();
+        return result.Issues.Where(issue => issue.Kind == DoctorIssueKind.NuGetSourceMappingDrift)
+            .ToList();
     }
 
     [Fact]
@@ -107,8 +112,8 @@ public class DoctorNuGetSourceMappingTests {
                 </packageSource>
             """));
 
-        // An owned pattern from [nuget.sources.lazy_o] packages binds the whole family, which is how
-        // a private package's own private transitive dependencies stay off nuget.org.
+        // An owned pattern from [nuget.sources.lazy_o] packages binds the whole family, which is
+        // how a private package's own private transitive dependencies stay off nuget.org.
         Assert.Empty(issues);
     }
 
@@ -164,8 +169,8 @@ public class DoctorNuGetSourceMappingTests {
                     </packageSource>
                 """));
 
-        // The pin is what the next write will honour, so a file still bound to the feed that answered
-        // last time is drift, not health.
+        // The pin is what the next write will honour, so a file still bound to the feed that
+        // answered last time is drift, not health.
         var issue = Assert.Single(issues);
         Assert.Contains("dotquay-other", issue.Message);
     }

@@ -14,7 +14,8 @@ internal static class RemoveCommand {
 
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command(CommandName, "Remove a dependency from the manifest, lockfile, and disk.")
+        var command = new Command(CommandName,
+            "Remove a dependency from the manifest, lockfile, and disk.")
         {
             nameArgument,
             jsonOption,
@@ -26,7 +27,8 @@ internal static class RemoveCommand {
             var workflow = WorkflowFactory.Create();
 
             try {
-                var removal = await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name, cancellationToken);
+                var removal = await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name,
+                    cancellationToken);
 
                 if (json) {
                     JsonOutput.WriteOperation(CommandName, new OperationJson {
@@ -35,7 +37,8 @@ internal static class RemoveCommand {
                             new ChangeJson
                             {
                                 Name = name,
-                                Kind = removal.Kind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
+                                Kind = removal.Kind == DependencyKind.Dotnet
+                                ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
                                 Action = JsonMapper.ChangeAction.Removed,
                             },
                         ],
@@ -44,7 +47,8 @@ internal static class RemoveCommand {
                     return 0;
                 }
 
-                ConsoleOutput.WriteLine(removal.KeptForAddons ? ConsoleColor.Yellow : ConsoleColor.Green, removal.Describe(name));
+                ConsoleOutput.WriteLine(removal.KeptForAddons ? ConsoleColor.Yellow
+                    : ConsoleColor.Green, removal.Describe(name));
                 return 0;
             } catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex)) {
                 return JsonOutput.Fail(json, CommandName, ex);

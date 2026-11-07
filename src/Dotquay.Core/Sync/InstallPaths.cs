@@ -30,9 +30,11 @@ public static class InstallPaths {
     public static string For(IFileSystem fileSystem, string projectDirectory, AddonSpec spec) =>
         ForFolder(fileSystem, projectDirectory, spec.EffectiveFolder);
 
-    public static string For(IFileSystem fileSystem, string projectDirectory, ResolvedAddon resolved) =>
+    public static string For(IFileSystem fileSystem, string projectDirectory,
+        ResolvedAddon resolved) =>
         ForFolder(fileSystem, projectDirectory, resolved.EffectiveFolder);
 
-    public static string ForFolder(IFileSystem fileSystem, string projectDirectory, string folder) =>
+    public static string ForFolder(IFileSystem fileSystem, string projectDirectory,
+        string folder) =>
         fileSystem.CombinePath(projectDirectory, AddonsDirectory, folder);
 }

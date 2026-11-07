@@ -77,7 +77,8 @@ public class GitLabReleaseChannelTests {
         Assert.Contains("401", exception.Message, StringComparison.Ordinal);
         Assert.Contains("does not recognise", exception.Message, StringComparison.Ordinal);
         Assert.Contains($"dotquay login {Host}", exception.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("GitLab said: 401 Unauthorized", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("GitLab said: 401 Unauthorized", exception.Message,
+            StringComparison.Ordinal);
         Assert.IsType<CredentialException>(exception.InnerException);
         Assert.False(channel.StoredCredentialRejected);
     }
@@ -110,12 +111,14 @@ public class GitLabReleaseChannelTests {
     [Fact]
     public async Task Without_a_stored_credential_a_public_channel_is_one_anonymous_request() {
         var server = new FakeGitLab(isPublic: true);
-        var channel = new GitLabReleaseChannel(ProjectApi, TestCredentials.None(), new HttpClient(server));
+        var channel = new GitLabReleaseChannel(ProjectApi, TestCredentials.None(),
+            new HttpClient(server));
 
         var latest = await channel.GetLatestAsync();
 
         Assert.Equal("9.9.9", latest!.Version);
-        Assert.Equal([false, false], server.Requests.Select(request => request.HadCredential).ToArray());
+        Assert.Equal([false, false], server.Requests.Select(request => request.HadCredential)
+            .ToArray());
         Assert.False(channel.StoredCredentialRejected);
     }
 
@@ -126,15 +129,18 @@ public class GitLabReleaseChannelTests {
     /// Just enough of a GitLab instance: one project's releases, the manifest CI uploads, and a
     /// binary - with GitLab's measured behaviour around tokens.
     /// </summary>
-    private sealed class FakeGitLab(bool isPublic, bool forbidValidToken = false) : HttpMessageHandler {
+    private sealed class FakeGitLab(bool isPublic, bool forbidValidToken = false)
+        : HttpMessageHandler {
         private const string ManifestUrl = $"https://{Host}/packages/dotquay/9.9.9/manifest.json";
         private const string BinaryUrl = $"https://{Host}/packages/dotquay/9.9.9/dotquay.exe";
 
         public List<(string Url, bool HadCredential)> Requests { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken) {
             var url = request.RequestUri!.ToString();
-            var token = request.Headers.TryGetValues("PRIVATE-TOKEN", out var values) ? values.Single() : null;
+            var token = request.Headers.TryGetValues("PRIVATE-TOKEN", out var values)
+                ? values.Single() : null;
             var hadCredential = token is not null || request.Headers.Authorization is not null;
             Requests.Add((url, hadCredential));
 
@@ -147,7 +153,8 @@ public class GitLabReleaseChannelTests {
             if (token == ValidToken && forbidValidToken) {
                 return Answer(
                     HttpStatusCode.Forbidden,
-                    """{"error":"insufficient_granular_scope","error_description":"requires [Release: Read]"}""");
+                    """{"error":"insufficient_granular_scope","error_description":"requires """
+                        + """[Release: Read]"}""");
             }
 
             if (token is null && !isPublic) {

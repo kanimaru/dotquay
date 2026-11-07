@@ -12,23 +12,25 @@ public enum GraphWarningKind {
     PackageManifestOutsideSubtree,
 
     /// <summary>Two addons declare the same NuGet package with different asset metadata (v0.10).
-    /// First-discovered wins, as it already does for the version — but unlike a version, disagreeing
-    /// metadata usually means one of the two addons will not get the behaviour it asked for, so it is
-    /// worth saying. Declaring the package in the project's own manifest resolves it (SPEC.md §8).</summary>
+    /// First-discovered wins, as it already does for the version — but unlike a version,
+    /// disagreeing metadata usually means one of the two addons will not get the behaviour it asked
+    /// for, so it is worth saying. Declaring the package in the project's own manifest resolves it
+    /// (SPEC.md §8).</summary>
     DotnetAssetMetadataConflict,
 
-    /// <summary>A transitively-discovered addon URL was re-expressed over the transport this project
-    /// uses for that host (v0.15). Resolution is unaffected -- it is the same repository -- but the
-    /// lockfile will name a URL no manifest literally contains, and that should never be a
+    /// <summary>A transitively-discovered addon URL was re-expressed over the transport this
+    /// project uses for that host (v0.15). Resolution is unaffected -- it is the same repository --
+    /// but the lockfile will name a URL no manifest literally contains, and that should never be a
     /// surprise.</summary>
     GitTransportRewritten,
 
     /// <summary>The extracted subtree is a Godot project root — <c>project.godot</c> with no
     /// <c>plugin.cfg</c> beside it — not an addon. Almost always a manifest whose <c>path</c> still
-    /// says <c>"."</c> after the addon's repository moved its plugin into <c>addons/&lt;name&gt;/</c>.
-    /// Resolution is unaffected: the subtree exists and installs, which is precisely the problem —
-    /// the whole project lands under <c>addons/&lt;folder&gt;</c>, the editor finds no plugin there,
-    /// and nothing else anywhere says why (<see cref="Doctor.GodotProjectRootChecker"/>).</summary>
+    /// says <c>"."</c> after the addon's repository moved its plugin into
+    /// <c>addons/&lt;name&gt;/</c>. Resolution is unaffected: the subtree exists and installs,
+    /// which is precisely the problem — the whole project lands under <c>addons/&lt;folder&gt;</c>,
+    /// the editor finds no plugin there, and nothing else anywhere says why
+    /// (<see cref="Doctor.GodotProjectRootChecker"/>).</summary>
     SubtreeIsGodotProject,
 
     /// <summary>An addon this machine links (SPEC.md §7.4) resolved to a newer commit than the one
@@ -47,9 +49,9 @@ public enum GraphWarningKind {
 /// about a case that is nearly always a mistake.
 /// </summary>
 /// <remarks>
-/// Both kinds exist because of one real incident: an addon whose <c>dotquay.toml</c> sat in the Godot
-/// project folder <em>above</em> its addon subtree resolved and installed perfectly while its own
-/// dependencies were quietly dropped, with nothing anywhere saying so. Treating an unreadable or
-/// misplaced manifest as "no manifest" is the right resolution behaviour and the wrong silence.
+/// Both kinds exist because of one real incident: an addon whose <c>dotquay.toml</c> sat in the
+/// Godot project folder <em>above</em> its addon subtree resolved and installed perfectly while its
+/// own dependencies were quietly dropped, with nothing anywhere saying so. Treating an unreadable
+/// or misplaced manifest as "no manifest" is the right resolution behaviour and the wrong silence.
 /// </remarks>
 public sealed record GraphWarning(string AddonName, GraphWarningKind Kind, string Message);

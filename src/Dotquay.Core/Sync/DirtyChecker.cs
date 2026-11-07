@@ -10,7 +10,8 @@ namespace Dotquay.Core.Sync;
 public static class DirtyChecker {
     public sealed record Result(bool IsDirty, string? ActualContentHash);
 
-    public static Result Check(IFileSystem fileSystem, string installedPath, string? expectedContentHash) {
+    public static Result Check(IFileSystem fileSystem, string installedPath,
+        string? expectedContentHash) {
         if (!fileSystem.DirectoryExists(installedPath)) {
             // Nothing installed yet — not "dirty", just absent. The caller decides what an absent
             // destination means for the operation it's doing.
@@ -27,7 +28,8 @@ public static class DirtyChecker {
         }
 
         // Clean when the recorded hash is ANY form this tree can have, not only the current one:
-        //  - v0.9: lockfiles written before editor-generated files were left out of the hash include
+        //  - v0.9: lockfiles written before editor-generated files were left out of the hash
+        // include
         //    them, which for an addon that ships its own .uid files is a different number for
         //    identical content;
         //  - v0.23: lockfiles hold the hash of the files as git wrote them on whichever machine

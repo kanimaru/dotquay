@@ -13,25 +13,30 @@ namespace Dotquay.Tests.Workflows;
 /// class exists at all. A new feed must land <em>last</em>, because declaration order is the
 /// resolution rule and a prepending convenience command would silently re-point every unpinned
 /// package in the project. And a feed that is still pinned must not be removable without saying so,
-/// because dropping the declaration hands those packages back to a first-match search across whatever
-/// feeds remain — both of them dependency confusion produced by a helper.
+/// because dropping the declaration hands those packages back to a first-match search across
+/// whatever feeds remain — both of them dependency confusion produced by a helper.
 /// </remarks>
 public class SourceWorkflowTests {
     private const string ProjectDirectory = "project";
-    private const string CoreUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
-    private const string ToolsUrl = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
+    private const string CoreUrl =
+        "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
+    private const string ToolsUrl =
+        "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
 
-    private static (SourceWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient Client) Build(
+    private static (SourceWorkflow Workflow, InMemoryFileSystem FileSystem,
+        FakeNuGetClient Client) Build(
         string manifest, string? lockfile = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
 
         if (lockfile is not null) {
-            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"),
+                lockfile);
         }
 
         var client = new FakeNuGetClient();
-        return (new SourceWorkflow(fileSystem, new FakeNuGetClientFactory(client)), fileSystem, client);
+        return (new SourceWorkflow(fileSystem, new FakeNuGetClientFactory(client)), fileSystem,
+            client);
     }
 
     private static string ReadManifest(InMemoryFileSystem fileSystem) =>
@@ -113,7 +118,8 @@ public class SourceWorkflowTests {
     public async Task Add_RejectsAnUnusableName(string name) {
         var (workflow, fileSystem, _) = Build(EmptyManifest);
 
-        await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDirectory, name, CoreUrl));
+        await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.AddAsync(ProjectDirectory, name, CoreUrl));
         Assert.DoesNotContain("nuget.sources", ReadManifest(fileSystem));
     }
 
@@ -124,18 +130,21 @@ public class SourceWorkflowTests {
     public async Task Add_RejectsAnythingThatIsNotAnHttpUrl(string url) {
         var (workflow, fileSystem, _) = Build(EmptyManifest);
 
-        await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDirectory, "core", url));
+        await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.AddAsync(ProjectDirectory, "core", url));
         Assert.DoesNotContain("nuget.sources", ReadManifest(fileSystem));
     }
 
-    /// <summary>A failed verification must leave nothing behind: a `source add` that could not reach
-    /// the feed should never be something the user has to undo.</summary>
+    /// <summary>A failed verification must leave nothing behind: a `source add` that could not
+    /// reach the feed should never be something the user has to undo.</summary>
     [Fact]
     public async Task Add_VerificationFailureAbortsBeforeWriting() {
         var (workflow, fileSystem, client) = Build(EmptyManifest);
-        client.VerifyFailure = new NuGetSourceException("core", CoreUrl, "404 while fetching the service index.");
+        client.VerifyFailure = new NuGetSourceException("core", CoreUrl,
+            "404 while fetching the service index.");
 
-        await Assert.ThrowsAsync<NuGetSourceException>(() => workflow.AddAsync(ProjectDirectory, "core", CoreUrl));
+        await Assert.ThrowsAsync<NuGetSourceException>(() =>
+            workflow.AddAsync(ProjectDirectory, "core", CoreUrl));
 
         Assert.DoesNotContain("nuget.sources", ReadManifest(fileSystem));
     }
@@ -143,7 +152,8 @@ public class SourceWorkflowTests {
     [Fact]
     public async Task Add_WithoutVerifyMakesNoNetworkCall() {
         var (workflow, fileSystem, client) = Build(EmptyManifest);
-        client.VerifyFailure = new NuGetSourceException("core", CoreUrl, "the feed is offline right now.");
+        client.VerifyFailure = new NuGetSourceException("core", CoreUrl,
+            "the feed is offline right now.");
 
         var result = await workflow.AddAsync(ProjectDirectory, "core", CoreUrl, verify: false);
 
@@ -158,9 +168,9 @@ public class SourceWorkflowTests {
 
         await workflow.AddAsync(ProjectDirectory, "tools", ToolsUrl);
 
-        // One declared feed plus the implicitly appended nuget.org would be two if the whole project
-        // set had been handed to the factory. Verifying a set that includes an already-working feed
-        // can pass on the strength of the wrong one.
+        // One declared feed plus the implicitly appended nuget.org would be two if the whole
+        // project set had been handed to the factory. Verifying a set that includes an
+        // already-working feed can pass on the strength of the wrong one.
         Assert.Equal(1, client.VerifyCount);
     }
 
@@ -174,7 +184,8 @@ public class SourceWorkflowTests {
             url = "{CoreUrl}"
             """);
 
-        Assert.Equal(["tools", "core"], workflow.List(ProjectDirectory).Select(source => source.Name));
+        Assert.Equal(["tools", "core"], workflow.List(ProjectDirectory)
+            .Select(source => source.Name));
     }
 
     [Fact]
@@ -214,9 +225,9 @@ public class SourceWorkflowTests {
         Assert.Contains("[nuget.sources.core]", ReadManifest(fileSystem));
     }
 
-    /// <summary>A transitive package appears in no manifest, so the lockfile is the only local record
-    /// that it resolved from this feed — and leaving a lockfile entry pointing at a feed the project no
-    /// longer declares aims packageSourceMapping at nothing.</summary>
+    /// <summary>A transitive package appears in no manifest, so the lockfile is the only local
+    /// record that it resolved from this feed — and leaving a lockfile entry pointing at a feed the
+    /// project no longer declares aims packageSourceMapping at nothing.</summary>
     [Fact]
     public void Remove_RefusesWhileOnlyTheLockfileNamesIt() {
         var (workflow, _, _) = Build(ManifestWithCore, LockfileWithPinnedPackage);
@@ -251,8 +262,10 @@ public class SourceWorkflowTests {
         Assert.DoesNotContain("source = \"core\"", manifest);
         Assert.DoesNotContain("source = \"core\"", ReadLockfile(fileSystem));
 
-        Assert.Contains(result.DroppedPins, pin => pin.Contains("Kani.Core", StringComparison.Ordinal));
-        Assert.Contains(result.DroppedPins, pin => pin.Contains("VBeami.Core", StringComparison.Ordinal));
+        Assert.Contains(result.DroppedPins, pin =>
+            pin.Contains("Kani.Core", StringComparison.Ordinal));
+        Assert.Contains(result.DroppedPins, pin =>
+            pin.Contains("VBeami.Core", StringComparison.Ordinal));
     }
 
     private const string LockfileWithPinnedPackage = """

@@ -20,18 +20,21 @@ namespace Dotquay.Mcp.Tools;
 /// shorthand: an agent names <c>version</c>/<c>branch</c>/<c>rev</c> explicitly instead. Guarded by
 /// <see cref="SourceApprovalPolicy"/> (a git addon can declare NuGet feeds transitively) and
 /// <see cref="GeneratorPrivacyPolicy"/> (it can also pull in a source generator) — never by
-/// <see cref="ForceConfirmationPolicy"/>, which the table (§4.2) reserves for <c>dotquay_install</c>/
-/// <c>dotquay_update</c>; <c>AddonAddOptions.Force</c> is a different, narrower escape hatch (an
-/// addon occupying its folder without a matching lock entry) that this tool does not expose, matching
-/// the table's own argument list.
+/// <see cref="ForceConfirmationPolicy"/>, which the table (§4.2) reserves for
+/// <c>dotquay_install</c>/ <c>dotquay_update</c>; <c>AddonAddOptions.Force</c> is a different,
+/// narrower escape hatch (an addon occupying its folder without a matching lock entry) that this
+/// tool does not expose, matching the table's own argument list.
 /// </remarks>
-public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_add";
 
     public override string Description =>
         "Add a git addon: resolve it, lock it, install it into addons/. May refuse with " +
-        "needs_confirmation if the addon declares a NuGet feed this project hasn't agreed to trust " +
-        "(retry with approved_source_urls) — call dotquay_add_preview first to see what it would do.";
+        "needs_confirmation if the addon declares a NuGet feed this project hasn't agreed to "
+        + "trust " +
+        "(retry with approved_source_urls) — call dotquay_add_preview first to see what it would "
+        + "do.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -69,18 +72,20 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var gitUrl = McpArgs.GetString(arguments, "git_url");
 
         if (string.IsNullOrWhiteSpace(gitUrl)) {
-            return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'git_url' is required: the repository URL to add.");
+            return McpToolResults.Failure(Name, JsonErrorKind.Workflow,
+                "'git_url' is required: the repository URL to add.");
         }
 
         if (McpArgs.GetString(arguments, "nuget_source") is not null) {
             return McpToolResults.Failure(
                 Name, JsonErrorKind.Workflow,
-                $"'nuget_source' names a NuGet feed, but '{gitUrl}' is a git URL added by this tool. NuGet feeds "
-                + "only apply to dotquay_add_dotnet.");
+                $"'nuget_source' names a NuGet feed, but '{gitUrl}' is a git URL added by this "
+                + "tool. NuGet feeds only apply to dotquay_add_dotnet.");
         }
 
         var options = new AddonAddOptions {
@@ -115,21 +120,23 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
         }
 
         var workflow = McpInfrastructure.CreateWorkflow(
-            progress, SourceApprovalPolicy.Resolve(approvedSourceUrls), GeneratorPrivacyPolicy.Resolve(keepGeneratorPrivate));
+            progress, SourceApprovalPolicy.Resolve(approvedSourceUrls),
+            GeneratorPrivacyPolicy.Resolve(keepGeneratorPrivate));
 
         var locked = await workflow.AddAsync(projectDirectory, gitUrl, options, cancellationToken);
 
-        // Pseudo-version means no explicit source was given and the default fell back to pinning the
-        // default branch's tip (SPEC.md §6) — see AddCommand.AddGitAsync's identical check.
+        // Pseudo-version means no explicit source was given and the default fell back to pinning
+        // the default branch's tip (SPEC.md §6) — see AddCommand.AddGitAsync's identical check.
         var untagged = !options.HasExplicitSource
             && locked.Version is not null
             && locked.Version.StartsWith("0.0.0-", StringComparison.Ordinal);
 
-        var summary = $"Added '{locked.Name}' @ {locked.Version} ({ShortSha(locked.Resolved)}) -> addons/{locked.EffectiveFolder}";
+        var summary = $"Added '{locked.Name}' @ {locked.Version} ({ShortSha(locked.Resolved)}) -> "
+            + $"addons/{locked.EffectiveFolder}";
 
-        var hint = $"'{locked.Name}' has no git tags — pinned to its current default-branch commit instead of a "
-            + $"version range. Add it with branch: \"<name>\" to track a branch instead, or call dotquay_update "
-            + $"later to move to a newer commit.";
+        var hint = $"'{locked.Name}' has no git tags — pinned to its current default-branch commit "
+            + $"instead of a version range. Add it with branch: \"<name>\" to track a branch "
+            + $"instead, or call dotquay_update later to move to a newer commit.";
 
         var payload = new OperationJson {
             Changes =
@@ -146,7 +153,8 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
         };
 
         return McpToolResults.FromJson(
-            DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload, untagged ? [hint] : null)));
+            DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload, untagged
+                ? [hint] : null)));
     }
 
     private static string ShortSha(string sha) => sha.Length > 7 ? sha[..7] : sha;

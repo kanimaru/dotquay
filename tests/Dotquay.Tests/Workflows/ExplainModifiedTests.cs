@@ -25,11 +25,13 @@ public class ExplainModifiedTests {
     private const string AddonDir = $"{ProjectDir}/addons/dialogue_manager";
 
     private const string SceneWithUid =
-        """[ext_resource type="Script" uid="uid://bxwpwbdv4fm02" path="res://addons/dialogue_manager/x.gd"]""";
+        """[ext_resource type="Script" uid="uid://bxwpwbdv4fm02" """
+            + """path="res://addons/dialogue_manager/x.gd"]""";
 
     private const string ScriptLf = "extends Node\nfunc _ready():\n\tpass\n";
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build() {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem,
+        FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
 
@@ -39,12 +41,14 @@ public class ExplainModifiedTests {
             ["addons/dialogue_manager/main.tscn"] = SceneWithUid,
             ["addons/dialogue_manager/x.gd"] = ScriptLf,
         };
-        gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('a', 40),
+            GitRefKind.Tag)];
 
         return (new DependencyWorkflow(fileSystem, gitClient, "cache"), fileSystem, gitClient);
     }
 
-    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient)> InstalledAsync() {
+    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem,
+        FakeGitClient GitClient)> InstalledAsync() {
         var built = Build();
         await built.Workflow.AddAsync(ProjectDir, RepoUrl);
         return built;
@@ -56,7 +60,8 @@ public class ExplainModifiedTests {
         return Assert.IsType<AddonExplanation>(addon.Explanation);
     }
 
-    /// <summary>The plain path stays exactly what it was: local, offline, and unexplained.</summary>
+    /// <summary>The plain path stays exactly what it was: local, offline, and
+    /// unexplained.</summary>
     [Fact]
     public async Task StatusAsync_WithoutExplain_AttachesNothing() {
         var (workflow, fileSystem, _) = await InstalledAsync();
@@ -118,7 +123,8 @@ public class ExplainModifiedTests {
     [Fact]
     public async Task StatusAsync_GodotRewroteAUid_SaysForcingIsSafe() {
         var (workflow, fileSystem, _) = await InstalledAsync();
-        fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
+        fileSystem.WriteAllText($"{AddonDir}/main.tscn",
+            SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
 
         var explanation = ExplanationOf(await workflow.StatusAsync(ProjectDir, explain: true));
 
@@ -129,10 +135,11 @@ public class ExplainModifiedTests {
     }
 
     /// <summary>
-    /// Since v0.23 a line-endings-only difference is not a modification at all: the recorded hash ignores line
-    /// endings, so another machine's git configuration (CRLF on Windows, LF elsewhere) can no longer make an
-    /// untouched addon read as hand-edited. This used to be the explained case "forcing is safe"; there is now
-    /// nothing to explain. See docs/DESIGN-v0.23-LINE-ENDINGS.md.
+    /// Since v0.23 a line-endings-only difference is not a modification at all: the recorded hash
+    /// ignores line endings, so another machine's git configuration (CRLF on Windows, LF elsewhere)
+    /// can no longer make an untouched addon read as hand-edited. This used to be the explained
+    /// case "forcing is safe"; there is now nothing to explain. See
+    /// docs/DESIGN-v0.23-LINE-ENDINGS.md.
     /// </summary>
     [Fact]
     public async Task StatusAsync_LineEndingsOnly_IsCleanNotModified() {
@@ -146,9 +153,9 @@ public class ExplainModifiedTests {
     }
 
     /// <summary>
-    /// The classification still earns its place when line endings changed BESIDE a real edit: the tree is
-    /// modified for a real reason, and the explanation separates the file that only churned from the one that
-    /// matters.
+    /// The classification still earns its place when line endings changed BESIDE a real edit: the
+    /// tree is modified for a real reason, and the explanation separates the file that only churned
+    /// from the one that matters.
     /// </summary>
     [Fact]
     public async Task StatusAsync_LineEndingChurnBesideARealEdit_IsStillClassifiedPerFile() {
@@ -170,7 +177,8 @@ public class ExplainModifiedTests {
     [Fact]
     public async Task StatusAsync_OneRealEditAmongBenignChurn_StillNeedsReview() {
         var (workflow, fileSystem, _) = await InstalledAsync();
-        fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
+        fileSystem.WriteAllText($"{AddonDir}/main.tscn",
+            SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
         fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
 
         var explanation = ExplanationOf(await workflow.StatusAsync(ProjectDir, explain: true));
@@ -221,9 +229,9 @@ public class ExplainModifiedTests {
     }
 
     /// <summary>
-    /// A lockfile that names a patch whose file is gone. The comparison is then measurably incomplete
-    /// — the patch's own edits are in the listed changes — and the report has to admit that rather
-    /// than present them as the user's unexplained hand-edits.
+    /// A lockfile that names a patch whose file is gone. The comparison is then measurably
+    /// incomplete — the patch's own edits are in the listed changes — and the report has to admit
+    /// that rather than present them as the user's unexplained hand-edits.
     /// </summary>
     [Fact]
     public async Task StatusAsync_DeclaredPatchFileMissing_SaysTheComparisonIsIncomplete() {
@@ -234,7 +242,8 @@ public class ExplainModifiedTests {
             $"{ProjectDir}/dotquay.lock",
             LockfileWriter.Serialize(lockfile with {
                 Addons = lockfile.Addons
-                    .Select(a => a with { PatchHash = "sha256:deadbeef", PatchBaseSha = a.Resolved })
+                    .Select(a =>
+                        a with { PatchHash = "sha256:deadbeef", PatchBaseSha = a.Resolved })
                     .ToList(),
             }));
 
@@ -254,7 +263,9 @@ public class ExplainModifiedTests {
 
         await workflow.StatusAsync(ProjectDir, explain: true);
 
-        Assert.False(fileSystem.DirectoryExists($"{ProjectDir}/.dotquay/staging/dialogue_manager-explain-base"));
+        Assert.False(
+            fileSystem.DirectoryExists(
+                $"{ProjectDir}/.dotquay/staging/dialogue_manager-explain-base"));
     }
 
     // -- wire contract ----------------------------------------------------------------------
@@ -274,7 +285,8 @@ public class ExplainModifiedTests {
     [Fact]
     public async Task ToJson_ExplainedStatus_UsesTheDocumentedWireStrings() {
         var (workflow, fileSystem, _) = await InstalledAsync();
-        fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
+        fileSystem.WriteAllText($"{AddonDir}/main.tscn",
+            SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
 
         var json = JsonMapper.ToJson(await workflow.StatusAsync(ProjectDir, explain: true));
 

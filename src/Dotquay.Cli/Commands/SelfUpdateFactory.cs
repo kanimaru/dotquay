@@ -21,20 +21,21 @@ internal static class SelfUpdateFactory {
         new GitLabReleaseChannel(settings.ChannelUrl, CredentialFactory.CreateResolver());
 
     public static SelfUpdateWorkflow Workflow(UpdateSettings settings) =>
-        new(new SystemFileSystem(), Channel(settings), new ProcessExecutableProbe(), ExecutablePath(), DotquayVersion.Current);
+        new(new SystemFileSystem(), Channel(settings), new ProcessExecutableProbe(),
+            ExecutablePath(), DotquayVersion.Current);
 
     /// <summary>
     /// The binary a self-update would replace.
     /// </summary>
     /// <remarks>
     /// <see cref="Environment.ProcessPath"/> is the real answer under NativeAOT, where there is no
-    /// managed assembly to ask and <c>AppContext.BaseDirectory</c> would name a directory rather than
-    /// a file. It returns null only on platforms that will not say, and a self-updater that does not
-    /// know what it is has nothing useful to do.
+    /// managed assembly to ask and <c>AppContext.BaseDirectory</c> would name a directory rather
+    /// than a file. It returns null only on platforms that will not say, and a self-updater that
+    /// does not know what it is has nothing useful to do.
     /// </remarks>
     public static string ExecutablePath() =>
         Environment.ProcessPath
         ?? throw new WorkflowException(
-            "This platform will not say which file this process was started from, so dotquay cannot work out "
-            + "which binary to replace. Update it by hand.");
+            "This platform will not say which file this process was started from, so dotquay "
+            + "cannot work out which binary to replace. Update it by hand.");
 }

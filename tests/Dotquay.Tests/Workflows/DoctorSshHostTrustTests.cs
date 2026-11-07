@@ -9,10 +9,10 @@ namespace Dotquay.Tests.Workflows;
 /// host key on this machine.
 /// </summary>
 /// <remarks>
-/// From the setup failure this whole change came out of: a developer cloning a project for the first
-/// time hit "Host key verification failed" from inside a fetch, followed by git's generic advice
-/// about access rights, and went looking for a credential problem that did not exist. Nothing in the
-/// project was wrong, so nothing in the project could be edited to fix it.
+/// From the setup failure this whole change came out of: a developer cloning a project for the
+/// first time hit "Host key verification failed" from inside a fetch, followed by git's generic
+/// advice about access rights, and went looking for a credential problem that did not exist.
+/// Nothing in the project was wrong, so nothing in the project could be edited to fix it.
 /// </remarks>
 public class DoctorSshHostTrustTests {
     private const string ProjectDirectory = "project";
@@ -31,15 +31,16 @@ public class DoctorSshHostTrustTests {
             path = "."
             """);
 
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), string.Join("\n\n", entries));
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"),
+            string.Join("\n\n", entries));
 
         return fileSystem;
     }
 
     private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem) {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache") {
-            // Pinned rather than inherited: whether this suite passes must not depend on whether the
-            // machine running it happens to trust gitlab.kemomi.de.
+            // Pinned rather than inherited: whether this suite passes must not depend on whether
+            // the machine running it happens to trust gitlab.kemomi.de.
             EnvironmentReader = new FakeEnvironmentReader { HomeDirectory = "/home/kani" },
         };
 
@@ -50,7 +51,8 @@ public class DoctorSshHostTrustTests {
 
     [Fact]
     public async Task SshAddonWithNoKnownHostsEntry_IsReported() {
-        var fileSystem = BuildProject(("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
+        var fileSystem = BuildProject(("mtoon-shader",
+            "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
 
         var issue = Assert.Single(await RunAsync(fileSystem));
 
@@ -62,7 +64,8 @@ public class DoctorSshHostTrustTests {
 
     [Fact]
     public async Task SshAddonWithATrustedHost_IsSilent() {
-        var fileSystem = BuildProject(("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
+        var fileSystem = BuildProject(("mtoon-shader",
+            "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
         fileSystem.WriteAllText(KnownHostsPath, "gitlab.kemomi.de ssh-ed25519 AAAAExample");
 
         Assert.Empty(await RunAsync(fileSystem));
@@ -70,9 +73,10 @@ public class DoctorSshHostTrustTests {
 
     [Fact]
     public async Task HttpsAddons_AreNeverReported() {
-        // No host key is involved, so there is nothing to be untrusted. A check that complained here
-        // would fire on the majority of projects and immediately stop being read.
-        var fileSystem = BuildProject(("mtoon-shader", "https://gitlab.kemomi.de/wild-alliance/mtoon-shader"));
+        // No host key is involved, so there is nothing to be untrusted. A check that complained
+        // here would fire on the majority of projects and immediately stop being read.
+        var fileSystem = BuildProject(("mtoon-shader",
+            "https://gitlab.kemomi.de/wild-alliance/mtoon-shader"));
 
         Assert.Empty(await RunAsync(fileSystem));
     }
@@ -88,8 +92,8 @@ public class DoctorSshHostTrustTests {
 
     [Fact]
     public async Task ManyAddonsOnOneHost_ProduceOneIssue() {
-        // The known_hosts entry is per host: ten addons on one GitLab need one fix, and ten copies of
-        // it would bury whatever else doctor found.
+        // The known_hosts entry is per host: ten addons on one GitLab need one fix, and ten copies
+        // of it would bury whatever else doctor found.
         var fileSystem = BuildProject(
             ("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"),
             ("vbeami", "git@gitlab.kemomi.de:wild-alliance/vbeami.git"),
@@ -127,8 +131,10 @@ public class DoctorSshHostTrustTests {
     public async Task RevokedHostKey_SaysSoRatherThanSuggestingAKeyscan() {
         // The remedy is the opposite of the ordinary case: do not go and trust it, go and find out
         // why it changed.
-        var fileSystem = BuildProject(("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
-        fileSystem.WriteAllText(KnownHostsPath, "@revoked gitlab.kemomi.de ssh-ed25519 AAAAExample");
+        var fileSystem = BuildProject(("mtoon-shader",
+            "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
+        fileSystem.WriteAllText(KnownHostsPath,
+            "@revoked gitlab.kemomi.de ssh-ed25519 AAAAExample");
 
         var issue = Assert.Single(await RunAsync(fileSystem));
 
@@ -138,7 +144,8 @@ public class DoctorSshHostTrustTests {
 
     [Fact]
     public async Task NonDefaultPort_IsMatchedAgainstTheBracketedEntry() {
-        var fileSystem = BuildProject(("mtoon-shader", "ssh://git@gitlab.kemomi.de:2222/wild-alliance/mtoon-shader"));
+        var fileSystem = BuildProject(("mtoon-shader",
+            "ssh://git@gitlab.kemomi.de:2222/wild-alliance/mtoon-shader"));
         fileSystem.WriteAllText(KnownHostsPath, "[gitlab.kemomi.de]:2222 ssh-ed25519 AAAAExample");
 
         Assert.Empty(await RunAsync(fileSystem));

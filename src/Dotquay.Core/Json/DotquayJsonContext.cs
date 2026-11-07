@@ -4,13 +4,13 @@ using System.Text.Json.Serialization;
 namespace Dotquay.Core.Json;
 
 /// <summary>
-/// Source-generated serialization metadata for every <c>--json</c> payload. Source generation is not
-/// an optimisation here: reflection-based <c>JsonSerializer</c> is stripped by the trimmer under
-/// NativeAOT, which is dotquay's distribution target (SPEC.md §12, OQ-6) — the same class of failure
-/// that already forced Spectre.Console.Cli and NuGet.Protocol out of this project (docs/SPRINT-01.md).
-/// Every closed generic that gets serialized must be listed below; a missing one fails at runtime in
-/// the published binary while building and running fine under JIT, so <c>graph --json</c> is
-/// exercised against a real AOT publish, not just <c>dotnet run</c>.
+/// Source-generated serialization metadata for every <c>--json</c> payload. Source generation is
+/// not an optimisation here: reflection-based <c>JsonSerializer</c> is stripped by the trimmer
+/// under NativeAOT, which is dotquay's distribution target (SPEC.md §12, OQ-6) — the same class of
+/// failure that already forced Spectre.Console.Cli and NuGet.Protocol out of this project
+/// (docs/SPRINT-01.md). Every closed generic that gets serialized must be listed below; a missing
+/// one fails at runtime in the published binary while building and running fine under JIT, so
+/// <c>graph --json</c> is exercised against a real AOT publish, not just <c>dotnet run</c>.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,

@@ -16,13 +16,16 @@ namespace Dotquay.Mcp.Tools;
 /// <c>InstallPaths</c> and the sync engine like every other caller, so it never follows a directory
 /// link, but nothing stops it from deleting an addon with uncaptured local edits — that is what
 /// "explained destruction" means here (§4.2's own reasoning): the agent can, and the
-/// <c>dotquay_diagnose_modified</c> prompt (§7, Phase 3) tells it to, run <c>dotquay_status</c> first.
+/// <c>dotquay_diagnose_modified</c> prompt (§7, Phase 3) tells it to, run <c>dotquay_status</c>
+/// first.
 /// </remarks>
-public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_remove";
 
     public override string Description =>
-        "Remove an addon or dotnet dependency from the manifest, lockfile, and disk. Destructive — " +
+        "Remove an addon or dotnet dependency from the manifest, lockfile, and disk. Destructive "
+        + "— " +
         "consider calling dotquay_status first if the addon might have unsaved local edits.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
@@ -41,11 +44,13 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : M
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
         if (string.IsNullOrWhiteSpace(name)) {
-            return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the dependency to remove.");
+            return McpToolResults.Failure(Name, JsonErrorKind.Workflow,
+                "'name' is required: the dependency to remove.");
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
@@ -57,13 +62,15 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : M
                 new ChangeJson
                 {
                     Name = name,
-                    Kind = removal.Kind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet : JsonMapper.ChangeKind.Addon,
+                    Kind = removal.Kind == DependencyKind.Dotnet ? JsonMapper.ChangeKind.Dotnet
+                    : JsonMapper.ChangeKind.Addon,
                     Action = JsonMapper.ChangeAction.Removed,
                 },
             ],
             Messages = [removal.Describe(name)],
         };
 
-        return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));
+        return McpToolResults.FromJson(
+            DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));
     }
 }

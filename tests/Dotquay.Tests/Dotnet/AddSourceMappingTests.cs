@@ -10,11 +10,11 @@ namespace Dotquay.Tests.Dotnet;
 /// Covers the <c>&lt;packageSourceMapping&gt;</c> a single <c>add</c> writes.
 /// </summary>
 /// <remarks>
-/// <para>These exist because of a failure no unit test could have caught before: the mapping was built
-/// from the manifest's pins alone, read from disk — and during <c>add</c> the package being added is
-/// not in the manifest yet, since the manifest is written only after the install succeeds. So the file
-/// held nothing but the <c>*</c> catch-all aimed at nuget.org, and <c>dotnet restore</c> rejected a
-/// package that had just resolved cleanly from a private GitLab feed with
+/// <para>These exist because of a failure no unit test could have caught before: the mapping was
+/// built from the manifest's pins alone, read from disk — and during <c>add</c> the package being
+/// added is not in the manifest yet, since the manifest is written only after the install succeeds.
+/// So the file held nothing but the <c>*</c> catch-all aimed at nuget.org, and <c>dotnet
+/// restore</c> rejected a package that had just resolved cleanly from a private GitLab feed with
 /// <c>NU1101 ... the following source(s) were not considered: dotquay-lazy_o</c>.</para>
 /// <para>It only showed up when the published binary was run against the real feed, because
 /// <see cref="FakeDotnetCliRunner"/> does not read <c>NuGet.Config</c> — nothing in the suite was
@@ -22,7 +22,8 @@ namespace Dotquay.Tests.Dotnet;
 /// </remarks>
 public class AddSourceMappingTests {
     private const string ProjectDir = "project";
-    private const string PrivateUrl = "https://gitlab.example.com/api/v4/projects/130/packages/nuget/index.json";
+    private const string PrivateUrl =
+        "https://gitlab.example.com/api/v4/projects/130/packages/nuget/index.json";
 
     private const string Csproj = """
         <Project Sdk="Godot.NET.Sdk/4.7.2">
@@ -44,8 +45,8 @@ public class AddSourceMappingTests {
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
 
-        // Named so the resolved-source name the client reports is the declared feed's, exactly as the
-        // real MultiSourceNuGetClient reports it.
+        // Named so the resolved-source name the client reports is the declared feed's, exactly as
+        // the real MultiSourceNuGetClient reports it.
         var nuGetClient = new FakeNuGetClient(feedName);
         nuGetClient.VersionsByPackageId["Kani.Core"] = ["1.2.0", "1.3.0"];
 
@@ -54,7 +55,8 @@ public class AddSourceMappingTests {
             gitClient,
             new FakeNuGetClientFactory(nuGetClient),
             new AddonInstaller(
-                fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem)),
+                fileSystem, new RepoCache(fileSystem, gitClient, "cache"),
+                new SyncEngine(fileSystem), new FakePatchTool(fileSystem)),
             new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()));
 
         return (workflow, fileSystem);
@@ -85,15 +87,17 @@ public class AddSourceMappingTests {
     public async Task AnExplicitSourcePinIsMappedToo() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: "lazy_o");
 
-        await workflow.AddDotnetAsync(ProjectDir, "Kani.Core", versionOverride: "1.2.0", pinnedSourceName: "lazy_o");
+        await workflow.AddDotnetAsync(ProjectDir, "Kani.Core", versionOverride: "1.2.0",
+            pinnedSourceName: "lazy_o");
 
         var config = ReadNuGetConfig(fileSystem);
         Assert.Contains("<packageSource key=\"dotquay-lazy_o\">", config);
         Assert.Contains("<package pattern=\"Kani.Core\" />", config);
     }
 
-    /// <summary>An exact version is the case that first failed in the wild, so it gets its own test:
-    /// resolution still has to report which feed answered, or the mapping has nothing to write.</summary>
+    /// <summary>An exact version is the case that first failed in the wild, so it gets its own
+    /// test: resolution still has to report which feed answered, or the mapping has nothing to
+    /// write.</summary>
     [Fact]
     public async Task AnExactVersionStillBindsTheFeed() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: "lazy_o");
@@ -104,7 +108,8 @@ public class AddSourceMappingTests {
     }
 
     /// <summary>A package from the public feed needs no mapping of its own — the <c>*</c> catch-all
-    /// already points there, and an entry per public package would be noise in a committed file.</summary>
+    /// already points there, and an entry per public package would be noise in a committed
+    /// file.</summary>
     [Fact]
     public async Task APublicPackageIsLeftToTheCatchAll() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: null);
@@ -129,8 +134,8 @@ public class AddSourceMappingTests {
     /// <remarks>
     /// The mapping element is rewritten wholesale on every write, so an install that knows only the
     /// package it is installing does not leave the others alone, it deletes them. VBeami.Core then
-    /// matched nothing but the <c>*</c> catch-all, and would have been fetched from nuget.org on any
-    /// machine without a local link to hide it.
+    /// matched nothing but the <c>*</c> catch-all, and would have been fetched from nuget.org on
+    /// any machine without a local link to hide it.
     /// </remarks>
     [Fact]
     public async Task AnAddKeepsTheMappingOfEveryPackageAlreadyLocked() {

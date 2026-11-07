@@ -96,7 +96,8 @@ public class InMemoryFileSystemTests {
         var everything = fs.EnumerateDirectories("addons", recursive: true).ToList();
 
         Assert.Contains(everything, d => d.TrimEnd('/').EndsWith("foo", StringComparison.Ordinal));
-        Assert.Contains(everything, d => d.TrimEnd('/').EndsWith("scripts", StringComparison.Ordinal));
+        Assert.Contains(everything, d => d.TrimEnd('/')
+            .EndsWith("scripts", StringComparison.Ordinal));
     }
 
     [Fact]

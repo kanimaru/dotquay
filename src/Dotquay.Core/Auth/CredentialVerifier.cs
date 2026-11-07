@@ -12,8 +12,8 @@ namespace Dotquay.Core.Auth;
 /// Worth the round trip: without it, a mistyped token is accepted silently and surfaces three
 /// commands later as a restore failure, at which point the token is the last thing anyone suspects.
 /// Verifying at the moment of entry puts the error next to the typo. The username is part of what
-/// gets checked — GitLab rejects a valid token paired with the wrong username (an email address, say)
-/// exactly as it rejects a wrong token.
+/// gets checked — GitLab rejects a valid token paired with the wrong username (an email address,
+/// say) exactly as it rejects a wrong token.
 /// </remarks>
 public sealed class CredentialVerifier {
     private readonly HttpClient _httpClient;
@@ -39,13 +39,16 @@ public sealed class CredentialVerifier {
         string url, Credential credential, CancellationToken cancellationToken = default) {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{credential.Username}:{credential.Token}")));
+            "Basic",
+            Convert.ToBase64String(
+                Encoding.UTF8.GetBytes($"{credential.Username}:{credential.Token}")));
 
         try {
             using var response = await _httpClient.SendAsync(request, cancellationToken);
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) {
-                return (Result.Rejected, $"the server answered {(int)response.StatusCode} {response.StatusCode}");
+                return (Result.Rejected,
+                    $"the server answered {(int)response.StatusCode} {response.StatusCode}");
             }
 
             // Anything that isn't an auth rejection counts as accepted. A 404 here means the URL is
@@ -53,7 +56,8 @@ public sealed class CredentialVerifier {
             // mistyped would be answering a question nobody asked.
             return response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound
                 ? (Result.Accepted, null)
-                : (Result.Inconclusive, $"the server answered {(int)response.StatusCode} {response.StatusCode}");
+                : (Result.Inconclusive,
+                    $"the server answered {(int)response.StatusCode} {response.StatusCode}");
         } catch (HttpRequestException ex) {
             return (Result.Inconclusive, ex.Message);
         } catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) {
@@ -63,13 +67,14 @@ public sealed class CredentialVerifier {
 
     /// <summary>
     /// Tries several URLs on one host, in order, stopping at the first decisive answer. The same
-    /// credential goes to all of them, so a rejection anywhere is decisive, and so is an acceptance;
-    /// the check as a whole is inconclusive only when every URL was.
+    /// credential goes to all of them, so a rejection anywhere is decisive, and so is an
+    /// acceptance; the check as a whole is inconclusive only when every URL was.
     /// </summary>
     /// <returns>The outcome, with the detail naming the URL that produced it so a rejection can be
     /// told apart from "the feed URL in dotquay.toml is wrong".</returns>
     public async Task<(Result Outcome, string? Detail)> VerifyAnyAsync(
-        IReadOnlyList<string> urls, Credential credential, CancellationToken cancellationToken = default) {
+        IReadOnlyList<string> urls, Credential credential,
+        CancellationToken cancellationToken = default) {
         string? lastDetail = null;
 
         foreach (var url in urls) {

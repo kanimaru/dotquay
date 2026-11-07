@@ -5,4 +5,5 @@ namespace Dotquay.Core.Workflows;
 /// requirement P1-3: "runs without cloning"). <see cref="LatestDisplay"/> is null for a
 /// <c>rev</c>-pinned addon (nothing to compare against a hard pin) or when the resolver's own check
 /// found nothing newer.</summary>
-public sealed record AddonOutdatedInfo(string Name, string CurrentDisplay, string? LatestDisplay, bool IsOutdated);
+public sealed record AddonOutdatedInfo(string Name, string CurrentDisplay, string? LatestDisplay,
+    bool IsOutdated);

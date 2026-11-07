@@ -9,22 +9,26 @@ using ModelContextProtocol.Protocol;
 
 namespace Dotquay.Mcp.Tools;
 
-/// <summary>MCP mirror of <c>dotquay update [name]</c>: re-resolves one dependency, or everything the
-/// manifest declares, fresh (SPEC.md §6). See <c>Dotquay.Cli.Commands.UpdateCommand</c>.</summary>
+/// <summary>MCP mirror of <c>dotquay update [name]</c>: re-resolves one dependency, or everything
+/// the manifest declares, fresh (SPEC.md §6). See
+/// <c>Dotquay.Cli.Commands.UpdateCommand</c>.</summary>
 /// <remarks>
 /// <see cref="Guards.SourceApprovalPolicy"/> has no dry run for <c>update</c> (§5.1 — there is no
 /// <c>PreviewUpdateAsync</c>), so <c>approved_source_urls</c> is wired straight into the real
 /// workflow's <see cref="Dotquay.Core.Abstractions.ISourceApproval"/> and never pre-checked; an
 /// unadopted feed a package actually needed surfaces the way it always has, as an ordinary Core
-/// exception naming the addon and feed. <see cref="Guards.ForceConfirmationPolicy"/> is pre-checked,
-/// same as <see cref="DotquayInstallTool"/>.
+/// exception naming the addon and feed. <see cref="Guards.ForceConfirmationPolicy"/> is
+/// pre-checked, same as <see cref="DotquayInstallTool"/>.
 /// </remarks>
-public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_update";
 
     public override string Description =>
-        "Re-resolve one dependency (name) or everything the manifest declares, fresh, and reinstall it. " +
-        "force: true overwrites addons with unrecorded local edits; may refuse with needs_confirmation " +
+        "Re-resolve one dependency (name) or everything the manifest declares, fresh, and "
+        + "reinstall it. " +
+        "force: true overwrites addons with unrecorded local edits; may refuse with "
+        + "needs_confirmation " +
         "unless confirm_discard names every one that would lose real content.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
@@ -60,7 +64,8 @@ public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : M
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
         var force = McpArgs.GetBool(arguments, "force");
         var confirmDiscard = McpArgs.GetStringArray(arguments, "confirm_discard");
@@ -79,10 +84,13 @@ public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : M
             return McpToolResults.FromRefusal(Name, refusal);
         }
 
-        var workflow = McpInfrastructure.CreateWorkflow(progress, SourceApprovalPolicy.Resolve(approvedSourceUrls), generatorAssetDecision: null);
+        var workflow = McpInfrastructure.CreateWorkflow(progress,
+            SourceApprovalPolicy.Resolve(approvedSourceUrls), generatorAssetDecision: null);
         var result = await workflow.UpdateAsync(projectDirectory, name, force, cancellationToken);
         var payload = JsonMapper.ToJson(result);
 
-        return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload, result.Warnings)));
+        return McpToolResults.FromJson(
+            DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload,
+                result.Warnings)));
     }
 }

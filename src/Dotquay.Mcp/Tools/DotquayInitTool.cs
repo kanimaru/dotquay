@@ -14,15 +14,17 @@ namespace Dotquay.Mcp.Tools;
 /// <remarks>
 /// No write guard applies (§4.2's table lists none for <c>dotquay_init</c>): scaffolding a manifest
 /// touches nothing that was ever going to prompt a human, and refuses to overwrite an existing
-/// manifest on its own (reported as <c>unchanged</c>, not an error — the same "the state you asked for
-/// already exists" reasoning <c>InitCommand</c> uses).
+/// manifest on its own (reported as <c>unchanged</c>, not an error — the same "the state you asked
+/// for already exists" reasoning <c>InitCommand</c> uses).
 /// </remarks>
-public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_init";
 
     public override string Description =>
-        "Scaffold a dotquay.toml: a project manifest by default, or a package manifest (for an addon) "
-        + "with package: true. Refuses to overwrite an existing manifest — reports unchanged instead.";
+        "Scaffold a dotquay.toml: a project manifest by default, or a package manifest (for an "
+        + "addon) with package: true. Refuses to overwrite an existing manifest — reports "
+        + "unchanged instead.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -51,13 +53,16 @@ public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : Mcp
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var isPackage = McpArgs.GetBool(arguments, "package");
         var initService = new InitService(new SystemFileSystem());
 
         var result = isPackage
-            ? initService.InitPackage(projectDirectory, McpArgs.GetString(arguments, "name") ?? new DirectoryInfo(projectDirectory).Name)
-            : initService.InitProject(projectDirectory, McpArgs.GetString(arguments, "nuget_source"));
+            ? initService.InitPackage(projectDirectory, McpArgs.GetString(arguments, "name")
+                ?? new DirectoryInfo(projectDirectory).Name)
+            : initService.InitProject(projectDirectory,
+                McpArgs.GetString(arguments, "nuget_source"));
 
         var kind = isPackage ? "package" : "project";
 
@@ -72,13 +77,16 @@ public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : Mcp
                 {
                     Name = kind,
                     Kind = JsonMapper.ChangeKind.Addon,
-                    Action = result.WasCreated ? JsonMapper.ChangeAction.Added : JsonMapper.ChangeAction.Unchanged,
+                    Action = result.WasCreated ? JsonMapper.ChangeAction.Added
+                    : JsonMapper.ChangeAction.Unchanged,
                     To = result.ManifestPath,
                 },
             ],
             Messages = [message],
         };
 
-        return ValueTask.FromResult(McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload))));
+        return ValueTask.FromResult(
+            McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name,
+                payload))));
     }
 }

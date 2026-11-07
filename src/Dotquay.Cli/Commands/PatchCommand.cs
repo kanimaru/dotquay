@@ -12,8 +12,9 @@ namespace Dotquay.Cli.Commands;
 /// Re-applying a patch is automatic on every install and update; this command exists for the two
 /// moments that aren't: recording the edit in the first place, and deciding what to do when a
 /// three-way merge can't settle it. <c>--resolve</c> and <c>--abandon</c> replace a three-step
-/// instruction the conflict message used to print, whose middle step (recapturing) was the one people
-/// skipped — and skipping it leaves the lockfile describing a patch that no longer matches the tree.
+/// instruction the conflict message used to print, whose middle step (recapturing) was the one
+/// people skipped — and skipping it leaves the lockfile describing a patch that no longer matches
+/// the tree.
 /// </remarks>
 internal static class PatchCommand {
     private const string CommandName = "patch";
@@ -24,18 +25,19 @@ internal static class PatchCommand {
         };
 
         var resolveOption = new Option<bool>("--resolve") {
-            Description = "Finish a conflicted update: install the files you resolved in staging, then recapture "
-                + "the patch against the new upstream commit.",
+            Description = "Finish a conflicted update: install the files you resolved in staging, "
+                + "then recapture the patch against the new upstream commit.",
         };
 
         var abandonOption = new Option<bool>("--abandon") {
-            Description = "Drop this addon's patch and take upstream as-is. For when the change was upstreamed "
-                + "or is no longer wanted.",
+            Description = "Drop this addon's patch and take upstream as-is. For when the change "
+                + "was upstreamed or is no longer wanted.",
         };
 
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command(CommandName, "Capture hand-edits to an installed addon as a patch file.")
+        var command = new Command(CommandName,
+            "Capture hand-edits to an installed addon as a patch file.")
         {
             nameArgument,
             resolveOption,
@@ -54,14 +56,16 @@ internal static class PatchCommand {
             if (resolve && abandon) {
                 return JsonOutput.Fail(
                     json, CommandName, JsonErrorKind.Workflow,
-                    "--resolve and --abandon are opposites: one keeps your patch, the other discards it.");
+                    "--resolve and --abandon are opposites: one keeps your patch, the other "
+                    + "discards it.");
             }
 
             try {
                 var result = resolve
                     ? await workflow.ResolvePatchAsync(projectDirectory, name, cancellationToken)
                     : abandon
-                        ? await workflow.AbandonPatchAsync(projectDirectory, name, force: true, cancellationToken)
+                        ? await workflow.AbandonPatchAsync(projectDirectory, name, force: true,
+                            cancellationToken)
                         : await workflow.PatchAsync(projectDirectory, name, cancellationToken);
 
                 var message = Describe(result, resolve, abandon);
@@ -108,7 +112,8 @@ internal static class PatchCommand {
         if (resolve) {
             return result.Captured
                 ? $"Resolved '{result.Name}' and recaptured its patch -> {result.PatchFilePath}"
-                : $"Resolved '{result.Name}'. The result matches upstream exactly, so there is no patch left to keep.";
+                : $"Resolved '{result.Name}'. The result matches upstream exactly, so there is no "
+                + $"patch left to keep.";
         }
 
         return result.Captured

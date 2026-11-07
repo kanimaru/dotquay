@@ -10,8 +10,8 @@ namespace Dotquay.Core.Json;
 /// <summary>
 /// The one place domain models become wire payloads (SPEC.md §17). Every enum-to-string mapping is
 /// spelled out here rather than delegated to a naming convention, so the JSON contract can only
-/// change by editing this file — a renamed C# enum member is a compile error here, not a silent break
-/// in the Godot plugin.
+/// change by editing this file — a renamed C# enum member is a compile error here, not a silent
+/// break in the Godot plugin.
 /// </summary>
 public static class JsonMapper {
     public static GraphJson ToJson(GraphReport report) => new() {
@@ -49,7 +49,8 @@ public static class JsonMapper {
     };
 
     public static RequirementJson ToJson(GraphRequirement requirement) =>
-        new(requirement.Requirer, ToWire(requirement.Kind), requirement.Constraint, requirement.Git);
+        new(requirement.Requirer, ToWire(requirement.Kind), requirement.Constraint,
+            requirement.Git);
 
     public static CandidateJson ToJson(GraphCandidate candidate) => new() {
         Kind = ToWire(candidate.Kind),
@@ -87,10 +88,10 @@ public static class JsonMapper {
     };
 
     /// <summary>
-    /// The <c>changes[]</c> entry for a NuGet declaration (DESIGN-v0.19 §7a.1): <c>added</c> for a new
-    /// package, <c>updated</c> with <c>from</c> for a pin or a version change, <c>unchanged</c> when it
-    /// already was exactly that. Shared by <c>add --json</c> and the MCP tool so both report one
-    /// outcome the same way.
+    /// The <c>changes[]</c> entry for a NuGet declaration (DESIGN-v0.19 §7a.1): <c>added</c> for a
+    /// new package, <c>updated</c> with <c>from</c> for a pin or a version change, <c>unchanged</c>
+    /// when it already was exactly that. Shared by <c>add --json</c> and the MCP tool so both
+    /// report one outcome the same way.
     /// </summary>
     public static ChangeJson ToChange(Workflows.DotnetDeclaration declaration) => new() {
         Name = declaration.Locked.Name,
@@ -100,7 +101,8 @@ public static class JsonMapper {
             Workflows.DotnetDeclarationOutcome.Unchanged => ChangeAction.Unchanged,
             _ => ChangeAction.Updated,
         },
-        From = declaration.Outcome == Workflows.DotnetDeclarationOutcome.Added ? null : declaration.PreviousResolved,
+        From = declaration.Outcome == Workflows.DotnetDeclarationOutcome.Added ? null
+        : declaration.PreviousResolved,
         To = declaration.Locked.Resolved,
     };
 
@@ -113,8 +115,9 @@ public static class JsonMapper {
         _ => "unknown",
     };
 
-    public static ListJson ToListJson(IReadOnlyList<LockedAddon> addons, IReadOnlyList<LockedDotnet> dotnet) => new() {
-        Addons = addons
+    public static ListJson ToListJson(IReadOnlyList<LockedAddon> addons,
+        IReadOnlyList<LockedDotnet> dotnet) => new() {
+            Addons = addons
             .OrderBy(a => a.Name, StringComparer.Ordinal)
             .Select(a => new ListAddonJson {
                 Name = a.Name,
@@ -125,7 +128,7 @@ public static class JsonMapper {
                 IsPatched = a.PatchHash is not null,
             })
             .ToList(),
-        Dotnet = dotnet
+            Dotnet = dotnet
             .OrderBy(d => d.Name, StringComparer.Ordinal)
             .Select(d => new DotnetJson {
                 Name = d.Name,
@@ -138,22 +141,26 @@ public static class JsonMapper {
                 PrivateAssets = d.Assets.Private,
             })
             .ToList(),
-    };
+        };
 
     public static StatusJson ToJson(StatusResult status) => new() {
-        Addons = status.Addons.Select(a => new StatusEntryJson(a.Name, ToWire(a.Kind), ToJson(a.Explanation))).ToList(),
-        // A linked addon counts as clean: it is exactly where its owner put it, and nothing about it
-        // needs fixing (SPEC.md §7.4).
+        Addons = status.Addons.Select(a =>
+            new StatusEntryJson(a.Name, ToWire(a.Kind), ToJson(a.Explanation))).ToList(),
+        // A linked addon counts as clean: it is exactly where its owner put it, and nothing about
+        // it needs fixing (SPEC.md §7.4).
         AllClean = status.Addons.All(
-            a => a.Kind is AddonStatusKind.Clean or AddonStatusKind.PatchedAsExpected or AddonStatusKind.Linked),
+            a => a.Kind is AddonStatusKind.Clean or AddonStatusKind.PatchedAsExpected
+            or AddonStatusKind.Linked),
     };
 
     public static OutdatedJson ToJson(OutdatedResult outdated) {
         var addons = outdated.Addons
-            .Select(a => new OutdatedEntryJson(a.Name, a.CurrentDisplay, a.LatestDisplay, a.IsOutdated))
+            .Select(a =>
+                new OutdatedEntryJson(a.Name, a.CurrentDisplay, a.LatestDisplay, a.IsOutdated))
             .ToList();
         var dotnet = outdated.Dotnet
-            .Select(d => new OutdatedEntryJson(d.Name, d.CurrentVersion, d.LatestVersion, d.IsOutdated))
+            .Select(d =>
+                new OutdatedEntryJson(d.Name, d.CurrentVersion, d.LatestVersion, d.IsOutdated))
             .ToList();
 
         return new OutdatedJson {
@@ -175,8 +182,9 @@ public static class JsonMapper {
         },
     };
 
-    public static OperationJson ToJson(UpdateResult update, IReadOnlyList<string>? messages = null) => new() {
-        Changes = update.Addons
+    public static OperationJson ToJson(UpdateResult update,
+        IReadOnlyList<string>? messages = null) => new() {
+            Changes = update.Addons
             .Select(a => new ChangeJson {
                 Name = a.Name,
                 Kind = ChangeKind.Addon,
@@ -196,11 +204,12 @@ public static class JsonMapper {
                 To = d.Locked.Resolved,
             }))
             .ToList(),
-        Messages = messages ?? update.SourceBuildNotes,
-    };
+            Messages = messages ?? update.SourceBuildNotes,
+        };
 
-    public static OperationJson ToJson(InstallResult install, IReadOnlyList<string>? messages = null) => new() {
-        Changes = install.Addons
+    public static OperationJson ToJson(InstallResult install,
+        IReadOnlyList<string>? messages = null) => new() {
+            Changes = install.Addons
             .Select(a => new ChangeJson {
                 Name = a.Name,
                 Kind = ChangeKind.Addon,
@@ -216,17 +225,17 @@ public static class JsonMapper {
                 To = d.Resolved,
             }))
             .ToList(),
-        Messages = messages ?? install.SourceBuildNotes,
-    };
+            Messages = messages ?? install.SourceBuildNotes,
+        };
 
     /// <summary>
     /// Maps <c>add --preview</c>'s resolve into its wire payload (SPEC.md §6, §11.3).
     /// </summary>
     /// <remarks>
-    /// The two convenience booleans are computed here rather than in the workflow for the same reason
-    /// <see cref="GraphJson.HasConflicts"/> is: they are statements about how to present the payload,
-    /// not facts the resolver discovered, and a UI that recomputed them could disagree with one that
-    /// read them.
+    /// The two convenience booleans are computed here rather than in the workflow for the same
+    /// reason <see cref="GraphJson.HasConflicts"/> is: they are statements about how to present the
+    /// payload, not facts the resolver discovered, and a UI that recomputed them could disagree
+    /// with one that read them.
     /// </remarks>
     public static AddPreviewJson ToJson(AddPreview preview) => new() {
         Name = preview.Name,
@@ -285,8 +294,10 @@ public static class JsonMapper {
     };
 
     /// <summary>Null in, null out — an addon that was not explained carries no explanation, rather
-    /// than an empty one a consumer would have to distinguish from "explained, nothing found".</summary>
-    public static StatusExplanationJson? ToJson(AddonExplanation? explanation) => explanation is null
+    /// than an empty one a consumer would have to distinguish from "explained, nothing
+    /// found".</summary>
+    public static StatusExplanationJson? ToJson(AddonExplanation? explanation) =>
+        explanation is null
         ? null
         : new StatusExplanationJson {
             Verdict = ToWire(explanation.Verdict),
@@ -299,7 +310,8 @@ public static class JsonMapper {
                 Total = explanation.Counts.Total,
             },
             Changes = explanation.Changes
-                .Select(change => new StatusChangeJson(change.Path, ToWire(change.Kind), ToWire(change.Class)))
+                .Select(change =>
+                    new StatusChangeJson(change.Path, ToWire(change.Kind), ToWire(change.Class)))
                 .ToList(),
             UnavailableReason = explanation.UnavailableReason,
             BaselineIncludesPatch = explanation.BaselineIncludesPatch,
@@ -368,7 +380,8 @@ public static class JsonMapper {
         _ => "unknown",
     };
 
-    /// <summary>Precomputed so every consumer abbreviates a SHA the same way the CLI prints it.</summary>
+    /// <summary>Precomputed so every consumer abbreviates a SHA the same way the CLI prints
+    /// it.</summary>
     public static string? ShortSha(string? sha) =>
         sha is null ? null : sha.Length > 7 ? sha[..7] : sha;
 

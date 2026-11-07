@@ -7,10 +7,10 @@ namespace Dotquay.Core.Abstractions;
 /// trusted (SPEC.md §11.3).
 /// </summary>
 /// <remarks>
-/// A seam rather than a console prompt inside the workflow, for the same reason every other effect in
-/// <c>Dotquay.Core</c> is one: the Godot editor plugin drives dotquay through captured stdout and has
-/// no way to answer a question, and a workflow that blocks on <c>Console.ReadLine</c> is untestable.
-/// The CLI implements it as a prompt; <c>--json</c>, CI, and <c>install</c> use
+/// A seam rather than a console prompt inside the workflow, for the same reason every other effect
+/// in <c>Dotquay.Core</c> is one: the Godot editor plugin drives dotquay through captured stdout
+/// and has no way to answer a question, and a workflow that blocks on <c>Console.ReadLine</c> is
+/// untestable. The CLI implements it as a prompt; <c>--json</c>, CI, and <c>install</c> use
 /// <see cref="DenyAllSourceApproval"/>.
 /// </remarks>
 public interface ISourceApproval {

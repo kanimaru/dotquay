@@ -20,7 +20,8 @@ public sealed class VerboseRealProcessTests {
     [Fact]
     public async Task Verbose_json_keeps_stdout_one_document_and_logs_git_to_stderr() {
         await WithProjectAsync(async (cli, project) => {
-            var (exitCode, stdout, stderr) = await RunAsync(cli, ["doctor", "--json", "--verbose", "--project", project]);
+            var (exitCode, stdout, stderr) = await RunAsync(cli,
+                ["doctor", "--json", "--verbose", "--project", project]);
 
             AssertSingleJsonDocument(stdout);
             Assert.Contains("| dotquay ", stderr);
@@ -46,7 +47,8 @@ public sealed class VerboseRealProcessTests {
     [Fact]
     public async Task Without_it_stderr_carries_no_diagnostics() {
         await WithProjectAsync(async (cli, project) => {
-            var (_, stdout, stderr) = await RunAsync(cli, ["doctor", "--json", "--project", project], ("DOTQUAY_VERBOSE", ""));
+            var (_, stdout, stderr) = await RunAsync(cli,
+                ["doctor", "--json", "--project", project], ("DOTQUAY_VERBOSE", ""));
 
             AssertSingleJsonDocument(stdout);
             Assert.DoesNotContain("$ git", stderr);
@@ -57,7 +59,8 @@ public sealed class VerboseRealProcessTests {
     [Fact]
     public async Task Verbose_is_accepted_before_the_subcommand_and_as_short_v() {
         await WithProjectAsync(async (cli, project) => {
-            var (exitCode, stdout, stderr) = await RunAsync(cli, ["-v", "list", "--json", "--project", project]);
+            var (exitCode, stdout, stderr) = await RunAsync(cli,
+                ["-v", "list", "--json", "--project", project]);
 
             Assert.Equal(0, exitCode);
             AssertSingleJsonDocument(stdout);
@@ -75,17 +78,21 @@ public sealed class VerboseRealProcessTests {
     private sealed record CliUnderTest(string Exe, string Home);
 
     private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body) {
-        var exe = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
+        var exe =
+            Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
             ? overridden
-            : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe" : "dotquay");
+            : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe"
+                : "dotquay");
 
-        Assert.True(File.Exists(exe), $"Expected {exe} to exist (Dotquay.Tests references Dotquay.Cli).");
+        Assert.True(File.Exists(exe),
+            $"Expected {exe} to exist (Dotquay.Tests references Dotquay.Cli).");
 
         var project = Directory.CreateTempSubdirectory("dotquay-verbose-test-").FullName;
         var home = Directory.CreateTempSubdirectory("dotquay-verbose-home-").FullName;
         var cli = new CliUnderTest(exe, home);
         try {
-            var (initExit, _, initErr) = await RunAsync(cli, ["init", "--json", "--project", project]);
+            var (initExit, _, initErr) = await RunAsync(cli,
+                ["init", "--json", "--project", project]);
             Assert.True(initExit == 0, initErr);
             await body(cli, project);
         } finally {
@@ -125,7 +132,8 @@ public sealed class VerboseRealProcessTests {
             startInfo.Environment[name] = value;
         }
 
-        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Process.Start returned null.");
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Process.Start returned null.");
         process.StandardInput.Close();
 
         var stdout = process.StandardOutput.ReadToEndAsync();

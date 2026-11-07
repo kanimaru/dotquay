@@ -21,7 +21,8 @@ public sealed class AddonInstaller {
     private readonly SyncEngine _syncEngine;
     private readonly PatchReapplier _patchReapplier;
 
-    public AddonInstaller(IFileSystem fileSystem, RepoCache cache, SyncEngine syncEngine, IPatchTool patchTool) {
+    public AddonInstaller(IFileSystem fileSystem, RepoCache cache, SyncEngine syncEngine,
+        IPatchTool patchTool) {
         _fileSystem = fileSystem;
         _cache = cache;
         _syncEngine = syncEngine;
@@ -31,28 +32,29 @@ public sealed class AddonInstaller {
     /// <summary>The refusal for linking over hand-edits. Shared with the check <c>dotquay link</c>
     /// runs before it declares anything, so both say the same thing about the same state.</summary>
     internal static string DescribeLinkOverModified(string name, string folder, string linkPath) {
-        return $"'{name}' is being replaced by a link to '{linkPath}', but addons/{folder} has local "
-            + "modifications that don't match the lockfile. Linking would discard them. Run "
+        return $"'{name}' is being replaced by a link to '{linkPath}', but addons/{folder} has "
+            + "local modifications that don't match the lockfile. Linking would discard them. Run "
             + $"'dotquay patch {name}' to capture them first, or pass --force to discard them "
             + "(SPEC.md requirement P0-6).";
     }
 
     /// <summary>
-    /// Points the addon at the subtree's real casing, and — when nothing said otherwise — installs it
-    /// under that real name rather than the one derived from the repository's URL.
+    /// Points the addon at the subtree's real casing, and — when nothing said otherwise — installs
+    /// it under that real name rather than the one derived from the repository's URL.
     /// </summary>
     /// <remarks>
-    /// A Godot addon refers to its own files by absolute <c>res://addons/&lt;folder&gt;/</c> paths, and
-    /// those are case-sensitive strings even where the filesystem is not. So the folder an addon must
-    /// live in is a fact its own repository states, and the URL is only a guess at it. Gut states
-    /// <c>addons/gut</c>; the repository is named <c>Gut</c>; installing to <c>addons/Gut</c> left 88
-    /// files pointing at a path that, to Godot, did not exist.
+    /// A Godot addon refers to its own files by absolute <c>res://addons/&lt;folder&gt;/</c> paths,
+    /// and those are case-sensitive strings even where the filesystem is not. So the folder an
+    /// addon must live in is a fact its own repository states, and the URL is only a guess at it.
+    /// Gut states <c>addons/gut</c>; the repository is named <c>Gut</c>; installing to
+    /// <c>addons/Gut</c> left 88 files pointing at a path that, to Godot, did not exist.
     /// <para>
     /// Deliberately narrow. This only ever fires when the guess and the repository agree
-    /// case-insensitively and disagree otherwise — a correction of capitalisation, never of identity.
-    /// A genuinely different folder name still has to be given as <c>--path</c>/<c>--install-as</c>,
-    /// so dotquay continues not to infer layout (SPEC.md §7.1, OQ-2). An explicit
-    /// <see cref="ResolvedAddon.InstallAs"/> always wins; nobody's stated choice is second-guessed.
+    /// case-insensitively and disagree otherwise — a correction of capitalisation, never of
+    /// identity. A genuinely different folder name still has to be given as
+    /// <c>--path</c>/<c>--install-as</c>, so dotquay continues not to infer layout (SPEC.md §7.1,
+    /// OQ-2). An explicit <see cref="ResolvedAddon.InstallAs"/> always wins; nobody's stated choice
+    /// is second-guessed.
     /// </para>
     /// <para>
     /// For a project already installed at the wrong case this reads as a rename, which
@@ -61,7 +63,8 @@ public sealed class AddonInstaller {
     /// </para>
     /// </remarks>
     private ResolvedAddon CorrectFolderCase(ResolvedAddon resolved, string cachedRepoPath) {
-        var actualPath = SubtreeExtractor.ResolveSubtreePath(_fileSystem, cachedRepoPath, resolved.Path);
+        var actualPath = SubtreeExtractor.ResolveSubtreePath(_fileSystem, cachedRepoPath,
+            resolved.Path);
 
         if (string.Equals(actualPath, resolved.Path, StringComparison.Ordinal)) {
             return resolved;
@@ -75,9 +78,11 @@ public sealed class AddonInstaller {
 
         var actualFolder = actualPath[(actualPath.LastIndexOf('/') + 1)..];
 
-        // Only a capitalisation fix. If the subtree's real name is a different name, the folder stays
-        // whatever it already was — that is a layout decision, and dotquay does not make those.
-        return string.Equals(actualFolder, resolved.EffectiveFolder, StringComparison.OrdinalIgnoreCase)
+        // Only a capitalisation fix. If the subtree's real name is a different name, the folder
+        // stays whatever it already was — that is a layout decision, and dotquay does not make
+        // those.
+        return string.Equals(actualFolder, resolved.EffectiveFolder,
+            StringComparison.OrdinalIgnoreCase)
             && !string.Equals(actualFolder, resolved.EffectiveFolder, StringComparison.Ordinal)
                 ? corrected with { InstallAs = actualFolder }
                 : corrected;
@@ -86,9 +91,9 @@ public sealed class AddonInstaller {
     /// <summary>
     /// Fetches, extracts, (re-)patches, and swaps <paramref name="resolved"/> into
     /// <c>&lt;projectDirectory&gt;/addons/&lt;name&gt;</c>, returning the <see cref="LockedAddon"/>
-    /// to write back to the lockfile. <paramref name="previous"/> is the lockfile's prior record for
-    /// this addon (null for a brand-new install) — its <see cref="LockedAddon.ContentHash"/> feeds
-    /// the dirty check (see <see cref="DirtyChecker"/>) and, when present, its
+    /// to write back to the lockfile. <paramref name="previous"/> is the lockfile's prior record
+    /// for this addon (null for a brand-new install) — its <see cref="LockedAddon.ContentHash"/>
+    /// feeds the dirty check (see <see cref="DirtyChecker"/>) and, when present, its
     /// <see cref="LockedAddon.PatchHash"/>/<see cref="LockedAddon.PatchBaseSha"/> trigger a patch
     /// re-apply before the swap (SPEC.md §10 step 3) — a captured patch survives an
     /// <c>install</c>/<c>update</c> instead of silently vanishing.
@@ -103,10 +108,12 @@ public sealed class AddonInstaller {
         var projectDirectory = layout.ProjectDirectory;
 
         if (link is not null) {
-            return await InstallAsLinkAsync(resolved, projectDirectory, previous, force, link, cancellationToken);
+            return await InstallAsLinkAsync(resolved, projectDirectory, previous, force, link,
+                cancellationToken);
         }
 
-        var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
+        var cachedRepoPath = await _cache.GetOrFetchAsync(resolved.Git, resolved.ResolvedSha,
+            cancellationToken);
 
         resolved = CorrectFolderCase(resolved, cachedRepoPath);
 
@@ -117,7 +124,8 @@ public sealed class AddonInstaller {
             DiagnosticLog.Write(
                 DiagnosticLevel.Verbose,
                 "sync",
-                $"{resolved.Name}: already installed at this commit, leaving addons/{resolved.EffectiveFolder} as it is");
+                $"{resolved.Name}: already installed at this commit, leaving "
+                + $"addons/{resolved.EffectiveFolder} as it is");
 
             return previous! with { Version = await VersionForAsync(resolved, cancellationToken) };
         }
@@ -125,11 +133,14 @@ public sealed class AddonInstaller {
         var stagingPath = layout.StagingPath(_fileSystem, resolved.Name);
 
         try {
-            return await InstallFromStagingAsync(resolved, cachedRepoPath, layout, stagingPath, previous, force, cancellationToken);
-        } catch when (!_fileSystem.FileExists(layout.ConflictMarkerPath(_fileSystem, resolved.Name))) {
+            return await InstallFromStagingAsync(resolved, cachedRepoPath, layout, stagingPath,
+                previous, force, cancellationToken);
+        } catch
+            when (!_fileSystem.FileExists(layout.ConflictMarkerPath(_fileSystem, resolved.Name))) {
             // A refusal or failure is final for this run, so the extracted tree has no further use.
-            // Left in place, staging collected full copies of addons nobody would finish installing.
-            // A patch conflict is the exception: its tree is what the user edits before --resolve.
+            // Left in place, staging collected full copies of addons nobody would finish
+            // installing. A patch conflict is the exception: its tree is what the user edits before
+            // --resolve.
             if (_fileSystem.DirectoryExists(stagingPath)) {
                 _fileSystem.DeleteDirectory(stagingPath);
             }
@@ -150,7 +161,8 @@ public sealed class AddonInstaller {
         SubtreeExtractor.Extract(_fileSystem, cachedRepoPath, resolved.Path, stagingPath);
 
         if (previous is { PatchHash: not null, PatchBaseSha: not null }) {
-            await ReapplyPatchOrThrowAsync(previous, resolved, layout, stagingPath, cancellationToken);
+            await ReapplyPatchOrThrowAsync(previous, resolved, layout, stagingPath,
+                cancellationToken);
         }
 
         var isRename = IsRename(previous, resolved);
@@ -162,12 +174,13 @@ public sealed class AddonInstaller {
 
         var destinationPath = InstallPaths.For(_fileSystem, projectDirectory, resolved);
 
-        // Either this folder is one dotquay owns, or it is not safe to write at all (v0.16). Reaching
-        // here means no link was declared for this addon, so a link on disk is somebody else's: it
-        // points into a checkout, and installing through it would drop a published tree inside their
-        // working repository. Quietly deleting the link instead — which is what this used to do —
-        // freezes their live link into a copy without a word, which is the same surprise one degree
-        // quieter. Both are the caller's call to make, through `dotquay link` or `link --remove`.
+        // Either this folder is one dotquay owns, or it is not safe to write at all (v0.16).
+        // Reaching here means no link was declared for this addon, so a link on disk is somebody
+        // else's: it points into a checkout, and installing through it would drop a published tree
+        // inside their working repository. Quietly deleting the link instead — which is what this
+        // used to do — freezes their live link into a copy without a word, which is the same
+        // surprise one degree quieter. Both are the caller's call to make, through `dotquay link`
+        // or `link --remove`.
         var verdict = AddonLinkGuard.Inspect(_fileSystem, destinationPath, declared: null);
         if (verdict.ForbidsWriting) {
             throw new SyncException(AddonLinkGuard.Explain(
@@ -178,7 +191,8 @@ public sealed class AddonInstaller {
         }
 
         var expectedContentHash = isRename ? null : previous?.ContentHash;
-        var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, expectedContentHash, force);
+        var contentHash = _syncEngine.SwapAndHash(stagingPath, destinationPath, expectedContentHash,
+            force);
 
         if (isRename) {
             RetirePreviousFolder(previous!, projectDirectory);
@@ -199,10 +213,10 @@ public sealed class AddonInstaller {
             // the graph, so it has no basis for claiming this addon requires nothing. `update` does
             // walk, and overwrites this with what the walk found (DependencyWorkflow's
             // SyncAddonGraphAsync) — but `install` deliberately never re-resolves, so whatever it
-            // gets back from here is what lands in the lockfile. Emitting an empty list there erased
-            // every graph edge on every install, which is how healthy transitive addons ended up
-            // unreachable from any root: reported as orphans by `doctor` and by the editor plugin's
-            // graph, and pruned for real by the next `remove`.
+            // gets back from here is what lands in the lockfile. Emitting an empty list there
+            // erased every graph edge on every install, which is how healthy transitive addons
+            // ended up unreachable from any root: reported as orphans by `doctor` and by the editor
+            // plugin's graph, and pruned for real by the next `remove`.
             Dependencies = previous?.Dependencies ?? [],
         };
     }
@@ -214,29 +228,30 @@ public sealed class AddonInstaller {
     /// <remarks>
     /// <para>
     /// The lockfile entry still records the upstream commit, not the local path. The lockfile is
-    /// committed and must stay reproducible for everyone else (goal #1); a machine-specific path in it
-    /// would break every teammate. A link is a local detour, and unlinking puts the project straight
-    /// back on the commit the lockfile always claimed.
+    /// committed and must stay reproducible for everyone else (goal #1); a machine-specific path in
+    /// it would break every teammate. A link is a local detour, and unlinking puts the project
+    /// straight back on the commit the lockfile always claimed.
     /// </para>
     /// <para>
     /// <see cref="LockedAddon.ContentHash"/> is deliberately carried over rather than recomputed:
-    /// hashing a link means hashing the developer's in-progress edits, which would then be recorded as
-    /// the expected content of an upstream release.
+    /// hashing a link means hashing the developer's in-progress edits, which would then be recorded
+    /// as the expected content of an upstream release.
     /// </para>
     /// <para>
     /// Which is why <see cref="LockedAddon.Resolved"/> and <see cref="LockedAddon.Version"/> are
-    /// carried over with it. Between them the three describe one upstream commit — which commit it is,
-    /// what it is called, and what its tree hashes to — and they are only meaningful together.
-    /// Advancing the sha on its own (which <c>update</c> did, because it re-resolves and the resolver
-    /// had found a newer commit) wrote a lockfile whose fields named two different commits: a fresh
-    /// clone installed the new commit's tree, compared it against the old commit's hash, and read an
-    /// addon nobody had touched as <c>modified</c> — on a machine with no link, where this entry is
-    /// the whole of the truth. Nothing on this path fetches, extracts or hashes the new commit, so
-    /// nothing on this path can honestly describe it. Holding all three at the last commit dotquay
-    /// actually installed is what SPEC.md §7.4 means by "the lockfile is untouched", and is the same
-    /// rule <see cref="Workflows.DependencyWorkflow"/> already applies to a linked NuGet package.
-    /// Moving the project onto a newer commit is what <c>link --remove</c> and a real install are
-    /// for; <c>update</c> says so rather than leaving it silent.
+    /// carried over with it. Between them the three describe one upstream commit — which commit it
+    /// is, what it is called, and what its tree hashes to — and they are only meaningful together.
+    /// Advancing the sha on its own (which <c>update</c> did, because it re-resolves and the
+    /// resolver had found a newer commit) wrote a lockfile whose fields named two different
+    /// commits: a fresh clone installed the new commit's tree, compared it against the old commit's
+    /// hash, and read an addon nobody had touched as <c>modified</c> — on a machine with no link,
+    /// where this entry is the whole of the truth. Nothing on this path fetches, extracts or hashes
+    /// the new commit, so nothing on this path can honestly describe it. Holding all three at the
+    /// last commit dotquay actually installed is what SPEC.md §7.4 means by "the lockfile is
+    /// untouched", and is the same rule <see cref="Workflows.DependencyWorkflow"/> already applies
+    /// to a linked NuGet package. Moving the project onto a newer commit is what <c>link
+    /// --remove</c> and a real install are for; <c>update</c> says so rather than leaving it
+    /// silent.
     /// </para>
     /// <para>
     /// <see cref="LockedAddon.Path"/> and <see cref="LockedAddon.Folder"/> are pointedly not held
@@ -263,25 +278,26 @@ public sealed class AddonInstaller {
 
         if (!_fileSystem.DirectoryExists(link.Path)) {
             throw new SyncException(
-                $"'{resolved.Name}' is linked to '{link.Path}', which does not exist. Fix the path in "
-                + $"{Local.LocalLinks.FileName} or remove the link.");
+                $"'{resolved.Name}' is linked to '{link.Path}', which does not exist. Fix the path "
+                + $"in {Local.LocalLinks.FileName} or remove the link.");
         }
 
         var isRename = IsRename(previous, resolved);
 
-        // Before anything is written, as on the installed-copy path: a refusal here has to leave the
-        // project exactly as it was.
+        // Before anything is written, as on the installed-copy path: a refusal here has to leave
+        // the project exactly as it was.
         if (isRename) {
             GuardOldFolderBeforeRename(previous!, projectDirectory, force);
         }
 
-        // A real installed folder is about to be replaced by a link, so the usual protection applies:
-        // whatever is in there is content dotquay would otherwise refuse to overwrite (requirement
-        // P0-6). An existing *link* needs no such check — it holds nothing of its own.
+        // A real installed folder is about to be replaced by a link, so the usual protection
+        // applies: whatever is in there is content dotquay would otherwise refuse to overwrite
+        // (requirement P0-6). An existing *link* needs no such check — it holds nothing of its own.
         if (!force && !_fileSystem.IsDirectoryLink(destinationPath)
             && DirtyChecker.Check(_fileSystem, destinationPath, previous?.ContentHash).IsDirty) {
             throw new ModifiedAddonException(
-                DescribeLinkOverModified(resolved.Name, resolved.EffectiveFolder, link.Path), destinationPath);
+                DescribeLinkOverModified(resolved.Name, resolved.EffectiveFolder, link.Path),
+                destinationPath);
         }
 
         // Re-pointing an existing link is deliberately free: a link holds no content of its own, so
@@ -294,9 +310,9 @@ public sealed class AddonInstaller {
             RetirePreviousFolder(previous!, projectDirectory);
         }
 
-        // Decided as one unit, from one source. Reading each field independently is exactly how they
-        // came to disagree: three separate `previous?.X ?? resolvedY` expressions each look correct
-        // on their own line and together describe two different commits.
+        // Decided as one unit, from one source. Reading each field independently is exactly how
+        // they came to disagree: three separate `previous?.X ?? resolvedY` expressions each look
+        // correct on their own line and together describe two different commits.
         var lockedSha = previous is not null ? previous.Resolved : resolved.ResolvedSha;
         var lockedVersion = previous is not null
             ? previous.Version
@@ -317,21 +333,22 @@ public sealed class AddonInstaller {
         };
     }
 
-    /// <summary>Whether this install lands the addon somewhere other than where the lockfile records
-    /// it — a changed <c>install_as</c>, or the casing correction above. Ordinal on purpose: to Godot,
-    /// <c>addons/Gut</c> and <c>addons/gut</c> are two different <c>res://</c> paths, so a case-only
-    /// change is a real move and has to be handled as one.</summary>
+    /// <summary>Whether this install lands the addon somewhere other than where the lockfile
+    /// records it — a changed <c>install_as</c>, or the casing correction above. Ordinal on
+    /// purpose: to Godot, <c>addons/Gut</c> and <c>addons/gut</c> are two different <c>res://</c>
+    /// paths, so a case-only change is a real move and has to be handled as one.</summary>
     private static bool IsRename(LockedAddon? previous, ResolvedAddon resolved) =>
         previous is not null
-        && !string.Equals(previous.EffectiveFolder, resolved.EffectiveFolder, StringComparison.Ordinal);
+        && !string.Equals(previous.EffectiveFolder, resolved.EffectiveFolder,
+            StringComparison.Ordinal);
 
     /// <summary>Removes the folder a rename has just moved the addon out of.</summary>
     /// <remarks>
-    /// Leaving it is worse than untidy: Godot loads whatever is under <c>addons/</c>, and a stale copy
-    /// keeps satisfying the <c>preload</c> paths this feature exists to redirect — so the rename looks
-    /// like it worked while the old code is what actually runs. When the old folder is a link, this
-    /// removes the link and nothing else; <see cref="IFileSystem.DeleteDirectory"/> never follows one
-    /// (SPEC.md §7.4).
+    /// Leaving it is worse than untidy: Godot loads whatever is under <c>addons/</c>, and a stale
+    /// copy keeps satisfying the <c>preload</c> paths this feature exists to redirect — so the
+    /// rename looks like it worked while the old code is what actually runs. When the old folder is
+    /// a link, this removes the link and nothing else; <see cref="IFileSystem.DeleteDirectory"/>
+    /// never follows one (SPEC.md §7.4).
     /// </remarks>
     private void RetirePreviousFolder(LockedAddon previous, string projectDirectory) =>
         _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, previous));
@@ -342,11 +359,12 @@ public sealed class AddonInstaller {
     /// <remarks>
     /// Without this, changing <c>install_as</c> would be the one way to get dotquay to destroy
     /// hand-edits without asking: the swap's own check looks at the <em>new</em> destination, which
-    /// doesn't exist yet and is therefore trivially clean, while the old folder — the one holding the
-    /// user's actual files — gets deleted unexamined. The protection has to follow the content, not
-    /// the path.
+    /// doesn't exist yet and is therefore trivially clean, while the old folder — the one holding
+    /// the user's actual files — gets deleted unexamined. The protection has to follow the content,
+    /// not the path.
     /// </remarks>
-    private void GuardOldFolderBeforeRename(LockedAddon previous, string projectDirectory, bool force) {
+    private void GuardOldFolderBeforeRename(LockedAddon previous, string projectDirectory,
+        bool force) {
         if (force) {
             return;
         }
@@ -354,9 +372,9 @@ public sealed class AddonInstaller {
         var oldPath = InstallPaths.For(_fileSystem, projectDirectory, previous);
 
         // A link has no content of its own to protect: what it points at is the developer's own
-        // checkout, and retiring it only removes the link. Hashing it would hash their working copy —
-        // in-progress edits and all — and then refuse the rename over "hand-edits" to files dotquay
-        // never installed, telling them to capture their own source as a patch.
+        // checkout, and retiring it only removes the link. Hashing it would hash their working copy
+        // — in-progress edits and all — and then refuse the rename over "hand-edits" to files
+        // dotquay never installed, telling them to capture their own source as a patch.
         if (_fileSystem.IsDirectoryLink(oldPath)) {
             return;
         }
@@ -365,9 +383,10 @@ public sealed class AddonInstaller {
         // the patched tree as the new baseline, so ContentHash is still the right comparison.
         if (DirtyChecker.Check(_fileSystem, oldPath, previous.ContentHash).IsDirty) {
             throw new ModifiedAddonException(
-                $"'{previous.Name}' is being moved from addons/{previous.EffectiveFolder} to a different folder, "
-                + $"but addons/{previous.EffectiveFolder} has local modifications that don't match the lockfile. "
-                + $"Moving it would delete them. Run 'dotquay patch {previous.Name}' to capture them first, or "
+                $"'{previous.Name}' is being moved from addons/{previous.EffectiveFolder} to a "
+                + $"different folder, but addons/{previous.EffectiveFolder} has local "
+                + $"modifications that don't match the lockfile. Moving it would delete them. Run "
+                + $"'dotquay patch {previous.Name}' to capture them first, or "
                 + "pass --force to discard them (SPEC.md requirement P0-6).",
                 oldPath);
         }
@@ -392,11 +411,12 @@ public sealed class AddonInstaller {
         IReadOnlyList<string> conflicts;
         try {
             conflicts = await _patchReapplier.ReapplyAsync(
-                previous.Git, previous.PatchBaseSha!, previous.Path, patchText, stagingPath, cancellationToken);
+                previous.Git, previous.PatchBaseSha!, previous.Path, patchText, stagingPath,
+                cancellationToken);
         } catch (PatchException ex) {
             throw new SyncException(
-                $"'{previous.Name}': could not reconstruct its patch against its recorded base ({ex.Message}). "
-                + $"Run 'dotquay patch {previous.Name}' again once resolved.", ex);
+                $"'{previous.Name}': could not reconstruct its patch against its recorded base "
+                + $"({ex.Message}). Run 'dotquay patch {previous.Name}' again once resolved.", ex);
         }
 
         if (conflicts.Count > 0) {
@@ -407,41 +427,46 @@ public sealed class AddonInstaller {
             // exactly that way: resolve worked once and then the addon could never update again.
             _fileSystem.WriteAllText(
                 layout.ConflictMarkerPath(_fileSystem, previous.Name),
-                $"{resolved.ResolvedSha}{Environment.NewLine}{resolved.DisplayVersion}{Environment.NewLine}");
+                $"{resolved.ResolvedSha}{Environment.NewLine}{resolved.DisplayVersion}"
+                + Environment.NewLine);
 
-            // The patch was re-applied automatically (that part always happens, SPEC.md §10 step 3);
-            // upstream simply changed the same lines this patch touches. Leading with what dotquay
-            // did, and what is safe, matters — the old wording read like the update had failed
-            // outright and left the project in an unknown state.
+            // The patch was re-applied automatically (that part always happens, SPEC.md §10 step
+            // 3); upstream simply changed the same lines this patch touches. Leading with what
+            // dotquay did, and what is safe, matters — the old wording read like the update had
+            // failed outright and left the project in an unknown state.
             throw new SyncException(
-                $"'{previous.Name}': your patch still applies, but upstream changed the same lines in "
-                + $"{conflicts.Count} file(s): {string.Join(", ", conflicts)}.{Environment.NewLine}"
-                + $"  addons/{previous.EffectiveFolder} is untouched and still working (requirement P1-1)."
-                + $"{Environment.NewLine}"
-                + $"  1. Edit the conflict markers in {stagingPath}{Environment.NewLine}"
-                + $"  2. Run 'dotquay patch {previous.Name} --resolve' to apply and recapture."
-                + $"{Environment.NewLine}"
-                + $"  Or 'dotquay patch {previous.Name} --abandon' to drop the patch and take upstream as-is.");
+                $"'{previous.Name}': your patch still applies, but upstream changed the same lines "
+                + $"in {conflicts.Count} file(s): "
+                + $"{string.Join(", ", conflicts)}.{Environment.NewLine}  "
+                + $"addons/{previous.EffectiveFolder} is untouched and still working (requirement "
+                + $"P1-1).{Environment.NewLine}  1. Edit the conflict markers in "
+                + $"{stagingPath}{Environment.NewLine}  2. Run 'dotquay patch {previous.Name} "
+                + $"--resolve' to apply and recapture.{Environment.NewLine}"
+                + $"  Or 'dotquay patch {previous.Name} --abandon' to drop the patch and take "
+                + $"upstream as-is.");
         }
     }
 
-    /// <summary>The lockfile's <c>version</c>: the tag when there is one, else a pseudo-version.</summary>
-    private async Task<string> VersionForAsync(ResolvedAddon resolved, CancellationToken cancellationToken) {
+    /// <summary>The lockfile's <c>version</c>: the tag when there is one, else a
+    /// pseudo-version.</summary>
+    private async Task<string> VersionForAsync(ResolvedAddon resolved,
+        CancellationToken cancellationToken) {
         if (resolved.DisplayVersion is not null) {
             return resolved.DisplayVersion;
         }
 
-        var commitDate = await _cache.GetCommitDateAsync(resolved.Git, resolved.ResolvedSha, cancellationToken);
+        var commitDate = await _cache.GetCommitDateAsync(resolved.Git, resolved.ResolvedSha,
+            cancellationToken);
         return BuildPseudoVersion(resolved.ResolvedSha, commitDate ?? DateTimeOffset.UtcNow);
     }
 
     /// <summary>Pseudo-version for untagged repos, e.g. <c>"0.0.0-20260821-9f2c1ab"</c> (SPEC.md
     /// §6) — display-only, never parsed back.</summary>
     /// <remarks>
-    /// The date is the commit's, in UTC, so the same commit always gets the same label. It used to be
-    /// the install date, which rewrote the lockfile whenever an unchanged commit was reinstalled on a
-    /// different day. Today is only the fallback for a commit git can't date — a linked addon whose
-    /// commit was never fetched into the cache.
+    /// The date is the commit's, in UTC, so the same commit always gets the same label. It used to
+    /// be the install date, which rewrote the lockfile whenever an unchanged commit was reinstalled
+    /// on a different day. Today is only the fallback for a commit git can't date — a linked addon
+    /// whose commit was never fetched into the cache.
     /// </remarks>
     private static string BuildPseudoVersion(string commitSha, DateTimeOffset commitDate) {
         var shortSha = commitSha.Length > 7 ? commitSha[..7] : commitSha;

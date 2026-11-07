@@ -15,16 +15,17 @@ namespace Dotquay.Tests.Workflows;
 /// the flow.
 /// </summary>
 /// <remarks>
-/// The first thing every test here asserts, directly or by construction, is that nothing was written.
-/// A preview that quietly mutates is worse than no preview, because the user's "cancel" would already
-/// be too late — so the no-write property is tested as its own fact rather than assumed from reading
-/// the implementation.
+/// The first thing every test here asserts, directly or by construction, is that nothing was
+/// written. A preview that quietly mutates is worse than no preview, because the user's "cancel"
+/// would already be too late — so the no-write property is tested as its own fact rather than
+/// assumed from reading the implementation.
 /// </remarks>
 public class AddPreviewTests {
     private const string ProjectDir = "project";
     private const string VbeamiUrl = "https://gitlab.example.com/wild-alliance/vbeami.git";
     private const string CoreUrl = "https://gitlab.example.com/wild-alliance/vbeami_core.git";
-    private const string FeedUrl = "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
 
     private const string ManifestPath = $"{ProjectDir}/dotquay.toml";
     private const string LockfilePath = $"{ProjectDir}/dotquay.lock";
@@ -70,22 +71,26 @@ public class AddPreviewTests {
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
 
-        gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40),
+            GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string> {
             ["addons/vbeami/plugin.cfg"] = "vbeami",
             ["addons/vbeami/dotquay.toml"] = VbeamiPackageManifest,
         };
 
-        gitClient.RemoteRefsByUrl[CoreUrl] = [new GitRef("v1.1.0", new string('c', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[CoreUrl] = [new GitRef("v1.1.0", new string('c', 40),
+            GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> {
             ["addons/vbeami_core/plugin.cfg"] = "vbeami_core",
         };
 
         var factory = new FakeNuGetClientFactory(new FakeNuGetClient());
-        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami").With("VBeami.Core", "1.2.0");
+        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami")
+            .With("VBeami.Core", "1.2.0");
 
         var addonInstaller = new AddonInstaller(
-            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem),
+            new FakePatchTool(fileSystem));
 
         var workflow = new DependencyWorkflow(
             fileSystem, gitClient, factory, addonInstaller,
@@ -122,8 +127,8 @@ public class AddPreviewTests {
         // [nuget.sources.*] block either.
         Assert.Equal(manifestBefore, fixture.FileSystem.ReadAllText(ManifestPath));
 
-        // No lockfile was conjured, and nothing landed in addons/. A preview that installs is just a
-        // slow install with a misleading name.
+        // No lockfile was conjured, and nothing landed in addons/. A preview that installs is just
+        // a slow install with a misleading name.
         Assert.False(fixture.FileSystem.FileExists(LockfilePath));
         Assert.False(fixture.FileSystem.DirectoryExists($"{ProjectDir}/addons/vbeami"));
         Assert.False(fixture.FileSystem.DirectoryExists($"{ProjectDir}/addons/vbeami_core"));
@@ -139,7 +144,8 @@ public class AddPreviewTests {
 
         Assert.Single(preview.SourcesToAdopt);
         Assert.Equal(manifestBefore, fixture.FileSystem.ReadAllText(ManifestPath));
-        Assert.DoesNotContain(FeedUrl, fixture.FileSystem.ReadAllText(ManifestPath), StringComparison.Ordinal);
+        Assert.DoesNotContain(FeedUrl, fixture.FileSystem.ReadAllText(ManifestPath),
+            StringComparison.Ordinal);
     }
 
     // -- what the dialog shows ------------------------------------------------------------------
@@ -234,7 +240,8 @@ public class AddPreviewTests {
     public async Task PreviewAddAsync_PreApprovingSomeOtherUrl_LeavesThisFeedNeedingApproval() {
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(
             ProjectDir, VbeamiUrl, options: null,
-            preApprovedSourceUrls: ["https://gitlab.example.com/api/v4/groups/999/-/packages/nuget/index.json"]);
+            preApprovedSourceUrls: [
+                "https://gitlab.example.com/api/v4/groups/999/-/packages/nuget/index.json"]);
 
         Assert.Empty(preview.SourcesToAdopt);
         Assert.Single(preview.SourcesNeedingApproval);
@@ -244,7 +251,8 @@ public class AddPreviewTests {
 
     [Fact]
     public async Task AddAsync_WithPreApprovedFeed_AdoptsItWithoutAnyApprover() {
-        // PreApprovedSourceApproval stands in for the console prompt the editor plugin cannot answer.
+        // PreApprovedSourceApproval stands in for the console prompt the editor plugin cannot
+        // answer.
         var fixture = Build(EmptyProject, new PreApprovedSourceApproval([FeedUrl]));
 
         await fixture.Workflow.AddAsync(ProjectDir, VbeamiUrl);
@@ -258,7 +266,8 @@ public class AddPreviewTests {
 
     [Fact]
     public async Task AddAsync_FeedNotPreApproved_FailsAndSaysHowToProceed() {
-        var fixture = Build(EmptyProject, PreApprovedSourceApproval.For(["https://elsewhere.example.com/index.json"]));
+        var fixture = Build(EmptyProject,
+            PreApprovedSourceApproval.For(["https://elsewhere.example.com/index.json"]));
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
             () => fixture.Workflow.AddAsync(ProjectDir, VbeamiUrl));
@@ -293,7 +302,8 @@ public class AddPreviewTests {
 
     [Fact]
     public async Task ToJson_Preview_SetsTheConvenienceFlagsAUiBranchesOn() {
-        var pending = JsonMapper.ToJson(await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
+        var pending = JsonMapper.ToJson(await Build(EmptyProject)
+            .Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
 
         Assert.True(pending.NeedsApproval);
         Assert.False(pending.IsNoOp);
@@ -301,13 +311,15 @@ public class AddPreviewTests {
         // Precomputed so every consumer abbreviates a SHA the way the CLI prints it.
         Assert.All(pending.Addons, addon => Assert.Equal(7, addon.ShortSha.Length));
 
-        var trusting = JsonMapper.ToJson(await Build(TrustingProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
+        var trusting = JsonMapper.ToJson(await Build(TrustingProject)
+            .Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
         Assert.False(trusting.NeedsApproval);
     }
 
     [Fact]
     public async Task ToJson_Preview_SerializesUnderTheSnakeCaseKeysThePluginReads() {
-        var payload = JsonMapper.ToJson(await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
+        var payload = JsonMapper.ToJson(await Build(EmptyProject)
+            .Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
         var json = DotquayJson.Write(JsonEnvelope<AddPreviewJson>.Success("add", payload));
 
         // Asserted as text because this is the contract the GDScript side parses by key name — a
@@ -327,7 +339,8 @@ public class AddPreviewTests {
 /// The whitelist that carries a preview's approvals into the add that follows it.
 /// </summary>
 public class PreApprovedSourceApprovalTests {
-    private const string FeedUrl = "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
 
     private static SourceAdoptionRequest Request(string url) =>
         new("vbeami", new Core.Manifest.NuGetSourceSpec("vbeami", url), ["VBeami.Core"]);
@@ -338,7 +351,8 @@ public class PreApprovedSourceApprovalTests {
 
     [Fact]
     public void Approve_UnlistedUrl_IsRefused() =>
-        Assert.False(new PreApprovedSourceApproval([FeedUrl]).Approve(Request("https://evil.example.com/index.json")));
+        Assert.False(new PreApprovedSourceApproval([FeedUrl])
+            .Approve(Request("https://evil.example.com/index.json")));
 
     [Fact]
     public void Approve_CaseDiffersOnly_IsStillApproved() {

@@ -8,8 +8,8 @@ namespace Dotquay.Tests.Mcp;
 /// unit-tested at all — a real interactive TTY is not something an automated test can reproduce
 /// (the test runner's own stdin is typically redirected too, so "spawn the real binary and check"
 /// would just prove the test harness's stdin, not a genuine terminal). This is the same tiering the
-/// project already applies elsewhere (docs/DESIGN-v0.18-MCP.md §8): verify what fakes/pure logic can
-/// see here, leave what only a real OS console can show to manual/real-process verification.
+/// project already applies elsewhere (docs/DESIGN-v0.18-MCP.md §8): verify what fakes/pure logic
+/// can see here, leave what only a real OS console can show to manual/real-process verification.
 /// </summary>
 public sealed class TtyGuardTests {
     [Fact]

@@ -11,14 +11,15 @@ namespace Dotquay.Cli.Commands;
 /// </summary>
 /// <remarks>
 /// <para>The gap this closes: through v0.13 <c>[nuget.sources.*]</c> could only be written by
-/// <c>init --nuget-source</c> (once, at project creation) or by adopting a feed an addon declared, so
-/// the second feed in any project arrived via a text editor. <c>override</c> and <c>link</c> both
-/// exist for exactly that reason in their own sections; this is the same argument applied to the one
-/// section that never got it.</para>
-/// <para>A command group rather than a flag on <c>add</c>: a feed outlives every package in it, and is
-/// read by <c>outdated</c>, <c>list</c>, and <c>dotnet restore</c> as well. It is also why this must
-/// not be an interactive prompt — the editor plugin drives dotquay through captured stdout and cannot
-/// answer one (SPEC.md §6.3/§18), so anything prompt-only would be invisible to the add form.</para>
+/// <c>init --nuget-source</c> (once, at project creation) or by adopting a feed an addon declared,
+/// so the second feed in any project arrived via a text editor. <c>override</c> and <c>link</c>
+/// both exist for exactly that reason in their own sections; this is the same argument applied to
+/// the one section that never got it.</para>
+/// <para>A command group rather than a flag on <c>add</c>: a feed outlives every package in it, and
+/// is read by <c>outdated</c>, <c>list</c>, and <c>dotnet restore</c> as well. It is also why this
+/// must not be an interactive prompt — the editor plugin drives dotquay through captured stdout and
+/// cannot answer one (SPEC.md §6.3/§18), so anything prompt-only would be invisible to the add
+/// form.</para>
 /// </remarks>
 internal static class SourceCommand {
     private const string CommandName = "source";
@@ -47,23 +48,26 @@ internal static class SourceCommand {
 
     private static Command BuildAdd() {
         var nameArgument = new Argument<string>("name") {
-            Description = "Name for the feed, e.g. \"core\". This is what a package's source = \"...\" pin refers to, "
-                + "so pick something stable — it belongs to this project, not to whoever publishes the feed.",
+            Description = "Name for the feed, e.g. \"core\". This is what a package's source = "
+                + "\"...\" pin refers to, so pick something stable — it belongs to this project, "
+                + "not to whoever publishes the feed.",
         };
 
         var urlArgument = new Argument<string>("url") {
             Description = "The feed's V3 service-index URL. For GitLab that is "
-                + "/api/v4/projects/<numeric project id>/packages/nuget/index.json — the numeric ID, not the path.",
+                + "/api/v4/projects/<numeric project id>/packages/nuget/index.json — the numeric "
+                + "ID, not the path.",
         };
 
         var noVerifyOption = new Option<bool>("--no-verify") {
-            Description = "Write the feed without reaching it first. Skips the check that the URL really is a "
-                + "V3 service index and that your credentials are accepted.",
+            Description = "Write the feed without reaching it first. Skips the check that the URL "
+                + "really is a V3 service index and that your credentials are accepted.",
         };
 
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command("add", "Declare a NuGet feed, appended after the feeds already declared.")
+        var command = new Command("add",
+            "Declare a NuGet feed, appended after the feeds already declared.")
         {
             nameArgument, urlArgument, noVerifyOption, jsonOption,
         };
@@ -91,7 +95,8 @@ internal static class SourceCommand {
 
     private static Command BuildList() {
         var jsonOption = JsonOutput.CreateOption();
-        var command = new Command("list", "Show the declared feeds in the order they are searched.") { jsonOption };
+        var command = new Command("list",
+            "Show the declared feeds in the order they are searched.") { jsonOption };
 
         command.SetAction(parseResult => RunList(parseResult, jsonOption));
 
@@ -102,13 +107,15 @@ internal static class SourceCommand {
         var nameArgument = new Argument<string>("name") { Description = "The feed to remove." };
 
         var forceOption = new Option<bool>("--force") {
-            Description = "Also clear every source = \"...\" pin and lockfile record naming this feed. Each one is "
-                + "reported, because unpinning a package changes which feed it resolves from next time.",
+            Description = "Also clear every source = \"...\" pin and lockfile record naming this "
+                + "feed. Each one is reported, because unpinning a package changes which feed it "
+                + "resolves from next time.",
         };
 
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command("remove", "Remove a declared NuGet feed.") { nameArgument, forceOption, jsonOption };
+        var command = new Command("remove", "Remove a declared NuGet feed.") { nameArgument,
+            forceOption, jsonOption };
 
         command.SetAction(parseResult => {
             var json = parseResult.GetValue(jsonOption);
@@ -182,7 +189,8 @@ internal static class SourceCommand {
             // Stated rather than left to be inferred: the implicit public feed is why an undeclared
             // package still resolves, and it is always last unless the project declared it itself.
             if (!sources.Any(source => source.IsPublicDefault)) {
-                Console.WriteLine($"{NuGetSourceSpec.PublicName}  {NuGetSourceSpec.PublicUrl}  (implicit, always last)");
+                Console.WriteLine($"{NuGetSourceSpec.PublicName}  {NuGetSourceSpec.PublicUrl}  "
+                    + $"(implicit, always last)");
             }
 
             return 0;
@@ -191,10 +199,13 @@ internal static class SourceCommand {
         }
     }
 
-    /// <summary>Whether a credential resolves, never which one. The token is not printed anywhere in
-    /// dotquay, and the username is already more than a caller needs to render "logged in".</summary>
-    private static bool HasCredential(Core.Auth.CredentialResolver credentials, NuGetSourceSpec source) =>
-        !source.IsPublicDefault && credentials.ForNuGetSource(source.Name, source.Url).Credential is not null;
+    /// <summary>Whether a credential resolves, never which one. The token is not printed anywhere
+    /// in dotquay, and the username is already more than a caller needs to render "logged
+    /// in".</summary>
+    private static bool HasCredential(Core.Auth.CredentialResolver credentials,
+        NuGetSourceSpec source) =>
+        !source.IsPublicDefault && credentials.ForNuGetSource(source.Name, source.Url)
+        .Credential is not null;
 
     private static int Report(bool json, SourceResult result) {
         var messages = new List<string> { Describe(result) };

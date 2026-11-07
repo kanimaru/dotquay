@@ -11,9 +11,9 @@ namespace Dotquay.Tests.Workflows;
 /// </summary>
 /// <remarks>
 /// <see cref="Doctor.UidReferenceScanner"/> itself is covered exhaustively in
-/// <c>UidReferenceScannerTests</c>; this only checks that <see cref="DependencyWorkflow.DoctorAsync"/>
-/// carries the scanner's three facts through onto the issue instead of discarding them once the
-/// message is built.
+/// <c>UidReferenceScannerTests</c>; this only checks that
+/// <see cref="DependencyWorkflow.DoctorAsync"/> carries the scanner's three facts through onto the
+/// issue instead of discarding them once the message is built.
 /// </remarks>
 public class DoctorFragileUidReferenceTests {
     private const string ProjectDirectory = "project";
@@ -29,8 +29,10 @@ public class DoctorFragileUidReferenceTests {
     public async Task DoctorAsync_ABareUidReferenceIntoAnAddon_CarriesTheFixData() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs", "class Frame {}");
-        fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs.uid", "uid://bxwpwbdv4fm02");
-        fileSystem.WriteAllText($"{ProjectDirectory}/game/boot.gd", "var f = load(\"uid://bxwpwbdv4fm02\")");
+        fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs.uid",
+            "uid://bxwpwbdv4fm02");
+        fileSystem.WriteAllText($"{ProjectDirectory}/game/boot.gd",
+            "var f = load(\"uid://bxwpwbdv4fm02\")");
 
         var issue = Assert.Single(await RunAsync(fileSystem));
 
@@ -47,16 +49,19 @@ public class DoctorFragileUidReferenceTests {
     public async Task DoctorAsync_ABareUidReference_SurfacesTheFixDataOnTheWire() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs", "class Frame {}");
-        fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs.uid", "uid://bxwpwbdv4fm02");
-        fileSystem.WriteAllText($"{ProjectDirectory}/game/boot.gd", "var f = load(\"uid://bxwpwbdv4fm02\")");
+        fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs.uid",
+            "uid://bxwpwbdv4fm02");
+        fileSystem.WriteAllText($"{ProjectDirectory}/game/boot.gd",
+            "var f = load(\"uid://bxwpwbdv4fm02\")");
 
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        var json = Assert.Single(JsonMapper.ToJson(result).Issues, i => i.Kind == "fragile_uid_reference");
+        var json = Assert.Single(JsonMapper.ToJson(result).Issues, i =>
+            i.Kind == "fragile_uid_reference");
 
-        // The plugin's whole reason for wanting these: enough to say "this file, this uid, this path"
-        // without re-deriving any of it from the sentence in Message.
+        // The plugin's whole reason for wanting these: enough to say "this file, this uid, this
+        // path" without re-deriving any of it from the sentence in Message.
         Assert.Equal("game/boot.gd", json.File);
         Assert.Equal("uid://bxwpwbdv4fm02", json.Uid);
         Assert.Equal("res://addons/r3/frame.cs", json.ResPath);
@@ -70,7 +75,8 @@ public class DoctorFragileUidReferenceTests {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        var json = Assert.Single(JsonMapper.ToJson(result).Issues, i => i.Kind == "orphaned_addon_folder");
+        var json = Assert.Single(JsonMapper.ToJson(result).Issues, i =>
+            i.Kind == "orphaned_addon_folder");
 
         Assert.Null(json.File);
         Assert.Null(json.Uid);
@@ -85,7 +91,8 @@ public class DoctorFragileUidReferenceTests {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        var issue = Assert.Single(result.Issues, i => i.Kind == DoctorIssueKind.OrphanedAddonFolder);
+        var issue = Assert.Single(result.Issues, i =>
+            i.Kind == DoctorIssueKind.OrphanedAddonFolder);
         Assert.Null(issue.UidFix);
     }
 }

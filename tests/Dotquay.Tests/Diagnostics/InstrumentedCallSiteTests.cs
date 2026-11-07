@@ -37,11 +37,13 @@ public sealed class InstrumentedCallSiteTests {
     [Fact]
     public async Task Resolver_says_when_nothing_matched_before_it_throws() {
         var git = new FakeGitClient();
-        git.RemoteRefsByUrl["https://example.com/foo"] = [new GitRef("v1.0.0", "sha-a", GitRefKind.Tag)];
+        git.RemoteRefsByUrl["https://example.com/foo"] = [new GitRef("v1.0.0", "sha-a",
+            GitRefKind.Tag)];
 
         var sink = RecordingDiagnosticSink.Install(out var scope);
         using (scope) {
-            await Assert.ThrowsAsync<AddonResolutionException>(() => new AddonResolver(git).ResolveAsync(
+            await Assert.ThrowsAsync<AddonResolutionException>(() => new AddonResolver(git)
+                .ResolveAsync(
                 new AddonSpec { Name = "foo", Git = "https://example.com/foo", Version = "~2.0" }));
         }
 
@@ -56,8 +58,16 @@ public sealed class InstrumentedCallSiteTests {
         var sink = RecordingDiagnosticSink.Install(out var scope);
         using (scope) {
             var resolver = new AddonResolver(git);
-            await resolver.ResolveAsync(new AddonSpec { Name = "foo", Git = "https://example.com/foo", Branch = "godot4" });
-            await resolver.ResolveAsync(new AddonSpec { Name = "bar", Git = "https://example.com/bar", Rev = "9f2c1ab" });
+            await resolver.ResolveAsync(new AddonSpec {
+                Name = "foo",
+                Git = "https://example.com/foo",
+                Branch = "godot4"
+            });
+            await resolver.ResolveAsync(new AddonSpec {
+                Name = "bar",
+                Git = "https://example.com/bar",
+                Rev = "9f2c1ab"
+            });
         }
 
         Assert.Equal(
@@ -81,7 +91,8 @@ public sealed class InstrumentedCallSiteTests {
 
         var lines = sink.Messages("cache").ToList();
         Assert.Equal(2, lines.Count);
-        Assert.StartsWith("miss https://oauth2:***@example.com/foo.git@0123456789, fetching into ", lines[0]);
+        Assert.StartsWith("miss https://oauth2:***@example.com/foo.git@0123456789, fetching into ",
+            lines[0]);
         Assert.StartsWith("hit https://oauth2:***@example.com/foo.git@0123456789 -> ", lines[1]);
         Assert.DoesNotContain("secret", sink.AllText);
     }
@@ -94,7 +105,8 @@ public sealed class InstrumentedCallSiteTests {
             var tree = Path.Combine(root, "tree");
             var moved = Path.Combine(root, "moved");
 
-            var verbose = RecordingDiagnosticSink.Install(out var verboseScope, DiagnosticLevel.Verbose);
+            var verbose = RecordingDiagnosticSink.Install(out var verboseScope,
+                DiagnosticLevel.Verbose);
             using (verboseScope) {
                 fileSystem.WriteAllText(Path.Combine(tree, "a.txt"), "hello");
                 fileSystem.MoveDirectory(tree, moved);
@@ -104,7 +116,8 @@ public sealed class InstrumentedCallSiteTests {
             var verboseLines = verbose.Messages("fs").ToList();
             Assert.Equal($"move tree {tree} -> {moved}", verboseLines[0]);
             Assert.Equal($"delete tree {moved}", verboseLines[^1]);
-            Assert.DoesNotContain(verboseLines, l => l.StartsWith("write ", StringComparison.Ordinal));
+            Assert.DoesNotContain(verboseLines, l =>
+                l.StartsWith("write ", StringComparison.Ordinal));
 
             var trace = RecordingDiagnosticSink.Install(out var traceScope);
             using (traceScope) {

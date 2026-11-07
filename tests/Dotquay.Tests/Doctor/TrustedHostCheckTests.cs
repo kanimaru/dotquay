@@ -5,8 +5,8 @@ namespace Dotquay.Tests.Doctor;
 
 /// <summary>
 /// Covers the <c>trusted_hosts</c> sanity check. Every case here fails silently in production —
-/// a wildcard or typo matches nothing and the user is prompted forever without knowing why — which is
-/// exactly why <c>doctor</c> has to say something.
+/// a wildcard or typo matches nothing and the user is prompted forever without knowing why — which
+/// is exactly why <c>doctor</c> has to say something.
 /// </summary>
 public class TrustedHostCheckTests {
     [Theory]
@@ -40,7 +40,8 @@ public class TrustedHostCheckTests {
     [Fact]
     public void DescribeTrustedHostProblem_PlainHttp_IsFlagged() {
         Assert.Contains(
-            "cleartext", SourceAdopter.DescribeTrustedHostProblem("http://gitlab.kemomi.de")!, StringComparison.Ordinal);
+            "cleartext", SourceAdopter.DescribeTrustedHostProblem("http://gitlab.kemomi.de")!,
+            StringComparison.Ordinal);
     }
 
     [Theory]

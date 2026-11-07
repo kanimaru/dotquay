@@ -14,12 +14,13 @@ namespace Dotquay.Core.Dotnet;
 /// <remarks>
 /// Credentials come from <see cref="CredentialResolver"/> — <c>dotquay login</c> or the
 /// <c>DOTQUAY_NUGET_*</c> variables, never <c>dotquay.toml</c>, which is meant to be committed and
-/// has no business carrying a token (SPEC.md §11.2). nuget.org is always anonymous: there is nothing
-/// to authenticate, and sending a private feed's token to a public one would leak it to a party that
-/// never needed it.
+/// has no business carrying a token (SPEC.md §11.2). nuget.org is always anonymous: there is
+/// nothing to authenticate, and sending a private feed's token to a public one would leak it to a
+/// party that never needed it.
 /// </remarks>
 public sealed class NuGetV3ClientFactory : INuGetClientFactory {
-    private readonly Dictionary<string, INuGetClient> _clientsBySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string,
+        INuGetClient> _clientsBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient;
     private readonly CredentialResolver _credentials;
 
@@ -45,7 +46,8 @@ public sealed class NuGetV3ClientFactory : INuGetClientFactory {
             : _credentials.ForNuGetSource(source.Name, source.Url);
 
         var client = new NuGetV3Client(
-            source.Url, lookup.Credential?.Username, lookup.Credential?.Token, _httpClient, source.Name);
+            source.Url, lookup.Credential?.Username, lookup.Credential?.Token, _httpClient,
+            source.Name);
 
         _clientsBySource[source.Url] = client;
         return client;

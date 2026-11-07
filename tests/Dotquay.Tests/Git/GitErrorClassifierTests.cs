@@ -7,14 +7,14 @@ namespace Dotquay.Tests.Git;
 /// Covers reading git's stderr for a cause and a remedy.
 /// </summary>
 /// <remarks>
-/// The stderr strings here are real captures, not paraphrases. Matching another program's prose only
-/// works for as long as the prose is what was actually observed, and a test written from memory
-/// quietly stops being evidence the first time it is wrong.
+/// The stderr strings here are real captures, not paraphrases. Matching another program's prose
+/// only works for as long as the prose is what was actually observed, and a test written from
+/// memory quietly stops being evidence the first time it is wrong.
 /// </remarks>
 public class GitErrorClassifierTests {
     // Captured from a fresh Windows machine fetching over SSH from gitlab.kemomi.de with no
-    // known_hosts entry. Note the trailing sentence: git appends its generic access-rights advice to
-    // an ssh failure that has nothing to do with access rights.
+    // known_hosts entry. Note the trailing sentence: git appends its generic access-rights advice
+    // to an ssh failure that has nothing to do with access rights.
     private const string HostKeyStdErr =
         "Host key verification failed.\r\nfatal: Could not read from remote repository.\r\n\r\n"
         + "Please make sure you have the correct access rights\r\nand the repository exists.";
@@ -23,7 +23,8 @@ public class GitErrorClassifierTests {
         "choose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com";
 
     private const string PublicKeyDeniedStdErr =
-        "git@gitlab.kemomi.de: Permission denied (publickey).\r\nfatal: Could not read from remote repository.";
+        "git@gitlab.kemomi.de: Permission denied (publickey).\r\nfatal: Could not read from remote "
+        + "repository.";
 
     private const string Url = "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git";
 
@@ -36,31 +37,40 @@ public class GitErrorClassifierTests {
         // The regression this whole type exists for. git's trailing "correct access rights" matched
         // the old auth markers, so a host-key rejection offered a login prompt for a problem no
         // credential can solve.
-        Assert.Equal(GitFailureKind.HostKeyVerification, GitErrorClassifier.Classify(HostKeyStdErr));
+        Assert.Equal(GitFailureKind.HostKeyVerification,
+            GitErrorClassifier.Classify(HostKeyStdErr));
         Assert.False(GitErrorClassifier.LooksLikeAuthenticationFailure(HostKeyStdErr));
     }
 
     [Fact]
     public void UnsupportedKex_IsAnAlgorithmMismatch() =>
-        Assert.Equal(GitFailureKind.SshAlgorithmMismatch, GitErrorClassifier.Classify(UnsupportedKexStdErr));
+        Assert.Equal(GitFailureKind.SshAlgorithmMismatch,
+            GitErrorClassifier.Classify(UnsupportedKexStdErr));
 
     [Fact]
     public void PublicKeyDenied_IsStillAuthentication() {
         // The narrowing must not go too far: this one really is about the user's credentials, and
         // error.kind = "auth" is what lets the editor plugin offer a login.
-        Assert.Equal(GitFailureKind.Authentication, GitErrorClassifier.Classify(PublicKeyDeniedStdErr));
+        Assert.Equal(GitFailureKind.Authentication,
+            GitErrorClassifier.Classify(PublicKeyDeniedStdErr));
         Assert.True(GitErrorClassifier.LooksLikeAuthenticationFailure(PublicKeyDeniedStdErr));
     }
 
     [Theory]
     [InlineData("remote: HTTP Basic: Access denied", GitFailureKind.Authentication)]
-    [InlineData("fatal: could not read Username for 'https://host': terminal prompts disabled", GitFailureKind.Authentication)]
-    [InlineData("ssh: Could not resolve hostname gitlab.kemomi.de: No such host is known.", GitFailureKind.HostUnreachable)]
-    [InlineData("ssh: connect to host gitlab.kemomi.de port 22: Connection refused", GitFailureKind.HostUnreachable)]
+    [InlineData("fatal: could not read Username for 'https://host': terminal prompts disabled",
+        GitFailureKind.Authentication)]
+    [InlineData("ssh: Could not resolve hostname gitlab.kemomi.de: No such host is known.",
+        GitFailureKind.HostUnreachable)]
+    [InlineData("ssh: connect to host gitlab.kemomi.de port 22: Connection refused",
+        GitFailureKind.HostUnreachable)]
     [InlineData("remote: Repository not found.", GitFailureKind.RepositoryNotFound)]
-    [InlineData("Unable to negotiate with 10.0.0.1 port 22: no matching host key type found.", GitFailureKind.SshAlgorithmMismatch)]
-    [InlineData("WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!", GitFailureKind.HostKeyVerification)]
-    [InlineData("error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly", GitFailureKind.Unknown)]
+    [InlineData("Unable to negotiate with 10.0.0.1 port 22: no matching host key type found.",
+        GitFailureKind.SshAlgorithmMismatch)]
+    [InlineData("WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!",
+        GitFailureKind.HostKeyVerification)]
+    [InlineData("error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly",
+        GitFailureKind.Unknown)]
     [InlineData("", GitFailureKind.Unknown)]
     [InlineData(null, GitFailureKind.Unknown)]
     public void Classify(string? stderr, GitFailureKind expected) =>
@@ -68,10 +78,11 @@ public class GitErrorClassifierTests {
 
     [Fact]
     public void RepositoryNotFound_IsNotAuthentication() {
-        // GitHub returns this for a private repository fetched without credentials, but a typo in the
-        // URL returns it too -- and a typo is at least as likely. Calling it auth sends the user to
-        // configure a token when they need to fix a character.
-        Assert.False(GitErrorClassifier.LooksLikeAuthenticationFailure("remote: Repository not found."));
+        // GitHub returns this for a private repository fetched without credentials, but a typo in
+        // the URL returns it too -- and a typo is at least as likely. Calling it auth sends the
+        // user to configure a token when they need to fix a character.
+        Assert.False(GitErrorClassifier.LooksLikeAuthenticationFailure("remote: Repository not "
+            + "found."));
     }
 
     // -----------------------------------------------------------------------------------------
@@ -85,14 +96,15 @@ public class GitErrorClassifierTests {
         Assert.NotNull(remediation);
         Assert.Contains("gitlab.kemomi.de", remediation, StringComparison.Ordinal);
         Assert.Contains("ssh-keyscan", remediation, StringComparison.Ordinal);
-        // The part that is invisible from the error itself: keyscan and git can be different binaries
-        // with different capabilities, so the obvious fix can appear not to work.
+        // The part that is invisible from the error itself: keyscan and git can be different
+        // binaries with different capabilities, so the obvious fix can appear not to work.
         Assert.Contains("PATH", remediation, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Remediation_UnparseableUrl_StillProducesAdvice() {
-        var remediation = GitErrorClassifier.Remediation(GitFailureKind.HostKeyVerification, "not a url at all");
+        var remediation = GitErrorClassifier.Remediation(GitFailureKind.HostKeyVerification,
+            "not a url at all");
 
         Assert.NotNull(remediation);
         Assert.DoesNotContain("null", remediation, StringComparison.OrdinalIgnoreCase);
@@ -116,12 +128,13 @@ public class GitErrorClassifierTests {
 
     [Fact]
     public void GenericRefusal_IsItsOwnKind_NotUnknown() =>
-        Assert.Equal(GitFailureKind.RemoteUnreadable, GitErrorClassifier.Classify(GenericRefusalStdErr));
+        Assert.Equal(GitFailureKind.RemoteUnreadable,
+            GitErrorClassifier.Classify(GenericRefusalStdErr));
 
     [Fact]
     public void GenericRefusal_IsNotAuthentication() {
-        // "correct access rights" is the whole reason this wording is a trap. It is git's boilerplate
-        // for every transport failure, not a statement about credentials.
+        // "correct access rights" is the whole reason this wording is a trap. It is git's
+        // boilerplate for every transport failure, not a statement about credentials.
         Assert.False(GitErrorClassifier.LooksLikeAuthenticationFailure(GenericRefusalStdErr));
     }
 
@@ -129,10 +142,12 @@ public class GitErrorClassifierTests {
     public void AMoreSpecificCause_AlwaysWinsOverTheGenericWording() {
         // git appends the generic advice to the specific message, so the two co-occur constantly.
         // Reporting the vague half would throw away the only useful sentence in the output.
-        Assert.Equal(GitFailureKind.HostKeyVerification, GitErrorClassifier.Classify(HostKeyStdErr));
+        Assert.Equal(GitFailureKind.HostKeyVerification,
+            GitErrorClassifier.Classify(HostKeyStdErr));
         Assert.Equal(
             GitFailureKind.Authentication,
-            GitErrorClassifier.Classify(PublicKeyDeniedStdErr + "\nPlease make sure you have the correct access rights"));
+            GitErrorClassifier.Classify(PublicKeyDeniedStdErr
+                + "\nPlease make sure you have the correct access rights"));
     }
 
     [Fact]
@@ -161,7 +176,8 @@ public class GitErrorClassifierTests {
     public void DescribeFetchFailure_IdenticalStderrs_AreReportedOnce() {
         // A host that refuses one attempt refuses both. Printing the same paragraph twice under two
         // labels taught readers to skim past the part that mattered.
-        var message = GitErrorClassifier.DescribeFetchFailure(Url, "abc123", HostKeyStdErr, HostKeyStdErr);
+        var message = GitErrorClassifier.DescribeFetchFailure(Url, "abc123", HostKeyStdErr,
+            HostKeyStdErr);
 
         Assert.DoesNotContain("Shallow fetch:", message, StringComparison.Ordinal);
         Assert.DoesNotContain("Full fetch:", message, StringComparison.Ordinal);
@@ -173,7 +189,8 @@ public class GitErrorClassifierTests {
         // The case actually worth seeing: shallow refused for one reason, the fallback failing for
         // another.
         var message = GitErrorClassifier.DescribeFetchFailure(
-            Url, "abc123", "error: Server does not allow request for unadvertised object", HostKeyStdErr);
+            Url, "abc123", "error: Server does not allow request for unadvertised object",
+            HostKeyStdErr);
 
         Assert.Contains("Shallow fetch:", message, StringComparison.Ordinal);
         Assert.Contains("Full fetch:", message, StringComparison.Ordinal);
@@ -181,7 +198,8 @@ public class GitErrorClassifierTests {
 
     [Fact]
     public void DescribeFetchFailure_CarriesTheRemedy() {
-        var message = GitErrorClassifier.DescribeFetchFailure(Url, "abc123", HostKeyStdErr, HostKeyStdErr);
+        var message = GitErrorClassifier.DescribeFetchFailure(Url, "abc123", HostKeyStdErr,
+            HostKeyStdErr);
 
         Assert.Contains("ssh-keyscan gitlab.kemomi.de", message, StringComparison.Ordinal);
     }

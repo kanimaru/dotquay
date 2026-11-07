@@ -7,9 +7,10 @@ namespace Dotquay.Core.Manifest;
 public sealed class DotnetSpec {
     public required string Name { get; init; }
 
-    /// <summary>A version constraint in dotquay's one language (<see cref="Versioning.VersionConstraint"/>,
-    /// DESIGN-v0.21), e.g. <c>"^13.0"</c> or <c>"13.0.*"</c>. dotquay resolves it itself and writes only
-    /// the exact result into the <c>.csproj</c>, so NuGet's range syntax never applies.</summary>
+    /// <summary>A version constraint in dotquay's one language
+    /// (<see cref="Versioning.VersionConstraint"/>, DESIGN-v0.21), e.g. <c>"^13.0"</c> or
+    /// <c>"13.0.*"</c>. dotquay resolves it itself and writes only the exact result into the
+    /// <c>.csproj</c>, so NuGet's range syntax never applies.</summary>
     public required string Version { get; init; }
 
     /// <summary>
@@ -18,9 +19,9 @@ public sealed class DotnetSpec {
     /// </summary>
     /// <remarks>
     /// Told apart from a dotted package ID by TOML type, not by name: <c>source = "core"</c> is a
-    /// string and means this, while <c>[dotnet.Foo.source]</c> is a table and means a package called
-    /// <c>Foo.source</c>. A key cannot be both in TOML, so the two never collide — at the price that
-    /// a package genuinely named <c>Foo.source</c> can't be pinned.
+    /// string and means this, while <c>[dotnet.Foo.source]</c> is a table and means a package
+    /// called <c>Foo.source</c>. A key cannot be both in TOML, so the two never collide — at the
+    /// price that a package genuinely named <c>Foo.source</c> can't be pinned.
     /// </remarks>
     public string? Source { get; init; }
 
@@ -31,9 +32,9 @@ public sealed class DotnetSpec {
     /// </summary>
     /// <remarks>
     /// Told apart from a dotted package ID the same way <see cref="Source"/> is, but by a different
-    /// TOML type: these keys are <em>arrays</em>, while <c>[dotnet.Foo.include_assets]</c> would be a
-    /// <em>table</em> naming a package called <c>Foo.include_assets</c>. One key cannot be both, so
-    /// the two readings never collide.
+    /// TOML type: these keys are <em>arrays</em>, while <c>[dotnet.Foo.include_assets]</c> would be
+    /// a <em>table</em> naming a package called <c>Foo.include_assets</c>. One key cannot be both,
+    /// so the two readings never collide.
     /// </remarks>
     public PackageAssets Assets { get; init; } = PackageAssets.None;
 
@@ -42,10 +43,10 @@ public sealed class DotnetSpec {
     /// </summary>
     /// <remarks>
     /// A method on the type rather than a copy expression at the call site, and this is not
-    /// bookkeeping: <see cref="Lockfile.LockedAddon"/> was a class with hand-written copy helpers that
-    /// silently dropped <c>Folder</c> when the field was added, which is exactly what an inline copy
-    /// invites. Keeping the copy here means a new property is added three lines from the code that has
-    /// to carry it.
+    /// bookkeeping: <see cref="Lockfile.LockedAddon"/> was a class with hand-written copy helpers
+    /// that silently dropped <c>Folder</c> when the field was added, which is exactly what an
+    /// inline copy invites. Keeping the copy here means a new property is added three lines from
+    /// the code that has to carry it.
     /// </remarks>
     public DotnetSpec WithoutSource() => new() {
         Name = Name,

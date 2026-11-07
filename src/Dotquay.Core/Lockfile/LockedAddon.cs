@@ -2,12 +2,12 @@ namespace Dotquay.Core.Lockfile;
 
 /// <summary>One resolved <c>[[addon]]</c> entry (SPEC.md §7.3).</summary>
 /// <remarks>
-/// A <c>record</c> specifically so callers can say <c>locked with { Dependencies = ... }</c>. It was
-/// a class, which forced two hand-written copy helpers that listed every property — and when
+/// A <c>record</c> specifically so callers can say <c>locked with { Dependencies = ... }</c>. It
+/// was a class, which forced two hand-written copy helpers that listed every property — and when
 /// <see cref="Folder"/> was added, both silently dropped it, so an addon installed into the right
 /// folder was recorded as if it were in the default one. Every consumer then disagreed with disk:
-/// <c>status</c> called it missing and <c>doctor</c> called its folder an orphan. Copying by hand is
-/// exactly the wrong tool for a type that gains fields.
+/// <c>status</c> called it missing and <c>doctor</c> called its folder an orphan. Copying by hand
+/// is exactly the wrong tool for a type that gains fields.
 /// </remarks>
 public sealed record LockedAddon {
     public required string Name { get; init; }
@@ -22,19 +22,19 @@ public sealed record LockedAddon {
     /// <c>"0.0.0-20260821-9f2c1ab"</c> (SPEC.md §6).</summary>
     public string? Version { get; init; }
 
-    /// <summary>The subtree extracted from the addon's <em>own</em> repo — not where it is installed.
-    /// See <see cref="Folder"/> for that.</summary>
+    /// <summary>The subtree extracted from the addon's <em>own</em> repo — not where it is
+    /// installed. See <see cref="Folder"/> for that.</summary>
     public required string Path { get; init; }
 
     /// <summary>
-    /// The folder under <c>addons/</c> this addon is installed into (SPEC.md §7.1's <c>install_as</c>).
-    /// Null means the default, which is <see cref="Name"/> — so every lockfile written before this
-    /// field existed still reads correctly.
+    /// The folder under <c>addons/</c> this addon is installed into (SPEC.md §7.1's
+    /// <c>install_as</c>). Null means the default, which is <see cref="Name"/> — so every lockfile
+    /// written before this field existed still reads correctly.
     /// </summary>
     /// <remarks>
-    /// Recorded rather than recomputed from the manifest because <c>install</c> must be able to find,
-    /// hash, and replace an installed addon from the lockfile alone (SPEC.md §5) — including for a
-    /// transitive addon that appears in no manifest the project owns. It is also what lets
+    /// Recorded rather than recomputed from the manifest because <c>install</c> must be able to
+    /// find, hash, and replace an installed addon from the lockfile alone (SPEC.md §5) — including
+    /// for a transitive addon that appears in no manifest the project owns. It is also what lets
     /// <c>update</c> notice that a folder name changed and clean up the old directory instead of
     /// leaving it behind to satisfy stale <c>preload</c> paths.
     /// </remarks>
@@ -43,7 +43,8 @@ public sealed record LockedAddon {
     /// <summary>Where this addon actually lives under <c>addons/</c>.</summary>
     public string EffectiveFolder => Folder ?? Name;
 
-    /// <summary>Hash of the installed tree, for dirty detection (SPEC.md §9 step 4, requirement P0-6).</summary>
+    /// <summary>Hash of the installed tree, for dirty detection (SPEC.md §9 step 4, requirement
+    /// P0-6).</summary>
     public string? ContentHash { get; init; }
 
     /// <summary>Present only if the addon has a captured patch (SPEC.md §10).</summary>

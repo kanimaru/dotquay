@@ -6,7 +6,8 @@ namespace Dotquay.Tests.Auth;
 
 public class CredentialResolverTests {
     private const string SourceName = "gitlab-core";
-    private const string SourceUrl = "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json";
+    private const string SourceUrl =
+        "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json";
 
     [Fact]
     public void SourceVariableNames_NormalisesToAnExportableShellName() {
@@ -18,7 +19,8 @@ public class CredentialResolverTests {
 
     [Fact]
     public void ForNuGetSource_NothingConfigured_IsAnonymous() {
-        var resolver = new CredentialResolver(new FakeEnvironmentReader(), new InMemoryCredentialStore());
+        var resolver = new CredentialResolver(new FakeEnvironmentReader(),
+            new InMemoryCredentialStore());
 
         var lookup = resolver.ForNuGetSource(SourceName, SourceUrl);
 
@@ -44,7 +46,8 @@ public class CredentialResolverTests {
             .Set(CredentialResolver.GlobalTokenVariable, "from-global-env");
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
 
-        var lookup = new CredentialResolver(environment, store).ForNuGetSource(SourceName, SourceUrl);
+        var lookup = new CredentialResolver(environment, store)
+            .ForNuGetSource(SourceName, SourceUrl);
 
         Assert.Equal("from-global-env", lookup.Credential!.Token);
         Assert.Equal(CredentialOrigin.GlobalEnvironment, lookup.Origin);
@@ -60,7 +63,8 @@ public class CredentialResolverTests {
             .Set(tokenVariable, "from-source-env");
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
 
-        var lookup = new CredentialResolver(environment, store).ForNuGetSource(SourceName, SourceUrl);
+        var lookup = new CredentialResolver(environment, store)
+            .ForNuGetSource(SourceName, SourceUrl);
 
         Assert.Equal("from-source-env", lookup.Credential!.Token);
         Assert.Equal(CredentialOrigin.SourceEnvironment, lookup.Origin);
@@ -69,7 +73,8 @@ public class CredentialResolverTests {
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void ForNuGetSource_HalfConfiguredEnvironmentPair_FallsThroughToTheStore(bool setUsername, bool setToken) {
+    public void ForNuGetSource_HalfConfiguredEnvironmentPair_FallsThroughToTheStore(
+        bool setUsername, bool setToken) {
         var environment = new FakeEnvironmentReader();
         if (setUsername) {
             environment.Set(CredentialResolver.GlobalUsernameVariable, "ci");
@@ -81,7 +86,8 @@ public class CredentialResolverTests {
 
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
 
-        var lookup = new CredentialResolver(environment, store).ForNuGetSource(SourceName, SourceUrl);
+        var lookup = new CredentialResolver(environment, store)
+            .ForNuGetSource(SourceName, SourceUrl);
 
         Assert.Equal("from-file", lookup.Credential!.Token);
         Assert.Equal(CredentialOrigin.CredentialFile, lookup.Origin);
@@ -92,7 +98,8 @@ public class CredentialResolverTests {
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
         var resolver = new CredentialResolver(new FakeEnvironmentReader(), store);
 
-        var lookup = resolver.ForNuGetSource(SourceName, "http://gitlab.example.com/api/v4/index.json");
+        var lookup = resolver.ForNuGetSource(SourceName,
+            "http://gitlab.example.com/api/v4/index.json");
 
         Assert.Null(lookup.Credential);
         Assert.Equal(CredentialOrigin.WithheldInsecureTransport, lookup.Origin);

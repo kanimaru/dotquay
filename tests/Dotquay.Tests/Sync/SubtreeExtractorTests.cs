@@ -36,7 +36,8 @@ public class SubtreeExtractorTests {
     [Fact]
     public void Extract_PreservesBinaryContentByteForByte() {
         var fileSystem = new InMemoryFileSystem();
-        byte[] binary = [0x00, 0xFF, 0x10, 0x80, 0x7F, 0xC3, 0x28]; // includes an invalid UTF-8 sequence
+        // includes an invalid UTF-8 sequence
+        byte[] binary = [0x00, 0xFF, 0x10, 0x80, 0x7F, 0xC3, 0x28];
         fileSystem.WriteAllBytes("repo/addons/foo/icon.png", binary);
 
         SubtreeExtractor.Extract(fileSystem, "repo", "addons/foo", "staging");
@@ -49,7 +50,8 @@ public class SubtreeExtractorTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("repo/README.md", "hi");
 
-        Assert.Throws<SyncException>(() => SubtreeExtractor.Extract(fileSystem, "repo", "addons/missing", "staging"));
+        Assert.Throws<SyncException>(() =>
+            SubtreeExtractor.Extract(fileSystem, "repo", "addons/missing", "staging"));
     }
 
     [Fact]
@@ -57,7 +59,8 @@ public class SubtreeExtractorTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.CreateDirectory("repo/addons/empty");
 
-        Assert.Throws<SyncException>(() => SubtreeExtractor.Extract(fileSystem, "repo", "addons/empty", "staging"));
+        Assert.Throws<SyncException>(() =>
+            SubtreeExtractor.Extract(fileSystem, "repo", "addons/empty", "staging"));
     }
 
     [Fact]

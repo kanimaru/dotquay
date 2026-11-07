@@ -29,15 +29,18 @@ internal static class ExecutablePaths {
 
     /// <summary>Splits a file name into the part that names the tool and the part the OS needs to
     /// consider it executable. Windows will not start a file without <c>.exe</c>, which is why the
-    /// staged download has to carry it too — it is run with <c>--version</c> before it is trusted.</summary>
+    /// staged download has to carry it too — it is run with <c>--version</c> before it is
+    /// trusted.</summary>
     public static (string Stem, string Extension) Split(string fileName) =>
         fileName.EndsWith(WindowsExtension, StringComparison.OrdinalIgnoreCase)
             ? (fileName[..^WindowsExtension.Length], fileName[^WindowsExtension.Length..])
             : (fileName, string.Empty);
 
-    public static string Staged(string executablePath, string version) => Sibling(executablePath, StagedInfix, version);
+    public static string Staged(string executablePath, string version) =>
+        Sibling(executablePath, StagedInfix, version);
 
-    public static string Retired(string executablePath, string version) => Sibling(executablePath, RetiredInfix, version);
+    public static string Retired(string executablePath, string version) =>
+        Sibling(executablePath, RetiredInfix, version);
 
     /// <summary>The version encoded in a sibling's name, or null when the name is not one of ours.
     /// Used to find the newest retired binary without trusting file timestamps, which a copy or a
@@ -52,7 +55,8 @@ internal static class ExecutablePaths {
     public static string? VersionOfStaged(string executablePath, string candidatePath) =>
         VersionOfSibling(executablePath, candidatePath, StagedInfix);
 
-    private static string? VersionOfSibling(string executablePath, string candidatePath, string infix) {
+    private static string? VersionOfSibling(string executablePath, string candidatePath,
+        string infix) {
         var (stem, extension) = Split(FileNameOf(executablePath));
         var candidate = FileNameOf(candidatePath);
 

@@ -10,10 +10,11 @@ namespace Dotquay.Core.Doctor;
 /// <para>
 /// This drift is a normal consequence of the pipeline, not a corruption: <c>install</c> replays the
 /// lockfile and deliberately never re-reads the manifest (SPEC.md §5), so adding, changing, or
-/// removing <c>install_as</c> changes nothing on disk until an <c>update</c> re-resolves. In between,
-/// the manifest says one folder and the addon sits in another — and every symptom of that shows up
-/// somewhere else entirely: <c>preload("res://addons/…")</c> paths that don't resolve, an addon that
-/// looks installed twice, a <c>doctor</c> orphan report for a folder that is in fact the live one.
+/// removing <c>install_as</c> changes nothing on disk until an <c>update</c> re-resolves. In
+/// between, the manifest says one folder and the addon sits in another — and every symptom of that
+/// shows up somewhere else entirely: <c>preload("res://addons/…")</c> paths that don't resolve, an
+/// addon that looks installed twice, a <c>doctor</c> orphan report for a folder that is in fact the
+/// live one.
 /// </para>
 /// <para>
 /// Same reasoning as <see cref="Workflows.DoctorIssueKind.PackageAssetMetadataDrift"/>: two files
@@ -27,8 +28,8 @@ public static class InstallFolderDriftChecker {
     /// <paramref name="Folder"/> being the default of the addon's own name. The distinction is the
     /// whole reason this isn't a plain string comparison — see <see cref="Check"/>.</param>
     /// <param name="Source">Where the declaration was read from, for the message. A folder can be
-    /// asked for by the project's own manifest, by an override, or by the package manifest of an addon
-    /// that depends on this one.</param>
+    /// asked for by the project's own manifest, by an override, or by the package manifest of an
+    /// addon that depends on this one.</param>
     public sealed record FolderDeclaration(string Folder, bool IsExplicit, string Source);
 
     /// <param name="Actual">Where the lockfile says the addon is installed.</param>
@@ -40,13 +41,14 @@ public static class InstallFolderDriftChecker {
     /// <paramref name="declaration"/> asks for it, or null when they agree.
     /// </summary>
     /// <remarks>
-    /// A case-only difference against a declaration that states no <c>install_as</c> is deliberately
-    /// not drift. That is <see cref="Sync.AddonInstaller"/>'s folder-case correction doing its job: the
-    /// addon's own repository, not the manifest key, is the authority on the casing of its folder, so
-    /// an addon keyed <c>Gut</c> and correctly installed to <c>addons/gut</c> is healthy. Reporting it
-    /// would fire on every addon that correction has ever helped, and the advice would be to undo the
-    /// fix. An <em>explicit</em> <c>install_as</c> is compared ordinally, because there the user has
-    /// stated the casing and the correction never overrides them.
+    /// A case-only difference against a declaration that states no <c>install_as</c> is
+    /// deliberately not drift. That is <see cref="Sync.AddonInstaller"/>'s folder-case correction
+    /// doing its job: the addon's own repository, not the manifest key, is the authority on the
+    /// casing of its folder, so an addon keyed <c>Gut</c> and correctly installed to
+    /// <c>addons/gut</c> is healthy. Reporting it would fire on every addon that correction has
+    /// ever helped, and the advice would be to undo the fix. An <em>explicit</em> <c>install_as</c>
+    /// is compared ordinally, because there the user has stated the casing and the correction never
+    /// overrides them.
     /// </remarks>
     public static Drift? Check(LockedAddon locked, FolderDeclaration declaration) {
         var actual = locked.EffectiveFolder;

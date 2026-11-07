@@ -24,9 +24,9 @@ public class VersionOrderTests {
 
     [Fact]
     public void A_local_build_ahead_of_the_last_release_is_not_offered_that_release() {
-        // Dotquay.Cli.csproj derives 0.21.2-dev.N for a build N commits past v0.21.1. It must not be
-        // told 0.21.1 is available (the stale hard-coded 0.18.0 did exactly that), but must be told
-        // about 0.21.2 when the work it contains ships.
+        // Dotquay.Cli.csproj derives 0.21.2-dev.N for a build N commits past v0.21.1. It must not
+        // be told 0.21.1 is available (the stale hard-coded 0.18.0 did exactly that), but must be
+        // told about 0.21.2 when the work it contains ships.
         Assert.False(VersionOrder.IsNewer("0.21.1", "0.21.2-dev.10"));
         Assert.True(VersionOrder.IsNewer("0.21.2", "0.21.2-dev.10"));
     }
@@ -49,7 +49,8 @@ public class ExecutableSwapperTests {
         fileSystem.WriteAllText("C:/tools/dotquay.exe", "old");
         fileSystem.WriteAllText("C:/tools/dotquay.new-0.18.0.exe", "new");
 
-        var retired = new ExecutableSwapper(fileSystem).Swap("C:/tools/dotquay.exe", "C:/tools/dotquay.new-0.18.0.exe", "0.17.0");
+        var retired = new ExecutableSwapper(fileSystem)
+            .Swap("C:/tools/dotquay.exe", "C:/tools/dotquay.new-0.18.0.exe", "0.17.0");
 
         Assert.Equal("C:/tools/dotquay.old-0.17.0.exe", retired);
         Assert.Equal("new", fileSystem.ReadAllText("C:/tools/dotquay.exe"));
@@ -81,7 +82,8 @@ public class ExecutableSwapperTests {
         fileSystem.WriteAllText("/opt/bin/dotquay.old-0.9.0", "nine");
         fileSystem.WriteAllText("/opt/bin/dotquay.old-0.10.0", "ten");
 
-        // Not one of ours: same directory, different tool. Must not be offered as a rollback target.
+        // Not one of ours: same directory, different tool. Must not be offered as a rollback
+        // target.
         fileSystem.WriteAllText("/opt/bin/other.old-0.99.0", "someone else's");
 
         var retired = new ExecutableSwapper(fileSystem).Retired("/opt/bin/dotquay");
@@ -104,7 +106,8 @@ public class UpdateCheckCacheTests {
     [Fact]
     public void A_fresh_answer_is_read_back_and_not_re_checked() {
         var clock = new FakeTimeProvider(DateTimeOffset.Parse("2026-09-11T10:00:00Z"));
-        var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader(), clock);
+        var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader(),
+            clock);
 
         cache.Write(Channel, "0.18.0");
         clock.Advance(TimeSpan.FromHours(1));
@@ -122,7 +125,8 @@ public class UpdateCheckCacheTests {
         cache.Write(Channel, "0.18.0");
 
         Assert.Null(cache.Read("https://mirror.example/api/v4/projects/7"));
-        Assert.True(cache.IsStale("https://mirror.example/api/v4/projects/7", TimeSpan.FromHours(24)));
+        Assert.True(cache.IsStale("https://mirror.example/api/v4/projects/7",
+            TimeSpan.FromHours(24)));
     }
 
     [Fact]
@@ -136,7 +140,8 @@ public class UpdateCheckCacheTests {
 
     [Fact]
     public void With_no_home_directory_the_cache_is_simply_absent() {
-        var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader(homeDirectory: null));
+        var cache = new UpdateCheckCache(new InMemoryFileSystem(),
+            new FakeEnvironmentReader(homeDirectory: null));
 
         cache.Write(Channel, "0.18.0");
 
@@ -148,7 +153,8 @@ public class UpdateCheckCacheTests {
 public class TomlUserConfigStoreTests {
     [Fact]
     public void With_no_config_file_the_built_in_defaults_apply() {
-        var settings = new TomlUserConfigStore(new InMemoryFileSystem(), new FakeEnvironmentReader()).Read();
+        var settings = new TomlUserConfigStore(new InMemoryFileSystem(),
+            new FakeEnvironmentReader()).Read();
 
         Assert.Equal(UpdateSettings.DefaultChannelUrl, settings.ChannelUrl);
         Assert.True(settings.NoticeEnabled);
@@ -199,10 +205,12 @@ public class TomlUserConfigStoreTests {
         var store = new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader());
 
         store.SetNoticeEnabled(false);
-        Assert.False(new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader()).Read().NoticeEnabled);
+        Assert.False(new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader()).Read()
+            .NoticeEnabled);
 
         store.SetNoticeEnabled(true);
-        Assert.True(new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader()).Read().NoticeEnabled);
+        Assert.True(new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader()).Read()
+            .NoticeEnabled);
     }
 
     [Fact]
@@ -228,7 +236,8 @@ public class TomlUserConfigStoreTests {
         new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader()).SetNoticeEnabled(false);
 
         var text = fileSystem.ReadAllText("/home/kani/.dotquay/config.toml");
-        Assert.All(text, character => Assert.True(character < 128, $"non-ASCII character '{character}' in config.toml"));
+        Assert.All(text, character =>
+            Assert.True(character < 128, $"non-ASCII character '{character}' in config.toml"));
     }
 }
 

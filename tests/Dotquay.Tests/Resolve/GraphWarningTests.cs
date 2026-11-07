@@ -39,8 +39,8 @@ public class GraphWarningTests {
 
     private static Dictionary<string, AddonSpec> NoOverrides() => new();
 
-    /// <summary>The real-world layout: addon subtree at <c>godot/addons/leaf</c>, manifest one level
-    /// up at <c>godot/dotquay.toml</c> where a consumer will never see it.</summary>
+    /// <summary>The real-world layout: addon subtree at <c>godot/addons/leaf</c>, manifest one
+    /// level up at <c>godot/dotquay.toml</c> where a consumer will never see it.</summary>
     private static AddonSpec SetUpMisplacedManifest(FakeGitClient gitClient) {
         SetTags(gitClient, LeafUrl, "v1.0.0");
         gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
@@ -55,18 +55,24 @@ public class GraphWarningTests {
                 """,
         };
 
-        return new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "godot/addons/leaf" };
+        return new AddonSpec {
+            Name = "leaf",
+            Git = LeafUrl,
+            Version = "~1.0",
+            Path = "godot/addons/leaf"
+        };
     }
 
     private const string AlphaUrl = "https://example.com/alpha.git";
     private const string BetaUrl = "https://example.com/beta.git";
 
-    /// <summary>Two addons that both declare the same analyzer package, with the asset metadata each
-    /// one's author chose.</summary>
+    /// <summary>Two addons that both declare the same analyzer package, with the asset metadata
+    /// each one's author chose.</summary>
     private static AddonSpec[] SetUpTwoAddonsDeclaring(
         FakeGitClient gitClient, string alphaPrivateAssets, string betaPrivateAssets) {
         foreach (var (name, url, privateAssets) in
-            new[] { ("alpha", AlphaUrl, alphaPrivateAssets), ("beta", BetaUrl, betaPrivateAssets) }) {
+            new[] { ("alpha", AlphaUrl, alphaPrivateAssets),
+                ("beta", BetaUrl, betaPrivateAssets) }) {
             SetTags(gitClient, url, "v1.0.0");
             gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string> {
                 [$"addons/{name}/plugin.cfg"] = "cfg",
@@ -83,7 +89,8 @@ public class GraphWarningTests {
 
         return
         [
-            new AddonSpec { Name = "alpha", Git = AlphaUrl, Version = "~1.0", Path = "addons/alpha" },
+            new AddonSpec { Name = "alpha", Git = AlphaUrl, Version = "~1.0",
+                Path = "addons/alpha" },
             new AddonSpec { Name = "beta", Git = BetaUrl, Version = "~1.0", Path = "addons/beta" },
         ];
     }
@@ -97,8 +104,10 @@ public class GraphWarningTests {
 
         // First-discovered wins, as it already does for the version — but unlike a version range,
         // one of these two addons is now getting wiring its author did not ask for, so it is said
-        // out loud. The message names both sides because "something else disagrees" is unactionable.
-        var warning = Assert.Single(analysis.Warnings, w => w.Kind == GraphWarningKind.DotnetAssetMetadataConflict);
+        // out loud. The message names both sides because "something else disagrees" is
+        // unactionable.
+        var warning = Assert.Single(analysis.Warnings, w =>
+            w.Kind == GraphWarningKind.DotnetAssetMetadataConflict);
         Assert.Contains("Shared.Analyzer", warning.Message);
         Assert.Contains("alpha", warning.Message);
         Assert.Contains("beta", warning.Message);
@@ -111,9 +120,10 @@ public class GraphWarningTests {
 
         var analysis = await resolver.AnalyzeGraphAsync(Roots(specs), NoOverrides());
 
-        // Two addons wanting the same wiring is the normal case, and warning about it would be noise
-        // arriving exactly when things go right.
-        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.DotnetAssetMetadataConflict);
+        // Two addons wanting the same wiring is the normal case, and warning about it would be
+        // noise arriving exactly when things go right.
+        Assert.DoesNotContain(analysis.Warnings, w =>
+            w.Kind == GraphWarningKind.DotnetAssetMetadataConflict);
     }
 
     [Fact]
@@ -172,7 +182,12 @@ public class GraphWarningTests {
         // Real manifests are written by hand and routinely carry a trailing slash — comparing raw
         // strings would make this look like a manifest outside the subtree and warn about a repo
         // that is laid out perfectly.
-        var spec = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf/" };
+        var spec = new AddonSpec {
+            Name = "leaf",
+            Git = LeafUrl,
+            Version = "~1.0",
+            Path = "addons/leaf/"
+        };
 
         var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
 
@@ -197,7 +212,12 @@ public class GraphWarningTests {
                 """,
         };
 
-        var spec = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" };
+        var spec = new AddonSpec {
+            Name = "leaf",
+            Git = LeafUrl,
+            Version = "~1.0",
+            Path = "addons/leaf"
+        };
 
         var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
 
@@ -223,9 +243,15 @@ public class GraphWarningTests {
                 version = "~1.0"
                 """,
         };
-        gitClient.FetchedFilesByUrl[ChildUrl] = new Dictionary<string, string> { ["addons/child/plugin.cfg"] = "cfg" };
+        gitClient.FetchedFilesByUrl[ChildUrl] = new Dictionary<string,
+            string> { ["addons/child/plugin.cfg"] = "cfg" };
 
-        var spec = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" };
+        var spec = new AddonSpec {
+            Name = "leaf",
+            Git = LeafUrl,
+            Version = "~1.0",
+            Path = "addons/leaf"
+        };
 
         var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
 
@@ -242,13 +268,18 @@ public class GraphWarningTests {
             ["addons/leaf/plugin.cfg"] = "cfg",
         };
 
-        var spec = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" };
+        var spec = new AddonSpec {
+            Name = "leaf",
+            Git = LeafUrl,
+            Version = "~1.0",
+            Path = "addons/leaf"
+        };
 
         var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
 
-        // SPEC.md §7.2: "third-party addons without this file are leaf nodes. The graph feature costs
-        // them nothing." Warning about every unmanaged addon in the ecosystem would be pure noise and
-        // would train people to ignore the warning that matters.
+        // SPEC.md §7.2: "third-party addons without this file are leaf nodes. The graph feature
+        // costs them nothing." Warning about every unmanaged addon in the ecosystem would be pure
+        // noise and would train people to ignore the warning that matters.
         Assert.Empty(analysis.Warnings);
     }
 
@@ -259,8 +290,8 @@ public class GraphWarningTests {
 
         var result = await resolver.ResolveGraphAsync(Roots(spec), NoOverrides());
 
-        // `update` is where someone notices a transitive dependency failing to appear, so the warning
-        // has to reach that path too — not only `dotquay graph`.
+        // `update` is where someone notices a transitive dependency failing to appear, so the
+        // warning has to reach that path too — not only `dotquay graph`.
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(GraphWarningKind.PackageManifestOutsideSubtree, warning.Kind);
     }
@@ -276,7 +307,8 @@ public class GraphWarningTests {
     /// <summary>The real incident: vrm-addon moved its plugin into <c>addons/vrm</c> and turned its
     /// root into a project, while vbeami's package manifest kept declaring it with the path from
     /// before the move.</summary>
-    private static AddonSpec SetUpProjectRootDependency(FakeGitClient gitClient, string declaredPath = ".") {
+    private static AddonSpec SetUpProjectRootDependency(FakeGitClient gitClient,
+        string declaredPath = ".") {
         SetTags(gitClient, VbeamiUrl, "v0.7.22");
         gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string> {
             ["godot/addons/vbeami/plugin.cfg"] = "cfg",
@@ -302,7 +334,12 @@ public class GraphWarningTests {
             ["addons/gut/plugin.cfg"] = "cfg",
         };
 
-        return new AddonSpec { Name = "vbeami", Git = VbeamiUrl, Version = "~0.7", Path = "godot/addons/vbeami" };
+        return new AddonSpec {
+            Name = "vbeami",
+            Git = VbeamiUrl,
+            Version = "~0.7",
+            Path = "godot/addons/vbeami"
+        };
     }
 
     [Fact]
@@ -342,7 +379,8 @@ public class GraphWarningTests {
 
         // The resolver knows vbeami declared vrm by branch, so the hint tracks that branch rather
         // than freezing a commit the way doctor's offline hint has to.
-        Assert.Contains("dotquay override vrm --branch main --path addons/vrm", analysis.Warnings[0].Message);
+        Assert.Contains("dotquay override vrm --branch main --path addons/vrm",
+            analysis.Warnings[0].Message);
     }
 
     [Fact]
@@ -355,7 +393,8 @@ public class GraphWarningTests {
         // The project root's own dotquay.toml is a [project] manifest. Before this warning existed,
         // "missing [package] header" was the only thing said about the situation — and following
         // that advice would have been exactly wrong.
-        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.PackageManifestNotReadable);
+        Assert.DoesNotContain(analysis.Warnings, w =>
+            w.Kind == GraphWarningKind.PackageManifestNotReadable);
     }
 
     [Fact]
@@ -382,7 +421,8 @@ public class GraphWarningTests {
 
         var analysis = await resolver.AnalyzeGraphAsync(Roots(spec), NoOverrides());
 
-        var warning = Assert.Single(analysis.Warnings, w => w.Kind == GraphWarningKind.SubtreeIsGodotProject);
+        var warning = Assert.Single(analysis.Warnings, w =>
+            w.Kind == GraphWarningKind.SubtreeIsGodotProject);
         Assert.Contains("this project's dotquay.toml ([addons.vrm])", warning.Message);
     }
 
@@ -397,9 +437,12 @@ public class GraphWarningTests {
         // plugin.cfg and no project.godot, so this check has nothing left to say. (§7.2's
         // misplaced-manifest heuristic still notices the project's own dotquay.toml at the root —
         // that is the addon author's to settle by shipping a [package] manifest, not this check's.)
-        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.SubtreeIsGodotProject);
-        Assert.DoesNotContain(analysis.Warnings, w => w.Kind == GraphWarningKind.PackageManifestNotReadable);
-        Assert.Contains(analysis.Addons, a => a.Resolved.Name == "vrm" && a.Resolved.Path == "addons/vrm");
+        Assert.DoesNotContain(analysis.Warnings, w =>
+            w.Kind == GraphWarningKind.SubtreeIsGodotProject);
+        Assert.DoesNotContain(analysis.Warnings, w =>
+            w.Kind == GraphWarningKind.PackageManifestNotReadable);
+        Assert.Contains(analysis.Addons, a => a.Resolved.Name == "vrm"
+            && a.Resolved.Path == "addons/vrm");
     }
 
     [Fact]
@@ -409,8 +452,8 @@ public class GraphWarningTests {
 
         var result = await resolver.ResolveGraphAsync(Roots(spec), NoOverrides());
 
-        // `update` is where somebody watches addons/vrm fill up with a whole repository; the warning
-        // has to be printed there, not only by `dotquay graph`.
+        // `update` is where somebody watches addons/vrm fill up with a whole repository; the
+        // warning has to be printed there, not only by `dotquay graph`.
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(GraphWarningKind.SubtreeIsGodotProject, warning.Kind);
     }

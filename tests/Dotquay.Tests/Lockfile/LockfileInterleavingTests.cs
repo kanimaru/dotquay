@@ -10,9 +10,9 @@ namespace Dotquay.Tests.Lockfile;
 /// Found by accident while writing an unrelated doctor test with a deliberately odd fixture: a
 /// lockfile whose <c>[[addon]]</c> blocks are interrupted by a <c>[[dotnet]]</c> block parses
 /// "successfully" and silently returns only the addons that came *after* the interruption. Tomlyn
-/// replaces the earlier array instead of appending to it; TOML itself says both groups belong to one
-/// array. dotquay never writes such a file, but <c>dotquay.lock</c> is committed (SPEC.md §7.3) and a
-/// hand-resolved merge conflict can easily produce one — and silently losing entries from the
+/// replaces the earlier array instead of appending to it; TOML itself says both groups belong to
+/// one array. dotquay never writes such a file, but <c>dotquay.lock</c> is committed (SPEC.md §7.3)
+/// and a hand-resolved merge conflict can easily produce one — and silently losing entries from the
 /// artifact that exists to guarantee reproducibility (goal #1) is the worst possible failure mode.
 /// </remarks>
 public class LockfileInterleavingTests {
@@ -64,16 +64,19 @@ public class LockfileInterleavingTests {
 
     [Fact]
     public void Read_InterleavedBlocks_ThrowsInsteadOfDroppingEntries() {
-        var exception = Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Interleaved));
+        var exception = Assert.Throws<LockfileParseException>(() =>
+            LockfileReader.Read(Interleaved));
 
-        // Before this guard, the same input returned exactly one addon ("child") and no error at all.
+        // Before this guard, the same input returned exactly one addon ("child") and no error at
+        // all.
         Assert.Contains("2 [[addon]] block(s)", exception.Message);
         Assert.Contains("could only read 1", exception.Message);
     }
 
     [Fact]
     public void Read_InterleavedBlocks_ExplainsHowToFixIt() {
-        var exception = Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Interleaved));
+        var exception = Assert.Throws<LockfileParseException>(() =>
+            LockfileReader.Read(Interleaved));
 
         Assert.Contains("merge conflict", exception.Message);
         Assert.Contains("Group all [[addon]] blocks together", exception.Message);

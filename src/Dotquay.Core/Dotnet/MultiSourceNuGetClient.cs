@@ -11,8 +11,8 @@ namespace Dotquay.Core.Dotnet;
 /// <para>Implemented as an <see cref="INuGetClient"/> rather than as logic inside
 /// <see cref="Workflows.DependencyWorkflow"/> so the workflow keeps asking one question of one
 /// object, and the feed-ordering rules live in one testable place.</para>
-/// <para>First-match, not highest-version-across-feeds. Taking the highest version wherever it lives
-/// sounds more helpful and is a dependency-confusion substitution attack: publish
+/// <para>First-match, not highest-version-across-feeds. Taking the highest version wherever it
+/// lives sounds more helpful and is a dependency-confusion substitution attack: publish
 /// <c>Kani.Core 99.0.0</c> to a public feed and every project that resolves a private
 /// <c>Kani.Core</c> across both silently switches to it.</para>
 /// </remarks>
@@ -20,16 +20,18 @@ public sealed class MultiSourceNuGetClient : INuGetClient {
     private readonly IReadOnlyList<(NuGetSourceSpec Source, INuGetClient Client)> _clients;
     private readonly List<string> _warnings = [];
 
-    public MultiSourceNuGetClient(IReadOnlyList<(NuGetSourceSpec Source, INuGetClient Client)> clients) {
+    public MultiSourceNuGetClient(IReadOnlyList<(NuGetSourceSpec Source,
+        INuGetClient Client)> clients) {
         _clients = clients;
     }
 
     /// <summary>Non-fatal notes accumulated while querying — currently "this package exists on more
-    /// than one of your feeds". Surfaced through the envelope's <c>warnings</c> (SPEC.md §17) rather
-    /// than printed, so a GUI caller gets them too.</summary>
+    /// than one of your feeds". Surfaced through the envelope's <c>warnings</c> (SPEC.md §17)
+    /// rather than printed, so a GUI caller gets them too.</summary>
     public IReadOnlyList<string> Warnings => _warnings;
 
-    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default) {
+    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId,
+        CancellationToken cancellationToken = default) {
         NuGetVersionQuery? winner = null;
         var checkedSources = new List<string>();
 
@@ -53,9 +55,9 @@ public sealed class MultiSourceNuGetClient : INuGetClient {
                 continue;
             }
 
-            // Found again on a later feed. Not an error — a private feed legitimately mirrors public
-            // packages — but worth saying, because the two copies can differ and only the first is
-            // ever used.
+            // Found again on a later feed. Not an error — a private feed legitimately mirrors
+            // public packages — but worth saying, because the two copies can differ and only the
+            // first is ever used.
             _warnings.Add(
                 $"'{packageId}' is available on more than one NuGet source ("
                 + $"{winner.SourceName ?? NuGetSourceSpec.PublicName} and {source.Name}). "
@@ -70,17 +72,18 @@ public sealed class MultiSourceNuGetClient : INuGetClient {
         return winner ?? NuGetVersionQuery.Empty with { CheckedSources = checkedSources };
     }
 
-    public async Task<bool> PackageExistsAsync(string packageId, CancellationToken cancellationToken = default) =>
+    public async Task<bool> PackageExistsAsync(string packageId,
+        CancellationToken cancellationToken = default) =>
         (await GetVersionsAsync(packageId, cancellationToken)).Found;
 
     /// <summary>
     /// Asks each feed in declared order and returns the first that has a nuspec for this package.
     /// </summary>
     /// <remarks>
-    /// First-match, matching <see cref="GetVersionsAsync"/> — which is the feed the version came from,
-    /// so it is the feed whose nuspec describes the package about to be installed. Falls through on
-    /// <see cref="PackageShape.Unknown"/> rather than stopping, since a feed that will not serve a
-    /// nuspec has said nothing about the package either way.
+    /// First-match, matching <see cref="GetVersionsAsync"/> — which is the feed the version came
+    /// from, so it is the feed whose nuspec describes the package about to be installed. Falls
+    /// through on <see cref="PackageShape.Unknown"/> rather than stopping, since a feed that will
+    /// not serve a nuspec has said nothing about the package either way.
     /// </remarks>
     public async Task<PackageShape> GetPackageShapeAsync(
         string packageId, string version, CancellationToken cancellationToken = default) {
@@ -95,8 +98,9 @@ public sealed class MultiSourceNuGetClient : INuGetClient {
         return PackageShape.Unknown;
     }
 
-    /// <summary>Verifies every source, in declared order, and stops at the first that fails — so the
-    /// error names the feed actually at fault rather than reporting the set as broken.</summary>
+    /// <summary>Verifies every source, in declared order, and stops at the first that fails — so
+    /// the error names the feed actually at fault rather than reporting the set as
+    /// broken.</summary>
     public async Task VerifySourceAsync(CancellationToken cancellationToken = default) {
         foreach (var (_, client) in _clients) {
             await client.VerifySourceAsync(cancellationToken);

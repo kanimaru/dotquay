@@ -16,18 +16,21 @@ namespace Dotquay.Mcp.Tools;
 /// <c>Dotquay.Cli.Commands.OverrideCommand</c>.</summary>
 /// <remarks>
 /// A pure manifest edit and nothing else — per the table (§4.2) this tool's Core call is
-/// <c>OverrideWorkflow.Set</c> alone, not the CLI's follow-on resync (<c>DependencyWorkflow.ResyncAsync</c>).
-/// <c>OverrideWorkflow</c>'s own remarks explain why writing and applying an override are kept apart:
-/// a caller can write one, see a later <c>dotquay_update</c> fail, and clear it again without an
-/// install having half-happened in between. An agent applies the override by calling
-/// <c>dotquay_update</c> (or <c>dotquay_install</c>) itself, which is also where the write guard's
-/// force/confirm_discard check belongs — a plain manifest edit never discards anything on its own.
+/// <c>OverrideWorkflow.Set</c> alone, not the CLI's follow-on resync
+/// (<c>DependencyWorkflow.ResyncAsync</c>). <c>OverrideWorkflow</c>'s own remarks explain why
+/// writing and applying an override are kept apart: a caller can write one, see a later
+/// <c>dotquay_update</c> fail, and clear it again without an install having half-happened in
+/// between. An agent applies the override by calling <c>dotquay_update</c> (or
+/// <c>dotquay_install</c>) itself, which is also where the write guard's force/confirm_discard
+/// check belongs — a plain manifest edit never discards anything on its own.
 /// </remarks>
-public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_override_set";
 
     public override string Description =>
-        "Force one addon to a version, branch, or commit by writing [overrides.<name>] — settles a " +
+        "Force one addon to a version, branch, or commit by writing [overrides.<name>] — settles "
+        + "a " +
         "dependency conflict. Writes the manifest only; call dotquay_update to apply it.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
@@ -54,11 +57,13 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
         if (string.IsNullOrWhiteSpace(name)) {
-            return ValueTask.FromResult(McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the addon to override."));
+            return ValueTask.FromResult(McpToolResults.Failure(Name, JsonErrorKind.Workflow,
+                "'name' is required: the addon to override."));
         }
 
         var version = McpArgs.GetString(arguments, "version");
@@ -78,7 +83,8 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
             : (AddonSourceKind.Rev, rev!);
 
         var overrides = McpInfrastructure.CreateOverrides();
-        var result = overrides.Set(projectDirectory, name, kind, value, McpArgs.GetString(arguments, "git"), McpArgs.GetString(arguments, "path"));
+        var result = overrides.Set(projectDirectory, name, kind, value,
+            McpArgs.GetString(arguments, "git"), McpArgs.GetString(arguments, "path"));
 
         var payload = new OperationJson {
             Changes =
@@ -100,12 +106,18 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
             Messages = [Describe(result)],
         };
 
-        return ValueTask.FromResult(McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload))));
+        return ValueTask.FromResult(
+            McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name,
+                payload))));
     }
 
     private static string Describe(OverrideResult result) => result.Change switch {
-        OverrideChange.Added => $"Added [overrides.{result.Name}] -> {AddonRequirement.ConstraintText(result.Spec!)}. Call dotquay_update to apply it.",
-        OverrideChange.Replaced => $"Changed [overrides.{result.Name}] -> {AddonRequirement.ConstraintText(result.Spec!)}. Call dotquay_update to apply it.",
+        OverrideChange.Added =>
+            $"Added [overrides.{result.Name}] -> {AddonRequirement.ConstraintText(result.Spec!)}. "
+            + $"Call dotquay_update to apply it.",
+        OverrideChange.Replaced =>
+            $"Changed [overrides.{result.Name}] -> "
+            + $"{AddonRequirement.ConstraintText(result.Spec!)}. Call dotquay_update to apply it.",
         _ => $"[overrides.{result.Name}] already says that — nothing to do.",
     };
 }

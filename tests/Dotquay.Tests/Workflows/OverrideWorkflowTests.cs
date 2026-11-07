@@ -20,12 +20,14 @@ public class OverrideWorkflowTests {
     private const string CoreUrl = "https://example.com/core.git";
     private const string ForkUrl = "https://example.com/core-fork.git";
 
-    private static (OverrideWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string manifest, string? lockfile = null) {
+    private static (OverrideWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string manifest,
+        string? lockfile = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
 
         if (lockfile is not null) {
-            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"),
+                lockfile);
         }
 
         return (new OverrideWorkflow(fileSystem), fileSystem);
@@ -61,7 +63,8 @@ public class OverrideWorkflowTests {
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
 
         // An override records "force this one", not "I changed my mind about what I asked for" —
-        // clearing it later must restore the original constraint, which requires it to still be there.
+        // clearing it later must restore the original constraint, which requires it to still be
+        // there.
         var manifest = ReadManifest(fileSystem);
         Assert.Contains("[addons.core]", manifest);
         Assert.Contains("version = \"~1.2\"", manifest);
@@ -102,7 +105,8 @@ public class OverrideWorkflowTests {
 
         // The one conflict kind where the repository itself is the disagreement (SPEC.md §8) needs
         // the caller to be able to say which side won.
-        var result = workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4", git: ForkUrl);
+        var result = workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4",
+            git: ForkUrl);
 
         Assert.Equal(ForkUrl, result.Spec!.Git);
     }
@@ -112,7 +116,9 @@ public class OverrideWorkflowTests {
         var (workflow, _) = Build(ManifestWithCore);
 
         var exception = Assert.Throws<WorkflowException>(
-            () => workflow.Set(ProjectDirectory, "never-heard-of-it", AddonSourceKind.Version, "~1.0"));
+            () =>
+                workflow.Set(ProjectDirectory, "never-heard-of-it", AddonSourceKind.Version,
+                    "~1.0"));
 
         Assert.Contains("can't be inferred", exception.Message);
     }
@@ -139,8 +145,9 @@ public class OverrideWorkflowTests {
 
         var result = workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
 
-        // The CLI skips the resync (and therefore a fetch and reinstall) on Unchanged — in an editor
-        // that's the difference between a click doing nothing visible and a click freezing the panel.
+        // The CLI skips the resync (and therefore a fetch and reinstall) on Unchanged — in an
+        // editor that's the difference between a click doing nothing visible and a click freezing
+        // the panel.
         Assert.Equal(OverrideChange.Unchanged, result.Change);
     }
 
@@ -158,7 +165,8 @@ public class OverrideWorkflowTests {
     public void Set_EmptyValue_Throws() {
         var (workflow, _) = Build(ManifestWithCore);
 
-        Assert.Throws<WorkflowException>(() => workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "  "));
+        Assert.Throws<WorkflowException>(() =>
+            workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "  "));
     }
 
     [Fact]

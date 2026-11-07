@@ -26,7 +26,10 @@ public class JsonContractTests {
 
     [Fact]
     public void Envelope_CarriesTheFieldsAConsumerBranchesOn() {
-        var root = Parse(WriteGraph(new GraphJson { Source = "lockfile", ProjectDirectory = "/p" }));
+        var root = Parse(WriteGraph(new GraphJson {
+            Source = "lockfile",
+            ProjectDirectory = "/p"
+        }));
 
         Assert.Equal(JsonEnvelope<GraphJson>.CurrentSchema, root.GetProperty("schema").GetInt32());
         Assert.Equal("dotquay", root.GetProperty("tool").GetString());
@@ -74,7 +77,8 @@ public class JsonContractTests {
 
         Assert.False(root.GetProperty("ok").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("data").ValueKind);
-        // The panel keys its "Create dotquay.toml" button off this exact string, not off the message.
+        // The panel keys its "Create dotquay.toml" button off this exact string, not off the
+        // message.
         Assert.Equal("no_manifest", root.GetProperty("error").GetProperty("kind").GetString());
     }
 
@@ -83,7 +87,8 @@ public class JsonContractTests {
         var payload = new GraphJson {
             Source = "lockfile",
             ProjectDirectory = "/p",
-            Addons = [new GraphNodeJson { Name = "a", Git = "g", Path = "addons/a", Folder = "a", Origin = "root", IsOverridden = true }],
+            Addons = [new GraphNodeJson { Name = "a", Git = "g", Path = "addons/a", Folder = "a",
+                Origin = "root", IsOverridden = true }],
         };
 
         var root = Parse(WriteGraph(payload));
@@ -101,7 +106,8 @@ public class JsonContractTests {
         var payload = new GraphJson {
             Source = "lockfile",
             ProjectDirectory = "/p",
-            Addons = [new GraphNodeJson { Name = "a", Git = "g", Path = "addons/a", Folder = "a", Origin = "root" }],
+            Addons = [new GraphNodeJson { Name = "a", Git = "g", Path = "addons/a", Folder = "a",
+                Origin = "root" }],
         };
 
         var node = Parse(WriteGraph(payload)).GetProperty("data").GetProperty("addons")[0];
@@ -179,8 +185,10 @@ public class JsonContractTests {
             "core",
             GraphConflictKind.NoCommonVersion,
             "no tag satisfies every constraint",
-            [new GraphRequirement("a", AddonSourceKind.Version, "~1", "https://example.com/core.git")],
-            [new GraphCandidate(AddonSourceKind.Version, "v1.9.0", "https://example.com/core.git", "abc", ["a", "b"], SatisfiesAll: true)]);
+            [new GraphRequirement("a", AddonSourceKind.Version, "~1",
+                "https://example.com/core.git")],
+            [new GraphCandidate(AddonSourceKind.Version, "v1.9.0", "https://example.com/core.git",
+                "abc", ["a", "b"], SatisfiesAll: true)]);
 
         var payload = new GraphJson {
             Source = "resolved",
@@ -205,10 +213,11 @@ public class JsonContractTests {
     [Fact]
     public void ProjectRequirer_IsSpelledTheWayTheResolverSpellsIt() {
         var requirement = new GraphRequirement(
-            GraphConflict.ProjectRequirerName, AddonSourceKind.Version, "~1", "https://example.com/core.git");
+            GraphConflict.ProjectRequirerName, AddonSourceKind.Version, "~1",
+            "https://example.com/core.git");
 
-        // The plugin renders "<project>" as "this project"; a different spelling here would leak the
-        // raw token into the UI.
+        // The plugin renders "<project>" as "this project"; a different spelling here would leak
+        // the raw token into the UI.
         Assert.Equal("<project>", JsonMapper.ToJson(requirement).Requirer);
     }
 
@@ -224,12 +233,18 @@ public class JsonContractTests {
         // Source generation registers one closed generic per payload (see DotquayJsonContext); a
         // missing registration compiles and only fails at runtime, inside the published AOT binary.
         // Touching all six here turns that into a test failure instead of a field bug report.
-        Assert.Contains("\"list\"", DotquayJson.Write(JsonEnvelope<ListJson>.Success("list", new ListJson())));
-        Assert.Contains("\"status\"", DotquayJson.Write(JsonEnvelope<StatusJson>.Success("status", new StatusJson())));
-        Assert.Contains("\"outdated\"", DotquayJson.Write(JsonEnvelope<OutdatedJson>.Success("outdated", new OutdatedJson())));
-        Assert.Contains("\"doctor\"", DotquayJson.Write(JsonEnvelope<DoctorJson>.Success("doctor", new DoctorJson())));
-        Assert.Contains("\"add\"", DotquayJson.Write(JsonEnvelope<OperationJson>.Success("add", new OperationJson())));
-        Assert.Contains("\"graph\"", WriteGraph(new GraphJson { Source = "lockfile", ProjectDirectory = "/p" }));
+        Assert.Contains("\"list\"",
+            DotquayJson.Write(JsonEnvelope<ListJson>.Success("list", new ListJson())));
+        Assert.Contains("\"status\"",
+            DotquayJson.Write(JsonEnvelope<StatusJson>.Success("status", new StatusJson())));
+        Assert.Contains("\"outdated\"",
+            DotquayJson.Write(JsonEnvelope<OutdatedJson>.Success("outdated", new OutdatedJson())));
+        Assert.Contains("\"doctor\"",
+            DotquayJson.Write(JsonEnvelope<DoctorJson>.Success("doctor", new DoctorJson())));
+        Assert.Contains("\"add\"",
+            DotquayJson.Write(JsonEnvelope<OperationJson>.Success("add", new OperationJson())));
+        Assert.Contains("\"graph\"",
+            WriteGraph(new GraphJson { Source = "lockfile", ProjectDirectory = "/p" }));
     }
 
     [Fact]
@@ -237,13 +252,16 @@ public class JsonContractTests {
         var payload = new OperationJson {
             Changes =
             [
-                new ChangeJson { Name = "a", Kind = JsonMapper.ChangeKind.Addon, Action = JsonMapper.ChangeAction.Added, To = "v1.0.0" },
-                new ChangeJson { Name = "N", Kind = JsonMapper.ChangeKind.Dotnet, Action = JsonMapper.ChangeAction.Removed },
+                new ChangeJson { Name = "a", Kind = JsonMapper.ChangeKind.Addon,
+                    Action = JsonMapper.ChangeAction.Added, To = "v1.0.0" },
+                new ChangeJson { Name = "N", Kind = JsonMapper.ChangeKind.Dotnet,
+                    Action = JsonMapper.ChangeAction.Removed },
             ],
             Messages = ["done"],
         };
 
-        var changes = Parse(DotquayJson.Write(JsonEnvelope<OperationJson>.Success("update", payload)))
+        var changes = Parse(DotquayJson.Write(JsonEnvelope<OperationJson>.Success("update",
+            payload)))
             .GetProperty("data")
             .GetProperty("changes");
 
@@ -256,12 +274,13 @@ public class JsonContractTests {
     [Fact]
     public void Warnings_SurviveIntoTheEnvelope() {
         var json = DotquayJson.Write(
-            JsonEnvelope<OperationJson>.Success("add", new OperationJson(), ["no tags found — pinned to a commit"]));
+            JsonEnvelope<OperationJson>.Success("add", new OperationJson(),
+                ["no tags found — pinned to a commit"]));
 
         var warnings = Parse(json).GetProperty("warnings");
 
-        // Without --json this hint is a yellow console line; a GUI user needs it just as much, so it
-        // must not be dropped on the floor.
+        // Without --json this hint is a yellow console line; a GUI user needs it just as much, so
+        // it must not be dropped on the floor.
         Assert.Equal(1, warnings.GetArrayLength());
         Assert.Contains("no tags found", warnings[0].GetString());
     }

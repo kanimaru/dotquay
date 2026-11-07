@@ -8,10 +8,13 @@ public sealed class ProcessTraceTests {
     [Fact]
     public void Command_line_is_shell_pasteable_and_redacted() {
         var line = ProcessTrace.FormatCommandLine(
-            "git", ["-C", @"C:\My Projects\game", "fetch", "https://u:pw@h/r.git", "--token", "abc", "say \"hi\"", ""]);
+            "git",
+            ["-C", @"C:\My Projects\game", "fetch", "https://u:pw@h/r.git", "--token", "abc",
+                "say \"hi\"", ""]);
 
         Assert.Equal(
-            "git -C \"C:\\My Projects\\game\" fetch https://u:***@h/r.git --token *** \"say \\\"hi\\\"\" \"\"",
+            "git -C \"C:\\My Projects\\game\" fetch https://u:***@h/r.git --token *** \"say "
+            + "\\\"hi\\\"\" \"\"",
             line);
     }
 
@@ -80,10 +83,12 @@ public sealed class ProcessTraceTests {
     public void Failed_logs_the_exception_type_and_redacted_message() {
         var sink = RecordingDiagnosticSink.Install(out var scope, DiagnosticLevel.Verbose);
         using (scope) {
-            ProcessTrace.Start("git", ["x"], null).Failed(new InvalidOperationException("bad https://u:pw@h"));
+            ProcessTrace.Start("git", ["x"], null)
+                .Failed(new InvalidOperationException("bad https://u:pw@h"));
         }
 
-        Assert.Matches(@"^failed after \d+ ms: InvalidOperationException: bad https://u:\*\*\*@h$", sink.Messages("git").Last());
+        Assert.Matches(@"^failed after \d+ ms: InvalidOperationException: bad https://u:\*\*\*@h$",
+            sink.Messages("git").Last());
     }
 
     [Fact]

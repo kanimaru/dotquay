@@ -11,15 +11,18 @@ namespace Dotquay.Mcp.Tools;
 /// <summary>MCP mirror of <c>dotquay patch &lt;name&gt; --resolve</c>: finishes a conflicted patch
 /// re-apply and recaptures against the new upstream commit (SPEC.md §10). See
 /// <c>Dotquay.Cli.Commands.PatchCommand</c>.</summary>
-/// <remarks>Not destructive and unguarded: it only proceeds once every conflict marker in staging is
-/// gone (<c>DependencyWorkflow.ResolvePatchAsync</c> refuses otherwise), so there is nothing left for
-/// a human to have been asked about — the conflict itself already stopped the update that led here.
+/// <remarks>Not destructive and unguarded: it only proceeds once every conflict marker in staging
+/// is gone (<c>DependencyWorkflow.ResolvePatchAsync</c> refuses otherwise), so there is nothing
+/// left for a human to have been asked about — the conflict itself already stopped the update that
+/// led here.
 /// </remarks>
-public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_patch_resolve";
 
     public override string Description =>
-        "Finish a conflicted patch re-apply: install the resolved files from staging, advance the " +
+        "Finish a conflicted patch re-apply: install the resolved files from staging, advance "
+        + "the " +
         "lockfile, and recapture the patch against the new upstream commit.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
@@ -38,11 +41,13 @@ public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gat
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
         if (string.IsNullOrWhiteSpace(name)) {
-            return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the addon whose conflict to resolve.");
+            return McpToolResults.Failure(Name, JsonErrorKind.Workflow,
+                "'name' is required: the addon whose conflict to resolve.");
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
@@ -53,10 +58,12 @@ public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gat
             [
                 result.Captured
                     ? $"Resolved '{result.Name}' and recaptured its patch -> {result.PatchFilePath}"
-                    : $"Resolved '{result.Name}'. The result matches upstream exactly, so there is no patch left to keep.",
+                    : $"Resolved '{result.Name}'. The result matches upstream exactly, so there is "
+                    + $"no patch left to keep.",
             ],
         };
 
-        return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));
+        return McpToolResults.FromJson(
+            DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));
     }
 }

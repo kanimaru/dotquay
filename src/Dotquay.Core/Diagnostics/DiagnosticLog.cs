@@ -11,16 +11,16 @@ namespace Dotquay.Core.Diagnostics;
 /// <para>
 /// Ambient (an <see cref="AsyncLocal{T}"/>) rather than a constructor dependency, deliberately. The
 /// things worth logging live at the leaves - <c>ProcessGitClient</c>, <c>ProcessPatchTool</c>,
-/// <c>ProcessDotnetCliRunner</c>, the HTTP clients, <c>SystemFileSystem</c> - and those are built in
-/// a dozen places across Core, the CLI and <c>Dotquay.Mcp</c>, several of them deep inside
+/// <c>ProcessDotnetCliRunner</c>, the HTTP clients, <c>SystemFileSystem</c> - and those are built
+/// in a dozen places across Core, the CLI and <c>Dotquay.Mcp</c>, several of them deep inside
 /// <c>DependencyWorkflow</c>. Threading a sink through every one of those constructors would touch
 /// most of the codebase for a feature that is off by default, and the first new
 /// <c>new ProcessGitClient()</c> that forgot the argument would silently go dark.
 /// </para>
 /// <para>
-/// <see cref="AsyncLocal{T}"/> rather than a plain static so the setting flows with the logical call,
-/// not the process: parallel xUnit tests each <see cref="Use"/> their own recording sink without
-/// seeing each other's lines, and the value follows every <c>await</c>, <c>Task.Run</c> and
+/// <see cref="AsyncLocal{T}"/> rather than a plain static so the setting flows with the logical
+/// call, not the process: parallel xUnit tests each <see cref="Use"/> their own recording sink
+/// without seeing each other's lines, and the value follows every <c>await</c>, <c>Task.Run</c> and
 /// <c>HttpClient</c> handler chain started underneath the scope.
 /// </para>
 /// <para>
@@ -45,9 +45,9 @@ public static class DiagnosticLog {
     /// restores whatever was there before.
     /// </summary>
     /// <remarks>
-    /// Synchronous on purpose: an <see cref="AsyncLocal{T}"/> assigned inside an <c>async</c> method
-    /// does not flow back out to its caller, so a <c>UseAsync</c> would appear to work and do
-    /// nothing.
+    /// Synchronous on purpose: an <see cref="AsyncLocal{T}"/> assigned inside an <c>async</c>
+    /// method does not flow back out to its caller, so a <c>UseAsync</c> would appear to work and
+    /// do nothing.
     /// </remarks>
     public static IDisposable Use(IDiagnosticSink sink) {
         ArgumentNullException.ThrowIfNull(sink);
@@ -57,14 +57,16 @@ public static class DiagnosticLog {
         return new Restoration(previous);
     }
 
-    /// <summary>Writes a pre-built message. Prefer the interpolated overload for anything that formats.</summary>
+    /// <summary>Writes a pre-built message. Prefer the interpolated overload for anything that
+    /// formats.</summary>
     public static void Write(DiagnosticLevel level, string category, string message) {
         if (IsEnabled(level)) {
             Current.Write(new DiagnosticEvent(level, category, message));
         }
     }
 
-    /// <summary>Writes an interpolated message, formatting it only when the level is enabled.</summary>
+    /// <summary>Writes an interpolated message, formatting it only when the level is
+    /// enabled.</summary>
     public static void Write(
         DiagnosticLevel level,
         string category,
@@ -85,15 +87,16 @@ public static class DiagnosticLog {
     /// <summary>
     /// Times a block: logs <paramref name="label"/> when disposed, with how long it took.
     /// </summary>
-    /// <remarks>Returns a shared no-op when the level is off, so an unconditional <c>using</c> costs
-    /// nothing in the normal case.</remarks>
+    /// <remarks>Returns a shared no-op when the level is off, so an unconditional <c>using</c>
+    /// costs nothing in the normal case.</remarks>
     public static IDisposable Measure(DiagnosticLevel level, string category, string label) =>
         IsEnabled(level) ? new Measurement(level, category, label) : NoOpScope.Instance;
 
-    /// <summary>Milliseconds, rounded, as every duration in the log is written - one unit throughout so
-    /// a reader can compare lines without converting.</summary>
+    /// <summary>Milliseconds, rounded, as every duration in the log is written - one unit
+    /// throughout so a reader can compare lines without converting.</summary>
     public static string FormatDuration(TimeSpan elapsed) =>
-        string.Create(CultureInfo.InvariantCulture, $"{Math.Round(elapsed.TotalMilliseconds):0} ms");
+        string.Create(CultureInfo.InvariantCulture,
+            $"{Math.Round(elapsed.TotalMilliseconds):0} ms");
 
     private sealed class Restoration(IDiagnosticSink? previous) : IDisposable {
         private bool _disposed;
@@ -108,7 +111,8 @@ public static class DiagnosticLog {
         }
     }
 
-    private sealed class Measurement(DiagnosticLevel level, string category, string label) : IDisposable {
+    private sealed class Measurement(DiagnosticLevel level, string category, string label)
+        : IDisposable {
         private readonly long _started = Stopwatch.GetTimestamp();
         private bool _disposed;
 
@@ -118,7 +122,8 @@ public static class DiagnosticLog {
             }
 
             _disposed = true;
-            Write(level, category, $"{label} ({FormatDuration(Stopwatch.GetElapsedTime(_started))})");
+            Write(level, category,
+                $"{label} ({FormatDuration(Stopwatch.GetElapsedTime(_started))})");
         }
     }
 
@@ -131,21 +136,25 @@ public static class DiagnosticLog {
 }
 
 /// <summary>
-/// Interpolated-string handler behind <see cref="DiagnosticLog.Write(DiagnosticLevel, string, ref DiagnosticMessageHandler)"/>:
-/// the compiler asks it whether to format at all before evaluating a single hole.
+/// Interpolated-string handler behind
+/// <see cref="DiagnosticLog.Write(DiagnosticLevel, string, ref DiagnosticMessageHandler)"/>: the
+/// compiler asks it whether to format at all before evaluating a single hole.
 /// </summary>
 [InterpolatedStringHandler]
 public ref struct DiagnosticMessageHandler {
     private DefaultInterpolatedStringHandler _inner;
 
-    public DiagnosticMessageHandler(int literalLength, int formattedCount, DiagnosticLevel level, out bool shouldAppend) {
+    public DiagnosticMessageHandler(int literalLength, int formattedCount, DiagnosticLevel level,
+        out bool shouldAppend) {
         Enabled = DiagnosticLog.IsEnabled(level);
         shouldAppend = Enabled;
-        // Invariant, not the current culture: a log is pasted into issues and diffed between machines,
-        // and "1,5 s" from a German Windows next to "1.5 s" from CI is noise. The shipped binary is
-        // InvariantGlobalization anyway; this makes the test host and every other host agree.
+        // Invariant, not the current culture: a log is pasted into issues and diffed between
+        // machines, and "1,5 s" from a German Windows next to "1.5 s" from CI is noise. The shipped
+        // binary is InvariantGlobalization anyway; this makes the test host and every other host
+        // agree.
         _inner = Enabled
-            ? new DefaultInterpolatedStringHandler(literalLength, formattedCount, CultureInfo.InvariantCulture)
+            ? new DefaultInterpolatedStringHandler(literalLength, formattedCount,
+                CultureInfo.InvariantCulture)
             : default;
     }
 
@@ -155,9 +164,11 @@ public ref struct DiagnosticMessageHandler {
 
     public void AppendFormatted<T>(T value) => _inner.AppendFormatted(value);
 
-    public void AppendFormatted<T>(T value, string? format) => _inner.AppendFormatted(value, format);
+    public void AppendFormatted<T>(T value, string? format) =>
+        _inner.AppendFormatted(value, format);
 
-    public void AppendFormatted<T>(T value, int alignment) => _inner.AppendFormatted(value, alignment);
+    public void AppendFormatted<T>(T value, int alignment) =>
+        _inner.AppendFormatted(value, alignment);
 
     public void AppendFormatted<T>(T value, int alignment, string? format) =>
         _inner.AppendFormatted(value, alignment, format);

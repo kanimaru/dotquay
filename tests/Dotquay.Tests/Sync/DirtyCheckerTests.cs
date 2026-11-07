@@ -9,7 +9,8 @@ public class DirtyCheckerTests {
     public void Check_AbsentDestination_IsNotDirty() {
         var fileSystem = new InMemoryFileSystem();
 
-        var result = DirtyChecker.Check(fileSystem, "addons/foo", expectedContentHash: "sha256:whatever");
+        var result = DirtyChecker.Check(fileSystem, "addons/foo",
+            expectedContentHash: "sha256:whatever");
 
         Assert.False(result.IsDirty);
     }
@@ -30,7 +31,8 @@ public class DirtyCheckerTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "hand-edited by the user");
 
-        var result = DirtyChecker.Check(fileSystem, "addons/foo", expectedContentHash: "sha256:not-what-is-on-disk");
+        var result = DirtyChecker.Check(fileSystem, "addons/foo",
+            expectedContentHash: "sha256:not-what-is-on-disk");
 
         Assert.True(result.IsDirty);
     }

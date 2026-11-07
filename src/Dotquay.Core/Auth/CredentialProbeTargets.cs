@@ -3,16 +3,17 @@ using Dotquay.Core.Manifest;
 namespace Dotquay.Core.Auth;
 
 /// <summary>
-/// The URLs a project already trusts on a host, for <c>dotquay login &lt;host&gt;</c> to check a new
-/// credential against (SPEC.md §11.2).
+/// The URLs a project already trusts on a host, for <c>dotquay login &lt;host&gt;</c> to check a
+/// new credential against (SPEC.md §11.2).
 /// </summary>
 /// <remarks>
 /// <para>A bare host has no endpoint of its own worth probing: GitLab's generic API answers HTTP
-/// Basic with 401 even for a valid token (measured against gitlab.kemomi.de, 2026-10-21: <c>/api/v4/user</c>
-/// and <c>/api/v4/version</c> both 401 with a token that the package registry accepts), and a guessed
-/// well-known path fails confidently against servers that simply don't have it. The project's own
-/// manifest, on the other hand, names exactly the URLs the credential is for — so those are what
-/// get probed, and a login outside any project honestly says it couldn't check.</para>
+/// Basic with 401 even for a valid token (measured against gitlab.kemomi.de, 2026-10-21:
+/// <c>/api/v4/user</c> and <c>/api/v4/version</c> both 401 with a token that the package registry
+/// accepts), and a guessed well-known path fails confidently against servers that simply don't have
+/// it. The project's own manifest, on the other hand, names exactly the URLs the credential is for
+/// — so those are what get probed, and a login outside any project honestly says it couldn't
+/// check.</para>
 /// <para>Order matters a little: NuGet feeds first, because that is what the token is most often
 /// for, then git remotes. The verifier stops at the first decisive answer.</para>
 /// </remarks>

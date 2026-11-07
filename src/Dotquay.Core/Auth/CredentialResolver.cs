@@ -15,7 +15,8 @@ namespace Dotquay.Core.Auth;
 /// which <c>login</c> warns about and <c>doctor</c> reports.
 /// </remarks>
 public sealed class CredentialResolver {
-    /// <summary>Pre-v0.7 variables, still honoured so no existing CI pipeline has to change.</summary>
+    /// <summary>Pre-v0.7 variables, still honoured so no existing CI pipeline has to
+    /// change.</summary>
     public const string GlobalUsernameVariable = "DOTQUAY_NUGET_USERNAME";
 
     public const string GlobalTokenVariable = "DOTQUAY_NUGET_TOKEN";
@@ -33,7 +34,8 @@ public sealed class CredentialResolver {
     /// name a POSIX shell can actually export, unlike the
     /// <c>NuGetPackageSourceCredentials_&lt;key&gt;</c> variable NuGet itself defines.</summary>
     public static (string Username, string Token) SourceVariableNames(string sourceName) {
-        var suffix = new string(sourceName.Select(c => char.IsLetterOrDigit(c) ? char.ToUpperInvariant(c) : '_').ToArray());
+        var suffix = new string(sourceName.Select(c => char.IsLetterOrDigit(c)
+            ? char.ToUpperInvariant(c) : '_').ToArray());
         return ($"{GlobalUsernameVariable}_{suffix}", $"{GlobalTokenVariable}_{suffix}");
     }
 
@@ -58,8 +60,8 @@ public sealed class CredentialResolver {
     }
 
     /// <summary>
-    /// Resolves the credential for a git remote. The stored file only — there is deliberately no git
-    /// environment-variable pair, because git already has a well-established way to inject
+    /// Resolves the credential for a git remote. The stored file only — there is deliberately no
+    /// git environment-variable pair, because git already has a well-established way to inject
     /// credentials in CI (its own credential helpers and SSH agent), and dotquay appends itself
     /// *after* those rather than competing with them (SPEC.md §11.2).
     /// </summary>
@@ -67,8 +69,8 @@ public sealed class CredentialResolver {
 
     private CredentialLookup FromStore(string url) {
         if (!CredentialScope.TryParse(url, out var scope, out _)) {
-            // An ssh:// or git@ remote lands here. Not an error: it simply has no stored credential,
-            // and git's own key handling takes it from here.
+            // An ssh:// or git@ remote lands here. Not an error: it simply has no stored
+            // credential, and git's own key handling takes it from here.
             return CredentialLookup.Anonymous;
         }
 
@@ -80,7 +82,8 @@ public sealed class CredentialResolver {
 
     /// <summary>Withholds a credential bound for cleartext HTTP. Enforced here rather than at each
     /// call site so no caller can leak a token by forgetting to check.</summary>
-    private static CredentialLookup Guard(Credential credential, CredentialOrigin origin, string url) {
+    private static CredentialLookup Guard(Credential credential, CredentialOrigin origin,
+        string url) {
         if (CredentialScope.TryParse(url, out var scope, out _) && !scope.IsSecure) {
             return new CredentialLookup(null, CredentialOrigin.WithheldInsecureTransport);
         }
@@ -88,10 +91,10 @@ public sealed class CredentialResolver {
         return new CredentialLookup(credential, origin);
     }
 
-    /// <summary>Both variables, or neither. A half-configured pair (a username with no token, or the
-    /// reverse) falls through to the next source rather than being guessed at — the same rule the
-    /// pre-v0.7 <c>NuGetCredentials</c> used, kept because a partially-set pair is far more likely to
-    /// be a typo than an intention.</summary>
+    /// <summary>Both variables, or neither. A half-configured pair (a username with no token, or
+    /// the reverse) falls through to the next source rather than being guessed at — the same rule
+    /// the pre-v0.7 <c>NuGetCredentials</c> used, kept because a partially-set pair is far more
+    /// likely to be a typo than an intention.</summary>
     private Credential? FromEnvironment(string usernameVariable, string tokenVariable) {
         var username = _environment.GetVariable(usernameVariable);
         var token = _environment.GetVariable(tokenVariable);

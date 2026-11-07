@@ -52,9 +52,11 @@ public static class KnownHostsReader {
     /// <c>ssh_config</c>, which is not parsed here. That is a deliberate floor on ambition: this
     /// check reports a missing entry as a likely cause, and a false "not trusted" on an exotic
     /// configuration costs a reader one puzzled minute. Guessing at <c>ssh_config</c> -- with its
-    /// <c>Host</c> blocks, <c>Match</c> conditions and includes -- would cost far more than it saves.
+    /// <c>Host</c> blocks, <c>Match</c> conditions and includes -- would cost far more than it
+    /// saves.
     /// </remarks>
-    public static IReadOnlyList<string> DefaultPaths(IEnvironmentReader environment, IFileSystem fileSystem) =>
+    public static IReadOnlyList<string> DefaultPaths(IEnvironmentReader environment,
+        IFileSystem fileSystem) =>
         DefaultPaths(environment, fileSystem, OperatingSystem.IsWindows());
 
     /// <param name="isWindows">Which platform's machine-wide location to use. A parameter rather
@@ -93,9 +95,9 @@ public static class KnownHostsReader {
     /// exist.
     /// </summary>
     /// <remarks>
-    /// A revocation anywhere wins over a match anywhere else, which is how ssh itself behaves and the
-    /// only safe way to combine several files: a key revoked in the system file must not be rescued
-    /// by a stale entry in the user's.
+    /// A revocation anywhere wins over a match anywhere else, which is how ssh itself behaves and
+    /// the only safe way to combine several files: a key revoked in the system file must not be
+    /// rescued by a stale entry in the user's.
     /// </remarks>
     public static KnownHostStatus Lookup(
         IFileSystem fileSystem, IEnumerable<string> paths, string host, int? port = null) {
@@ -128,8 +130,9 @@ public static class KnownHostsReader {
         var status = KnownHostStatus.NotFound;
 
         // A byte-order mark would otherwise become part of the first entry's hostname, silently
-        // costing that one host its trust. Not hypothetical: PowerShell 5.1's '>>' writes UTF-16, so
-        // 'ssh-keyscan host >> known_hosts' -- the exact command everyone reaches for -- prepends one.
+        // costing that one host its trust. Not hypothetical: PowerShell 5.1's '>>' writes UTF-16,
+        // so 'ssh-keyscan host >> known_hosts' -- the exact command everyone reaches for --
+        // prepends one.
         var content = knownHostsContent.TrimStart('\uFEFF', '\uFFFE');
 
         foreach (var rawLine in content.Split('\n')) {
@@ -219,14 +222,15 @@ public static class KnownHostsReader {
 
             return CryptographicOperations.FixedTimeEquals(actual, expected);
         } catch (FormatException) {
-            // A hand-mangled line. Not this check's business to report, and certainly not a reason to
-            // fail the command that asked.
+            // A hand-mangled line. Not this check's business to report, and certainly not a reason
+            // to fail the command that asked.
             return false;
         }
     }
 
     private static bool Matches(string pattern, string target) {
-        if (!pattern.Contains('*', StringComparison.Ordinal) && !pattern.Contains('?', StringComparison.Ordinal)) {
+        if (!pattern.Contains('*', StringComparison.Ordinal)
+            && !pattern.Contains('?', StringComparison.Ordinal)) {
             // Hostnames are case-insensitive; a bracketed [host]:port form still compares fine this
             // way because the port digits have no case.
             return string.Equals(pattern, target, StringComparison.OrdinalIgnoreCase);
@@ -235,6 +239,7 @@ public static class KnownHostsReader {
         var regex = "^" + Regex.Escape(pattern).Replace("\\*", ".*", StringComparison.Ordinal)
             .Replace("\\?", ".", StringComparison.Ordinal) + "$";
 
-        return Regex.IsMatch(target, regex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        return Regex.IsMatch(target, regex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
     }
 }

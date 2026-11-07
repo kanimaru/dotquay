@@ -8,7 +8,9 @@ namespace Dotquay.Tests.Auth;
 public class GitCredentialProtocolTests {
     [Fact]
     public void ParseRequest_ReadsKeyValueLinesUpToTheBlankLine() {
-        var request = GitCredentialProtocol.ParseRequest("protocol=https\nhost=gitlab.example.com\n\nignored=yes\n");
+        var request =
+            GitCredentialProtocol.ParseRequest(
+                "protocol=https\nhost=gitlab.example.com\n\nignored=yes\n");
 
         Assert.Equal("https", request["protocol"]);
         Assert.Equal("gitlab.example.com", request["host"]);
@@ -17,9 +19,11 @@ public class GitCredentialProtocolTests {
 
     [Fact]
     public void ParseRequest_ToleratesCarriageReturnsAndUnknownKeys() {
-        // git adds fields over time (wwwauth[], capability[]); a helper that choked on one it didn't
-        // recognise would break on a git upgrade.
-        var request = GitCredentialProtocol.ParseRequest("protocol=https\r\nhost=example.com\r\nwwwauth[]=Basic\r\n\r\n");
+        // git adds fields over time (wwwauth[], capability[]); a helper that choked on one it
+        // didn't recognise would break on a git upgrade.
+        var request =
+            GitCredentialProtocol.ParseRequest(
+                "protocol=https\r\nhost=example.com\r\nwwwauth[]=Basic\r\n\r\n");
 
         Assert.Equal("example.com", request["host"]);
         Assert.Equal("Basic", request["wwwauth[]"]);
@@ -65,7 +69,8 @@ public class GitCredentialProtocolTests {
 
     [Fact]
     public void BuildUrl_NoHost_ReturnsNull() {
-        Assert.Null(GitCredentialProtocol.BuildUrl(new Dictionary<string, string> { ["protocol"] = "https" }));
+        Assert.Null(GitCredentialProtocol.BuildUrl(new Dictionary<string,
+            string> { ["protocol"] = "https" }));
     }
 
     [Fact]

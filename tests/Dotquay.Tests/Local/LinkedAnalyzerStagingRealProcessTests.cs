@@ -132,7 +132,8 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable {
         Assert.True(first.ExitCode == 0, first.Output);
 
         var original = Directory
-            .EnumerateFiles(Path.Combine(_generatorDirectory, "bin"), "Gen.dll", SearchOption.AllDirectories)
+            .EnumerateFiles(Path.Combine(_generatorDirectory, "bin"), "Gen.dll",
+                SearchOption.AllDirectories)
             .Single();
         using var host = new FileStream(original, FileMode.Open, FileAccess.Read, FileShare.None);
 

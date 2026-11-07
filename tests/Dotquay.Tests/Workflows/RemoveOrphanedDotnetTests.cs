@@ -71,19 +71,25 @@ public class RemoveOrphanedDotnetTests {
 
     private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build() {
         var fileSystem = new InMemoryFileSystem();
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), ProjectManifest);
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"),
+            ProjectManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), Lockfile);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"), Csproj);
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root", "plugin.cfg"), "cfg");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root",
+            "plugin.cfg"), "cfg");
         fileSystem.WriteAllText(
-            fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"), RootDeclaresSerilog);
+            fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"),
+            RootDeclaresSerilog);
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var addonInstaller = new AddonInstaller(
-            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
-        var dotnetInstaller = new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None());
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem),
+            new FakePatchTool(fileSystem));
+        var dotnetInstaller = new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(),
+            TestCredentials.None());
         var workflow = new DependencyWorkflow(
-            fileSystem, gitClient, new FakeNuGetClientFactory(new FakeNuGetClient()), addonInstaller, dotnetInstaller);
+            fileSystem, gitClient, new FakeNuGetClientFactory(new FakeNuGetClient()),
+            addonInstaller, dotnetInstaller);
 
         return (workflow, fileSystem);
     }
@@ -97,11 +103,14 @@ public class RemoveOrphanedDotnetTests {
         // Reported as what it was, so `remove --json` says "dotnet" rather than "addon".
         Assert.Equal(DependencyKind.Dotnet, removal.Kind);
 
-        var lockfile = LockfileReader.Read(fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock")));
+        var lockfile =
+            LockfileReader.Read(fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+                "dotquay.lock")));
         Assert.DoesNotContain(lockfile.Dotnet, d => d.Name == "Ghost.Package");
         Assert.Contains(lockfile.Dotnet, d => d.Name == "Serilog");
 
-        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        var csproj = fileSystem.ReadAllText(fileSystem.CombinePath(ProjectDirectory,
+            "Game.csproj"));
         Assert.DoesNotContain("Ghost.Package", csproj);
         Assert.Contains("Serilog", csproj);
     }
@@ -122,7 +131,8 @@ public class RemoveOrphanedDotnetTests {
         var (workflow, fileSystem) = Build();
         var lockPath = fileSystem.CombinePath(ProjectDirectory, "dotquay.lock");
 
-        var exception = await Assert.ThrowsAsync<WorkflowException>(() => workflow.RemoveAsync(ProjectDirectory, "Serilog"));
+        var exception = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.RemoveAsync(ProjectDirectory, "Serilog"));
 
         // The next update would union it straight back in (requirement P1-5). Refusing, and saying
         // who to talk to instead, beats a removal that silently undoes itself.
@@ -134,7 +144,8 @@ public class RemoveOrphanedDotnetTests {
     public async Task RemoveAsync_NameNeitherDeclaredNorLocked_StillSaysNotDeclared() {
         var (workflow, _) = Build();
 
-        var exception = await Assert.ThrowsAsync<WorkflowException>(() => workflow.RemoveAsync(ProjectDirectory, "Nope"));
+        var exception = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.RemoveAsync(ProjectDirectory, "Nope"));
 
         Assert.Contains("is not declared in", exception.Message);
     }

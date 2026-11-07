@@ -17,11 +17,12 @@ public static class CsprojLocator {
 
         return candidates.Count switch {
             0 => throw new DotnetSyncException(
-                $"No .csproj found in {projectDirectory}. Enable C# support in Godot (Project > Tools > "
-                + "C#) to generate one before adding NuGet dependencies."),
+                $"No .csproj found in {projectDirectory}. Enable C# support in Godot (Project > "
+                + "Tools > C#) to generate one before adding NuGet dependencies."),
             1 => candidates[0],
             _ => throw new DotnetSyncException(
-                $"Multiple .csproj files found in {projectDirectory} ({string.Join(", ", candidates)}) — "
+                $"Multiple .csproj files found in {projectDirectory} "
+                + $"({string.Join(", ", candidates)}) — "
                 + "dotquay doesn't support choosing between them yet."),
         };
     }

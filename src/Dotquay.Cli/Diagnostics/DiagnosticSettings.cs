@@ -11,9 +11,9 @@ namespace Dotquay.Cli.Diagnostics;
 /// <remarks>
 /// <para>
 /// The environment variable exists for callers that cannot add a flag: git invoking
-/// <c>dotquay credential-helper</c>, the Godot editor plugin's fixed argument lists, an MCP client's
-/// configured command line, a CI job that wants every dotquay call in a script logged. Set it once
-/// and every nested invocation inherits it.
+/// <c>dotquay credential-helper</c>, the Godot editor plugin's fixed argument lists, an MCP
+/// client's configured command line, a CI job that wants every dotquay call in a script logged. Set
+/// it once and every nested invocation inherits it.
 /// </para>
 /// <para>
 /// Flags and the variable combine by taking the more verbose of the two - never the other way

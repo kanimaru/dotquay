@@ -15,9 +15,10 @@ public enum ChangeKind {
 /// its own and can be discarded without loss (docs/DESIGN-v0.12-MODIFIED-REASON.md).
 /// </summary>
 /// <remarks>
-/// This is a wire enum from the day it ships — <see cref="Dotquay.Core.Json.JsonMapper"/> maps it to
-/// fixed strings that the editor plugin and any other <c>--json</c> consumer will switch on. Adding a
-/// member is a contract change, under the same rule as <see cref="Dotquay.Core.Workflows.DoctorIssueKind"/>.
+/// This is a wire enum from the day it ships — <see cref="Dotquay.Core.Json.JsonMapper"/> maps it
+/// to fixed strings that the editor plugin and any other <c>--json</c> consumer will switch on.
+/// Adding a member is a contract change, under the same rule as
+/// <see cref="Dotquay.Core.Workflows.DoctorIssueKind"/>.
 /// </remarks>
 public enum ChangeClass {
     /// <summary>
@@ -25,8 +26,8 @@ public enum ChangeClass {
     /// </summary>
     /// <remarks>
     /// Can never be the reason an addon reads as modified — those paths are not hashed. Reported
-    /// anyway, because the explanation walks the whole tree and "nine artifact files also differ, and
-    /// here is why they don't count" is context rather than noise.
+    /// anyway, because the explanation walks the whole tree and "nine artifact files also differ,
+    /// and here is why they don't count" is context rather than noise.
     /// </remarks>
     EditorArtifact,
 
@@ -37,9 +38,9 @@ public enum ChangeClass {
     /// Identical once line endings are normalised and every <c>uid://…</c> value is masked.
     /// </summary>
     /// <remarks>
-    /// Godot rewrites a stale <c>uid=</c> on an <c>ext_resource</c> line from the <c>path=</c> beside
-    /// it, so this churn is both self-inflicted and self-healing. Discarding it loses nothing the
-    /// editor will not immediately regenerate.
+    /// Godot rewrites a stale <c>uid=</c> on an <c>ext_resource</c> line from the <c>path=</c>
+    /// beside it, so this churn is both self-inflicted and self-healing. Discarding it loses
+    /// nothing the editor will not immediately regenerate.
     /// </remarks>
     UidOnly,
 
@@ -53,7 +54,8 @@ public enum ChangeClass {
     /// </remarks>
     WhitespaceOnly,
 
-    /// <summary>A real difference — and anything that could not be proven to be one of the above.</summary>
+    /// <summary>A real difference — and anything that could not be proven to be one of the
+    /// above.</summary>
     Content,
 }
 
@@ -65,9 +67,9 @@ public sealed record TreeChange(string Path, ChangeKind Kind, ChangeClass Class)
     /// True when discarding this difference costs the user nothing.
     /// </summary>
     /// <remarks>
-    /// Deliberately a property of the change rather than a fifth enum member: "benign" is a question
-    /// asked of a class, and folding the answer into the classification would make adding a new class
-    /// silently change verdicts.
+    /// Deliberately a property of the change rather than a fifth enum member: "benign" is a
+    /// question asked of a class, and folding the answer into the classification would make adding
+    /// a new class silently change verdicts.
     /// </remarks>
     public bool IsBenign => Class is not ChangeClass.Content;
 }

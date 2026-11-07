@@ -15,7 +15,9 @@ public class AddCommandOptionsTests {
     public void InstallAs_AcceptsBothSpellings(string flag) {
         // The manifest key and the MCP argument are both install_as; the BotV2 report typed the
         // underscore and got "'--install_as' was not matched" before anything else could happen.
-        var result = AddCommand.Build().Parse([Url, "--branch", "main", "--path", "godot/addons/vbeami_vcam", flag, "vbeami_vcam"]);
+        var result = AddCommand.Build()
+            .Parse([Url, "--branch", "main", "--path", "godot/addons/vbeami_vcam", flag,
+                "vbeami_vcam"]);
 
         Assert.Empty(result.Errors);
         Assert.Equal("vbeami_vcam", result.GetValue<string?>("--install-as"));
@@ -23,7 +25,8 @@ public class AddCommandOptionsTests {
 
     [Fact]
     public void Name_IsParsed() {
-        var result = AddCommand.Build().Parse([Url, "--path", "godot/addons/vbeami_vcam", "--name", "camera"]);
+        var result = AddCommand.Build()
+            .Parse([Url, "--path", "godot/addons/vbeami_vcam", "--name", "camera"]);
 
         Assert.Empty(result.Errors);
         Assert.Equal("camera", result.GetValue<string?>("--name"));

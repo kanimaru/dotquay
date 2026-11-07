@@ -8,11 +8,13 @@ namespace Dotquay.Core.Workflows;
 /// where the CLI picks the color and wording; doctor's issues are heterogeneous enough that
 /// per-kind templates would just duplicate what's already in the message).</summary>
 /// <remarks>
-/// <see cref="Message"/> is redacted on construction. Doctor's checks quote remotes (fetch failures,
-/// ssh host checks) and its output is the thing people paste when asking for help - including the
-/// secret scanner's own findings, which must name where a token is without repeating it.
+/// <see cref="Message"/> is redacted on construction. Doctor's checks quote remotes (fetch
+/// failures, ssh host checks) and its output is the thing people paste when asking for help -
+/// including the secret scanner's own findings, which must name where a token is without repeating
+/// it.
 /// </remarks>
-public sealed record DoctorIssue(DoctorIssueKind Kind, string Message, UidReferenceFix? UidFix = null) {
+public sealed record DoctorIssue(DoctorIssueKind Kind, string Message,
+    UidReferenceFix? UidFix = null) {
     private readonly string _message = SecretRedactor.Redact(Message);
 
     // An explicit init accessor, not an initializer alone: `with { Message = ... }` assigns through
@@ -23,13 +25,13 @@ public sealed record DoctorIssue(DoctorIssueKind Kind, string Message, UidRefere
     }
 }
 
-/// <summary>The three facts <see cref="DoctorIssueKind.FragileUidReference"/> already knows about its
-/// own fix: which script named the uid, the literal token it wrote, and the res:// path that same
-/// token resolves to right now.</summary>
+/// <summary>The three facts <see cref="DoctorIssueKind.FragileUidReference"/> already knows about
+/// its own fix: which script named the uid, the literal token it wrote, and the res:// path that
+/// same token resolves to right now.</summary>
 /// <remarks>
 /// Carried as data, not folded back out of <see cref="DoctorIssue.Message"/> by every consumer with
-/// its own guess at the sentence shape. <see cref="Doctor.UidReferenceScanner"/> already computes all
-/// three before the message is even built; this just keeps them instead of throwing them away.
+/// its own guess at the sentence shape. <see cref="Doctor.UidReferenceScanner"/> already computes
+/// all three before the message is even built; this just keeps them instead of throwing them away.
 /// <see langword="null"/> for every other <see cref="DoctorIssueKind"/>.
 /// </remarks>
 public sealed record UidReferenceFix(string File, string Uid, string ResPath);

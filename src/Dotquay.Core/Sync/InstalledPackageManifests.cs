@@ -16,16 +16,17 @@ namespace Dotquay.Core.Sync;
 /// this NuGet package?" answerable offline, with no network and no re-walk.
 /// </para>
 /// <para>
-/// Before this type existed, the read lived as a private method on <see cref="DependencyWorkflow"/>,
-/// and the graph view had no access to it at all. It passed <c>addonDeclared: []</c> and so couldn't
-/// tell an addon-declared package from a leftover (DESIGN-v0.19). Doctor, the graph, and
-/// <c>remove</c> now share one reader, for the same reason <see cref="InstallPaths"/> exists: several
-/// copies of "where does an addon's manifest live" drift apart.
+/// Before this type existed, the read lived as a private method on
+/// <see cref="DependencyWorkflow"/>, and the graph view had no access to it at all. It passed
+/// <c>addonDeclared: []</c> and so couldn't tell an addon-declared package from a leftover
+/// (DESIGN-v0.19). Doctor, the graph, and <c>remove</c> now share one reader, for the same reason
+/// <see cref="InstallPaths"/> exists: several copies of "where does an addon's manifest live" drift
+/// apart.
 /// </para>
 /// <para>
 /// A manifest that exists but doesn't parse reads as "declares nothing". Reporting it is doctor's
-/// <c>package_manifest_unreadable</c> check's job, once. Swallowing it here keeps every other caller
-/// from reporting it a second time or failing a read-only view over it.
+/// <c>package_manifest_unreadable</c> check's job, once. Swallowing it here keeps every other
+/// caller from reporting it a second time or failing a read-only view over it.
 /// </para>
 /// </remarks>
 public sealed class InstalledPackageManifests {
@@ -39,7 +40,8 @@ public sealed class InstalledPackageManifests {
     /// null if there is none or it doesn't parse.</summary>
     public PackageManifest? TryRead(string projectDirectory, string folder) {
         var manifestPath = _fileSystem.CombinePath(
-            InstallPaths.ForFolder(_fileSystem, projectDirectory, folder), ProjectFileStore.ManifestFileName);
+            InstallPaths.ForFolder(_fileSystem, projectDirectory, folder),
+            ProjectFileStore.ManifestFileName);
         if (!_fileSystem.FileExists(manifestPath)) {
             return null;
         }
@@ -52,12 +54,12 @@ public sealed class InstalledPackageManifests {
     }
 
     /// <summary>
-    /// Addon name to the <c>[dotnet.*]</c> entries its installed package manifest declares, for each
-    /// of <paramref name="addons"/> that declares at least one.
+    /// Addon name to the <c>[dotnet.*]</c> entries its installed package manifest declares, for
+    /// each of <paramref name="addons"/> that declares at least one.
     /// </summary>
     /// <remarks>
-    /// Located through <see cref="LockedAddon.EffectiveFolder"/>, never <c>addons/&lt;name&gt;</c>. An
-    /// addon installed under <c>install_as</c> keeps its manifest in the renamed folder, and a
+    /// Located through <see cref="LockedAddon.EffectiveFolder"/>, never <c>addons/&lt;name&gt;</c>.
+    /// An addon installed under <c>install_as</c> keeps its manifest in the renamed folder, and a
     /// name-derived path would silently find nothing there. The caller decides which addons count
     /// (usually only the reachable ones); this type doesn't know about the graph.
     /// </remarks>

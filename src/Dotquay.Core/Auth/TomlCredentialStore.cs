@@ -10,17 +10,18 @@ namespace Dotquay.Core.Auth;
 /// <c>~/.dotquay/credentials.toml</c>, readable and writable only by its owner (SPEC.md §11.2).
 /// </summary>
 /// <remarks>
-/// <para>Plaintext, and said so out loud rather than dressed up. Base64 or a fixed-key XOR would look
-/// like encryption while protecting against nothing, which is worse than being honest — anyone who
-/// can read the file can read the token either way. What actually protects it is the file mode and
-/// the fact that it lives outside every project directory, so it cannot be committed by accident.</para>
-/// <para>Read every time rather than cached: <c>dotquay login</c> in one terminal must take effect in
-/// another without restarting anything, and the file is a few hundred bytes.</para>
+/// <para>Plaintext, and said so out loud rather than dressed up. Base64 or a fixed-key XOR would
+/// look like encryption while protecting against nothing, which is worse than being honest — anyone
+/// who can read the file can read the token either way. What actually protects it is the file mode
+/// and the fact that it lives outside every project directory, so it cannot be committed by
+/// accident.</para>
+/// <para>Read every time rather than cached: <c>dotquay login</c> in one terminal must take effect
+/// in another without restarting anything, and the file is a few hundred bytes.</para>
 /// </remarks>
 public sealed class TomlCredentialStore : ICredentialStore {
-    /// <summary>Bumped only if the file's shape changes incompatibly. A file claiming a version this
-    /// build doesn't know is refused rather than half-read — the same rule as the JSON envelope's
-    /// <c>schema</c> (SPEC.md §17), for the same reason.</summary>
+    /// <summary>Bumped only if the file's shape changes incompatibly. A file claiming a version
+    /// this build doesn't know is refused rather than half-read — the same rule as the JSON
+    /// envelope's <c>schema</c> (SPEC.md §17), for the same reason.</summary>
     public const int CurrentVersion = 1;
 
     public const string FileName = "credentials.toml";
@@ -35,14 +36,14 @@ public sealed class TomlCredentialStore : ICredentialStore {
         _path = path;
     }
 
-    /// <summary>Where the file lives: <c>&lt;home&gt;/.dotquay/credentials.toml</c>, beside the shared
-    /// fetch cache. Never inside a project — the value is one person's secret on one machine, and a
-    /// project-local file is a file that eventually gets committed.</summary>
+    /// <summary>Where the file lives: <c>&lt;home&gt;/.dotquay/credentials.toml</c>, beside the
+    /// shared fetch cache. Never inside a project — the value is one person's secret on one
+    /// machine, and a project-local file is a file that eventually gets committed.</summary>
     public static string DefaultPath(IEnvironmentReader environment, IFileSystem fileSystem) {
         var home = environment.HomeDirectory
             ?? throw new CredentialException(
-                "Could not determine your home directory, so there is nowhere to store credentials. "
-                + "Set DOTQUAY_NUGET_USERNAME and DOTQUAY_NUGET_TOKEN instead.");
+                "Could not determine your home directory, so there is nowhere to store "
+                + "credentials. Set DOTQUAY_NUGET_USERNAME and DOTQUAY_NUGET_TOKEN instead.");
 
         return fileSystem.CombinePath(home, ".dotquay", FileName);
     }
@@ -54,8 +55,8 @@ public sealed class TomlCredentialStore : ICredentialStore {
         var bestSpecificity = -1;
 
         foreach (var (entryScope, credential) in ReadAll()) {
-            // Longest matching path prefix wins. Ties are impossible: two entries with the same host
-            // and the same path are the same TOML key, which TOML itself rejects.
+            // Longest matching path prefix wins. Ties are impossible: two entries with the same
+            // host and the same path are the same TOML key, which TOML itself rejects.
             if (entryScope.Covers(scope) && entryScope.Specificity > bestSpecificity) {
                 best = credential;
                 bestSpecificity = entryScope.Specificity;
@@ -76,14 +77,16 @@ public sealed class TomlCredentialStore : ICredentialStore {
             throw new CredentialException("A credential needs both a username and a token.");
         }
 
-        var entries = ReadAll().ToDictionary(entry => entry.Scope.Key, entry => entry, StringComparer.Ordinal);
+        var entries = ReadAll()
+            .ToDictionary(entry => entry.Scope.Key, entry => entry, StringComparer.Ordinal);
         entries[scope.Key] = (scope, credential);
         Write(entries.Values);
     }
 
     public bool Remove(CredentialScope scope) {
         var entries = ReadAll().ToList();
-        var remaining = entries.Where(entry => !string.Equals(entry.Scope.Key, scope.Key, StringComparison.Ordinal)).ToList();
+        var remaining = entries.Where(entry =>
+            !string.Equals(entry.Scope.Key, scope.Key, StringComparison.Ordinal)).ToList();
 
         if (remaining.Count == entries.Count) {
             return false;
@@ -108,23 +111,28 @@ public sealed class TomlCredentialStore : ICredentialStore {
                 $"{_path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
-        if (table.TryGetValue("version", out var versionValue) && versionValue is long version && version > CurrentVersion) {
+        if (table.TryGetValue("version", out var versionValue) && versionValue is long version
+            && version > CurrentVersion) {
             throw new CredentialsFileException(
-                $"{_path} was written by a newer dotquay (file version {version}, this build understands "
-                + $"{CurrentVersion}). Refusing to read it rather than risk misinterpreting it.");
+                $"{_path} was written by a newer dotquay (file version {version}, this build "
+                + $"understands {CurrentVersion}). Refusing to read it rather than risk "
+                + $"misinterpreting it.");
         }
 
-        if (!table.TryGetValue(CredentialSection, out var raw) || raw is not TomlTable credentials) {
+        if (!table.TryGetValue(CredentialSection, out var raw)
+            || raw is not TomlTable credentials) {
             return result;
         }
 
         foreach (var key in credentials.Keys) {
             if (credentials[key] is not TomlTable entry) {
-                throw new CredentialsFileException($"{_path}: [{CredentialSection}.\"{key}\"] must be a table.");
+                throw new CredentialsFileException($"{_path}: [{CredentialSection}.\"{key}\"] must "
+                    + $"be a table.");
             }
 
             if (!CredentialScope.TryParse(key, out var scope, out var error)) {
-                throw new CredentialsFileException($"{_path}: [{CredentialSection}.\"{key}\"] — {error}");
+                throw new CredentialsFileException($"{_path}: [{CredentialSection}.\"{key}\"] — "
+                    + $"{error}");
             }
 
             var username = GetString(entry, "username");
@@ -145,11 +153,12 @@ public sealed class TomlCredentialStore : ICredentialStore {
         var ordered = entries.OrderBy(entry => entry.Scope.Key, StringComparer.Ordinal).ToList();
 
         var builder = new System.Text.StringBuilder();
-        // Plain ASCII on purpose, matching the .gitignore writer's reasoning: this file gets opened in
-        // whatever editor or shell is to hand, and a stray em-dash renders as mojibake in anything
-        // reading it as ANSI.
+        // Plain ASCII on purpose, matching the .gitignore writer's reasoning: this file gets opened
+        // in whatever editor or shell is to hand, and a stray em-dash renders as mojibake in
+        // anything reading it as ANSI.
         builder.AppendLine("# dotquay credentials - written by 'dotquay login'.");
-        builder.AppendLine("# Secrets in plaintext: keep this file owner-readable and never copy it into a project.");
+        builder.AppendLine("# Secrets in plaintext: keep this file owner-readable and never copy "
+            + "it into a project.");
         builder.AppendLine($"version = {CurrentVersion}");
 
         foreach (var (scope, credential) in ordered) {

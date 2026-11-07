@@ -6,10 +6,10 @@ using Dotquay.Core.Diagnostics;
 namespace Dotquay.Core.Sync;
 
 /// <summary>
-/// Global content-addressed fetch cache: <c>~/.dotquay/cache/&lt;repo-hash&gt;/&lt;short-sha&gt;/</c>
-/// (SPEC.md §9 step 1, decided OQ-5 — hashed paths keep things short on Windows). Shared across
-/// projects: fetching the same addon@SHA from two different projects only hits the network once
-/// (requirement P0-8).
+/// Global content-addressed fetch cache:
+/// <c>~/.dotquay/cache/&lt;repo-hash&gt;/&lt;short-sha&gt;/</c> (SPEC.md §9 step 1, decided OQ-5 —
+/// hashed paths keep things short on Windows). Shared across projects: fetching the same addon@SHA
+/// from two different projects only hits the network once (requirement P0-8).
 /// </summary>
 public sealed class RepoCache {
     // Written after a fetch completes successfully. Its presence — not just the directory's — is
@@ -17,10 +17,10 @@ public sealed class RepoCache {
     // instead of being mistaken for a complete, usable cache entry.
     private const string CompletionMarkerFileName = ".dotquay-fetch-complete";
 
-    // Added to the marker once the checkout is known to hold real files rather than Git LFS pointers.
-    // Entries written before dotquay checked for that carry the SHA alone; they are verified once on
-    // their next use and then marked, instead of being trusted forever. Not a new marker NAME: that
-    // would throw away every cache entry on every machine to catch a few.
+    // Added to the marker once the checkout is known to hold real files rather than Git LFS
+    // pointers. Entries written before dotquay checked for that carry the SHA alone; they are
+    // verified once on their next use and then marked, instead of being trusted forever. Not a new
+    // marker NAME: that would throw away every cache entry on every machine to catch a few.
     private const string LfsVerifiedToken = "lfs-verified";
 
     private readonly IFileSystem _fileSystem;
@@ -33,16 +33,20 @@ public sealed class RepoCache {
         _cacheRoot = cacheRoot;
     }
 
-    /// <summary>Returns the cached path for <paramref name="repositoryUrl"/>@<paramref name="commitSha"/>,
-    /// fetching into it first if it isn't already there.</summary>
-    public async Task<string> GetOrFetchAsync(string repositoryUrl, string commitSha, CancellationToken cancellationToken = default) {
+    /// <summary>Returns the cached path for
+    /// <paramref name="repositoryUrl"/>@<paramref name="commitSha"/>, fetching into it first if it
+    /// isn't already there.</summary>
+    public async Task<string> GetOrFetchAsync(string repositoryUrl, string commitSha,
+        CancellationToken cancellationToken = default) {
         var path = GetCachePath(repositoryUrl, commitSha);
         var marker = _fileSystem.CombinePath(path, CompletionMarkerFileName);
 
         if (_fileSystem.FileExists(marker)) {
-            DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache", $"hit {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)} -> {path}");
+            DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache",
+                $"hit {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)} -> {path}");
 
-            if (!_fileSystem.ReadAllText(marker).Contains(LfsVerifiedToken, StringComparison.Ordinal)) {
+            if (!_fileSystem.ReadAllText(marker)
+                .Contains(LfsVerifiedToken, StringComparison.Ordinal)) {
                 await _gitClient.EnsureFilesResolvedAsync(path, cancellationToken);
                 _fileSystem.WriteAllText(marker, MarkerContent(commitSha));
             }
@@ -50,7 +54,9 @@ public sealed class RepoCache {
             return path;
         }
 
-        DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache", $"miss {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)}, fetching into {path}");
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache",
+            $"miss {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)}, fetching into "
+            + $"{path}");
         _fileSystem.DeleteDirectory(path); // clear out any partial fetch from an interrupted run
         await _gitClient.FetchCommitAsync(repositoryUrl, commitSha, path, cancellationToken);
         _fileSystem.WriteAllText(marker, MarkerContent(commitSha));
@@ -58,8 +64,9 @@ public sealed class RepoCache {
         return path;
     }
 
-    /// <summary>When <paramref name="repositoryUrl"/>@<paramref name="commitSha"/> was committed, read
-    /// from its cache entry. Never fetches: null when the commit isn't cached or git can't say.</summary>
+    /// <summary>When <paramref name="repositoryUrl"/>@<paramref name="commitSha"/> was committed,
+    /// read from its cache entry. Never fetches: null when the commit isn't cached or git can't
+    /// say.</summary>
     public async Task<DateTimeOffset?> GetCommitDateAsync(
         string repositoryUrl, string commitSha, CancellationToken cancellationToken = default) {
         var path = GetCachePath(repositoryUrl, commitSha);

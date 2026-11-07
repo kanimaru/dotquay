@@ -9,7 +9,8 @@ namespace Dotquay.Tests.Support;
 /// that ignored it would let a resolver bug through while every test passed.
 /// </summary>
 public sealed class InMemoryCredentialStore : ICredentialStore {
-    private readonly Dictionary<string, (CredentialScope Scope, Credential Credential)> _entries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string,
+        (CredentialScope Scope, Credential Credential)> _entries = new(StringComparer.Ordinal);
 
     public InMemoryCredentialStore Add(string scope, string username, string token) {
         Set(CredentialScope.Parse(scope), new Credential(username, token));
@@ -36,7 +37,8 @@ public sealed class InMemoryCredentialStore : ICredentialStore {
             .OrderBy(entry => entry.Scope, StringComparer.Ordinal)
             .ToList();
 
-    public void Set(CredentialScope scope, Credential credential) => _entries[scope.Key] = (scope, credential);
+    public void Set(CredentialScope scope, Credential credential) =>
+        _entries[scope.Key] = (scope, credential);
 
     public bool Remove(CredentialScope scope) => _entries.Remove(scope.Key);
 }

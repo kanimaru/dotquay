@@ -25,23 +25,25 @@ public enum GitTransport {
 /// </summary>
 /// <remarks>
 /// <para>
-/// Exists because a git URL is a bare string in exactly two places where it must not be: unification
-/// (<see cref="Dotquay.Core.Resolve.AddonUnifier"/> rejects a name required from "different git
-/// repositories", comparing the raw strings ordinally) and transitive discovery (an addon's own
-/// manifest hardcodes whatever transport its author uses, which every consumer then inherits). Both
-/// treat <c>https://host/g/r</c> and <c>git@host:g/r.git</c> as unrelated, and both are wrong to.
+/// Exists because a git URL is a bare string in exactly two places where it must not be:
+/// unification (<see cref="Dotquay.Core.Resolve.AddonUnifier"/> rejects a name required from
+/// "different git repositories", comparing the raw strings ordinally) and transitive discovery (an
+/// addon's own manifest hardcodes whatever transport its author uses, which every consumer then
+/// inherits). Both treat <c>https://host/g/r</c> and <c>git@host:g/r.git</c> as unrelated, and both
+/// are wrong to.
 /// </para>
 /// <para>
 /// The concrete incident: a project added over HTTPS pulled in a transitive dependency declared as
-/// <c>git@gitlab.kemomi.de:...</c>, so a developer with no SSH key -- or, as it happened, no host key
-/// in <c>known_hosts</c> -- could not install a project every URL of which they had written as HTTPS.
+/// <c>git@gitlab.kemomi.de:...</c>, so a developer with no SSH key -- or, as it happened, no host
+/// key in <c>known_hosts</c> -- could not install a project every URL of which they had written as
+/// HTTPS.
 /// </para>
 /// <para>
 /// Parsing follows git's own rules rather than <see cref="Uri"/>'s, because the scp-like form
-/// (<c>git@host:path</c>) is not a URI and <see cref="Uri"/> mis-parses it as scheme <c>git</c> with
-/// an opaque body. The Windows drive-letter ambiguity that shape creates (<c>C:\repos\x</c> reads as
-/// host <c>C</c>) is resolved the same way git resolves it: a single-letter authority followed by a
-/// separator is a drive, not a host.
+/// (<c>git@host:path</c>) is not a URI and <see cref="Uri"/> mis-parses it as scheme <c>git</c>
+/// with an opaque body. The Windows drive-letter ambiguity that shape creates (<c>C:\repos\x</c>
+/// reads as host <c>C</c>) is resolved the same way git resolves it: a single-letter authority
+/// followed by a separator is a drive, not a host.
 /// </para>
 /// </remarks>
 public sealed record GitUrl {
@@ -70,14 +72,15 @@ public sealed record GitUrl {
     /// The authority's user, e.g. <c>git</c> in <c>git@host:x</c>.
     /// </summary>
     /// <remarks>
-    /// Deliberately excluded from <see cref="Identity"/>. On every forge that matters the SSH user is
-    /// a fixed protocol constant (<c>git@</c>), not a statement about which repository is meant --
-    /// treating it as identity would make one person's <c>gitlab@host:x</c> a different repository
-    /// from another's <c>git@host:x</c>.
+    /// Deliberately excluded from <see cref="Identity"/>. On every forge that matters the SSH user
+    /// is a fixed protocol constant (<c>git@</c>), not a statement about which repository is meant
+    /// -- treating it as identity would make one person's <c>gitlab@host:x</c> a different
+    /// repository from another's <c>git@host:x</c>.
     /// </remarks>
     public string? User { get; }
 
-    /// <summary>Lowercased: DNS is case-insensitive, so the casing carries no information.</summary>
+    /// <summary>Lowercased: DNS is case-insensitive, so the casing carries no
+    /// information.</summary>
     public string Host { get; }
 
     /// <summary>Null when the URL used the transport's default port, so <c>ssh://host:22/x</c> and
@@ -119,14 +122,15 @@ public sealed record GitUrl {
     /// <remarks>
     /// <see cref="GitTransport.Local"/> gets an identity nothing else can collide with. A path on
     /// this machine is not evidence about a remote, and the reverse inference -- deciding a local
-    /// clone "is" some origin -- is exactly what would let a graph walk quietly substitute somebody's
-    /// working copy for a pinned dependency.
+    /// clone "is" some origin -- is exactly what would let a graph walk quietly substitute
+    /// somebody's working copy for a pinned dependency.
     /// </remarks>
     public string Identity => Transport == GitTransport.Local
         ? "local:" + Original.Replace('\\', '/').TrimEnd('/')
         : Port is null
             ? Host + "/" + Path
-            : Host + ":" + Port.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/" + Path;
+            : Host + ":" + Port.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + "/" + Path;
 
     /// <summary>Whether both URLs name the same repository, whatever transport each uses.</summary>
     public bool SameRepositoryAs(GitUrl other) =>
@@ -140,16 +144,19 @@ public sealed record GitUrl {
     /// <para>Refuses in three cases, each for its own reason:</para>
     /// <list type="bullet">
     /// <item><description>Different hosts. A transport preference is a statement about how this
-    /// machine reaches <em>one</em> host -- credentials, keys and firewall rules are all per-host --
-    /// and generalising it to another host is not supported by any evidence.</description></item>
+    /// machine reaches <em>one</em> host -- credentials, keys and firewall rules are all per-host
+    /// -- and generalising it to another host is not supported by any
+    /// evidence.</description></item>
     /// <item><description>Either side is <see cref="GitTransport.Local"/>. There is no path from a
-    /// filesystem location to a remote URL, or back, that does not invent information.</description></item>
-    /// <item><description>The template carries an explicit non-default port. The port belongs to the
-    /// template's own path on that host, not necessarily to this repository.</description></item>
+    /// filesystem location to a remote URL, or back, that does not invent
+    /// information.</description></item>
+    /// <item><description>The template carries an explicit non-default port. The port belongs to
+    /// the template's own path on that host, not necessarily to this
+    /// repository.</description></item>
     /// </list>
-    /// <para>The rendered form mirrors the template's spelling -- scp-like versus <c>ssh://</c>, and
-    /// whether to write <c>.git</c> -- so a rewritten URL landing in a lockfile looks like the ones
-    /// the project wrote by hand rather than announcing itself as machine-generated.</para>
+    /// <para>The rendered form mirrors the template's spelling -- scp-like versus <c>ssh://</c>,
+    /// and whether to write <c>.git</c> -- so a rewritten URL landing in a lockfile looks like the
+    /// ones the project wrote by hand rather than announcing itself as machine-generated.</para>
     /// </remarks>
     public GitUrl WithTransportOf(GitUrl template) {
         if (Transport == template.Transport) {
@@ -176,14 +183,17 @@ public sealed record GitUrl {
             Path,
             template.HadGitSuffix,
             template.ScpLike,
-            original: Render(template.Transport, template.Transport == GitTransport.Ssh ? template.User ?? "git" : null, Host, Path, template.HadGitSuffix, template.ScpLike));
+            original: Render(template.Transport, template.Transport == GitTransport.Ssh
+                ? template.User ?? "git" : null, Host, Path, template.HadGitSuffix,
+                template.ScpLike));
     }
 
-    /// <summary>The URL as a string git will accept. Round-trips <see cref="Original"/> for anything
-    /// this type did not construct itself.</summary>
+    /// <summary>The URL as a string git will accept. Round-trips <see cref="Original"/> for
+    /// anything this type did not construct itself.</summary>
     public override string ToString() => Original;
 
-    private static string Render(GitTransport transport, string? user, string host, string path, bool gitSuffix, bool scpLike) {
+    private static string Render(GitTransport transport, string? user, string host, string path,
+        bool gitSuffix, bool scpLike) {
         var suffix = gitSuffix ? ".git" : string.Empty;
 
         if (transport == GitTransport.Ssh && scpLike) {
@@ -220,8 +230,8 @@ public sealed record GitUrl {
             : TryParseScpLikeOrLocal(trimmed, out url);
     }
 
-    /// <summary>Parses, or throws. For call sites that have already validated the URL and would only
-    /// wrap a false return in an exception anyway.</summary>
+    /// <summary>Parses, or throws. For call sites that have already validated the URL and would
+    /// only wrap a false return in an exception anyway.</summary>
     public static GitUrl Parse(string raw) =>
         TryParse(raw, out var url) && url is not null
             ? url
@@ -253,7 +263,8 @@ public sealed record GitUrl {
         }
 
         if (transport == GitTransport.Local) {
-            url = new GitUrl(GitTransport.Local, null, string.Empty, null, NormalizePath(rest, out _), false, false, raw);
+            url = new GitUrl(GitTransport.Local, null, string.Empty, null,
+                NormalizePath(rest, out _), false, false, raw);
             return true;
         }
 
@@ -261,7 +272,8 @@ public sealed record GitUrl {
         var authority = slashIndex < 0 ? rest : rest[..slashIndex];
         var pathPart = slashIndex < 0 ? string.Empty : rest[(slashIndex + 1)..];
 
-        if (!TryParseAuthority(authority, out var user, out var host, out var port) || host.Length == 0) {
+        if (!TryParseAuthority(authority, out var user, out var host, out var port)
+            || host.Length == 0) {
             return false;
         }
 
@@ -270,7 +282,8 @@ public sealed record GitUrl {
             return false;
         }
 
-        url = new GitUrl(transport.Value, user, host, NormalizePort(transport.Value, port), path, hadGitSuffix, false, raw);
+        url = new GitUrl(transport.Value, user, host, NormalizePort(transport.Value, port), path,
+            hadGitSuffix, false, raw);
         return true;
     }
 
@@ -287,8 +300,10 @@ public sealed record GitUrl {
         var beforeColon = raw[..colonIndex];
 
         // git's own disambiguation, in order:
-        //   "C:\repos\x" / "C:/repos/x" -> a Windows drive, because a one-letter host is not a thing.
-        //   "./sub:dir/x"               -> a path, because a real authority cannot contain a separator.
+        //   "C:\repos\x" / "C:/repos/x" -> a Windows drive, because a one-letter host is not a
+        // thing.
+        //   "./sub:dir/x"               -> a path, because a real authority cannot contain a
+        // separator.
         var isWindowsDrive = beforeColon.Length == 1
             && char.IsLetter(beforeColon[0])
             && colonIndex + 1 < raw.Length
@@ -301,7 +316,8 @@ public sealed record GitUrl {
             return true;
         }
 
-        if (!TryParseAuthority(beforeColon, out var user, out var host, out _) || host.Length == 0) {
+        if (!TryParseAuthority(beforeColon, out var user, out var host, out _)
+            || host.Length == 0) {
             return false;
         }
 
@@ -312,14 +328,17 @@ public sealed record GitUrl {
             return false;
         }
 
-        url = new GitUrl(GitTransport.Ssh, user, host, null, path, hadGitSuffix, scpLike: true, raw);
+        url = new GitUrl(GitTransport.Ssh, user, host, null, path, hadGitSuffix, scpLike: true,
+            raw);
         return true;
     }
 
     private static GitUrl Local(string raw) =>
-        new(GitTransport.Local, null, string.Empty, null, NormalizePath(raw, out _), false, false, raw);
+        new(GitTransport.Local, null, string.Empty, null, NormalizePath(raw, out _), false, false,
+            raw);
 
-    private static bool TryParseAuthority(string authority, out string? user, out string host, out int? port) {
+    private static bool TryParseAuthority(string authority, out string? user, out string host,
+        out int? port) {
         user = null;
         host = string.Empty;
         port = null;
@@ -339,7 +358,8 @@ public sealed record GitUrl {
         var colonIndex = authority.LastIndexOf(':');
         if (colonIndex >= 0) {
             var portText = authority[(colonIndex + 1)..];
-            if (!int.TryParse(portText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsedPort)) {
+            if (!int.TryParse(portText, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var parsedPort)) {
                 return false;
             }
 
@@ -376,7 +396,8 @@ public sealed record GitUrl {
             normalized = normalized.Replace("//", "/", StringComparison.Ordinal);
         }
 
-        if (normalized.EndsWith(".git", StringComparison.OrdinalIgnoreCase) && normalized.Length > 4) {
+        if (normalized.EndsWith(".git", StringComparison.OrdinalIgnoreCase)
+            && normalized.Length > 4) {
             hadGitSuffix = true;
             normalized = normalized[..^4];
         }

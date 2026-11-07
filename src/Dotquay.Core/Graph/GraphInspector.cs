@@ -8,10 +8,10 @@ using Dotquay.Core.Workflows;
 namespace Dotquay.Core.Graph;
 
 /// <summary>
-/// Builds a <see cref="GraphReport"/> — the read-only, whole-project view behind <c>dotquay graph</c>
-/// and the Godot editor plugin (SPEC.md §18). Strictly read-only: it never writes the manifest, the
-/// lockfile, or <c>addons/</c>. Mutations stay with <see cref="DependencyWorkflow"/> and
-/// <see cref="OverrideWorkflow"/>, so a panel that only looks at a project can never change it.
+/// Builds a <see cref="GraphReport"/> — the read-only, whole-project view behind <c>dotquay
+/// graph</c> and the Godot editor plugin (SPEC.md §18). Strictly read-only: it never writes the
+/// manifest, the lockfile, or <c>addons/</c>. Mutations stay with <see cref="DependencyWorkflow"/>
+/// and <see cref="OverrideWorkflow"/>, so a panel that only looks at a project can never change it.
 /// </summary>
 public sealed class GraphInspector {
     private readonly IFileSystem _fileSystem;
@@ -35,9 +35,9 @@ public sealed class GraphInspector {
     /// <summary>
     /// The fast path: reconstructs the graph from <c>dotquay.lock</c>'s recorded
     /// <see cref="LockedAddon.Dependencies"/> edges plus the manifest and disk. No network at all —
-    /// this is exactly the property SPEC.md §8 introduced those edges for ("install replays the graph
-    /// without network access to manifests"), applied to drawing it. The editor plugin opens with
-    /// this so the panel is never waiting on git.
+    /// this is exactly the property SPEC.md §8 introduced those edges for ("install replays the
+    /// graph without network access to manifests"), applied to drawing it. The editor plugin opens
+    /// with this so the panel is never waiting on git.
     /// </summary>
     public GraphReport Inspect(string projectDirectory) {
         var (manifest, _) = _projectFiles.ReadManifestOrThrow(projectDirectory);
@@ -91,7 +91,8 @@ public sealed class GraphInspector {
             RootNames = manifest.Addons.Keys.ToList(),
             Addons = nodes,
             Edges = BuildEdges(manifest.Addons.Keys, nodes),
-            Dotnet = BuildDotnetFromInstalledManifests(projectDirectory, manifest, lockfile, reachable),
+            Dotnet = BuildDotnetFromInstalledManifests(projectDirectory, manifest, lockfile,
+                reachable),
             Conflicts = [],
             Overrides = manifest.Overrides.Keys.ToList(),
         };
@@ -99,18 +100,22 @@ public sealed class GraphInspector {
 
     /// <summary>
     /// The slow path: re-walks the live graph (SPEC.md §8) so the report can name conflicts and the
-    /// candidate versions that would settle them. Still read-only — resolution here is a question, not
-    /// a commitment; nothing is installed and no lockfile is written, so a user can inspect a conflict
-    /// without the project changing underneath them.
+    /// candidate versions that would settle them. Still read-only — resolution here is a question,
+    /// not a commitment; nothing is installed and no lockfile is written, so a user can inspect a
+    /// conflict without the project changing underneath them.
     /// </summary>
-    public async Task<GraphReport> InspectResolvedAsync(string projectDirectory, CancellationToken cancellationToken = default) {
+    public async Task<GraphReport> InspectResolvedAsync(string projectDirectory,
+        CancellationToken cancellationToken = default) {
         var (manifest, _) = _projectFiles.ReadManifestOrThrow(projectDirectory);
         var (lockfile, _) = _projectFiles.ReadOrCreateLockfile(projectDirectory);
         var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
 
-        var discoveryRoot = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging", "graph-inspect");
-        var resolver = new DependencyGraphResolver(_fileSystem, _gitClient, _repoCache, discoveryRoot);
-        var analysis = await resolver.AnalyzeGraphAsync(manifest.Addons, manifest.Overrides, cancellationToken);
+        var discoveryRoot = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging",
+            "graph-inspect");
+        var resolver = new DependencyGraphResolver(_fileSystem, _gitClient, _repoCache,
+            discoveryRoot);
+        var analysis = await resolver.AnalyzeGraphAsync(manifest.Addons, manifest.Overrides,
+            cancellationToken);
 
         var nodes = new List<GraphNode>();
         foreach (var entry in analysis.Addons) {
@@ -122,38 +127,43 @@ public sealed class GraphInspector {
                 ResolvedSha = entry.Resolved.ResolvedSha,
                 Path = entry.Resolved.Path,
                 Folder = entry.Resolved.EffectiveFolder,
-                Origin = manifest.Addons.ContainsKey(entry.Resolved.Name) ? GraphNodeOrigin.Root : GraphNodeOrigin.Transitive,
+                Origin = manifest.Addons.ContainsKey(entry.Resolved.Name) ? GraphNodeOrigin.Root
+                : GraphNodeOrigin.Transitive,
                 SourceKind = SpecFor(entry.Resolved.Name, manifest)?.SourceKind,
                 Constraint = ConstraintFor(entry.Resolved.Name, manifest),
                 IsOverridden = manifest.Overrides.ContainsKey(entry.Resolved.Name),
                 IsPatched = locked?.PatchHash is not null,
-                // Only meaningful against a lockfile entry: without a recorded content hash there is
-                // nothing to call the tree on disk clean or dirty *relative to*.
-                Status = locked is null ? null : AddonStatusEvaluator.Evaluate(_fileSystem, projectDirectory, locked),
+                // Only meaningful against a lockfile entry: without a recorded content hash there
+                // is nothing to call the tree on disk clean or dirty *relative to*.
+                Status = locked is null ? null
+                    : AddonStatusEvaluator.Evaluate(_fileSystem, projectDirectory, locked),
                 Dependencies = entry.DependencyNames,
                 Requirements = RequirementsFor(entry.Resolved.Name, analysis),
             });
         }
 
-        // A conflicted name has no commit to show, but it must still appear as a node: it is the one
-        // the user needs to click on.
+        // A conflicted name has no commit to show, but it must still appear as a node: it is the
+        // one the user needs to click on.
         foreach (var conflict in analysis.Conflicts) {
             lockedByName.TryGetValue(conflict.AddonName, out var locked);
             nodes.Add(new GraphNode {
                 Name = conflict.AddonName,
-                Git = conflict.Requirements.Count > 0 ? conflict.Requirements[0].Git : locked?.Git ?? "",
+                Git = conflict.Requirements.Count > 0 ? conflict.Requirements[0].Git : locked?.Git
+                ?? "",
                 Version = null,
                 ResolvedSha = null,
                 Path = locked?.Path ?? $"addons/{conflict.AddonName}",
                 // A folder conflict is precisely a disagreement about this value, so there is no
                 // single answer to report — fall back to what is installed, or the name.
                 Folder = locked?.EffectiveFolder ?? conflict.AddonName,
-                Origin = manifest.Addons.ContainsKey(conflict.AddonName) ? GraphNodeOrigin.Root : GraphNodeOrigin.Transitive,
+                Origin = manifest.Addons.ContainsKey(conflict.AddonName) ? GraphNodeOrigin.Root
+                : GraphNodeOrigin.Transitive,
                 SourceKind = SpecFor(conflict.AddonName, manifest)?.SourceKind,
                 Constraint = ConstraintFor(conflict.AddonName, manifest),
                 IsOverridden = manifest.Overrides.ContainsKey(conflict.AddonName),
                 IsPatched = locked?.PatchHash is not null,
-                Status = locked is null ? null : AddonStatusEvaluator.Evaluate(_fileSystem, projectDirectory, locked),
+                Status = locked is null ? null
+                : AddonStatusEvaluator.Evaluate(_fileSystem, projectDirectory, locked),
                 Dependencies = [],
                 Requirements = conflict.Requirements,
             });
@@ -165,14 +175,16 @@ public sealed class GraphInspector {
             RootNames = manifest.Addons.Keys.ToList(),
             Addons = nodes,
             Edges = BuildEdges(manifest.Addons.Keys, nodes),
-            Dotnet = DotnetGraphBuilder.Build(manifest, lockfile, analysis.AddonDeclaredDotnet, analysis.DotnetPackagesByAddon),
+            Dotnet = DotnetGraphBuilder.Build(manifest, lockfile, analysis.AddonDeclaredDotnet,
+                analysis.DotnetPackagesByAddon),
             Conflicts = analysis.Conflicts,
             Warnings = analysis.Warnings,
             Overrides = manifest.Overrides.Keys.ToList(),
         };
     }
 
-    private static IReadOnlyList<GraphRequirement> RequirementsFor(string name, GraphAnalysis analysis) =>
+    private static IReadOnlyList<GraphRequirement> RequirementsFor(string name,
+        GraphAnalysis analysis) =>
         analysis.RequirementsByName.TryGetValue(name, out var requirements) ? requirements : [];
 
     private static AddonSpec? SpecFor(string name, ProjectManifest manifest) =>
@@ -185,15 +197,17 @@ public sealed class GraphInspector {
         return spec is null ? null : AddonRequirement.ConstraintText(spec);
     }
 
-    private static GraphNodeOrigin OriginOf(string name, ProjectManifest manifest, IReadOnlySet<string> reachable) =>
+    private static GraphNodeOrigin OriginOf(string name, ProjectManifest manifest,
+        IReadOnlySet<string> reachable) =>
         manifest.Addons.ContainsKey(name) ? GraphNodeOrigin.Root
         : reachable.Contains(name) ? GraphNodeOrigin.Transitive
         : GraphNodeOrigin.Orphan;
 
     /// <summary>Project→root edges plus every recorded parent→child edge, deduplicated. Edges to
-    /// names with no node are dropped: drawing a dangling arrow into nothing is worse than admitting
-    /// the child isn't in this picture.</summary>
-    private static IReadOnlyList<GraphEdge> BuildEdges(IEnumerable<string> rootNames, IReadOnlyList<GraphNode> nodes) {
+    /// names with no node are dropped: drawing a dangling arrow into nothing is worse than
+    /// admitting the child isn't in this picture.</summary>
+    private static IReadOnlyList<GraphEdge> BuildEdges(IEnumerable<string> rootNames,
+        IReadOnlyList<GraphNode> nodes) {
         var known = nodes.Select(n => n.Name).ToHashSet(StringComparer.Ordinal);
         var edges = new List<GraphEdge>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -224,7 +238,8 @@ public sealed class GraphInspector {
     /// for anything.
     /// </summary>
     private IReadOnlyList<GraphDotnetNode> BuildDotnetFromInstalledManifests(
-        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, IReadOnlySet<string> reachable) {
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile,
+        IReadOnlySet<string> reachable) {
         var declarations = _installedManifests.DotnetDeclarationsByAddon(
             projectDirectory, lockfile.Addons.Where(a => reachable.Contains(a.Name)));
         var (winners, packagesByAddon) = DotnetGraphBuilder.Flatten(declarations);
@@ -233,9 +248,10 @@ public sealed class GraphInspector {
     }
 
     /// <summary>BFS over the lockfile's own <see cref="LockedAddon.Dependencies"/> edges — the same
-    /// reachability rule <see cref="DependencyWorkflow.RemoveAsync"/> prunes with, used here to tell
-    /// a legitimately transitive addon apart from a leftover orphan.</summary>
-    private static HashSet<string> ReachableNames(DotquayLockfile lockfile, IEnumerable<string> rootNames) {
+    /// reachability rule <see cref="DependencyWorkflow.RemoveAsync"/> prunes with, used here to
+    /// tell a legitimately transitive addon apart from a leftover orphan.</summary>
+    private static HashSet<string> ReachableNames(DotquayLockfile lockfile,
+        IEnumerable<string> rootNames) {
         var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
         var reachable = new HashSet<string>(StringComparer.Ordinal);
         var queue = new Queue<string>();

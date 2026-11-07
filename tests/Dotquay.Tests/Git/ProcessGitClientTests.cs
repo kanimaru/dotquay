@@ -20,8 +20,16 @@ public class ProcessGitClientTests {
         var refs = ProcessGitClient.ParseRefs(output);
 
         Assert.Equal(2, refs.Count);
-        Assert.Contains(refs, r => r is { Name: "master", Kind: GitRefKind.Branch, CommitSha: "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d" });
-        Assert.Contains(refs, r => r is { Name: "v1.0.0", Kind: GitRefKind.Tag, CommitSha: "b1b3f9723831141a31a1a7252a213e216ea76e56" });
+        Assert.Contains(refs, r =>
+            r is {
+                Name: "master", Kind: GitRefKind.Branch,
+                CommitSha: "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d"
+            });
+        Assert.Contains(refs, r =>
+            r is {
+                Name: "v1.0.0", Kind: GitRefKind.Tag,
+                CommitSha: "b1b3f9723831141a31a1a7252a213e216ea76e56"
+            });
     }
 
     [Fact]

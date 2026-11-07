@@ -18,7 +18,8 @@ public class GodotVisibilityTests {
     [InlineData("my.godot-stuff/boot.gd", true)]
     [InlineData("game\\.cache\\boot.gd", false)]
     public void IsVisible_DotSegments_AreHidden(string relative, bool visible) =>
-        Assert.Equal(visible, new GodotVisibility(new InMemoryFileSystem(), Root).IsVisible(relative));
+        Assert.Equal(visible, new GodotVisibility(new InMemoryFileSystem(), Root)
+            .IsVisible(relative));
 
     [Fact]
     public void IsVisible_BelowAGdignore_IsHidden() {
@@ -33,10 +34,12 @@ public class GodotVisibilityTests {
 
     [Fact]
     public void IsVisible_TheGdignoredFolderItself_IsHidden() {
-        // Asked of a directory rather than a file: the folder that holds the .gdignore is hidden too.
+        // Asked of a directory rather than a file: the folder that holds the .gdignore is hidden
+        // too.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Root}/addons/parked/.gdignore", "");
 
-        Assert.False(new GodotVisibility(fileSystem, Root).IsVisible("addons/parked", isDirectory: true));
+        Assert.False(new GodotVisibility(fileSystem, Root)
+            .IsVisible("addons/parked", isDirectory: true));
     }
 }

@@ -14,13 +14,13 @@ namespace Dotquay.Tests.Resolve;
 /// </summary>
 /// <remarks>
 /// From a real setup failure. A project whose every declared URL was HTTPS pulled in a dependency
-/// declared <c>git@gitlab.kemomi.de:...</c> by an intermediate addon, so a developer with no SSH key
-/// -- and no host key in <c>known_hosts</c> -- could not install it. Nothing they could edit in their
-/// own manifest would have helped: the SSH URL lived in somebody else's repository.
+/// declared <c>git@gitlab.kemomi.de:...</c> by an intermediate addon, so a developer with no SSH
+/// key -- and no host key in <c>known_hosts</c> -- could not install it. Nothing they could edit in
+/// their own manifest would have helped: the SSH URL lived in somebody else's repository.
 /// <para>
 /// The fake git client is keyed by exact URL string, which makes these tests sharp: if the rewrite
-/// does not happen, the resolver looks up a URL nothing is configured for and resolution fails rather
-/// than quietly passing.
+/// does not happen, the resolver looks up a URL nothing is configured for and resolution fails
+/// rather than quietly passing.
 /// </para>
 /// </remarks>
 public class GitTransportInheritanceTests {
@@ -43,7 +43,8 @@ public class GitTransportInheritanceTests {
             .Select((tag, i) => new GitRef(tag, new string('a', 39) + i, GitRefKind.Tag))
             .ToList();
 
-    /// <summary>A leaf addon: resolvable, with a subtree to extract and no manifest of its own.</summary>
+    /// <summary>A leaf addon: resolvable, with a subtree to extract and no manifest of its
+    /// own.</summary>
     private static void SetUpLeaf(FakeGitClient gitClient, string url, string addonName) {
         SetTags(gitClient, url, "v1.0.0");
         gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string> {
@@ -51,9 +52,11 @@ public class GitTransportInheritanceTests {
         };
     }
 
-    /// <summary>An addon that declares one dependency, at whatever URL the test wants to inject.</summary>
+    /// <summary>An addon that declares one dependency, at whatever URL the test wants to
+    /// inject.</summary>
     private static void SetUpParentDeclaring(
-        FakeGitClient gitClient, string parentUrl, string parentName, string childName, string childUrl) {
+        FakeGitClient gitClient, string parentUrl, string parentName, string childName,
+        string childUrl) {
         SetTags(gitClient, parentUrl, "v1.0.0");
         gitClient.FetchedFilesByUrl[parentUrl] = new Dictionary<string, string> {
             [$"addons/{parentName}/plugin.cfg"] = "cfg",
@@ -71,7 +74,12 @@ public class GitTransportInheritanceTests {
     }
 
     private static Dictionary<string, AddonSpec> Root(string name, string url) => new() {
-        [name] = new AddonSpec { Name = name, Git = url, Version = "~1.0", Path = $"addons/{name}" },
+        [name] = new AddonSpec {
+            Name = name,
+            Git = url,
+            Version = "~1.0",
+            Path = $"addons/{name}"
+        },
     };
 
     // -----------------------------------------------------------------------------------------
@@ -84,7 +92,8 @@ public class GitTransportInheritanceTests {
         SetUpParentDeclaring(gitClient, VbeamiHttps, "vbeami", "mtoon-shader", MtoonSsh);
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
 
-        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps), new Dictionary<string, AddonSpec>());
+        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps),
+            new Dictionary<string, AddonSpec>());
 
         var mtoon = Assert.Single(result.Addons, entry => entry.Resolved.Name == "mtoon-shader");
         Assert.Equal(MtoonHttps, mtoon.Resolved.Git);
@@ -99,7 +108,8 @@ public class GitTransportInheritanceTests {
         SetUpParentDeclaring(gitClient, VbeamiSsh, "vbeami", "mtoon-shader", MtoonHttps);
         SetUpLeaf(gitClient, MtoonSsh, "mtoon-shader");
 
-        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiSsh), new Dictionary<string, AddonSpec>());
+        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiSsh),
+            new Dictionary<string, AddonSpec>());
 
         var mtoon = Assert.Single(result.Addons, entry => entry.Resolved.Name == "mtoon-shader");
         Assert.Equal(MtoonSsh, mtoon.Resolved.Git);
@@ -107,15 +117,17 @@ public class GitTransportInheritanceTests {
 
     [Fact]
     public async Task ARewriteIsWarnedAbout_NotDoneQuietly() {
-        // The lockfile ends up naming a URL that appears in no manifest anywhere. Finding that out by
-        // diffing the lockfile against somebody else's dotquay.toml is not a reasonable ask.
+        // The lockfile ends up naming a URL that appears in no manifest anywhere. Finding that out
+        // by diffing the lockfile against somebody else's dotquay.toml is not a reasonable ask.
         var (resolver, gitClient) = Build();
         SetUpParentDeclaring(gitClient, VbeamiHttps, "vbeami", "mtoon-shader", MtoonSsh);
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
 
-        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps), new Dictionary<string, AddonSpec>());
+        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps),
+            new Dictionary<string, AddonSpec>());
 
-        var warning = Assert.Single(result.Warnings, w => w.Kind == GraphWarningKind.GitTransportRewritten);
+        var warning = Assert.Single(result.Warnings, w =>
+            w.Kind == GraphWarningKind.GitTransportRewritten);
         Assert.Equal("mtoon-shader", warning.AddonName);
         Assert.Contains("vbeami", warning.Message, StringComparison.Ordinal);
         Assert.Contains(MtoonSsh, warning.Message, StringComparison.Ordinal);
@@ -128,9 +140,11 @@ public class GitTransportInheritanceTests {
         SetUpParentDeclaring(gitClient, VbeamiHttps, "vbeami", "mtoon-shader", MtoonHttps);
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
 
-        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps), new Dictionary<string, AddonSpec>());
+        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps),
+            new Dictionary<string, AddonSpec>());
 
-        Assert.DoesNotContain(result.Warnings, w => w.Kind == GraphWarningKind.GitTransportRewritten);
+        Assert.DoesNotContain(result.Warnings, w =>
+            w.Kind == GraphWarningKind.GitTransportRewritten);
     }
 
     // -----------------------------------------------------------------------------------------
@@ -139,23 +153,25 @@ public class GitTransportInheritanceTests {
 
     [Fact]
     public async Task AHostTheProjectNeverDescribed_IsLeftAlone() {
-        // The project speaks HTTPS to gitlab.kemomi.de. That is not evidence about github.com, where
-        // an SSH URL may be the only one that works for this user.
+        // The project speaks HTTPS to gitlab.kemomi.de. That is not evidence about github.com,
+        // where an SSH URL may be the only one that works for this user.
         var (resolver, gitClient) = Build();
         SetUpParentDeclaring(gitClient, VbeamiHttps, "vbeami", "gut", GutSsh);
         SetUpLeaf(gitClient, GutSsh, "gut");
 
-        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps), new Dictionary<string, AddonSpec>());
+        var result = await resolver.ResolveGraphAsync(Root("vbeami", VbeamiHttps),
+            new Dictionary<string, AddonSpec>());
 
         var gut = Assert.Single(result.Addons, entry => entry.Resolved.Name == "gut");
         Assert.Equal(GutSsh, gut.Resolved.Git);
-        Assert.DoesNotContain(result.Warnings, w => w.Kind == GraphWarningKind.GitTransportRewritten);
+        Assert.DoesNotContain(result.Warnings, w =>
+            w.Kind == GraphWarningKind.GitTransportRewritten);
     }
 
     [Fact]
     public async Task AnOverride_CountsAsTheProjectSpeaking() {
-        // An override is the project's own statement about a dependency, in the project's own voice,
-        // so it is evidence about a host exactly like an [addons.*] entry is.
+        // An override is the project's own statement about a dependency, in the project's own
+        // voice, so it is evidence about a host exactly like an [addons.*] entry is.
         //
         // Constructed so the override is the *only* evidence that can decide: the single root addon
         // lives on github, leaving gitlab.kemomi.de undescribed by [addons.*]. The override names a
@@ -190,13 +206,26 @@ public class GitTransportInheritanceTests {
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
 
         var rootAddons = new Dictionary<string, AddonSpec> {
-            ["vbeami"] = new AddonSpec { Name = "vbeami", Git = VbeamiSsh, Version = "~1.0", Path = "addons/vbeami" },
-            ["mtoon-shader"] = new AddonSpec { Name = "mtoon-shader", Git = MtoonHttps, Version = "~1.0", Path = "addons/mtoon-shader" },
+            ["vbeami"] = new AddonSpec {
+                Name = "vbeami",
+                Git = VbeamiSsh,
+                Version = "~1.0",
+                Path = "addons/vbeami"
+            },
+            ["mtoon-shader"] = new AddonSpec {
+                Name = "mtoon-shader",
+                Git = MtoonHttps,
+                Version = "~1.0",
+                Path = "addons/mtoon-shader"
+            },
         };
 
-        var result = await resolver.ResolveGraphAsync(rootAddons, new Dictionary<string, AddonSpec>());
+        var result = await resolver.ResolveGraphAsync(rootAddons,
+            new Dictionary<string, AddonSpec>());
 
-        Assert.Equal(VbeamiSsh, Assert.Single(result.Addons, e => e.Resolved.Name == "vbeami").Resolved.Git);
-        Assert.Equal(MtoonHttps, Assert.Single(result.Addons, e => e.Resolved.Name == "mtoon-shader").Resolved.Git);
+        Assert.Equal(VbeamiSsh, Assert.Single(result.Addons, e => e.Resolved.Name == "vbeami")
+            .Resolved.Git);
+        Assert.Equal(MtoonHttps,
+            Assert.Single(result.Addons, e => e.Resolved.Name == "mtoon-shader").Resolved.Git);
     }
 }

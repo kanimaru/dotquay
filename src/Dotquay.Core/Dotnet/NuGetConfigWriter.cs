@@ -17,11 +17,13 @@ namespace Dotquay.Core.Dotnet;
 /// is threaded through as <c>NuGetPackageSourceCredentials_*</c> environment variables on the
 /// <c>dotnet restore</c> child process instead (see <see cref="DotnetInstaller"/>), which NuGet
 /// resolves at restore time without anything touching disk. Confirmed against Microsoft's own docs
-/// (learn.microsoft.com/en-us/nuget/consume-packages/consuming-packages-authenticated-feeds).</para>
+/// (learn.microsoft.com/en-us/nuget/consume-packages/consuming-packages-authenticated-feeds).
+/// </para>
 /// </remarks>
 public static class NuGetConfigWriter {
     /// <summary>The key the pre-v0.7 single-source form used, preserved for the source named
-    /// <see cref="NuGetSourceSpec.LegacyName"/> so upgrading doesn't rewrite existing files.</summary>
+    /// <see cref="NuGetSourceSpec.LegacyName"/> so upgrading doesn't rewrite existing
+    /// files.</summary>
     public const string DotquaySourceName = "dotquay";
 
     private const string ConfigFileName = "NuGet.Config";
@@ -32,9 +34,9 @@ public static class NuGetConfigWriter {
     /// accepted, since NuGet itself doesn't care and dotquay shouldn't create a second file next to
     /// one that's already there.
     /// </summary>
-    /// <param name="pinnedPackages">Package ID to source name, from <c>[dotnet.*] source = "..."</c>.
-    /// Drives <c>&lt;packageSourceMapping&gt;</c>; empty still emits the catch-all mapping when
-    /// <paramref name="writeSourceMapping"/> is set.</param>
+    /// <param name="pinnedPackages">Package ID to source name, from <c>[dotnet.*] source =
+    /// "..."</c>. Drives <c>&lt;packageSourceMapping&gt;</c>; empty still emits the catch-all
+    /// mapping when <paramref name="writeSourceMapping"/> is set.</param>
     /// <param name="writeSourceMapping">The project's <c>[nuget] source_mapping</c>.</param>
     public static void EnsureSources(
         IFileSystem fileSystem,
@@ -54,7 +56,8 @@ public static class NuGetConfigWriter {
         WritePackageSources(configuration, declared, writeSourceMapping);
 
         if (writeSourceMapping && declared.Count > 0) {
-            WritePackageSourceMapping(configuration, declared, pinnedPackages ?? new Dictionary<string, string>());
+            WritePackageSourceMapping(configuration, declared, pinnedPackages
+                ?? new Dictionary<string, string>());
         }
 
         fileSystem.WriteAllText(path, document.ToString(SaveOptions.None) + Environment.NewLine);
@@ -68,7 +71,8 @@ public static class NuGetConfigWriter {
         try {
             return XDocument.Parse(fileSystem.ReadAllText(path));
         } catch (System.Xml.XmlException ex) {
-            throw new DotnetSyncException($"{path}: not valid XML.{Environment.NewLine}{ex.Message}", ex);
+            throw new DotnetSyncException($"{path}: not valid "
+                + $"XML.{Environment.NewLine}{ex.Message}", ex);
         }
     }
 
@@ -85,7 +89,8 @@ public static class NuGetConfigWriter {
     /// </remarks>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadSourceMapping(
         IFileSystem fileSystem, string projectDirectory) {
-        var mapped = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        var mapped = new Dictionary<string,
+            IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var path = ResolvePath(fileSystem, projectDirectory);
 
         if (!fileSystem.FileExists(path)) {
@@ -129,7 +134,8 @@ public static class NuGetConfigWriter {
     }
 
     /// <summary>
-    /// Syncs the <c>&lt;packageSources&gt;</c> entries dotquay owns, adding, updating, and removing.
+    /// Syncs the <c>&lt;packageSources&gt;</c> entries dotquay owns, adding, updating, and
+    /// removing.
     /// </summary>
     /// <remarks>
     /// Pruning matters as much as adding: a feed deleted from <c>dotquay.toml</c> that stayed in
@@ -144,7 +150,8 @@ public static class NuGetConfigWriter {
             configuration.Add(packageSources);
         }
 
-        var wanted = declared.ToDictionary(source => source.ConfigKey, source => source.Url, StringComparer.OrdinalIgnoreCase);
+        var wanted = declared.ToDictionary(source => source.ConfigKey, source => source.Url,
+            StringComparer.OrdinalIgnoreCase);
 
         // A mapping element makes NuGet ignore every source that has no pattern, so the catch-all
         // needs a nuget.org entry to point at. It cannot be inherited from machine-level config: a
@@ -155,19 +162,23 @@ public static class NuGetConfigWriter {
 
         foreach (var stale in packageSources.Elements("add")
                      .Where(element => IsOwnedKey((string?)element.Attribute("key"))
-                                       && !wanted.ContainsKey((string?)element.Attribute("key") ?? string.Empty))
+                                       && !wanted.ContainsKey((string?)element.Attribute("key")
+                                           ?? string.Empty))
                      .ToList()) {
             stale.Remove();
         }
 
         foreach (var (key, url) in wanted) {
             var existing = packageSources.Elements("add")
-                .FirstOrDefault(element => string.Equals((string?)element.Attribute("key"), key, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(element =>
+                    string.Equals((string?)element.Attribute("key"), key,
+                        StringComparison.OrdinalIgnoreCase));
 
             if (existing is not null) {
                 existing.SetAttributeValue("value", url);
             } else {
-                packageSources.Add(new XElement("add", new XAttribute("key", key), new XAttribute("value", url)));
+                packageSources.Add(new XElement("add", new XAttribute("key", key),
+                    new XAttribute("value", url)));
             }
         }
     }
@@ -180,8 +191,8 @@ public static class NuGetConfigWriter {
     /// Without this, multi-feed support is a report rather than a guarantee — dotquay would say
     /// "resolved from core" while restore independently searched every source and could take a
     /// same-named package from nuget.org. The <c>*</c> catch-all is mandatory, not a nicety:
-    /// <c>packageSourceMapping</c> is all-or-nothing per config, and any package matching no pattern
-    /// fails restore outright with <c>NU1100</c>.
+    /// <c>packageSourceMapping</c> is all-or-nothing per config, and any package matching no
+    /// pattern fails restore outright with <c>NU1100</c>.
     /// </remarks>
     private static void WritePackageSourceMapping(
         XElement configuration,
@@ -205,7 +216,8 @@ public static class NuGetConfigWriter {
             mapping.Add(new XElement(
                 "packageSource",
                 new XAttribute("key", source.ConfigKey),
-                patterns.Select(pattern => new XElement("package", new XAttribute("pattern", pattern)))));
+                patterns.Select(pattern =>
+                    new XElement("package", new XAttribute("pattern", pattern)))));
         }
 
         mapping.Add(new XElement(
@@ -221,5 +233,6 @@ public static class NuGetConfigWriter {
     private static bool IsOwnedKey(string? key) =>
         key is not null
         && (string.Equals(key, DotquaySourceName, StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith(NuGetSourceSpec.ConfigKeyPrefix + "-", StringComparison.OrdinalIgnoreCase));
+            || key.StartsWith(NuGetSourceSpec.ConfigKeyPrefix + "-",
+                StringComparison.OrdinalIgnoreCase));
 }

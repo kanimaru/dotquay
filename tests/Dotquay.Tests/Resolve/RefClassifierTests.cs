@@ -11,9 +11,9 @@ namespace Dotquay.Tests.Resolve;
 /// </summary>
 /// <remarks>
 /// Asks the remote rather than pattern-matching the string, because guessing would be wrong often
-/// enough to matter: <c>1.0</c> is a plausible branch name and <c>release</c> is a plausible tag. The
-/// cost of guessing wrong is a manifest entry that tracks a moving branch when the user meant a fixed
-/// tag, or the reverse — both silent.
+/// enough to matter: <c>1.0</c> is a plausible branch name and <c>release</c> is a plausible tag.
+/// The cost of guessing wrong is a manifest entry that tracks a moving branch when the user meant a
+/// fixed tag, or the reverse — both silent.
 /// </remarks>
 public class RefClassifierTests {
     private const string RepoUrl = "https://example.com/addon.git";
@@ -38,7 +38,8 @@ public class RefClassifierTests {
 
     [Fact]
     public async Task ClassifyAsync_ATagName_IsAnExactVersion() {
-        var classified = await Build(Branch("main"), Tag("v1.0.0")).ClassifyAsync(RepoUrl, "v1.0.0");
+        var classified = await Build(Branch("main"), Tag("v1.0.0"))
+            .ClassifyAsync(RepoUrl, "v1.0.0");
 
         // Exact, not widened to "~1.0": naming one tag is a request for that tag, and broadening it
         // would silently install something the user never typed.
@@ -68,16 +69,18 @@ public class RefClassifierTests {
 
     [Fact]
     public async Task ClassifyAsync_BranchWinsOverASameNamedTag() {
-        var classified = await Build(Branch("release"), Tag("release")).ClassifyAsync(RepoUrl, "release");
+        var classified = await Build(Branch("release"), Tag("release"))
+            .ClassifyAsync(RepoUrl, "release");
 
-        // Repositories really do carry both. Someone typing "#release" almost always means the branch.
+        // Repositories really do carry both. Someone typing "#release" almost always means the
+        // branch.
         Assert.Equal(AddonSourceKind.Branch, classified.Kind);
     }
 
     [Fact]
     public async Task ClassifyAsync_ANumericBranchName_IsStillABranch() {
-        // The case a string-shaped guess gets wrong: "1.0" looks like a version but is a real branch
-        // naming convention.
+        // The case a string-shaped guess gets wrong: "1.0" looks like a version but is a real
+        // branch naming convention.
         var classified = await Build(Branch("1.0")).ClassifyAsync(RepoUrl, "1.0");
 
         Assert.Equal(AddonSourceKind.Branch, classified.Kind);
@@ -105,6 +108,7 @@ public class RefClassifierTests {
 
     [Fact]
     public async Task ClassifyAsync_EmptyRef_Throws() {
-        await Assert.ThrowsAsync<AddonResolutionException>(() => Build(Branch("main")).ClassifyAsync(RepoUrl, "  "));
+        await Assert.ThrowsAsync<AddonResolutionException>(() => Build(Branch("main"))
+            .ClassifyAsync(RepoUrl, "  "));
     }
 }

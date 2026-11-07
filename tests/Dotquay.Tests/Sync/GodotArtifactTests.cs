@@ -58,8 +58,8 @@ public class GodotArtifactTests {
 
     [Fact]
     public void HashDirectory_IsUnchangedByTheEditorLoadingAGdExtension() {
-        // The bug, reduced: the editor loads GDMP.windows.dll by copying it to ~GDMP.windows.dll and
-        // loading the copy, so an untouched addon grew a 13 MB file and read as modified.
+        // The bug, reduced: the editor loads GDMP.windows.dll by copying it to ~GDMP.windows.dll
+        // and loading the copy, so an untouched addon grew a 13 MB file and read as modified.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/GDMP/libs/x86_64/GDMP.windows.dll", "native library");
 
@@ -91,8 +91,9 @@ public class GodotArtifactTests {
 
     [Fact]
     public void HashDirectory_IsUnchangedByTheEditorImportingTheProject() {
-        // The bug, reduced: an addon installs clean, Godot opens the project, and every script grows
-        // a .uid sidecar. Nothing the user did, but the folder used to hash differently afterwards.
+        // The bug, reduced: an addon installs clean, Godot opens the project, and every script
+        // grows a .uid sidecar. Nothing the user did, but the folder used to hash differently
+        // afterwards.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/r3/GodotFrameProvider.cs", "class GodotFrameProvider {}");
 
@@ -124,7 +125,8 @@ public class GodotArtifactTests {
         var before = ContentHasher.HashDirectoryIncludingArtifacts(fileSystem, "addons/r3");
         fileSystem.WriteAllText("addons/r3/GodotFrameProvider.cs.uid", "uid://bxwpwbdv4fm02");
 
-        Assert.NotEqual(before, ContentHasher.HashDirectoryIncludingArtifacts(fileSystem, "addons/r3"));
+        Assert.NotEqual(before,
+            ContentHasher.HashDirectoryIncludingArtifacts(fileSystem, "addons/r3"));
     }
 
     // -- the migration ----------------------------------------------------------------------
@@ -132,8 +134,8 @@ public class GodotArtifactTests {
     [Fact]
     public void Check_LockfileHashFromBeforeTheChange_IsStillClean() {
         // An addon that ships its own .uid files had them folded into the hash recorded at install
-        // time. Excluding them now changes that number — on content nobody touched — so the old form
-        // has to keep counting as clean.
+        // time. Excluding them now changes that number — on content nobody touched — so the old
+        // form has to keep counting as clean.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/gut/gut.gd", "extends Node");
         fileSystem.WriteAllText("addons/gut/gut.gd.uid", "uid://shipped-by-the-addon");
@@ -145,7 +147,8 @@ public class GodotArtifactTests {
         Assert.False(result.IsDirty);
 
         // ...and the caller records the current form, so the addon migrates on its next install.
-        Assert.Equal(ContentHasher.HashDirectory(fileSystem, "addons/gut"), result.ActualContentHash);
+        Assert.Equal(ContentHasher.HashDirectory(fileSystem, "addons/gut"),
+            result.ActualContentHash);
     }
 
     [Fact]
@@ -162,14 +165,15 @@ public class GodotArtifactTests {
 
     [Fact]
     public void SwapAndHash_RecordedHashReconcilesWithNothing_ButTheTreeIsPristine_IsAllowed() {
-        // The real case, from a real project. Gut ships its own .uid files, so they were folded into
-        // the hash recorded at install; Godot then rewrote its .import files. Neither the current nor
-        // the legacy hash can match any more, on content byte-identical to upstream. Comparing
-        // numbers cannot resolve that, so the swap compares trees instead.
+        // The real case, from a real project. Gut ships its own .uid files, so they were folded
+        // into the hash recorded at install; Godot then rewrote its .import files. Neither the
+        // current nor the legacy hash can match any more, on content byte-identical to upstream.
+        // Comparing numbers cannot resolve that, so the swap compares trees instead.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/gut/gut.gd", "extends Node");
         fileSystem.WriteAllText("addons/gut/gut.gd.uid", "uid://shipped-by-the-addon");
-        fileSystem.WriteAllText("addons/gut/icon.png.import", "[remap]\nuid=\"uid://rewritten-by-godot\"");
+        fileSystem.WriteAllText("addons/gut/icon.png.import",
+            "[remap]\nuid=\"uid://rewritten-by-godot\"");
 
         fileSystem.WriteAllText("staging/gut.gd", "extends Node");
         fileSystem.WriteAllText("staging/gut.gd.uid", "uid://shipped-by-the-addon");
@@ -177,7 +181,8 @@ public class GodotArtifactTests {
 
         var unreconcilable = "sha256:whatever-was-recorded-at-install-time";
 
-        var hash = new SyncEngine(fileSystem).SwapAndHash("staging", "addons/gut", unreconcilable, force: false);
+        var hash = new SyncEngine(fileSystem)
+            .SwapAndHash("staging", "addons/gut", unreconcilable, force: false);
 
         // Allowed without --force, and the returned hash re-baselines the lockfile so the addon
         // self-heals rather than needing this acquittal again.
@@ -193,7 +198,8 @@ public class GodotArtifactTests {
         fileSystem.WriteAllText("staging/gut.gd", "extends Node");
 
         Assert.Throws<ModifiedAddonException>(() =>
-            new SyncEngine(fileSystem).SwapAndHash("staging", "addons/gut", "sha256:stale", force: false));
+            new SyncEngine(fileSystem)
+            .SwapAndHash("staging", "addons/gut", "sha256:stale", force: false));
 
         Assert.Equal("extends Node # my edit", fileSystem.ReadAllText("addons/gut/gut.gd"));
     }
@@ -214,7 +220,8 @@ public class GodotArtifactTests {
         new SyncEngine(fileSystem).SwapAndHash("staging", "addons/r3", installed, force: false);
 
         Assert.Equal("v2", fileSystem.ReadAllText("addons/r3/GodotFrameProvider.cs"));
-        Assert.Equal("uid://generated-locally", fileSystem.ReadAllText("addons/r3/GodotFrameProvider.cs.uid"));
+        Assert.Equal("uid://generated-locally",
+            fileSystem.ReadAllText("addons/r3/GodotFrameProvider.cs.uid"));
     }
 
     [Fact]
@@ -273,7 +280,8 @@ public class GodotArtifactTests {
 
         fileSystem.WriteAllText("staging/frame.cs", "v2");
 
-        var hash = new SyncEngine(fileSystem).SwapAndHash("staging", "addons/r3", installed, force: false);
+        var hash = new SyncEngine(fileSystem)
+            .SwapAndHash("staging", "addons/r3", installed, force: false);
 
         var clean = new InMemoryFileSystem();
         clean.WriteAllText("addons/r3/frame.cs", "v2");

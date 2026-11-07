@@ -9,14 +9,16 @@ namespace Dotquay.Tests.Sync;
 /// The recorded content hash must not depend on which machine installed the addon.
 /// </summary>
 /// <remarks>
-/// git rewrites line endings per machine, so one commit is CRLF on a Windows box and LF on Linux or macOS. The
-/// hash used to be taken over the files as git wrote them, so the same addon at the same commit had a different
-/// <c>content_hash</c> for each person who installed it, and every install on a machine that disagreed with the
-/// last one rewrote the lockfile. See <see cref="ContentHasher"/>.
+/// git rewrites line endings per machine, so one commit is CRLF on a Windows box and LF on Linux or
+/// macOS. The hash used to be taken over the files as git wrote them, so the same addon at the same
+/// commit had a different <c>content_hash</c> for each person who installed it, and every install
+/// on a machine that disagreed with the last one rewrote the lockfile. See
+/// <see cref="ContentHasher"/>.
 /// </remarks>
 public class LineEndingHashTests {
     private const string Script = "extends Node\nfunc _ready():\n\tprint(\"hi\")\n";
-    private static byte[] Binary => [0x7f, 0x45, 0x4c, 0x46, 0x00, 0x0d, 0x0a, 0x00, 0x01, 0x0d, 0x0a];
+    private static byte[] Binary =>
+        [0x7f, 0x45, 0x4c, 0x46, 0x00, 0x0d, 0x0a, 0x00, 0x01, 0x0d, 0x0a];
 
     private static string Crlf(string s) => s.Replace("\n", "\r\n");
 
@@ -40,7 +42,8 @@ public class LineEndingHashTests {
     public void TheSameCommit_HashesTheSame_WhateverTheMachinesLineEndings() {
         var (unix, windows) = TwoMachines();
 
-        Assert.Equal(ContentHasher.HashDirectory(unix, "a"), ContentHasher.HashDirectory(windows, "a"));
+        Assert.Equal(ContentHasher.HashDirectory(unix, "a"),
+            ContentHasher.HashDirectory(windows, "a"));
     }
 
     [Fact]
@@ -48,7 +51,8 @@ public class LineEndingHashTests {
         var (unix, windows) = TwoMachines();
         windows.WriteAllText("a/x.gd", Crlf(Script.Replace("hi", "bye")));
 
-        Assert.NotEqual(ContentHasher.HashDirectory(unix, "a"), ContentHasher.HashDirectory(windows, "a"));
+        Assert.NotEqual(ContentHasher.HashDirectory(unix, "a"),
+            ContentHasher.HashDirectory(windows, "a"));
     }
 
     [Fact]
@@ -62,7 +66,8 @@ public class LineEndingHashTests {
         edited[9] = 0x20; // 0x0d -> space, inside a file that has NUL bytes
         changed.WriteAllBytes("a/lib.dll", edited);
 
-        Assert.NotEqual(ContentHasher.HashDirectory(unix, "a"), ContentHasher.HashDirectory(changed, "a"));
+        Assert.NotEqual(ContentHasher.HashDirectory(unix, "a"),
+            ContentHasher.HashDirectory(changed, "a"));
     }
 
     [Fact]
@@ -87,11 +92,13 @@ public class LineEndingHashTests {
 
     [Fact]
     public void TheCanonicalHash_OnALineFeedMachine_IsTheHashEveryOlderDotquayRecordedThere() {
-        // The reason nothing needs migrating on Linux and macOS: their old hashes ARE the canonical ones.
+        // The reason nothing needs migrating on Linux and macOS: their old hashes ARE the canonical
+        // ones.
         var (unix, _) = TwoMachines();
         var tree = ContentHasher.HashTree(unix, "a");
 
-        Assert.Equal(tree.Canonical, ContentHasher.HashDirectoryIncludingArtifacts(unix, "a")); // no editor files here
+        // no editor files here
+        Assert.Equal(tree.Canonical, ContentHasher.HashDirectoryIncludingArtifacts(unix, "a"));
     }
 
     // ---- the lockfile's old values still count as unedited ------------------------------------
@@ -99,15 +106,20 @@ public class LineEndingHashTests {
     [Fact]
     public void ALockfileWrittenOnWindows_IsCleanOnALinuxCheckout_AndTheOtherWayRound() {
         var (unix, windows) = TwoMachines();
-        // What the OLD dotquay recorded on each: the files exactly as that machine's git wrote them.
+        // What the OLD dotquay recorded on each: the files exactly as that machine's git wrote
+        // them.
         var recordedOnWindows = ContentHasher.HashDirectoryIncludingArtifacts(windows, "a");
         var recordedOnUnix = ContentHasher.HashDirectoryIncludingArtifacts(unix, "a");
         Assert.NotEqual(recordedOnWindows, recordedOnUnix); // the bug, stated
 
-        Assert.False(DirtyChecker.Check(unix, "a", recordedOnWindows).IsDirty, "a Windows lockfile on a Linux checkout");
-        Assert.False(DirtyChecker.Check(windows, "a", recordedOnUnix).IsDirty, "a Linux lockfile on a Windows checkout");
-        Assert.False(DirtyChecker.Check(windows, "a", recordedOnWindows).IsDirty, "and the plain case still works");
-        Assert.False(DirtyChecker.Check(unix, "a", recordedOnUnix).IsDirty, "and the plain case still works");
+        Assert.False(DirtyChecker.Check(unix, "a", recordedOnWindows).IsDirty,
+            "a Windows lockfile on a Linux checkout");
+        Assert.False(DirtyChecker.Check(windows, "a", recordedOnUnix).IsDirty,
+            "a Linux lockfile on a Windows checkout");
+        Assert.False(DirtyChecker.Check(windows, "a", recordedOnWindows).IsDirty,
+            "and the plain case still works");
+        Assert.False(DirtyChecker.Check(unix, "a", recordedOnUnix).IsDirty,
+            "and the plain case still works");
     }
 
     [Fact]
@@ -131,7 +143,8 @@ public class LineEndingHashTests {
         windows.WriteAllText("a/x.gd", Crlf(Script.Replace("hi", "tampered")));
 
         foreach (var recorded in kinds) {
-            Assert.True(DirtyChecker.Check(windows, "a", recorded).IsDirty, $"edit must show against {recorded[..16]}");
+            Assert.True(DirtyChecker.Check(windows, "a", recorded).IsDirty,
+                $"edit must show against {recorded[..16]}");
         }
     }
 
@@ -164,14 +177,17 @@ public class LineEndingHashTests {
         var recordedOnWindows = ContentHasher.HashDirectoryIncludingArtifacts(windows, "a");
         Assert.NotEqual(recordedOnWindows, ContentHasher.HashDirectory(unix, "a"));
 
-        // A Linux machine installs the same commit over its own copy, from a lockfile written on Windows.
+        // A Linux machine installs the same commit over its own copy, from a lockfile written on
+        // Windows.
         unix.WriteAllText("staging/plugin.cfg", "[plugin]\nname=\"x\"\n");
         unix.WriteAllText("staging/x.gd", Script);
         unix.WriteAllBytes("staging/lib.dll", Binary);
 
-        var recorded = new SyncEngine(unix).SwapAndHash("staging", "a", recordedOnWindows, force: false);
+        var recorded = new SyncEngine(unix)
+            .SwapAndHash("staging", "a", recordedOnWindows, force: false);
 
-        Assert.Equal(recordedOnWindows, recorded); // the lockfile line does not change, so it cannot flip back
+        // the lockfile line does not change, so it cannot flip back
+        Assert.Equal(recordedOnWindows, recorded);
     }
 
     [Fact]
@@ -196,7 +212,8 @@ public class LineEndingHashTests {
         windows.WriteAllText("staging/x.gd", Crlf(Script));
         windows.WriteAllBytes("staging/lib.dll", Binary);
 
-        var onWindows = new SyncEngine(windows).SwapAndHash("staging", "a", expectedContentHash: null, force: false);
+        var onWindows = new SyncEngine(windows)
+            .SwapAndHash("staging", "a", expectedContentHash: null, force: false);
 
         Assert.Equal(ContentHasher.HashDirectory(unix, "a"), onWindows);
     }

@@ -1,7 +1,8 @@
 namespace Dotquay.Core.Diagnostics;
 
 /// <summary>
-/// How much dotquay says about its own work, on stderr, for debugging (docs/DESIGN-v0.24-VERBOSE.md).
+/// How much dotquay says about its own work, on stderr, for debugging
+/// (docs/DESIGN-v0.24-VERBOSE.md).
 /// </summary>
 /// <remarks>
 /// Ordered on purpose: each level includes everything the levels below it say, so a check is always

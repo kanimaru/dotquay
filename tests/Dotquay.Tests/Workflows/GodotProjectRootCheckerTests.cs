@@ -10,8 +10,8 @@ namespace Dotquay.Tests.Workflows;
 /// </summary>
 /// <remarks>
 /// Pinned by a real incident (2026-09-18): vrm-addon moved its plugin from the repository root to
-/// <c>addons/vrm</c>, vbeami's package manifest kept saying <c>path = "."</c>, and every consumer got
-/// the whole vrm-addon repository installed under <c>addons/vrm</c> with nothing reporting why.
+/// <c>addons/vrm</c>, vbeami's package manifest kept saying <c>path = "."</c>, and every consumer
+/// got the whole vrm-addon repository installed under <c>addons/vrm</c> with nothing reporting why.
 /// </remarks>
 public class GodotProjectRootCheckerTests {
     private const string Tree = "staging/vrm";
@@ -31,7 +31,8 @@ public class GodotProjectRootCheckerTests {
 
     [Fact]
     public void Check_ProjectRootWithTheAddonNestedInside_IsReported() {
-        var fileSystem = TreeWith("project.godot", "addons/vrm/plugin.cfg", "addons/vrm/vrm_plugin.gd");
+        var fileSystem = TreeWith("project.godot", "addons/vrm/plugin.cfg",
+            "addons/vrm/vrm_plugin.gd");
 
         var finding = GodotProjectRootChecker.Check(fileSystem, Tree, "vrm");
 
@@ -60,9 +61,9 @@ public class GodotProjectRootCheckerTests {
 
     [Fact]
     public void Check_PlainContentFolderWithNeitherMarker_IsLeftAlone() {
-        // A shader pack or asset bundle has no plugin.cfg and no project.godot. Nothing here says it
-        // is a project, so nothing is reported — this check must not become "every addon without a
-        // plugin.cfg is wrong".
+        // A shader pack or asset bundle has no plugin.cfg and no project.godot. Nothing here says
+        // it is a project, so nothing is reported — this check must not become "every addon without
+        // a plugin.cfg is wrong".
         var fileSystem = TreeWith("shader.gdshader", "textures/ramp.png");
 
         Assert.Null(GodotProjectRootChecker.Check(fileSystem, Tree, "mtoon-shader"));
@@ -82,7 +83,8 @@ public class GodotProjectRootCheckerTests {
     [Fact]
     public void Check_SeveralPluginsOneMatchingTheAddonName_SuggestsThatOne() {
         // vrm-addon's real layout: the plugin plus its test framework, both under addons/.
-        var fileSystem = TreeWith("project.godot", "addons/gut/plugin.cfg", "addons/vrm/plugin.cfg");
+        var fileSystem = TreeWith("project.godot", "addons/gut/plugin.cfg",
+            "addons/vrm/plugin.cfg");
 
         var finding = GodotProjectRootChecker.Check(fileSystem, Tree, "vrm");
 
@@ -95,7 +97,8 @@ public class GodotProjectRootCheckerTests {
     public void Check_NameMatchIgnoresCase() {
         // The manifest key is `Gut`, the folder is `gut` — the same tolerance the folder-case
         // correction (SPEC.md §7.1.1) extends, since the repository decides the casing.
-        var fileSystem = TreeWith("project.godot", "addons/gut/plugin.cfg", "addons/other/plugin.cfg");
+        var fileSystem = TreeWith("project.godot", "addons/gut/plugin.cfg",
+            "addons/other/plugin.cfg");
 
         var finding = GodotProjectRootChecker.Check(fileSystem, Tree, "Gut");
 
@@ -104,7 +107,8 @@ public class GodotProjectRootCheckerTests {
 
     [Fact]
     public void Check_SeveralPluginsNoneMatchingTheName_SuggestsNothingButListsThem() {
-        var fileSystem = TreeWith("project.godot", "addons/alpha/plugin.cfg", "addons/beta/plugin.cfg");
+        var fileSystem = TreeWith("project.godot", "addons/alpha/plugin.cfg",
+            "addons/beta/plugin.cfg");
 
         var finding = GodotProjectRootChecker.Check(fileSystem, Tree, "vrm");
 
@@ -137,7 +141,8 @@ public class GodotProjectRootCheckerTests {
         Assert.NotNull(finding);
         Assert.False(finding.HasCandidates);
         Assert.Null(finding.SuggestedPath);
-        Assert.Contains("no addons/*/plugin.cfg", GodotProjectRootChecker.DescribeWhereTheAddonIs(finding));
+        Assert.Contains("no addons/*/plugin.cfg",
+            GodotProjectRootChecker.DescribeWhereTheAddonIs(finding));
     }
 
     // -----------------------------------------------------------------------------------------
@@ -149,7 +154,8 @@ public class GodotProjectRootCheckerTests {
     [InlineData("")]
     [InlineData(".")]
     [InlineData("./")]
-    public void Check_ConfiguredPathMeaningTheRoot_LeavesTheSuggestionUnprefixed(string? configuredPath) {
+    public void Check_ConfiguredPathMeaningTheRoot_LeavesTheSuggestionUnprefixed(
+        string? configuredPath) {
         var fileSystem = TreeWith("project.godot", "addons/vrm/plugin.cfg");
 
         var finding = GodotProjectRootChecker.Check(fileSystem, Tree, "vrm", configuredPath);
@@ -162,7 +168,8 @@ public class GodotProjectRootCheckerTests {
     [InlineData("godot/", "godot/addons/vrm")]
     [InlineData("/godot/", "godot/addons/vrm")]
     [InlineData("src\\game", "src/game/addons/vrm")]
-    public void Check_ConfiguredSubfolder_PrefixesTheSuggestionSoItCanBePastedAsIs(string configuredPath, string expected) {
+    public void Check_ConfiguredSubfolder_PrefixesTheSuggestionSoItCanBePastedAsIs(
+        string configuredPath, string expected) {
         // `path = "godot"` pointing at a project inside a monorepo: the fix is `godot/addons/vrm`,
         // and asking the reader to prepend that themselves is one more place to get it wrong.
         var fileSystem = TreeWith("project.godot", "addons/vrm/plugin.cfg");

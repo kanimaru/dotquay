@@ -8,12 +8,14 @@ namespace Dotquay.Tests.Dotnet;
 /// <summary>
 /// Covers <see cref="NuGetConfigWriter"/> in isolation: creating a fresh <c>NuGet.Config</c>,
 /// upserting the sources dotquay owns without disturbing anything else already there, pruning the
-/// ones it no longer owns, respecting an existing lowercase <c>nuget.config</c>, and binding restore
-/// to the right feed via <c>&lt;packageSourceMapping&gt;</c>.
+/// ones it no longer owns, respecting an existing lowercase <c>nuget.config</c>, and binding
+/// restore to the right feed via <c>&lt;packageSourceMapping&gt;</c>.
 /// </summary>
 public class NuGetConfigWriterTests {
-    private const string SourceUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
-    private const string SecondUrl = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
+    private const string SourceUrl =
+        "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
+    private const string SecondUrl =
+        "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
 
     private static NuGetSourceSet Legacy(string url = SourceUrl) =>
         NuGetSourceSet.From([new NuGetSourceSpec(NuGetSourceSpec.LegacyName, url)]);
@@ -35,10 +37,11 @@ public class NuGetConfigWriterTests {
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
 
-        // Grandfathered on purpose: pre-v0.7 projects already have <add key="dotquay"> committed, and
-        // renaming it to "dotquay-default" would produce a spurious diff in every one of them.
+        // Grandfathered on purpose: pre-v0.7 projects already have <add key="dotquay"> committed,
+        // and renaming it to "dotquay-default" would produce a spurious diff in every one of them.
         Assert.Contains("key=\"dotquay\"", fileSystem.ReadAllText("project/NuGet.Config"));
-        Assert.DoesNotContain("key=\"dotquay-default\"", fileSystem.ReadAllText("project/NuGet.Config"));
+        Assert.DoesNotContain("key=\"dotquay-default\"",
+            fileSystem.ReadAllText("project/NuGet.Config"));
     }
 
     [Fact]
@@ -82,7 +85,8 @@ public class NuGetConfigWriterTests {
             [new NuGetSourceSpec("core", SourceUrl), new NuGetSourceSpec("tools", SecondUrl)]);
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", both);
-        NuGetConfigWriter.EnsureSources(fileSystem, "project", NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]));
+        NuGetConfigWriter.EnsureSources(fileSystem, "project",
+            NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]));
 
         // Pruning matters as much as adding: a feed left behind here would keep being searched by
         // dotnet restore forever, quietly undoing its removal from dotquay.toml.
@@ -126,7 +130,8 @@ public class NuGetConfigWriterTests {
     [Fact]
     public void EnsureSources_ExistingLowercaseConfig_UpdatesItRatherThanCreatingASecondFile() {
         var fileSystem = new InMemoryFileSystem();
-        fileSystem.WriteAllText("project/nuget.config", "<configuration><packageSources /></configuration>");
+        fileSystem.WriteAllText("project/nuget.config",
+            "<configuration><packageSources /></configuration>");
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
 
@@ -151,7 +156,8 @@ public class NuGetConfigWriterTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/NuGet.Config", "not xml <<<");
 
-        Assert.Throws<DotnetSyncException>(() => NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy()));
+        Assert.Throws<DotnetSyncException>(() =>
+            NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy()));
     }
 
     [Fact]
@@ -160,14 +166,15 @@ public class NuGetConfigWriterTests {
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]);
 
         NuGetConfigWriter.EnsureSources(
-            fileSystem, "project", sources, new Dictionary<string, string> { ["Acme.Internal"] = "core" });
+            fileSystem, "project", sources,
+            new Dictionary<string, string> { ["Acme.Internal"] = "core" });
 
         var config = fileSystem.ReadAllText("project/NuGet.Config");
         Assert.Contains("<packageSourceMapping>", config);
         Assert.Contains("pattern=\"Acme.Internal\"", config);
 
-        // The catch-all is mandatory, not a nicety: packageSourceMapping is all-or-nothing per config,
-        // so any package matching no pattern fails restore outright with NU1100.
+        // The catch-all is mandatory, not a nicety: packageSourceMapping is all-or-nothing per
+        // config, so any package matching no pattern fails restore outright with NU1100.
         Assert.Contains("pattern=\"*\"", config);
     }
 
@@ -180,7 +187,8 @@ public class NuGetConfigWriterTests {
         // A mapping key must name a source declared in the same file — it cannot be inherited from
         // machine-level config.
         var config = fileSystem.ReadAllText("project/NuGet.Config");
-        Assert.Contains($"key=\"{NuGetSourceSpec.PublicName}\" value=\"{NuGetSourceSpec.PublicUrl}\"", config);
+        Assert.Contains($"key=\"{NuGetSourceSpec.PublicName}\" "
+            + $"value=\"{NuGetSourceSpec.PublicUrl}\"", config);
     }
 
     [Fact]
@@ -201,9 +209,11 @@ public class NuGetConfigWriterTests {
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]);
 
         NuGetConfigWriter.EnsureSources(
-            fileSystem, "project", sources, new Dictionary<string, string> { ["Acme.Internal"] = "core" });
+            fileSystem, "project", sources,
+            new Dictionary<string, string> { ["Acme.Internal"] = "core" });
         NuGetConfigWriter.EnsureSources(
-            fileSystem, "project", sources, new Dictionary<string, string> { ["Acme.Other"] = "core" });
+            fileSystem, "project", sources,
+            new Dictionary<string, string> { ["Acme.Other"] = "core" });
 
         var config = fileSystem.ReadAllText("project/NuGet.Config");
         Assert.Equal(1, config.Split("<packageSourceMapping>").Length - 1);

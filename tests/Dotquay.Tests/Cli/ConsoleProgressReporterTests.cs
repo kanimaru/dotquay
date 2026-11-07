@@ -8,8 +8,8 @@ namespace Dotquay.Tests.Cli;
 /// Covers the spinner standing down while something else needs the terminal.
 /// </summary>
 /// <remarks>
-/// The bug this exists for, found by hand on a real console (v0.20): a prompt raised mid-resolve was
-/// written straight onto the line the spinner owned, so the question read
+/// The bug this exists for, found by hand on a real console (v0.20): a prompt raised mid-resolve
+/// was written straight onto the line the spinner owned, so the question read
 /// <c>| checking where 'SproutyDialogs' lives in its repository'SproutyDialogs' isn't at …</c>, and
 /// the frames kept repainting over it while the user was reading. Invisible to every other test in
 /// this suite, because a spinner that draws needs a terminal and a test host has none — so the

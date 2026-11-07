@@ -24,7 +24,8 @@ public class GitLabErrorExplanationTests {
     [Fact]
     public void GitLabs_own_words_are_passed_through_verbatim() {
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.Forbidden, Granular, authenticated: true, Host, "looking up the newest release");
+            HttpStatusCode.Forbidden, Granular, authenticated: true, Host,
+            "looking up the newest release");
 
         Assert.Contains("[Release: Read]", message);
         Assert.Contains("403", message);
@@ -37,7 +38,8 @@ public class GitLabErrorExplanationTests {
     [Fact]
     public void A_granular_refusal_points_at_a_permission_not_at_a_bad_token() {
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.Forbidden, Granular, authenticated: true, Host, "looking up the newest release");
+            HttpStatusCode.Forbidden, Granular, authenticated: true, Host,
+            "looking up the newest release");
 
         Assert.Contains("not ticked", message);
     }
@@ -45,7 +47,8 @@ public class GitLabErrorExplanationTests {
     [Fact]
     public void With_no_body_an_authenticated_refusal_offers_both_token_shapes() {
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.Forbidden, detail: null, authenticated: true, Host, "looking up the newest release");
+            HttpStatusCode.Forbidden, detail: null, authenticated: true, Host,
+            "looking up the newest release");
 
         Assert.Contains("fine-grained", message);
         Assert.Contains("read_api", message);
@@ -54,7 +57,8 @@ public class GitLabErrorExplanationTests {
     [Fact]
     public void Without_a_credential_both_readings_stay_on_the_table() {
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.NotFound, detail: null, authenticated: false, Host, "looking up the newest release");
+            HttpStatusCode.NotFound, detail: null, authenticated: false, Host,
+            "looking up the newest release");
 
         Assert.Contains($"dotquay login {Host}", message);
         Assert.Contains("does not exist", message);
@@ -67,11 +71,12 @@ public class GitLabErrorExplanationTests {
 
     [Fact]
     public void With_a_credential_a_404_blames_the_url_not_the_login() {
-        // GitLab denies "does not exist" and "not allowed to see" identically, so a 404 is ambiguous
-        // only while anonymous. With a credential accepted this far, telling someone to log in is
-        // advice that cannot work.
+        // GitLab denies "does not exist" and "not allowed to see" identically, so a 404 is
+        // ambiguous only while anonymous. With a credential accepted this far, telling someone to
+        // log in is advice that cannot work.
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.NotFound, detail: null, authenticated: true, Host, "looking up the newest release");
+            HttpStatusCode.NotFound, detail: null, authenticated: true, Host,
+            "looking up the newest release");
 
         Assert.Contains("numeric ID", message);
         Assert.DoesNotContain("dotquay login", message);
@@ -93,7 +98,8 @@ public class GitLabErrorExplanationTests {
         // {"message":"401 Unauthorized"}, quoted as if it explained something, and the sentence
         // saying a stored credential had been sent and refused never appeared.
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.Unauthorized, "401 Unauthorized", authenticated: true, Host, "looking up the newest release");
+            HttpStatusCode.Unauthorized, "401 Unauthorized", authenticated: true, Host,
+            "looking up the newest release");
 
         Assert.DoesNotContain("GitLab said", message);
         Assert.Contains("does not recognise", message);
@@ -105,7 +111,8 @@ public class GitLabErrorExplanationTests {
         // 403 is what a real token lacking a permission gets; 401 means GitLab does not know the
         // token at all, so scope advice would be a confident wrong guess.
         var message = GitLabErrorExplanation.Describe(
-            HttpStatusCode.Unauthorized, detail: null, authenticated: true, Host, "looking up the newest release");
+            HttpStatusCode.Unauthorized, detail: null, authenticated: true, Host,
+            "looking up the newest release");
 
         Assert.Contains("mistyped, expired or revoked", message);
         Assert.DoesNotContain("read_api", message);

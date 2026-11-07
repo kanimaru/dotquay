@@ -5,13 +5,13 @@ namespace Dotquay.Cli.Commands;
 
 /// <summary>
 /// <c>dotquay credential-helper &lt;get|store|erase&gt;</c> — a git credential helper, not a user
-/// command (SPEC.md §11.2). git invokes it on the git child processes dotquay itself launches, having
-/// been registered by <see cref="Dotquay.Core.Git.GitEnvironment"/>.
+/// command (SPEC.md §11.2). git invokes it on the git child processes dotquay itself launches,
+/// having been registered by <see cref="Dotquay.Core.Git.GitEnvironment"/>.
 /// </summary>
 /// <remarks>
 /// <para>Hidden, because it is a protocol endpoint. Its stdout belongs to git, which is also why it
-/// must never learn <c>--json</c>: a JSON envelope on that stream is a parse failure inside git, not
-/// a nicer error message.</para>
+/// must never learn <c>--json</c>: a JSON envelope on that stream is a parse failure inside git,
+/// not a nicer error message.</para>
 /// <para>dotquay is registered *after* whatever helpers the machine already has, so this only ever
 /// runs when the user's own credential manager or SSH agent had no answer.</para>
 /// </remarks>
@@ -37,8 +37,9 @@ internal static class CredentialHelperCommand {
 
             // 'store' and 'erase' succeed and do nothing. dotquay's store is written by
             // 'dotquay login', deliberately: a helper that quietly persisted whatever a prompt
-            // produced would put secrets on disk without anyone asking for it. Exiting 0 rather than
-            // erroring keeps git from treating a clone as failed over a helper that simply declines.
+            // produced would put secrets on disk without anyone asking for it. Exiting 0 rather
+            // than erroring keeps git from treating a clone as failed over a helper that simply
+            // declines.
             if (!string.Equals(operation, "get", StringComparison.Ordinal)) {
                 return 0;
             }

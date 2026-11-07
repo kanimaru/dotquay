@@ -9,7 +9,8 @@ internal static class DoctorCommand {
 
     public static Command Build() {
         var jsonOption = JsonOutput.CreateOption();
-        var command = new Command(CommandName, "Run sanity checks: git on PATH, dangling lockfile entries, plugin.cfg drift.")
+        var command = new Command(CommandName,
+            "Run sanity checks: git on PATH, dangling lockfile entries, plugin.cfg drift.")
         {
             jsonOption,
         };
@@ -18,13 +19,16 @@ internal static class DoctorCommand {
             var json = parseResult.GetValue(jsonOption);
 
             try {
-                var result = await WorkflowFactory.Create().DoctorAsync(GlobalOptions.Resolve(parseResult), cancellationToken);
+                var result = await WorkflowFactory.Create()
+                    .DoctorAsync(GlobalOptions.Resolve(parseResult), cancellationToken);
 
                 if (json) {
                     // Issues are data, not a crash: the envelope stays ok:true and the caller reads
                     // data.healthy. Only the exit code carries the "something is wrong" signal, for
                     // shell users and CI.
-                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<DoctorJson>.Success(CommandName, JsonMapper.ToJson(result))));
+                    Console.WriteLine(
+                        DotquayJson.Write(JsonEnvelope<DoctorJson>.Success(CommandName,
+                            JsonMapper.ToJson(result))));
                     return result.IsHealthy ? 0 : 1;
                 }
 
@@ -62,7 +66,8 @@ internal static class DoctorCommand {
         Console.WriteLine();
 
         if (trust.TrustedHosts.Count > 0) {
-            Console.WriteLine("Trusted NuGet hosts (addon-declared feeds on these are adopted without asking):");
+            Console.WriteLine("Trusted NuGet hosts (addon-declared feeds on these are adopted "
+                + "without asking):");
             foreach (var host in trust.TrustedHosts) {
                 Console.WriteLine($"  {host}");
             }
@@ -74,7 +79,8 @@ internal static class DoctorCommand {
 
         Console.WriteLine("NuGet sources adopted from addons:");
         foreach (var source in trust.AdoptedSources) {
-            Console.WriteLine($"  {source.Name}  ({source.Url})  from addon '{source.DeclaredByAddon}'");
+            Console.WriteLine($"  {source.Name}  ({source.Url})  from addon "
+                + $"'{source.DeclaredByAddon}'");
         }
     }
 }

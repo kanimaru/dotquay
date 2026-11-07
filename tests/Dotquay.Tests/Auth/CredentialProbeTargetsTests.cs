@@ -5,8 +5,10 @@ using Xunit;
 namespace Dotquay.Tests.Auth;
 
 public class CredentialProbeTargetsTests {
-    private const string FeedUrl = "https://gitlab.example.com/api/v4/projects/124/packages/nuget/index.json";
-    private const string OtherFeedUrl = "https://gitlab.example.com/api/v4/projects/9/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.example.com/api/v4/projects/124/packages/nuget/index.json";
+    private const string OtherFeedUrl =
+        "https://gitlab.example.com/api/v4/projects/9/packages/nuget/index.json";
     private const string RemoteUrl = "https://gitlab.example.com/kani/widget.git";
 
     [Fact]
@@ -20,15 +22,20 @@ public class CredentialProbeTargetsTests {
             ],
             Addons = new Dictionary<string, AddonSpec> {
                 ["widget"] = new() { Name = "widget", Git = RemoteUrl },
-                ["github"] = new() { Name = "github", Git = "https://github.com/someone/thing.git" },
+                ["github"] = new() {
+                    Name = "github",
+                    Git = "https://github.com/someone/thing.git"
+                },
                 ["ssh"] = new() { Name = "ssh", Git = "git@gitlab.example.com:kani/private.git" },
             },
         };
 
-        var targets = CredentialProbeTargets.For(CredentialScope.Parse("gitlab.example.com"), manifest);
+        var targets = CredentialProbeTargets.For(CredentialScope.Parse("gitlab.example.com"),
+            manifest);
 
         Assert.Equal(
-            [FeedUrl, "https://gitlab.example.com/kani/widget.git/info/refs?service=git-upload-pack"],
+            [FeedUrl,
+                "https://gitlab.example.com/kani/widget.git/info/refs?service=git-upload-pack"],
             targets);
     }
 
@@ -36,10 +43,12 @@ public class CredentialProbeTargetsTests {
     public void For_FeedsComeBeforeRemotes_WhateverTheManifestOrder() {
         var manifest = new ProjectManifest {
             NuGetSources = [new NuGetSourceSpec("vbeami", FeedUrl)],
-            Addons = new Dictionary<string, AddonSpec> { ["widget"] = new() { Name = "widget", Git = RemoteUrl } },
+            Addons = new Dictionary<string,
+                AddonSpec> { ["widget"] = new() { Name = "widget", Git = RemoteUrl } },
         };
 
-        var targets = CredentialProbeTargets.For(CredentialScope.Parse("gitlab.example.com"), manifest);
+        var targets = CredentialProbeTargets.For(CredentialScope.Parse("gitlab.example.com"),
+            manifest);
 
         Assert.Equal(FeedUrl, targets[0]);
     }
@@ -47,7 +56,8 @@ public class CredentialProbeTargetsTests {
     [Fact]
     public void For_PathScope_OnlyCoversUrlsUnderThatPath() {
         var manifest = new ProjectManifest {
-            NuGetSources = [new NuGetSourceSpec("vbeami", FeedUrl), new NuGetSourceSpec("other", OtherFeedUrl)],
+            NuGetSources = [new NuGetSourceSpec("vbeami", FeedUrl),
+                new NuGetSourceSpec("other", OtherFeedUrl)],
         };
 
         var targets = CredentialProbeTargets.For(
@@ -60,10 +70,12 @@ public class CredentialProbeTargetsTests {
     public void For_NothingOnThatHost_IsEmpty() {
         var manifest = new ProjectManifest {
             NuGetSources = [new NuGetSourceSpec("vbeami", FeedUrl)],
-            Addons = new Dictionary<string, AddonSpec> { ["widget"] = new() { Name = "widget", Git = RemoteUrl } },
+            Addons = new Dictionary<string,
+                AddonSpec> { ["widget"] = new() { Name = "widget", Git = RemoteUrl } },
         };
 
-        Assert.Empty(CredentialProbeTargets.For(CredentialScope.Parse("gitlab.other.com"), manifest));
+        Assert.Empty(CredentialProbeTargets.For(CredentialScope.Parse("gitlab.other.com"),
+            manifest));
     }
 
     [Fact]
@@ -75,7 +87,8 @@ public class CredentialProbeTargetsTests {
             },
         };
 
-        var targets = CredentialProbeTargets.For(CredentialScope.Parse("gitlab.example.com"), manifest);
+        var targets = CredentialProbeTargets.For(CredentialScope.Parse("gitlab.example.com"),
+            manifest);
 
         Assert.Single(targets);
     }

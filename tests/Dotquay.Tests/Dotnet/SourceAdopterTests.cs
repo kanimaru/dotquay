@@ -11,7 +11,8 @@ namespace Dotquay.Tests.Dotnet;
 /// reasoned about.
 /// </summary>
 public class SourceAdopterTests {
-    private const string FeedUrl = "https://gitlab.kemomi.de/api/v4/groups/7/-/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.kemomi.de/api/v4/groups/7/-/packages/nuget/index.json";
 
     private sealed class ApproveAll : ISourceApproval {
         public List<SourceAdoptionRequest> Seen { get; } = [];
@@ -23,12 +24,14 @@ public class SourceAdopterTests {
     }
 
     private static SourceAdopter.Result Evaluate(
-        ProjectManifest manifest, ISourceApproval? approval = null, NuGetSourceSpec? source = null, string addon = "vbeami") {
+        ProjectManifest manifest, ISourceApproval? approval = null, NuGetSourceSpec? source = null,
+        string addon = "vbeami") {
         var declared = source ?? new NuGetSourceSpec("vbeami", FeedUrl);
         return new SourceAdopter(approval).Evaluate(
             manifest,
             [(addon, declared)],
-            new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal) { [addon] = ["VBeami.Core"] });
+            new Dictionary<string,
+                IReadOnlyList<string>>(StringComparer.Ordinal) { [addon] = ["VBeami.Core"] });
     }
 
     [Fact]
@@ -77,18 +80,22 @@ public class SourceAdopterTests {
     public void Evaluate_TrustedHostMatchIsExact_NotBySuffix() {
         // A trusted "kemomi.de" must not cover "evil-kemomi.de" or "gitlab.kemomi.de.attacker.com".
         Assert.False(SourceAdopter.IsTrusted(["kemomi.de"], "https://gitlab.kemomi.de/x"));
-        Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"], "https://gitlab.kemomi.de.attacker.com/x"));
-        Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"], "https://evil-gitlab.kemomi.de/x"));
+        Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"],
+            "https://gitlab.kemomi.de.attacker.com/x"));
+        Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"],
+            "https://evil-gitlab.kemomi.de/x"));
         Assert.True(SourceAdopter.IsTrusted(["gitlab.kemomi.de"], "https://gitlab.kemomi.de/x"));
     }
 
     [Fact]
     public void Evaluate_TrustedHostIgnoresCaseAndScheme_ButNotPort() {
         Assert.True(SourceAdopter.IsTrusted(["GitLab.Kemomi.DE"], "https://gitlab.kemomi.de/x"));
-        Assert.True(SourceAdopter.IsTrusted(["https://gitlab.kemomi.de"], "https://gitlab.kemomi.de/x"));
+        Assert.True(SourceAdopter.IsTrusted(["https://gitlab.kemomi.de"],
+            "https://gitlab.kemomi.de/x"));
 
         // A different port is a different service, and may well be a different owner.
-        Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"], "https://gitlab.kemomi.de:8443/x"));
+        Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"],
+            "https://gitlab.kemomi.de:8443/x"));
     }
 
     [Fact]
@@ -102,7 +109,8 @@ public class SourceAdopterTests {
 
         // Matched on URL, not name: the project calls it "kemomi", the addon calls it "vbeami".
         var result = Evaluate(
-            new ProjectManifest { NuGetSources = [new NuGetSourceSpec("kemomi", FeedUrl)] }, approval);
+            new ProjectManifest { NuGetSources = [new NuGetSourceSpec("kemomi", FeedUrl)] },
+            approval);
 
         Assert.Empty(result.Adopted);
         Assert.Empty(result.Refused);
@@ -115,7 +123,8 @@ public class SourceAdopterTests {
         // source with an addon's would be worse than either.
         var manifest = new ProjectManifest {
             TrustedHosts = ["gitlab.kemomi.de"],
-            NuGetSources = [new NuGetSourceSpec("vbeami", "https://gitlab.kemomi.de/api/v4/projects/9/packages/nuget/index.json")],
+            NuGetSources = [new NuGetSourceSpec("vbeami",
+                "https://gitlab.kemomi.de/api/v4/projects/9/packages/nuget/index.json")],
         };
 
         var adopted = Assert.Single(Evaluate(manifest).Adopted);
@@ -130,7 +139,8 @@ public class SourceAdopterTests {
 
         var result = adopter.Evaluate(
             new ProjectManifest(),
-            [("vbeami", new NuGetSourceSpec("vbeami", FeedUrl)), ("botlib", new NuGetSourceSpec("botlib", FeedUrl))],
+            [("vbeami", new NuGetSourceSpec("vbeami", FeedUrl)),
+                ("botlib", new NuGetSourceSpec("botlib", FeedUrl))],
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal));
 
         Assert.Single(result.Adopted);
@@ -141,7 +151,8 @@ public class SourceAdopterTests {
         var source = new NuGetSourceSpec("vbeami", FeedUrl) { Packages = ["VBeami.*"] };
 
         var adopted = Assert.Single(
-            Evaluate(new ProjectManifest { TrustedHosts = ["gitlab.kemomi.de"] }, source: source).Adopted);
+            Evaluate(new ProjectManifest { TrustedHosts = ["gitlab.kemomi.de"] }, source: source)
+            .Adopted);
 
         Assert.Equal(["VBeami.*"], adopted.Packages);
     }

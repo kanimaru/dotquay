@@ -9,8 +9,8 @@ using Xunit;
 namespace Dotquay.Tests.Workflows;
 
 /// <summary>
-/// Covers <c>add</c>'s end of the subtree guess (docs/DESIGN-v0.20-SUBTREE-GUESS.md §5): probing the
-/// repository before anything is written, asking, and recording the answer in the manifest.
+/// Covers <c>add</c>'s end of the subtree guess (docs/DESIGN-v0.20-SUBTREE-GUESS.md §5): probing
+/// the repository before anything is written, asking, and recording the answer in the manifest.
 /// </summary>
 /// <remarks>
 /// The case throughout is the reported one: <c>SproutyLabs/SproutyDialogs</c>, whose addon is
@@ -18,9 +18,9 @@ namespace Dotquay.Tests.Workflows;
 /// carried it past resolution, and failed in the installer with a message naming only the path that
 /// didn't work.
 /// <para>
-/// Two properties matter more than the happy path and are tested as their own facts: nothing is ever
-/// adopted without an answer, and an accepted answer lands in <c>dotquay.toml</c> rather than being
-/// re-derived on the next machine.
+/// Two properties matter more than the happy path and are tested as their own facts: nothing is
+/// ever adopted without an answer, and an accepted answer lands in <c>dotquay.toml</c> rather than
+/// being re-derived on the next machine.
 /// </para>
 /// </remarks>
 public class SubtreeGuessTests {
@@ -56,7 +56,8 @@ public class SubtreeGuessTests {
         fileSystem.WriteAllText(ManifestPath, EmptyProject);
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.RemoteRefsByUrl[Url] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[Url] = [new GitRef("v1.0.0", new string('a', 40),
+            GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[Url] = repoFiles.ToDictionary(path => path, _ => "cfg");
 
         var accepting = new AcceptSubtreeChoice();
@@ -83,7 +84,8 @@ public class SubtreeGuessTests {
     private static Fixture SproutyDialogs(ISubtreeChoice? choice = null) =>
         Build(choice, "addons/sprouty_dialogs/plugin.cfg", "addons/sprouty_dialogs/dialogue.gd");
 
-    // -- accepting ---------------------------------------------------------------------------------
+    // -- accepting
+    // ---------------------------------------------------------------------------------
 
     [Fact]
     public async Task Add_AcceptedGuess_InstallsFromTheRealSubtree() {
@@ -93,14 +95,16 @@ public class SubtreeGuessTests {
 
         Assert.Equal("addons/sprouty_dialogs", locked.Path);
         Assert.Equal("sprouty_dialogs", locked.EffectiveFolder);
-        Assert.True(fixture.FileSystem.FileExists($"{ProjectDir}/addons/sprouty_dialogs/dialogue.gd"));
+        Assert.True(
+            fixture.FileSystem.FileExists($"{ProjectDir}/addons/sprouty_dialogs/dialogue.gd"));
     }
 
     [Fact]
     public async Task Add_AcceptedGuess_WritesBothKeysToTheManifest() {
         // The whole point of asking once. Without install_as the addon's own
         // res://addons/sprouty_dialogs/ references would point at a folder Godot cannot find, which
-        // is the Gut bug (SPEC.md §7.1.1); without path, the next machine re-derives the wrong guess.
+        // is the Gut bug (SPEC.md §7.1.1); without path, the next machine re-derives the wrong
+        // guess.
         var fixture = SproutyDialogs();
 
         await fixture.Workflow.AddAsync(ProjectDir, Url);
@@ -135,7 +139,8 @@ public class SubtreeGuessTests {
         Assert.Equal(SubtreeMatchKind.NameShape, asked.Suggestion.Kind);
     }
 
-    // -- declining ---------------------------------------------------------------------------------
+    // -- declining
+    // ---------------------------------------------------------------------------------
 
     [Fact]
     public async Task Add_DeclinedGuess_RefusesAndNamesTheFlags() {
@@ -152,7 +157,8 @@ public class SubtreeGuessTests {
     public async Task Add_DeclinedGuess_WritesNothing() {
         var fixture = SproutyDialogs(DeclineSubtreeChoice.Instance);
 
-        await Assert.ThrowsAsync<WorkflowException>(() => fixture.Workflow.AddAsync(ProjectDir, Url));
+        await Assert.ThrowsAsync<WorkflowException>(() =>
+            fixture.Workflow.AddAsync(ProjectDir, Url));
 
         Assert.Equal(EmptyProject, fixture.FileSystem.ReadAllText(ManifestPath));
         Assert.False(fixture.FileSystem.DirectoryExists($"{ProjectDir}/addons/sprouty_dialogs"));
@@ -174,7 +180,8 @@ public class SubtreeGuessTests {
         Assert.Contains("--path <subtree>", error.Message);
     }
 
-    // -- when the question doesn't arise -----------------------------------------------------------
+    // -- when the question doesn't arise
+    // -----------------------------------------------------------
 
     [Fact]
     public async Task Add_ExplicitPath_IsNeverSecondGuessed() {
@@ -201,7 +208,8 @@ public class SubtreeGuessTests {
         Assert.Equal("SproutyDialogs", locked.EffectiveFolder);
     }
 
-    // -- the preview's half of the two-phase flow ---------------------------------------------------
+    // -- the preview's half of the two-phase flow
+    // ---------------------------------------------------
 
     [Fact]
     public async Task Preview_ReportsTheGuessInsteadOfAskingAboutIt() {

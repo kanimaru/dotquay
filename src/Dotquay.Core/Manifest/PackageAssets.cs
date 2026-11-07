@@ -38,10 +38,12 @@ public sealed record PackageAssets {
     /// <summary>Nothing declared — the overwhelmingly common case.</summary>
     public static readonly PackageAssets None = new();
 
-    /// <summary><c>IncludeAssets</c>: the assets this project consumes. MSBuild default: <c>all</c>.</summary>
+    /// <summary><c>IncludeAssets</c>: the assets this project consumes. MSBuild default:
+    /// <c>all</c>.</summary>
     public IReadOnlyList<string>? Include { get; init; }
 
-    /// <summary><c>ExcludeAssets</c>: subtracted from the above. MSBuild default: <c>none</c>.</summary>
+    /// <summary><c>ExcludeAssets</c>: subtracted from the above. MSBuild default:
+    /// <c>none</c>.</summary>
     public IReadOnlyList<string>? Exclude { get; init; }
 
     /// <summary><c>PrivateAssets</c>: consumed here but not flowed to the parent project. MSBuild
@@ -52,8 +54,9 @@ public sealed record PackageAssets {
     /// to own for this package.</summary>
     public bool IsEmpty => Include is null && Exclude is null && Private is null;
 
-    /// <summary>Every declared tag this build does not recognise, across all three lists, de-duplicated.
-    /// Empty for the normal case. Callers with a warnings channel report these; nothing rejects them.</summary>
+    /// <summary>Every declared tag this build does not recognise, across all three lists,
+    /// de-duplicated. Empty for the normal case. Callers with a warnings channel report these;
+    /// nothing rejects them.</summary>
     public IReadOnlyList<string> UnknownTags {
         get {
             List<string>? unknown = null;
@@ -85,7 +88,8 @@ public sealed record PackageAssets {
     /// <summary>Canonical casing for a recognised tag; the input untouched otherwise, so an unknown
     /// tag survives a round-trip exactly as the author typed it.</summary>
     public static string Canonicalize(string tag) =>
-        KnownTags.FirstOrDefault(known => string.Equals(known, tag, StringComparison.OrdinalIgnoreCase)) ?? tag;
+        KnownTags.FirstOrDefault(known =>
+            string.Equals(known, tag, StringComparison.OrdinalIgnoreCase)) ?? tag;
 
     /// <summary>
     /// Canonicalises every tag and drops duplicates, preserving declaration order.
@@ -95,7 +99,8 @@ public sealed record PackageAssets {
 
         foreach (var tag in tags) {
             var canonical = Canonicalize(tag.Trim());
-            if (canonical.Length > 0 && !result.Contains(canonical, StringComparer.OrdinalIgnoreCase)) {
+            if (canonical.Length > 0
+                && !result.Contains(canonical, StringComparer.OrdinalIgnoreCase)) {
                 result.Add(canonical);
             }
         }
@@ -108,9 +113,10 @@ public sealed record PackageAssets {
     /// null when the list is fine.
     /// </summary>
     /// <remarks>
-    /// NuGet's own rule: "multiple values separated by a semicolon except for `all` and `none`, which
-    /// must appear by themselves". A list like <c>["all", "runtime"]</c> has no meaning MSBuild will
-    /// honour, so this is a hard parse error rather than something to normalise into a guess.
+    /// NuGet's own rule: "multiple values separated by a semicolon except for `all` and `none`,
+    /// which must appear by themselves". A list like <c>["all", "runtime"]</c> has no meaning
+    /// MSBuild will honour, so this is a hard parse error rather than something to normalise into a
+    /// guess.
     /// </remarks>
     public static string? FindMisuseOfAllOrNone(IReadOnlyList<string> tags) {
         if (tags.Count < 2) {
@@ -126,16 +132,17 @@ public sealed record PackageAssets {
     public static string Format(IReadOnlyList<string> tags) => string.Join(';', tags);
 
     /// <summary>
-    /// Reads an MSBuild tag list back out of a <c>.csproj</c>. Tolerates the spacing real files carry
-    /// (<c>"runtime; build; native"</c>) and canonicalises, so a hand-written value and a
+    /// Reads an MSBuild tag list back out of a <c>.csproj</c>. Tolerates the spacing real files
+    /// carry (<c>"runtime; build; native"</c>) and canonicalises, so a hand-written value and a
     /// dotquay-written one compare equal instead of reading as drift.
     /// </summary>
     public static IReadOnlyList<string> Parse(string value) =>
-        Normalize(value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        Normalize(value.Split(';',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
-    /// <summary>Whether two declared lists mean the same thing — order-insensitive, case-insensitive,
-    /// and treating null and empty alike. Used for drift detection, where a spelling difference is not
-    /// a difference.</summary>
+    /// <summary>Whether two declared lists mean the same thing — order-insensitive,
+    /// case-insensitive, and treating null and empty alike. Used for drift detection, where a
+    /// spelling difference is not a difference.</summary>
     public static bool SameTags(IReadOnlyList<string>? left, IReadOnlyList<string>? right) {
         if (left is null || right is null) {
             return left is null && right is null;

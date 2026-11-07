@@ -1,7 +1,8 @@
 namespace Dotquay.Core.Auth;
 
-/// <summary>Thrown for a <c>~/.dotquay/credentials.toml</c> that can't be read: invalid TOML, a file
-/// version this build doesn't know, or an entry that isn't the shape <c>dotquay login</c> writes.</summary>
+/// <summary>Thrown for a <c>~/.dotquay/credentials.toml</c> that can't be read: invalid TOML, a
+/// file version this build doesn't know, or an entry that isn't the shape <c>dotquay login</c>
+/// writes.</summary>
 /// <remarks>
 /// A <see cref="CredentialException"/> so every place that already handles an unreadable credential
 /// store keeps doing so (the git credential helper answers "no credential" rather than failing a

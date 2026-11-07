@@ -14,14 +14,14 @@ namespace Dotquay.Cli;
 /// stays clean.
 /// </para>
 /// <para>
-/// Disables itself whenever the output isn't a terminal a human is watching — redirected stderr, CI,
-/// <c>TERM=dumb</c>, <c>NO_COLOR</c>, or <c>--json</c>. Carriage-return redraws turn into thousands of
-/// junk lines in a log file, which is worse than no progress at all.
+/// Disables itself whenever the output isn't a terminal a human is watching — redirected stderr,
+/// CI, <c>TERM=dumb</c>, <c>NO_COLOR</c>, or <c>--json</c>. Carriage-return redraws turn into
+/// thousands of junk lines in a log file, which is worse than no progress at all.
 /// </para>
 /// </remarks>
 internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
-    // Plain ASCII. Braille spinners look better but render as boxes in the Windows console host that
-    // still ships as the default for .bat launches and a lot of CI images.
+    // Plain ASCII. Braille spinners look better but render as boxes in the Windows console host
+    // that still ships as the default for .bat launches and a lot of CI images.
     private static readonly char[] Frames = ['|', '/', '-', '\\'];
 
     private static readonly TimeSpan RedrawInterval = TimeSpan.FromMilliseconds(120);
@@ -30,11 +30,11 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
     /// The reporter currently drawing, if any.
     /// </summary>
     /// <remarks>
-    /// Static because the thing it guards is static: there is one terminal, and whoever writes to it
-    /// next has to know whether a spinner is sitting on the current line. Threading a reporter
+    /// Static because the thing it guards is static: there is one terminal, and whoever writes to
+    /// it next has to know whether a spinner is sitting on the current line. Threading a reporter
     /// through to every prompt would model this as if several could be drawing at once, which no
-    /// arrangement of this CLI produces — one command runs, with one reporter, and the prompts it may
-    /// raise are nested inside that.
+    /// arrangement of this CLI produces — one command runs, with one reporter, and the prompts it
+    /// may raise are nested inside that.
     /// </remarks>
     private static ConsoleProgressReporter? _active;
 
@@ -60,7 +60,8 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
 
     /// <summary>Returns a live reporter, or the null one when nothing should be drawn.</summary>
     public static IProgressReporter Create(bool json) {
-        return ShouldDraw(json) ? new ConsoleProgressReporter(RedrawInterval) : NullProgressReporter.Instance;
+        return ShouldDraw(json) ? new ConsoleProgressReporter(RedrawInterval)
+            : NullProgressReporter.Instance;
     }
 
     /// <summary>A reporter that only ever draws when told to, for tests that drive it a frame at a
@@ -73,15 +74,15 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
     /// question.
     /// </summary>
     /// <remarks>
-    /// Found the hard way (v0.20): a prompt raised mid-resolve was printed straight onto the line the
-    /// spinner owned, so the question arrived as
-    /// <c>| checking where 'SproutyDialogs' lives in its repository'SproutyDialogs' isn't at …</c> and
-    /// the spinner carried on repainting over it while the user was reading. A question the user
-    /// cannot read is a question they answer by guessing.
+    /// Found the hard way (v0.20): a prompt raised mid-resolve was printed straight onto the line
+    /// the spinner owned, so the question arrived as
+    /// <c>| checking where 'SproutyDialogs' lives in its repository'SproutyDialogs' isn't at …</c>
+    /// and the spinner carried on repainting over it while the user was reading. A question the
+    /// user cannot read is a question they answer by guessing.
     /// <para>
     /// A no-op when nothing is drawing (<c>--json</c>, CI, redirected stderr) and when a scope is
-    /// already open, so a caller never has to ask whether there is a spinner to pause — which is what
-    /// lets every prompt open one unconditionally.
+    /// already open, so a caller never has to ask whether there is a spinner to pause — which is
+    /// what lets every prompt open one unconditionally.
     /// </para>
     /// </remarks>
     public static IDisposable Pause() {
@@ -99,8 +100,8 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
             return false;
         }
 
-        // CI is set by GitHub Actions, GitLab CI, and most others. A build log doesn't need a spinner
-        // and is actively harmed by one.
+        // CI is set by GitHub Actions, GitLab CI, and most others. A build log doesn't need a
+        // spinner and is actively harmed by one.
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"))
             || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"))) {
             return false;
@@ -123,8 +124,8 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
         }
 
         // Redraw immediately so a new step appears the instant it starts, rather than up to one
-        // timer tick later. Suspended, this still records the step — it just doesn't draw it, so the
-        // spinner resumes on whatever is current rather than on whatever was current when the
+        // timer tick later. Suspended, this still records the step — it just doesn't draw it, so
+        // the spinner resumes on whatever is current rather than on whatever was current when the
         // question was asked.
         Tick();
     }
@@ -152,8 +153,8 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
 
     private IDisposable Suspend() {
         lock (_gate) {
-            // Already quiet, for either reason. Handing back a real scope would let the inner `using`
-            // resume drawing while the outer one still needs the terminal.
+            // Already quiet, for either reason. Handing back a real scope would let the inner
+            // `using` resume drawing while the outer one still needs the terminal.
             if (_disposed || _suspended) {
                 return NullScope.Instance;
             }
@@ -193,8 +194,8 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
             var width = Console.WindowWidth;
             return width > 10 ? width : 80;
         } catch (IOException) {
-            // No real console attached (some launchers, some test hosts). 80 is a safe assumption and
-            // the alternative is crashing over cosmetics.
+            // No real console attached (some launchers, some test hosts). 80 is a safe assumption
+            // and the alternative is crashing over cosmetics.
             return 80;
         }
     }

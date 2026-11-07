@@ -21,8 +21,8 @@ namespace Dotquay.Core.Patch;
 /// <item>Added in both (not in base): identical content is a clean add; different content is a
 /// genuine add/add conflict, resolved via <see cref="MergeFileOrRecordConflictAsync"/> against a
 /// synthesized empty "base" (the same trick git itself uses for add/add conflicts).</item>
-/// <item>Deleted on one side, present in base and the other: if the surviving side matches base, the
-/// delete wins cleanly (the other side never touched it); if it doesn't, that's a delete/modify
+/// <item>Deleted on one side, present in base and the other: if the surviving side matches base,
+/// the delete wins cleanly (the other side never touched it); if it doesn't, that's a delete/modify
 /// conflict — the surviving side's content is kept (never silently discarded) and the path is
 /// flagged, since there's no "file" for <c>git merge-file</c> to merge a deletion against.</item>
 /// <item>Deleted on both sides: a clean delete — omitted from the result, no conflict.</item>
@@ -42,7 +42,8 @@ public sealed class PatchMerger {
     }
 
     public async Task<PatchMergeResult> MergeAsync(
-        string baseDirectory, string oursDirectory, string theirsDirectory, string destinationDirectory,
+        string baseDirectory, string oursDirectory, string theirsDirectory,
+        string destinationDirectory,
         CancellationToken cancellationToken = default) {
         _fileSystem.DeleteDirectory(destinationDirectory);
         _fileSystem.CreateDirectory(destinationDirectory);
@@ -50,12 +51,13 @@ public sealed class PatchMerger {
         var basePaths = RelativeFilesOf(baseDirectory);
         var oursPaths = RelativeFilesOf(oursDirectory);
         var theirsPaths = RelativeFilesOf(theirsDirectory);
-        var allPaths = basePaths.Union(oursPaths).Union(theirsPaths).OrderBy(p => p, StringComparer.Ordinal);
+        var allPaths = basePaths.Union(oursPaths).Union(theirsPaths)
+            .OrderBy(p => p, StringComparer.Ordinal);
 
         // A single synthesized empty file, reused for every add/add conflict this call needs one
-        // for — git merge-file requires all three file arguments to exist on disk (confirmed against
-        // real git), so an add/add "no common ancestor" case needs a real (empty) stand-in, not a
-        // path that simply doesn't exist.
+        // for — git merge-file requires all three file arguments to exist on disk (confirmed
+        // against real git), so an add/add "no common ancestor" case needs a real (empty) stand-in,
+        // not a path that simply doesn't exist.
         var emptyBasePath = _fileSystem.CombinePath(destinationDirectory, EmptyBaseFileName);
         _fileSystem.WriteAllBytes(emptyBasePath, []);
 
@@ -79,7 +81,8 @@ public sealed class PatchMerger {
                 } else if (!inBase && inOurs && inTheirs) {
                     if (BytesEqual(oursPath, theirsPath)) {
                         CopyFile(oursPath, destinationPath);
-                    } else if (await MergeFileOrRecordConflictAsync(emptyBasePath, oursPath, theirsPath, destinationPath, cancellationToken)) {
+                    } else if (await MergeFileOrRecordConflictAsync(emptyBasePath, oursPath,
+                        theirsPath, destinationPath, cancellationToken)) {
                         conflicts.Add(relativePath);
                     }
                 } else if (inBase && !inOurs && inTheirs) {
@@ -108,7 +111,8 @@ public sealed class PatchMerger {
                     } else if (BytesEqual(basePath, theirsPath)) {
                         // Upstream never touched it — keep our patch's change wholesale.
                         CopyFile(oursPath, destinationPath);
-                    } else if (await MergeFileOrRecordConflictAsync(basePath, oursPath, theirsPath, destinationPath, cancellationToken)) {
+                    } else if (await MergeFileOrRecordConflictAsync(basePath, oursPath, theirsPath,
+                        destinationPath, cancellationToken)) {
                         conflicts.Add(relativePath);
                     }
                 }
@@ -120,12 +124,15 @@ public sealed class PatchMerger {
         return new PatchMergeResult(conflicts);
     }
 
-    /// <summary>Seeds <paramref name="destinationPath"/> with "ours", then merges "theirs" into it in
-    /// place via <see cref="IPatchTool.MergeFileAsync"/>. Returns whether the merge conflicted.</summary>
+    /// <summary>Seeds <paramref name="destinationPath"/> with "ours", then merges "theirs" into it
+    /// in place via <see cref="IPatchTool.MergeFileAsync"/>. Returns whether the merge
+    /// conflicted.</summary>
     private async Task<bool> MergeFileOrRecordConflictAsync(
-        string basePath, string oursPath, string theirsPath, string destinationPath, CancellationToken cancellationToken) {
+        string basePath, string oursPath, string theirsPath, string destinationPath,
+        CancellationToken cancellationToken) {
         CopyFile(oursPath, destinationPath);
-        var conflictCount = await _patchTool.MergeFileAsync(destinationPath, basePath, theirsPath, cancellationToken);
+        var conflictCount = await _patchTool.MergeFileAsync(destinationPath, basePath, theirsPath,
+            cancellationToken);
         return conflictCount > 0;
     }
 
@@ -143,7 +150,8 @@ public sealed class PatchMerger {
         _fileSystem.WriteAllBytes(destinationPath, _fileSystem.ReadAllBytes(sourcePath));
 
     private bool BytesEqual(string leftPath, string rightPath) =>
-        _fileSystem.ReadAllBytes(leftPath).AsSpan().SequenceEqual(_fileSystem.ReadAllBytes(rightPath));
+        _fileSystem.ReadAllBytes(leftPath).AsSpan()
+        .SequenceEqual(_fileSystem.ReadAllBytes(rightPath));
 
     private static string NormalizeRelative(string filePath, string root) =>
         filePath[root.Length..].TrimStart('/', '\\').Replace('\\', '/');

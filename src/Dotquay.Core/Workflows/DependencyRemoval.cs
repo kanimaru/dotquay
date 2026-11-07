@@ -15,7 +15,7 @@ public sealed record DependencyRemoval(DependencyKind Kind, IReadOnlyList<string
     public string Describe(string name) => KeptForAddons
         ? $"'{name}' is no longer declared by your project. Kept at its locked version because "
           + $"{string.Join(", ", StillRequiredBy.Select(a => $"'{a}'"))} still "
-          + $"{(StillRequiredBy.Count == 1 ? "needs" : "need")} it; the next update re-resolves it to "
-          + $"{(StillRequiredBy.Count == 1 ? "that addon's" : "their")} range."
+          + $"{(StillRequiredBy.Count == 1 ? "needs" : "need")} it; the next update re-resolves it "
+          + $"to {(StillRequiredBy.Count == 1 ? "that addon's" : "their")} range."
         : $"Removed '{name}'.";
 }

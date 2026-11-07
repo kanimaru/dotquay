@@ -8,7 +8,8 @@ public sealed class StderrDiagnosticSinkTests {
     [Fact]
     public void Lines_carry_an_aligned_timestamp_and_category() {
         var text = StderrDiagnosticSink.Format(
-            new DiagnosticEvent(DiagnosticLevel.Verbose, "git", "$ git fetch"), TimeSpan.FromMilliseconds(1234.5));
+            new DiagnosticEvent(DiagnosticLevel.Verbose, "git", "$ git fetch"),
+            TimeSpan.FromMilliseconds(1234.5));
 
         Assert.Equal("[   1.235s] git      | $ git fetch", text);
     }
@@ -16,7 +17,8 @@ public sealed class StderrDiagnosticSinkTests {
     [Fact]
     public void Continuation_lines_sit_under_the_first() {
         var text = StderrDiagnosticSink.Format(
-            new DiagnosticEvent(DiagnosticLevel.Trace, "git", "stdout| a\r\nstdout| b\n"), TimeSpan.Zero);
+            new DiagnosticEvent(DiagnosticLevel.Trace, "git", "stdout| a\r\nstdout| b\n"),
+            TimeSpan.Zero);
 
         var lines = text.Split(Environment.NewLine);
         Assert.Equal(2, lines.Length);
@@ -28,7 +30,8 @@ public sealed class StderrDiagnosticSinkTests {
     [Fact]
     public void Long_categories_are_cut_to_keep_the_columns() {
         var text = StderrDiagnosticSink.Format(
-            new DiagnosticEvent(DiagnosticLevel.Verbose, "averyverylongcategory", "x"), TimeSpan.Zero);
+            new DiagnosticEvent(DiagnosticLevel.Verbose, "averyverylongcategory", "x"),
+            TimeSpan.Zero);
 
         Assert.Equal("[   0.000s] averyver | x", text);
     }
@@ -51,7 +54,8 @@ public sealed class StderrDiagnosticSinkTests {
         sink.Write(new DiagnosticEvent(DiagnosticLevel.Verbose, "http", "GET y -> 404"));
 
         Assert.Equal(
-            "[   2.000s] http     | GET x -> 200" + Environment.NewLine + "[   2.000s] http     | GET y -> 404" + Environment.NewLine,
+            "[   2.000s] http     | GET x -> 200" + Environment.NewLine
+            + "[   2.000s] http     | GET y -> 404" + Environment.NewLine,
             writer.ToString());
         Assert.Equal(2, pauses);
     }

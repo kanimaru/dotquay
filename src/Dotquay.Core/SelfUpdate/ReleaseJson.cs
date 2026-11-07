@@ -39,7 +39,8 @@ internal sealed class GitLabReleaseLink {
 /// <remarks>
 /// Immutable by construction: it is uploaded to the generic package registry under the version it
 /// describes and never overwritten, so there is no mutable "latest" document for a publish to race.
-/// "What is newest" is answered by the releases API, which is already the authority on what shipped.
+/// "What is newest" is answered by the releases API, which is already the authority on what
+/// shipped.
 /// </remarks>
 internal sealed class ReleaseManifestDocument {
     [JsonPropertyName("schema")]
@@ -77,9 +78,10 @@ internal sealed class ReleaseAssetDocument {
 /// </summary>
 /// <remarks>
 /// Worth parsing rather than discarding, because a fine-grained personal access token's refusal
-/// names the exact permission it is missing ("[Release: Read]") in <c>error_description</c>. Without
-/// it, every 403 looks the same and the advice can only be a guess - which is how an afternoon goes
-/// into "the token has no api scope" when the token is fine and one checkbox is not ticked.
+/// names the exact permission it is missing ("[Release: Read]") in <c>error_description</c>.
+/// Without it, every 403 looks the same and the advice can only be a guess - which is how an
+/// afternoon goes into "the token has no api scope" when the token is fine and one checkbox is not
+/// ticked.
 /// </remarks>
 internal sealed class GitLabApiError {
     [JsonPropertyName("error")]

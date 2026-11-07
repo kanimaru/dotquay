@@ -11,19 +11,21 @@ namespace Dotquay.Mcp.Prompts;
 /// Embedded resources, not <c>string</c> literals inlined into each prompt class: the point of §7's
 /// requirement is that the prose an agent actually sees can be read and edited as prose — a
 /// <c>.md</c> file a contributor opens directly — rather than hunting for it inside C# string
-/// concatenation. This is plain data loading (<see cref="Assembly.GetManifestResourceStream"/>), not
-/// reflection-based discovery, so it carries none of the AOT risk §3.1 rejected attribute-based tool
-/// discovery for.
+/// concatenation. This is plain data loading (<see cref="Assembly.GetManifestResourceStream"/>),
+/// not reflection-based discovery, so it carries none of the AOT risk §3.1 rejected attribute-based
+/// tool discovery for.
 /// </remarks>
 internal static class McpPromptText {
-    public static string Render(string resourceFileName, IReadOnlyDictionary<string, string>? placeholders = null) {
+    public static string Render(string resourceFileName,
+        IReadOnlyDictionary<string, string>? placeholders = null) {
         var resourceName = $"Dotquay.Mcp.Prompts.{resourceFileName}";
         var assembly = typeof(McpPromptText).Assembly;
 
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException(
-                $"Missing embedded prompt resource '{resourceName}'. Check the EmbeddedResource glob "
-                + "in Dotquay.Mcp.csproj and that the file name matches exactly (case-sensitive).");
+                $"Missing embedded prompt resource '{resourceName}'. Check the EmbeddedResource "
+                + "glob in Dotquay.Mcp.csproj and that the file name matches exactly "
+                + "(case-sensitive).");
 
         using var reader = new StreamReader(stream);
         var text = reader.ReadToEnd();

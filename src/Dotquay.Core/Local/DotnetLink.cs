@@ -6,15 +6,17 @@ namespace Dotquay.Core.Local;
 /// </summary>
 /// <param name="PackageId">The NuGet package ID as the manifest and lockfile spell it.</param>
 /// <param name="ProjectPath">Absolute path to the linked <c>.csproj</c> itself, not its folder —
-/// resolved once at link time so a later read never has to guess which project a folder meant.</param>
-/// <param name="Analyzer">Whether the linked project is a Roslyn analyzer or source generator.</param>
+/// resolved once at link time so a later read never has to guess which project a folder
+/// meant.</param>
+/// <param name="Analyzer">Whether the linked project is a Roslyn analyzer or source
+/// generator.</param>
 /// <remarks>
 /// <para>
 /// <paramref name="Analyzer"/> expands to <c>OutputItemType="Analyzer"</c> and
 /// <c>ReferenceOutputAssembly="false"</c>. A preset is right here for the reason it was wrong in
-/// v0.10: those two attributes always travel together for a generator-as-project-reference, and there
-/// is no established shape wanting one without the other — unlike <c>PrivateAssets</c>, where gdUnit4
-/// deliberately uses the opposite of the conventional value.
+/// v0.10: those two attributes always travel together for a generator-as-project-reference, and
+/// there is no established shape wanting one without the other — unlike <c>PrivateAssets</c>, where
+/// gdUnit4 deliberately uses the opposite of the conventional value.
 /// </para>
 /// <para>
 /// Getting it wrong is silent in the worst way: without <c>OutputItemType="Analyzer"</c> MSBuild

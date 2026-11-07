@@ -28,12 +28,14 @@ public class AddRemoteFailureTests {
 
         var gitClient = new FakeGitClient();
         gitClient.RemoteFailuresByUrl[SshUrl] = new GitCommandException(
-            GitErrorClassifier.DescribeRemoteFailure($"git ls-remote failed for {SshUrl}", SshUrl, PublicKeyRefused),
+            GitErrorClassifier.DescribeRemoteFailure($"git ls-remote failed for {SshUrl}", SshUrl,
+                PublicKeyRefused),
             isAuthenticationFailure: true);
 
         var workflow = new DependencyWorkflow(fileSystem, gitClient, "cache");
 
-        var exception = await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDir, SshUrl));
+        var exception = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.AddAsync(ProjectDir, SshUrl));
 
         Assert.Contains("never used for an ssh URL", exception.Message, StringComparison.Ordinal);
 
@@ -48,13 +50,15 @@ public class AddRemoteFailureTests {
         var message = GitErrorClassifier.DescribeRemoteFailure(
             $"git ls-remote failed for {SshUrl}", SshUrl, PublicKeyRefused);
 
-        Assert.StartsWith($"git ls-remote failed for {SshUrl}: git@gitlab.kemomi.de: Permission denied", message, StringComparison.Ordinal);
+        Assert.StartsWith($"git ls-remote failed for {SshUrl}: git@gitlab.kemomi.de: Permission "
+            + $"denied", message, StringComparison.Ordinal);
         Assert.Contains("ssh -T git@gitlab.kemomi.de", message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void An_unrecognised_failure_is_left_in_gits_own_words() {
-        var message = GitErrorClassifier.DescribeRemoteFailure("git ls-remote failed for x", "x", "something odd");
+        var message = GitErrorClassifier.DescribeRemoteFailure("git ls-remote failed for x", "x",
+            "something odd");
 
         Assert.Equal("git ls-remote failed for x: something odd", message);
     }

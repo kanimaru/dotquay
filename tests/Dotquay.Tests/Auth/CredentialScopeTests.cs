@@ -16,7 +16,9 @@ public class CredentialScopeTests {
 
     [Fact]
     public void Parse_FullUrl_KeepsPathWithoutSurroundingSlashes() {
-        var scope = CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json");
+        var scope =
+            CredentialScope.Parse(
+                "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json");
 
         Assert.Equal("gitlab.example.com", scope.Host);
         Assert.Equal("api/v4/projects/123/packages/nuget/index.json", scope.Path);
@@ -63,7 +65,8 @@ public class CredentialScopeTests {
     public void Covers_HostWideScope_CoversEveryPathOnThatHost() {
         var host = CredentialScope.Parse("gitlab.example.com");
 
-        Assert.True(host.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/1")));
+        Assert.True(
+            host.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/1")));
         Assert.True(host.Covers(CredentialScope.Parse("gitlab.example.com")));
     }
 
@@ -80,11 +83,13 @@ public class CredentialScopeTests {
         var scope = CredentialScope.Parse("gitlab.example.com/api/v4");
 
         Assert.True(scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4")));
-        Assert.True(scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/1")));
+        Assert.True(
+            scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/1")));
 
         // "v41" starts with "v4" as text, and must not match — this is the whole reason Covers
         // compares on segment boundaries instead of calling StartsWith.
-        Assert.False(scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v41/projects/1")));
+        Assert.False(
+            scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v41/projects/1")));
         Assert.False(scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api")));
     }
 

@@ -8,13 +8,13 @@ namespace Dotquay.Core.Workflows;
 /// <remarks>
 /// Staging holds scratch trees that live for one command: an addon extracted before its swap, the
 /// graph and preview discovery trees, patch bases. A run that fails or is killed between extracting
-/// and cleaning up leaves them behind, and nothing ever came back for them — BotV2 carried a full copy
-/// of twitcher there for weeks, after twitcher had become a local link.
+/// and cleaning up leaves them behind, and nothing ever came back for them — BotV2 carried a full
+/// copy of twitcher there for weeks, after twitcher had become a local link.
 /// <para>
 /// The one tree that must survive is a pending patch conflict: <c>&lt;name&gt;</c> beside its
-/// <c>&lt;name&gt;.conflict</c> marker, which the user edits before <c>patch --resolve</c>. Everything
-/// else is safe to delete because dotquay writes to a project one command at a time (the editor
-/// plugin queues its CLI calls), so nothing in staging can belong to a run still in flight.
+/// <c>&lt;name&gt;.conflict</c> marker, which the user edits before <c>patch --resolve</c>.
+/// Everything else is safe to delete because dotquay writes to a project one command at a time (the
+/// editor plugin queues its CLI calls), so nothing in staging can belong to a run still in flight.
 /// </para>
 /// </remarks>
 public static class StagingSweeper {

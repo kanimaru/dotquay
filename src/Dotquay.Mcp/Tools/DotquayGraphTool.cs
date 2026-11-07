@@ -8,14 +8,15 @@ using ModelContextProtocol.Protocol;
 
 namespace Dotquay.Mcp.Tools;
 
-/// <summary>MCP mirror of <c>dotquay graph</c>: the dependency graph, who requires what, and where it
-/// conflicts (SPEC.md §8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
-public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+/// <summary>MCP mirror of <c>dotquay graph</c>: the dependency graph, who requires what, and where
+/// it conflicts (SPEC.md §8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
+public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_graph";
 
     public override string Description =>
-        "Show the dependency graph: who requires what, and where it conflicts. Read-only; --resolve mode "
-        + "may fetch but never writes the manifest, lockfile, or addons/.";
+        "Show the dependency graph: who requires what, and where it conflicts. Read-only; "
+        + "--resolve mode may fetch but never writes the manifest, lockfile, or addons/.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -36,7 +37,8 @@ public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : Mc
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var resolve = McpArgs.GetBool(arguments, "resolve");
         var inspector = McpInfrastructure.CreateInspector();
 
@@ -47,6 +49,7 @@ public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : Mc
         var payload = JsonMapper.ToJson(report);
         var warnings = report.Warnings.Select(w => w.Message).ToList();
 
-        return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<GraphJson>.Success(Name, payload, warnings)));
+        return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<GraphJson>.Success(Name,
+            payload, warnings)));
     }
 }

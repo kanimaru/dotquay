@@ -9,21 +9,23 @@ using ModelContextProtocol.Protocol;
 
 namespace Dotquay.Mcp.Tools;
 
-/// <summary>MCP mirror of <c>dotquay add &lt;package-id&gt;</c>: resolves the latest (or an explicit)
-/// version of a NuGet package, wires it into the project's <c>.csproj</c>, and restores (SPEC.md §11).
-/// See <c>Dotquay.Cli.Commands.AddCommand.AddDotnetAsync</c>.</summary>
+/// <summary>MCP mirror of <c>dotquay add &lt;package-id&gt;</c>: resolves the latest (or an
+/// explicit) version of a NuGet package, wires it into the project's <c>.csproj</c>, and restores
+/// (SPEC.md §11). See <c>Dotquay.Cli.Commands.AddCommand.AddDotnetAsync</c>.</summary>
 /// <remarks>
-/// No feed adoption here — a NuGet add resolves from feeds the project already declares, matching why
-/// <c>AddCommand.cs</c> rejects <c>--preview</c> for a NuGet source (there is no dependency graph or
-/// feed question to preview). <see cref="GeneratorPrivacyPolicy"/> still applies: the package itself
-/// might be the generator.
+/// No feed adoption here — a NuGet add resolves from feeds the project already declares, matching
+/// why <c>AddCommand.cs</c> rejects <c>--preview</c> for a NuGet source (there is no dependency
+/// graph or feed question to preview). <see cref="GeneratorPrivacyPolicy"/> still applies: the
+/// package itself might be the generator.
 /// </remarks>
-public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_add_dotnet";
 
     public override string Description =>
-        "Add a NuGet package: resolve a version, add a PackageReference, restore. With a version, also pins a "
-        + "package an addon brought in, or changes the version of one the project already declares. Read-write.";
+        "Add a NuGet package: resolve a version, add a PackageReference, restore. With a version, "
+        + "also pins a package an addon brought in, or changes the version of one the project "
+        + "already declares. Read-write.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
         {
@@ -51,11 +53,13 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) 
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var packageId = McpArgs.GetString(arguments, "package_id");
 
         if (string.IsNullOrWhiteSpace(packageId)) {
-            return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'package_id' is required: the NuGet package to add.");
+            return McpToolResults.Failure(Name, JsonErrorKind.Workflow,
+                "'package_id' is required: the NuGet package to add.");
         }
 
         var version = McpArgs.GetString(arguments, "version");
@@ -67,13 +71,15 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) 
 
         // Also pins an addon-declared package, or changes a declared one, when a version is given
         // (DESIGN-v0.19 §7a.1) — the same entry point `add` uses on the CLI.
-        var declaration = await workflow.DeclareDotnetAsync(projectDirectory, packageId, version, nuGetSource, cancellationToken);
+        var declaration = await workflow.DeclareDotnetAsync(projectDirectory, packageId, version,
+            nuGetSource, cancellationToken);
 
         var payload = new OperationJson {
             Changes = [JsonMapper.ToChange(declaration)],
             Messages = declaration.Messages(nuGetSource),
         };
 
-        return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));
+        return McpToolResults.FromJson(
+            DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload)));
     }
 }

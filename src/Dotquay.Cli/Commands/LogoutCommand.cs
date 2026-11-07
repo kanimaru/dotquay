@@ -4,7 +4,8 @@ using Dotquay.Core.Json;
 
 namespace Dotquay.Cli.Commands;
 
-/// <summary><c>dotquay logout &lt;host&gt;</c> — removes a stored credential (SPEC.md §11.2).</summary>
+/// <summary><c>dotquay logout &lt;host&gt;</c> — removes a stored credential (SPEC.md
+/// §11.2).</summary>
 /// <remarks>
 /// Matches the exact scope given and nothing else. Prefix matching would mean
 /// <c>dotquay logout gitlab.example.com</c> silently deleted a narrower, differently-scoped token
@@ -16,7 +17,8 @@ internal static class LogoutCommand {
 
     public static Command Build() {
         var hostArgument = new Argument<string>("host") {
-            Description = "The host or scope to forget, exactly as 'dotquay login --list' shows it.",
+            Description = "The host or scope to forget, exactly as 'dotquay login --list' shows "
+                + "it.",
         };
 
         var jsonOption = JsonOutput.CreateOption();
@@ -41,14 +43,16 @@ internal static class LogoutCommand {
                     : $"No stored credentials for {scope.Key} — nothing to do.";
 
                 if (json) {
-                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson {
-                        StorePath = CredentialFactory.StorePath(),
-                        Messages = [message],
-                    })));
+                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName,
+                        new LoginJson {
+                            StorePath = CredentialFactory.StorePath(),
+                            Messages = [message],
+                        })));
                     return 0;
                 }
 
-                ConsoleOutput.WriteLine(removed ? ConsoleColor.Green : ConsoleColor.Yellow, message);
+                ConsoleOutput.WriteLine(removed ? ConsoleColor.Green : ConsoleColor.Yellow,
+                    message);
                 return 0;
             } catch (CredentialException ex) {
                 return JsonOutput.Fail(json, CommandName, ex);

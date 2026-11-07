@@ -8,16 +8,17 @@ namespace Dotquay.Core.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A <see cref="DelegatingHandler"/> rather than log lines at each <c>SendAsync</c> call site, so the
-/// NuGet client, the GitLab release channel and the credential verifier all report the same way and
-/// a fourth HTTP caller added later is covered by using <see cref="DiagnosticHttp.CreateClient"/>.
+/// A <see cref="DelegatingHandler"/> rather than log lines at each <c>SendAsync</c> call site, so
+/// the NuGet client, the GitLab release channel and the credential verifier all report the same way
+/// and a fourth HTTP caller added later is covered by using
+/// <see cref="DiagnosticHttp.CreateClient"/>.
 /// </para>
 /// <para>
 /// Headers are never logged, not even redacted: the interesting ones (<c>Authorization</c>,
 /// <c>PRIVATE-TOKEN</c>) are the secret, and a redaction rule that missed a new header name would
-/// leak a token into a log someone pastes into an issue. Whether a credential was attached at all is
-/// what actually diagnoses a 401 vs a 404 on GitLab (see the GitLab notes in docs/DESIGN-v0.7-AUTH.md),
-/// so that - and only the scheme - is said.
+/// leak a token into a log someone pastes into an issue. Whether a credential was attached at all
+/// is what actually diagnoses a 401 vs a 404 on GitLab (see the GitLab notes in
+/// docs/DESIGN-v0.7-AUTH.md), so that - and only the scheme - is said.
 /// </para>
 /// </remarks>
 public sealed class DiagnosticHttpHandler : DelegatingHandler {
@@ -25,7 +26,8 @@ public sealed class DiagnosticHttpHandler : DelegatingHandler {
         : base(innerHandler) {
     }
 
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+        CancellationToken cancellationToken) {
         if (!DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose)) {
             return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
@@ -40,14 +42,16 @@ public sealed class DiagnosticHttpHandler : DelegatingHandler {
             DiagnosticLog.Write(
                 DiagnosticLevel.Verbose,
                 "http",
-                $"{target}{credential} -> {(int)response.StatusCode} {response.ReasonPhrase} after {elapsed}");
+                $"{target}{credential} -> {(int)response.StatusCode} {response.ReasonPhrase} after "
+                + $"{elapsed}");
             return response;
         } catch (Exception ex) {
             var elapsed = DiagnosticLog.FormatDuration(Stopwatch.GetElapsedTime(started));
             DiagnosticLog.Write(
                 DiagnosticLevel.Verbose,
                 "http",
-                $"{target}{credential} failed after {elapsed}: {ex.GetType().Name}: {SecretRedactor.Redact(ex.Message)}");
+                $"{target}{credential} failed after {elapsed}: {ex.GetType().Name}: "
+                + $"{SecretRedactor.Redact(ex.Message)}");
             throw;
         }
     }
@@ -71,5 +75,6 @@ public static class DiagnosticHttp {
     /// system proxy, same defaults - with <see cref="DiagnosticHttpHandler"/> in front, which is a
     /// pass-through when diagnostics are off.
     /// </summary>
-    public static HttpClient CreateClient() => new(new DiagnosticHttpHandler(new HttpClientHandler()));
+    public static HttpClient CreateClient() =>
+        new(new DiagnosticHttpHandler(new HttpClientHandler()));
 }

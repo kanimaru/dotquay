@@ -12,8 +12,9 @@ namespace Dotquay.Tests.Resolve;
 /// <remarks>
 /// The rules themselves already had coverage through <see cref="DependencyGraphResolver"/>; what is
 /// new, and what these tests are really about, is that a failure now carries enough structure for a
-/// UI to offer a way out (SPEC.md §18). A conflict that reports no usable candidate is a conflict the
-/// editor's picker can only shrug at, so the candidate assertions matter as much as the kind ones.
+/// UI to offer a way out (SPEC.md §18). A conflict that reports no usable candidate is a conflict
+/// the editor's picker can only shrug at, so the candidate assertions matter as much as the kind
+/// ones.
 /// </remarks>
 public class AddonUnifierTests {
     private const string CoreUrl = "https://example.com/core.git";
@@ -35,7 +36,8 @@ public class AddonUnifierTests {
     private static AddonRequirement WantsRev(string requirer, string rev, string git = CoreUrl) =>
         new(requirer, new AddonSpec { Name = "core", Git = git, Rev = rev });
 
-    private static AddonRequirement WantsBranch(string requirer, string branch, string git = CoreUrl) =>
+    private static AddonRequirement WantsBranch(string requirer, string branch,
+        string git = CoreUrl) =>
         new(requirer, new AddonSpec { Name = "core", Git = git, Branch = branch });
 
     [Fact]
@@ -43,8 +45,8 @@ public class AddonUnifierTests {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.2.0", "v1.4.0", "v1.4.2", "v2.0.0");
 
-        // "~1.4" is a Cargo-style tilde range: >= 1.4.0 and < 1.5.0. v2.0.0 is outside it, v1.2.0 is
-        // below it, so v1.4.2 is the highest tag that qualifies.
+        // "~1.4" is a Cargo-style tilde range: >= 1.4.0 and < 1.5.0. v2.0.0 is outside it, v1.2.0
+        // is below it, so v1.4.2 is the highest tag that qualifies.
         var outcome = await unifier.UnifyAsync("core", [Wants("<project>", "~1.4")]);
 
         Assert.True(outcome.IsResolved);
@@ -56,8 +58,8 @@ public class AddonUnifierTests {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.1", "v1.0.2-rc1", "v1.0.2-rc2", "v1.1.0-rc1");
 
-        // DESIGN-v0.21 §3.4: the range names a 1.0.2 prerelease, so later 1.0.2 prereleases qualify,
-        // and 1.1.0-rc1 does not — it is a prerelease of a different version.
+        // DESIGN-v0.21 §3.4: the range names a 1.0.2 prerelease, so later 1.0.2 prereleases
+        // qualify, and 1.1.0-rc1 does not — it is a prerelease of a different version.
         var outcome = await unifier.UnifyAsync("core", [Wants("<project>", "^1.0.2-rc1")]);
 
         Assert.True(outcome.IsResolved);
@@ -129,7 +131,8 @@ public class AddonUnifierTests {
 
         var outcome = await unifier.UnifyAsync("core", [Wants("a", "~1"), Wants("b", "~2")]);
 
-        Assert.All(outcome.Conflict!.Candidates, c => Assert.False(string.IsNullOrEmpty(c.CommitSha)));
+        Assert.All(outcome.Conflict!.Candidates, c =>
+            Assert.False(string.IsNullOrEmpty(c.CommitSha)));
     }
 
     [Fact]
@@ -150,7 +153,8 @@ public class AddonUnifierTests {
         SetTags(gitClient, CoreUrl, "v1.0.0");
         SetTags(gitClient, ForkUrl, "v1.0.0");
 
-        var outcome = await unifier.UnifyAsync("core", [Wants("a", "~1"), Wants("b", "~1", ForkUrl)]);
+        var outcome = await unifier.UnifyAsync("core",
+            [Wants("a", "~1"), Wants("b", "~1", ForkUrl)]);
 
         Assert.False(outcome.IsResolved);
         Assert.Equal(GraphConflictKind.DifferentGitUrls, outcome.Conflict.Kind);
@@ -162,7 +166,8 @@ public class AddonUnifierTests {
     public async Task UnifyAsync_TwoDifferentRevPins_ReportsDisjointPins() {
         var (unifier, _) = Build();
 
-        var outcome = await unifier.UnifyAsync("core", [WantsRev("a", "aaa1111"), WantsRev("b", "bbb2222")]);
+        var outcome = await unifier.UnifyAsync("core",
+            [WantsRev("a", "aaa1111"), WantsRev("b", "bbb2222")]);
 
         Assert.False(outcome.IsResolved);
         Assert.Equal(GraphConflictKind.DisjointPins, outcome.Conflict.Kind);
@@ -176,7 +181,8 @@ public class AddonUnifierTests {
 
         // The same pin twice isn't a disagreement — refusing it would make a shared dependency
         // impossible to declare consistently.
-        var outcome = await unifier.UnifyAsync("core", [WantsRev("a", "aaa1111"), WantsRev("b", "aaa1111")]);
+        var outcome = await unifier.UnifyAsync("core",
+            [WantsRev("a", "aaa1111"), WantsRev("b", "aaa1111")]);
 
         Assert.True(outcome.IsResolved);
         Assert.Equal("aaa1111", outcome.Resolved.ResolvedSha);
@@ -187,7 +193,8 @@ public class AddonUnifierTests {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
 
-        var outcome = await unifier.UnifyAsync("core", [WantsRev("a", "aaa1111"), Wants("b", "~1")]);
+        var outcome = await unifier.UnifyAsync("core",
+            [WantsRev("a", "aaa1111"), Wants("b", "~1")]);
 
         Assert.False(outcome.IsResolved);
         Assert.Equal(GraphConflictKind.DisjointPins, outcome.Conflict.Kind);
@@ -198,9 +205,11 @@ public class AddonUnifierTests {
         var (unifier, gitClient) = Build();
         gitClient.BranchTips[(CoreUrl, "godot4")] = new string('c', 40);
 
-        var outcome = await unifier.UnifyAsync("core", [WantsBranch("a", "godot4"), WantsRev("b", "bbb2222")]);
+        var outcome = await unifier.UnifyAsync("core",
+            [WantsBranch("a", "godot4"), WantsRev("b", "bbb2222")]);
 
-        var branchCandidate = outcome.Conflict!.Candidates.Single(c => c.Kind == AddonSourceKind.Branch);
+        var branchCandidate = outcome.Conflict!.Candidates.Single(c =>
+            c.Kind == AddonSourceKind.Branch);
         Assert.Equal(new string('c', 40), branchCandidate.CommitSha);
     }
 
@@ -213,13 +222,15 @@ public class AddonUnifierTests {
         SetTags(gitClient, CoreUrl, "v1.0.0");
         SetTags(gitClient, ForkUrl);
 
-        var outcome = await unifier.UnifyAsync("core", [Wants("a", "~1"), Wants("b", "~1", ForkUrl)]);
+        var outcome = await unifier.UnifyAsync("core",
+            [Wants("a", "~1"), Wants("b", "~1", ForkUrl)]);
 
         Assert.False(outcome.IsResolved);
         Assert.Equal(GraphConflictKind.DifferentGitUrls, outcome.Conflict.Kind);
         Assert.Equal(2, outcome.Conflict.Candidates.Count);
         Assert.Contains(outcome.Conflict.Candidates, c => c.Git == ForkUrl && c.CommitSha is null);
-        Assert.Contains(outcome.Conflict.Candidates, c => c.Git == CoreUrl && c.CommitSha is not null);
+        Assert.Contains(outcome.Conflict.Candidates, c => c.Git == CoreUrl
+            && c.CommitSha is not null);
     }
 
     [Fact]
@@ -227,7 +238,8 @@ public class AddonUnifierTests {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
 
-        var outcome = await unifier.UnifyAsync("core", [Wants("a", "~1"), Wants("b", "not-a-version")]);
+        var outcome = await unifier.UnifyAsync("core",
+            [Wants("a", "~1"), Wants("b", "not-a-version")]);
 
         Assert.False(outcome.IsResolved);
         Assert.Equal(GraphConflictKind.InvalidConstraint, outcome.Conflict.Kind);
@@ -239,7 +251,8 @@ public class AddonUnifierTests {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0", "v2.0.0", "v3.0.0");
 
-        var outcome = await unifier.UnifyAsync("core", [Wants("a", "~1"), Wants("b", "~2"), Wants("c", "~3")]);
+        var outcome = await unifier.UnifyAsync("core",
+            [Wants("a", "~1"), Wants("b", "~2"), Wants("c", "~3")]);
 
         Assert.Equal(3, outcome.Conflict!.Requirements.Count);
         Assert.Equal(["a", "b", "c"], outcome.Conflict.Requirements.Select(r => r.Requirer));

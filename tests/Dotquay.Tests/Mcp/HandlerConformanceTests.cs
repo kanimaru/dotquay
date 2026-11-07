@@ -10,7 +10,8 @@ namespace Dotquay.Tests.Mcp;
 /// <see cref="McpTestHarness"/>'s in-memory stream transport.
 /// </summary>
 public sealed class HandlerConformanceTests : IAsyncDisposable {
-    private readonly string _projectDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-test-").FullName;
+    private readonly string _projectDirectory =
+        Directory.CreateTempSubdirectory("dotquay-mcp-test-").FullName;
     private McpTestHarness? _harness;
 
     private async Task<McpTestHarness> HarnessAsync() =>
@@ -55,7 +56,8 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
     public async Task Calling_an_unknown_tool_fails_cleanly_instead_of_throwing() {
         var harness = await HarnessAsync();
 
-        var result = await harness.Client.CallToolAsync("dotquay_does_not_exist", new Dictionary<string, object?>());
+        var result = await harness.Client.CallToolAsync("dotquay_does_not_exist",
+            new Dictionary<string, object?>());
 
         Assert.True(result.IsError);
         AssertErrorKind(result, "unexpected");
@@ -70,7 +72,10 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
 
         var result = await harness.Client.CallToolAsync(
             "dotquay_add_preview",
-            new Dictionary<string, object?> { ["project"] = _projectDirectory, ["git"] = "https://example.com/addon.git" });
+            new Dictionary<string, object?> {
+                ["project"] = _projectDirectory,
+                ["git"] = "https://example.com/addon.git"
+            });
 
         Assert.True(result.IsError);
         AssertErrorKind(result, "no_manifest");
@@ -82,7 +87,8 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
     [InlineData("dotquay.toml", "dotquay_doctor")]
     [InlineData("dotquay.local.toml", "dotquay_doctor")]
     [InlineData("dotquay.toml", "dotquay_add_preview")]
-    public async Task A_malformed_project_file_is_a_tool_error_of_kind_invalid_project_file(string file, string tool) {
+    public async Task A_malformed_project_file_is_a_tool_error_of_kind_invalid_project_file(
+        string file, string tool) {
         if (file != "dotquay.toml") {
             File.WriteAllText(Path.Combine(_projectDirectory, "dotquay.toml"), "[project]\n");
         }
@@ -92,7 +98,10 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
 
         var result = await harness.Client.CallToolAsync(
             tool,
-            new Dictionary<string, object?> { ["project"] = _projectDirectory, ["git"] = "https://example.com/addon.git" });
+            new Dictionary<string, object?> {
+                ["project"] = _projectDirectory,
+                ["git"] = "https://example.com/addon.git"
+            });
 
         Assert.True(result.IsError);
         AssertErrorKind(result, "invalid_project_file");
@@ -104,14 +113,17 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
 
     [Fact]
     public async Task Add_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash() {
-        // dotquay_add's write guard runs PreviewAddAsync first (SourceApprovalPolicy), which hits the
-        // same ReadManifestOrThrow as dotquay_add_preview — so the missing manifest is caught before
-        // AddAsync itself ever runs, and before anything is written.
+        // dotquay_add's write guard runs PreviewAddAsync first (SourceApprovalPolicy), which hits
+        // the same ReadManifestOrThrow as dotquay_add_preview — so the missing manifest is caught
+        // before AddAsync itself ever runs, and before anything is written.
         var harness = await HarnessAsync();
 
         var result = await harness.Client.CallToolAsync(
             "dotquay_add",
-            new Dictionary<string, object?> { ["project"] = _projectDirectory, ["git_url"] = "https://example.com/addon.git" });
+            new Dictionary<string, object?> {
+                ["project"] = _projectDirectory,
+                ["git_url"] = "https://example.com/addon.git"
+            });
 
         Assert.True(result.IsError);
         AssertErrorKind(result, "no_manifest");
@@ -151,7 +163,8 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
 
         try {
             var result = await harness.Client.CallToolAsync(
-                "dotquay_status", new Dictionary<string, object?> { ["project"] = outsideDirectory });
+                "dotquay_status",
+                new Dictionary<string, object?> { ["project"] = outsideDirectory });
 
             Assert.True(result.IsError);
             AssertErrorKind(result, "scope");
@@ -182,10 +195,11 @@ public sealed class HandlerConformanceTests : IAsyncDisposable {
         using var document = JsonDocument.Parse(text);
 
         Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
-        Assert.Equal(expectedKind, document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+        Assert.Equal(expectedKind, document.RootElement.GetProperty("error").GetProperty("kind")
+            .GetString());
 
-        // StructuredContent must always be the same document as the text block — a client that reads
-        // one must never see something different from a client that reads the other.
+        // StructuredContent must always be the same document as the text block — a client that
+        // reads one must never see something different from a client that reads the other.
         Assert.True(result.StructuredContent.HasValue);
         Assert.Equal(text, result.StructuredContent.Value.GetRawText());
     }

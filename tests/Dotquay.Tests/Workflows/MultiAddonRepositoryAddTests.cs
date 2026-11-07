@@ -7,8 +7,9 @@ namespace Dotquay.Tests.Workflows;
 
 /// <summary>
 /// <c>dotquay add</c> against one repository that ships several addons — the BotV2 report:
-/// <c>add …/vbeami/ --branch main --path godot/addons/vbeami_vcam --install-as vbeami_vcam</c> was refused
-/// with "'vbeami' is already declared" because the name came from the URL alone (see <see cref="AddonNaming"/>).
+/// <c>add …/vbeami/ --branch main --path godot/addons/vbeami_vcam --install-as vbeami_vcam</c> was
+/// refused with "'vbeami' is already declared" because the name came from the URL alone (see
+/// <see cref="AddonNaming"/>).
 /// </summary>
 public class MultiAddonRepositoryAddTests {
     private const string RepoUrl = "https://gitlab.kemomi.de/wild-alliance/vbeami/";
@@ -33,7 +34,8 @@ public class MultiAddonRepositoryAddTests {
         ManifestReader.ReadProject(fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml"));
 
     private static Task<Core.Lockfile.LockedAddon> AddCore(DependencyWorkflow workflow) =>
-        workflow.AddAsync(ProjectDir, RepoUrl, new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami" });
+        workflow.AddAsync(ProjectDir, RepoUrl,
+            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami" });
 
     [Fact]
     public async Task AddAsync_SecondSubtreeWithInstallAs_IsAddedUnderItsInstallAsName() {
@@ -44,7 +46,11 @@ public class MultiAddonRepositoryAddTests {
         var locked = await workflow.AddAsync(
             ProjectDir,
             RepoUrl,
-            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" });
+            new AddonAddOptions {
+                Branch = "main",
+                Path = "godot/addons/vbeami_vcam",
+                InstallAs = "vbeami_vcam"
+            });
 
         Assert.Equal("vbeami_vcam", locked.Name);
         Assert.Equal("vbeami_vcam", locked.EffectiveFolder);
@@ -66,10 +72,11 @@ public class MultiAddonRepositoryAddTests {
         await AddCore(workflow);
 
         var locked = await workflow.AddAsync(
-            ProjectDir, RepoUrl, new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_gdmp" });
+            ProjectDir, RepoUrl,
+            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_gdmp" });
 
-        // The name doubles as the install folder, so it lands in its own folder rather than on top of
-        // addons/vbeami.
+        // The name doubles as the install folder, so it lands in its own folder rather than on top
+        // of addons/vbeami.
         Assert.Equal("vbeami_gdmp", locked.Name);
         Assert.Equal("gdmp", fileSystem.ReadAllText($"{ProjectDir}/addons/vbeami_gdmp/plugin.cfg"));
         Assert.Equal("core", fileSystem.ReadAllText($"{ProjectDir}/addons/vbeami/plugin.cfg"));
@@ -83,7 +90,12 @@ public class MultiAddonRepositoryAddTests {
         var locked = await workflow.AddAsync(
             ProjectDir,
             RepoUrl,
-            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam", Name = "camera" });
+            new AddonAddOptions {
+                Branch = "main",
+                Path = "godot/addons/vbeami_vcam",
+                InstallAs = "vbeami_vcam",
+                Name = "camera"
+            });
 
         Assert.Equal("camera", locked.Name);
         Assert.Equal("vbeami_vcam", locked.EffectiveFolder);
@@ -94,9 +106,15 @@ public class MultiAddonRepositoryAddTests {
     public async Task AddAsync_ThreeAddonsFromOneRepo_AllCoexist() {
         var (workflow, fileSystem) = Build();
         await AddCore(workflow);
-        await workflow.AddAsync(ProjectDir, RepoUrl, new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_gdmp" });
+        await workflow.AddAsync(ProjectDir, RepoUrl,
+            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_gdmp" });
         await workflow.AddAsync(
-            ProjectDir, RepoUrl, new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" });
+            ProjectDir, RepoUrl,
+            new AddonAddOptions {
+                Branch = "main",
+                Path = "godot/addons/vbeami_vcam",
+                InstallAs = "vbeami_vcam"
+            });
 
         Assert.Equal(
             ["vbeami", "vbeami_gdmp", "vbeami_vcam"],
@@ -122,7 +140,11 @@ public class MultiAddonRepositoryAddTests {
         var preview = await workflow.PreviewAddAsync(
             ProjectDir,
             RepoUrl,
-            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" });
+            new AddonAddOptions {
+                Branch = "main",
+                Path = "godot/addons/vbeami_vcam",
+                InstallAs = "vbeami_vcam"
+            });
 
         // Preview and add share the naming code; a preview reporting "vbeami" here would invite a
         // confirm button that then fails.

@@ -29,7 +29,8 @@ public class GraphInspectorTests {
 
     private static string Sha(char c) => new(c, 40);
 
-    private static (GraphInspector Inspector, InMemoryFileSystem FileSystem) Build(string manifest, string lockfile) {
+    private static (GraphInspector Inspector, InMemoryFileSystem FileSystem) Build(string manifest,
+        string lockfile) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
@@ -104,13 +105,14 @@ public class GraphInspectorTests {
         var report = inspector.Inspect(ProjectDirectory);
 
         Assert.Equal(GraphNodeOrigin.Root, report.Addons.Single(a => a.Name == "a").Origin);
-        Assert.Equal(GraphNodeOrigin.Transitive, report.Addons.Single(a => a.Name == "core").Origin);
+        Assert.Equal(GraphNodeOrigin.Transitive, report.Addons.Single(a => a.Name == "core")
+            .Origin);
     }
 
     [Fact]
     public void Inspect_FlagsAnUnreachableLockedAddonAsAnOrphan() {
-        // Nothing declares or depends on "ghost" any more — the drift `doctor` reports as a dangling
-        // entry. Calling it transitive would tell the user something still needs it.
+        // Nothing declares or depends on "ghost" any more — the drift `doctor` reports as a
+        // dangling entry. Calling it transitive would tell the user something still needs it.
         var lockfile = DiamondLockfile + $"""
 
             [[addon]]
@@ -133,8 +135,10 @@ public class GraphInspectorTests {
 
         var report = inspector.Inspect(ProjectDirectory);
 
-        Assert.Contains(report.Edges, e => e.From == GraphConflict.ProjectRequirerName && e.To == "a");
-        Assert.Contains(report.Edges, e => e.From == GraphConflict.ProjectRequirerName && e.To == "b");
+        Assert.Contains(report.Edges, e => e.From == GraphConflict.ProjectRequirerName
+            && e.To == "a");
+        Assert.Contains(report.Edges, e => e.From == GraphConflict.ProjectRequirerName
+            && e.To == "b");
     }
 
     [Fact]
@@ -149,8 +153,9 @@ public class GraphInspectorTests {
 
     [Fact]
     public void Inspect_DropsEdgesToNamesWithNoNode() {
-        // A lockfile can name a dependency that isn't locked (a hand-edit, or an interrupted install).
-        // Drawing an arrow into nothing is worse than admitting the child isn't in this picture.
+        // A lockfile can name a dependency that isn't locked (a hand-edit, or an interrupted
+        // install). Drawing an arrow into nothing is worse than admitting the child isn't in this
+        // picture.
         var lockfile = $"""
             [[addon]]
             name = "a"
@@ -208,7 +213,8 @@ public class GraphInspectorTests {
         // On disk, but the lockfile has no content_hash for it — a folder dotquay never installed
         // (SPEC.md §9 step 4 treats that as dirty rather than silently adopting it), so the panel
         // must not badge it as clean.
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "a", "plugin.cfg"), "cfg");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "a",
+            "plugin.cfg"), "cfg");
 
         var report = inspector.Inspect(ProjectDirectory);
 
@@ -221,8 +227,8 @@ public class GraphInspectorTests {
         var installedPath = fileSystem.CombinePath(ProjectDirectory, "addons", "a");
         fileSystem.WriteAllText(fileSystem.CombinePath(installedPath, "plugin.cfg"), "cfg");
 
-        // The same hash the installer would have recorded — computed rather than hard-coded, so this
-        // stays true if the hashing scheme ever changes.
+        // The same hash the installer would have recorded — computed rather than hard-coded, so
+        // this stays true if the hashing scheme ever changes.
         var contentHash = ContentHasher.HashDirectory(fileSystem, installedPath);
 
         var lockfile = $"""
@@ -244,7 +250,8 @@ public class GraphInspectorTests {
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
 
-        var report = new GraphInspector(fileSystem, new FakeGitClient(), "cache").Inspect(ProjectDirectory);
+        var report = new GraphInspector(fileSystem, new FakeGitClient(), "cache")
+            .Inspect(ProjectDirectory);
 
         Assert.Equal(AddonStatusKind.Clean, report.Addons.Single(a => a.Name == "a").Status);
     }
@@ -346,7 +353,8 @@ public class GraphInspectorTests {
 
         var (inspector, fileSystem) = Build(manifest, lockfile);
         if (aPackageManifest is not null) {
-            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "a", "dotquay.toml"), aPackageManifest);
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "a",
+                "dotquay.toml"), aPackageManifest);
         }
 
         return inspector.Inspect(ProjectDirectory);
@@ -363,8 +371,8 @@ public class GraphInspectorTests {
 
     [Fact]
     public void Inspect_AddonDeclaredNuGet_NamesTheAddonThatDeclaredIt() {
-        // The whole point of v0.19: the default, offline view used to know only "not the project's",
-        // which the panel could render as nothing better than "needed by an addon".
+        // The whole point of v0.19: the default, offline view used to know only "not the
+        // project's", which the panel could render as nothing better than "needed by an addon".
         var report = InspectWithNuGet(ADeclaresSerilog);
 
         var serilog = report.Dotnet.Single(d => d.Name == "Serilog");
@@ -394,8 +402,8 @@ public class GraphInspectorTests {
 
     [Fact]
     public void Inspect_AddonWithNoPackageManifest_VouchesForNothing() {
-        // Without a manifest on disk, nothing claims Serilog is needed. Showing it as an orphan is the
-        // same honest answer doctor gives, and the two must not disagree.
+        // Without a manifest on disk, nothing claims Serilog is needed. Showing it as an orphan is
+        // the same honest answer doctor gives, and the two must not disagree.
         var report = InspectWithNuGet(aPackageManifest: null);
 
         Assert.Equal(GraphNodeOrigin.Orphan, report.Dotnet.Single(d => d.Name == "Serilog").Origin);
@@ -412,9 +420,9 @@ public class GraphInspectorTests {
 
     [Fact]
     public void Inspect_UnreachableAddon_DoesNotVouchForItsPackages() {
-        // 'ghost' is still on disk and still declares Serilog, but nothing requires 'ghost' any more.
-        // Letting an orphaned addon keep its package alive would hide exactly the drift an orphan
-        // badge exists to show.
+        // 'ghost' is still on disk and still declares Serilog, but nothing requires 'ghost' any
+        // more. Letting an orphaned addon keep its package alive would hide exactly the drift an
+        // orphan badge exists to show.
         var lockfile = $"""
 
             [[addon]]
@@ -447,8 +455,8 @@ public class GraphInspectorTests {
 
     [Fact]
     public void Inspect_ReadsThePackageManifestFromTheInstallAsFolder() {
-        // 'a' installs into addons/renamed_a. Its package manifest lives there, not in addons/a, and a
-        // name-derived path would quietly find nothing.
+        // 'a' installs into addons/renamed_a. Its package manifest lives there, not in addons/a,
+        // and a name-derived path would quietly find nothing.
         var lockfile = DiamondLockfile.Replace(
             "path = \"addons/a\"", "path = \"addons/a\"\nfolder = \"renamed_a\"");
 
@@ -459,7 +467,8 @@ public class GraphInspectorTests {
             resolved = "3.1.1"
             """);
         fileSystem.WriteAllText(
-            fileSystem.CombinePath(ProjectDirectory, "addons", "renamed_a", "dotquay.toml"), ADeclaresSerilog);
+            fileSystem.CombinePath(ProjectDirectory, "addons", "renamed_a", "dotquay.toml"),
+            ADeclaresSerilog);
 
         var report = inspector.Inspect(ProjectDirectory);
 

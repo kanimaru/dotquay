@@ -19,7 +19,8 @@ public class CsprojPackageReferenceWriterTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.Contains("Include=\"Newtonsoft.Json\"", text);
@@ -39,21 +40,25 @@ public class CsprojPackageReferenceWriterTests {
             </Project>
             """);
 
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         var reference = text.IndexOf("<PackageReference", StringComparison.Ordinal);
         Assert.True(reference > text.IndexOf("</PropertyGroup>", StringComparison.Ordinal));
-        Assert.True(reference < text.IndexOf("<!-- explicit SDK targets -->", StringComparison.Ordinal));
+        Assert.True(reference < text.IndexOf("<!-- explicit SDK targets -->",
+            StringComparison.Ordinal));
     }
 
     [Fact]
     public void AddOrUpdate_ExistingReference_UpdatesVersionInPlace() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.4");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.4");
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.Contains("Version=\"13.0.4\"", text);
@@ -65,9 +70,11 @@ public class CsprojPackageReferenceWriterTests {
     public void AddOrUpdate_MatchesPackageIdCaseInsensitively() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "newtonsoft.json", "13.0.4");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "newtonsoft.json", "13.0.4");
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.Equal(1, CountOccurrences(text, "PackageReference"));
@@ -78,7 +85,8 @@ public class CsprojPackageReferenceWriterTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.Contains("<TargetFramework>net8.0</TargetFramework>", text);
@@ -89,9 +97,11 @@ public class CsprojPackageReferenceWriterTests {
     public void Remove_ExistingReference_RemovesItAndReturnsTrue() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json", "13.0.3");
 
-        var removed = CsprojPackageReferenceWriter.Remove(fileSystem, "project/Game.csproj", "Newtonsoft.Json");
+        var removed = CsprojPackageReferenceWriter.Remove(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json");
 
         Assert.True(removed);
         Assert.DoesNotContain("Newtonsoft.Json", fileSystem.ReadAllText("project/Game.csproj"));
@@ -102,7 +112,8 @@ public class CsprojPackageReferenceWriterTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
-        var removed = CsprojPackageReferenceWriter.Remove(fileSystem, "project/Game.csproj", "Newtonsoft.Json");
+        var removed = CsprojPackageReferenceWriter.Remove(fileSystem, "project/Game.csproj",
+            "Newtonsoft.Json");
 
         Assert.False(removed);
     }
@@ -113,7 +124,9 @@ public class CsprojPackageReferenceWriterTests {
         fileSystem.WriteAllText("project/Game.csproj", "<NotAProject></NotAProject>");
 
         Assert.Throws<DotnetSyncException>(
-            () => CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3"));
+            () =>
+                CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+                    "Newtonsoft.Json", "13.0.3"));
     }
 
     [Fact]
@@ -122,7 +135,9 @@ public class CsprojPackageReferenceWriterTests {
         fileSystem.WriteAllText("project/Game.csproj", "<Project><Unclosed></Project>");
 
         Assert.Throws<DotnetSyncException>(
-            () => CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3"));
+            () =>
+                CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+                    "Newtonsoft.Json", "13.0.3"));
     }
 
     // ---- asset metadata (v0.10) -------------------------------------------
@@ -168,8 +183,9 @@ public class CsprojPackageReferenceWriterTests {
 
     [Fact]
     public void AddOrUpdate_UndeclaredAndNeverWrittenByDotquay_LeavesHandEditsAlone() {
-        // The pre-v0.10 workflow: someone hand-added the metadata and dotquay knows nothing about it.
-        // Stripping it on the next version bump would be dotquay destroying work it never owned.
+        // The pre-v0.10 workflow: someone hand-added the metadata and dotquay knows nothing about
+        // it. Stripping it on the next version bump would be dotquay destroying work it never
+        // owned.
         var fileSystem = WithReference("""
             <Project Sdk="Godot.NET.Sdk/4.3.0">
               <ItemGroup>
@@ -180,7 +196,8 @@ public class CsprojPackageReferenceWriterTests {
             </Project>
             """);
 
-        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.1");
+        CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj",
+            "gdUnit4.analyzers", "1.0.1");
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.Contains("<PrivateAssets>none</PrivateAssets>", text);
@@ -189,14 +206,15 @@ public class CsprojPackageReferenceWriterTests {
 
     [Fact]
     public void AddOrUpdate_UndeclaredButPreviouslyWrittenByDotquay_RemovesIt() {
-        // The manifest withdrew the declaration. Only the lockfile record makes this distinguishable
-        // from the hand-edit case above.
+        // The manifest withdrew the declaration. Only the lockfile record makes this
+        // distinguishable from the hand-edit case above.
         var fileSystem = WithReference(SdkStyleCsproj);
         CsprojPackageReferenceWriter.AddOrUpdate(
             fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.0", AnalyzerAssets);
 
         CsprojPackageReferenceWriter.AddOrUpdate(
-            fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.0", PackageAssets.None, AnalyzerAssets);
+            fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.0", PackageAssets.None,
+            AnalyzerAssets);
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.DoesNotContain("PrivateAssets", text);
@@ -214,7 +232,8 @@ public class CsprojPackageReferenceWriterTests {
             """);
 
         CsprojPackageReferenceWriter.AddOrUpdate(
-            fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.0", new PackageAssets { Private = ["none"] });
+            fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.0",
+            new PackageAssets { Private = ["none"] });
 
         var text = fileSystem.ReadAllText("project/Game.csproj");
         Assert.Contains("PrivateAssets=\"none\"", text);
@@ -236,7 +255,8 @@ public class CsprojPackageReferenceWriterTests {
             </Project>
             """);
 
-        var assets = CsprojPackageReferenceWriter.ReadAssets(fileSystem, "project/Game.csproj", "gdUnit4.analyzers");
+        var assets = CsprojPackageReferenceWriter.ReadAssets(fileSystem, "project/Game.csproj",
+            "gdUnit4.analyzers");
 
         Assert.Equal(["runtime", "build", "contentFiles"], assets!.Include);
     }

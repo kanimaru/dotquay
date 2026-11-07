@@ -9,22 +9,22 @@ namespace Dotquay.Core.Git;
 /// <para>
 /// The problem it solves: an addon's package manifest hardcodes whatever transport its author uses.
 /// A consumer who added every one of their own dependencies over HTTPS still inherits
-/// <c>git@host:...</c> for anything those dependencies pull in, and then needs an SSH key, an agent,
-/// and a <c>known_hosts</c> entry for a project they described entirely in HTTPS. The reverse hurts
-/// too: an SSH-only shop inherits HTTPS URLs and gets credential prompts where their keys would have
-/// worked.
+/// <c>git@host:...</c> for anything those dependencies pull in, and then needs an SSH key, an
+/// agent, and a <c>known_hosts</c> entry for a project they described entirely in HTTPS. The
+/// reverse hurts too: an SSH-only shop inherits HTTPS URLs and gets credential prompts where their
+/// keys would have worked.
 /// </para>
 /// <para>
 /// Transport is the consuming machine's business, not the addon author's. The author's URL is the
 /// authority on <em>which repository</em> (host and path, preserved exactly); the project's own
 /// declarations are the authority on <em>how to get there</em>. Splitting it that way needs no new
-/// configuration: a project that writes HTTPS URLs has already said everything required, and a fresh
-/// clone on a new machine inherits the answer with it.
+/// configuration: a project that writes HTTPS URLs has already said everything required, and a
+/// fresh clone on a new machine inherits the answer with it.
 /// </para>
 /// <para>
-/// Deliberately not applied to the project's own top-level <c>[addons.*]</c> entries -- those are the
-/// evidence, and rewriting them would be circular. <c>[overrides.*]</c> count as evidence too: an
-/// override is the project speaking about a dependency, in the project's own voice.
+/// Deliberately not applied to the project's own top-level <c>[addons.*]</c> entries -- those are
+/// the evidence, and rewriting them would be circular. <c>[overrides.*]</c> count as evidence too:
+/// an override is the project speaking about a dependency, in the project's own voice.
 /// </para>
 /// </remarks>
 public sealed class GitTransportPreference {
@@ -98,8 +98,8 @@ public sealed class GitTransportPreference {
     /// whether anything changed.
     /// </summary>
     /// <returns>
-    /// True only when the result differs from the input. A caller can therefore treat true as "worth
-    /// telling the user about" without re-comparing strings.
+    /// True only when the result differs from the input. A caller can therefore treat true as
+    /// "worth telling the user about" without re-comparing strings.
     /// </returns>
     public bool TryRewrite(string? declaredUrl, out string rewritten) {
         rewritten = declaredUrl ?? string.Empty;

@@ -14,9 +14,9 @@ namespace Dotquay.Core.Json;
 /// (SPEC.md §11.2).
 /// </summary>
 /// <remarks>
-/// There is deliberately no token field, and no truncated-token field either. A <c>glpat-</c> prefix
-/// plus a host is already useful to whoever gets hold of the output and useless to the person reading
-/// it — and this payload is the one most likely to be pasted into a bug report.
+/// There is deliberately no token field, and no truncated-token field either. A <c>glpat-</c>
+/// prefix plus a host is already useful to whoever gets hold of the output and useless to the
+/// person reading it — and this payload is the one most likely to be pasted into a bug report.
 /// </remarks>
 public sealed record LoginJson {
     /// <summary>Entries touched or listed — scope and username only.</summary>
@@ -35,7 +35,8 @@ public sealed record LoginJson {
 }
 
 public sealed record CredentialEntryJson {
-    /// <summary><c>host</c> or <c>host/path/prefix</c> — the key the credential is stored under.</summary>
+    /// <summary><c>host</c> or <c>host/path/prefix</c> — the key the credential is stored
+    /// under.</summary>
     public required string Scope { get; init; }
 
     public required string Username { get; init; }
@@ -61,8 +62,8 @@ public sealed record GraphJson {
 
     public IReadOnlyList<string> Overrides { get; init; } = [];
 
-    /// <summary>Convenience mirror of <c>conflicts.is_empty()</c> — a UI reads one boolean to decide
-    /// whether to show a warning banner.</summary>
+    /// <summary>Convenience mirror of <c>conflicts.is_empty()</c> — a UI reads one boolean to
+    /// decide whether to show a warning banner.</summary>
     public bool HasConflicts { get; init; }
 }
 
@@ -75,8 +76,8 @@ public sealed record GraphNodeJson {
 
     public string? Resolved { get; init; }
 
-    /// <summary>First 7 characters of <see cref="Resolved"/>, precomputed so every consumer displays
-    /// the same abbreviation the CLI prints.</summary>
+    /// <summary>First 7 characters of <see cref="Resolved"/>, precomputed so every consumer
+    /// displays the same abbreviation the CLI prints.</summary>
     public string? ShortSha { get; init; }
 
     public required string Path { get; init; }
@@ -162,11 +163,12 @@ public sealed record DotnetJson {
     public bool DeclaredByProject { get; init; }
 
     /// <summary><c>root</c> | <c>transitive</c> | <c>orphan</c> — the same vocabulary as an addon's
-    /// <c>origin</c> (v0.19). Null from <c>list</c>, which reports what is installed rather than why.</summary>
+    /// <c>origin</c> (v0.19). Null from <c>list</c>, which reports what is installed rather than
+    /// why.</summary>
     public string? Origin { get; init; }
 
-    /// <summary>Who declared this package: <c>"&lt;project&gt;"</c> first when the project does, then
-    /// addon names (v0.19). The Godot plugin draws one edge per addon listed here.</summary>
+    /// <summary>Who declared this package: <c>"&lt;project&gt;"</c> first when the project does,
+    /// then addon names (v0.19). The Godot plugin draws one edge per addon listed here.</summary>
     public IReadOnlyList<string> RequiredBy { get; init; } = [];
 
     /// <summary>The declared feed name it resolved from, or null for nuget.org (v0.19).</summary>
@@ -223,9 +225,11 @@ public sealed record StatusJson {
 /// existing field changed and no <c>status</c> value was added, so a consumer reading only
 /// <c>name</c>/<c>status</c> — the editor plugin's <c>core/dotquay_wire.gd</c> included — is
 /// unaffected.</param>
-public sealed record StatusEntryJson(string Name, string Status, StatusExplanationJson? Explanation = null);
+public sealed record StatusEntryJson(string Name, string Status,
+    StatusExplanationJson? Explanation = null);
 
-/// <summary>Why one addon reads as <c>modified</c>, and whether forcing would cost anything.</summary>
+/// <summary>Why one addon reads as <c>modified</c>, and whether forcing would cost
+/// anything.</summary>
 public sealed record StatusExplanationJson {
     /// <summary><c>safe_to_force</c> | <c>review_needed</c> | <c>unavailable</c>.</summary>
     public required string Verdict { get; init; }
@@ -241,8 +245,8 @@ public sealed record StatusExplanationJson {
     /// <summary>Set only when <see cref="Verdict"/> is <c>unavailable</c>.</summary>
     public string? UnavailableReason { get; init; }
 
-    /// <summary>Whether the compared baseline had the addon's captured patch re-applied. False for an
-    /// unpatched addon, which is the ordinary case — see
+    /// <summary>Whether the compared baseline had the addon's captured patch re-applied. False for
+    /// an unpatched addon, which is the ordinary case — see
     /// <see cref="PatchCouldNotBeApplied"/> for the one that means something.</summary>
     public bool BaselineIncludesPatch { get; init; }
 
@@ -265,10 +269,11 @@ public sealed record StatusChangeCountsJson {
     public int Total { get; init; }
 }
 
-/// <param name="Kind"><c>added</c> | <c>removed</c> | <c>changed</c>, from the installed tree's point
-/// of view.</param>
-/// <param name="Class"><c>content</c> | <c>uid_only</c> | <c>whitespace_only</c> | <c>line_endings_only</c> |
-/// <c>editor_artifact</c>. Only <c>content</c> is a reason not to force.</param>
+/// <param name="Kind"><c>added</c> | <c>removed</c> | <c>changed</c>, from the installed tree's
+/// point of view.</param>
+/// <param name="Class"><c>content</c> | <c>uid_only</c> | <c>whitespace_only</c> |
+/// <c>line_endings_only</c> | <c>editor_artifact</c>. Only <c>content</c> is a reason not to
+/// force.</param>
 public sealed record StatusChangeJson(string Path, string Kind, string Class);
 
 /// <summary>Payload of <c>dotquay outdated --json</c>.</summary>
@@ -280,7 +285,8 @@ public sealed record OutdatedJson {
     public int OutdatedCount { get; init; }
 }
 
-public sealed record OutdatedEntryJson(string Name, string Current, string? Latest, bool IsOutdated);
+public sealed record OutdatedEntryJson(string Name, string Current, string? Latest,
+    bool IsOutdated);
 
 /// <summary>Payload of <c>dotquay doctor --json</c>.</summary>
 public sealed record DoctorJson {
@@ -300,7 +306,8 @@ public sealed record DoctorTrustJson {
     public IReadOnlyList<DoctorAdoptedSourceJson> AdoptedSources { get; init; } = [];
 }
 
-/// <summary>A feed that came from an addon rather than the project, and which addon asked.</summary>
+/// <summary>A feed that came from an addon rather than the project, and which addon
+/// asked.</summary>
 public sealed record DoctorAdoptedSourceJson(string Name, string Url, string DeclaredBy);
 
 /// <summary>
@@ -355,8 +362,8 @@ public sealed record AddPreviewJson {
     public SubtreeJson? Subtree { get; init; }
 
     /// <summary>Mirrors <see cref="Subtree"/> as a boolean, for the same reason
-    /// <see cref="NeedsApproval"/> mirrors <see cref="SourcesNeedingApproval"/>: a UI reads one field
-    /// per banner instead of null-checking a nested object.</summary>
+    /// <see cref="NeedsApproval"/> mirrors <see cref="SourcesNeedingApproval"/>: a UI reads one
+    /// field per banner instead of null-checking a nested object.</summary>
     public bool NeedsSubtreeConfirmation { get; init; }
 }
 
@@ -408,8 +415,8 @@ public sealed record PreviewAddonJson {
     /// alongside <see cref="IsNew"/> means the addon moves rather than arrives.</summary>
     public string? PreviousResolved { get; init; }
 
-    /// <summary>Who requires it — <c>"&lt;project&gt;"</c> for the one the user asked for, addon names
-    /// for everything it drags in.</summary>
+    /// <summary>Who requires it — <c>"&lt;project&gt;"</c> for the one the user asked for, addon
+    /// names for everything it drags in.</summary>
     public IReadOnlyList<string> RequiredBy { get; init; } = [];
 }
 
@@ -441,8 +448,8 @@ public sealed record PreviewSourceJson {
     /// grants.</summary>
     public IReadOnlyList<string> Packages { get; init; } = [];
 
-    /// <summary>The declaring addon's <c>[dotnet]</c> package IDs — the packages that actually depend
-    /// on the answer.</summary>
+    /// <summary>The declaring addon's <c>[dotnet]</c> package IDs — the packages that actually
+    /// depend on the answer.</summary>
     public IReadOnlyList<string> PackageIds { get; init; } = [];
 }
 
@@ -455,8 +462,8 @@ public sealed record PreviewSourceJson {
 public sealed record OperationJson {
     public IReadOnlyList<ChangeJson> Changes { get; init; } = [];
 
-    /// <summary>Human-readable lines the CLI would otherwise have printed in color — surfaced so a UI
-    /// can show the same explanation instead of inventing its own.</summary>
+    /// <summary>Human-readable lines the CLI would otherwise have printed in color — surfaced so a
+    /// UI can show the same explanation instead of inventing its own.</summary>
     public IReadOnlyList<string> Messages { get; init; } = [];
 }
 
@@ -483,9 +490,9 @@ public sealed record ChangeJson {
 /// <remarks>
 /// Its own payload rather than a reuse of <see cref="OperationJson"/>: a feed list has no
 /// before/after and no action, and squeezing one into <see cref="ChangeJson"/>'s shape would mean a
-/// consumer reading <c>from</c>/<c>to</c> as URL/name by convention. Order is the wire contract here
-/// — it is the resolution rule (SPEC.md §11.1) — so the array is emitted in declared order and must
-/// not be sorted by any consumer that wants to explain which feed wins.
+/// consumer reading <c>from</c>/<c>to</c> as URL/name by convention. Order is the wire contract
+/// here — it is the resolution rule (SPEC.md §11.1) — so the array is emitted in declared order and
+/// must not be sorted by any consumer that wants to explain which feed wins.
 /// </remarks>
 public sealed record SourceListJson {
     public IReadOnlyList<SourceJson> Sources { get; init; } = [];
@@ -497,7 +504,8 @@ public sealed record SourceJson {
 
     public required string Url { get; init; }
 
-    /// <summary>Package ID patterns this feed owns, driving <c>&lt;packageSourceMapping&gt;</c>.</summary>
+    /// <summary>Package ID patterns this feed owns, driving
+    /// <c>&lt;packageSourceMapping&gt;</c>.</summary>
     public IReadOnlyList<string> Packages { get; init; } = [];
 
     /// <summary>The addon this feed was adopted from (SPEC.md §11.3), or null when the project
@@ -508,9 +516,9 @@ public sealed record SourceJson {
     /// Whether a credential resolves for this feed right now.
     /// </summary>
     /// <remarks>
-    /// A bool, and only a bool. The username would already be more than a UI needs to render "logged
-    /// in", and the token is never printed back anywhere in dotquay (SPEC.md §11.2) — including into a
-    /// JSON document a plugin might log.
+    /// A bool, and only a bool. The username would already be more than a UI needs to render
+    /// "logged in", and the token is never printed back anywhere in dotquay (SPEC.md §11.2) —
+    /// including into a JSON document a plugin might log.
     /// </remarks>
     public bool HasCredential { get; init; }
 }
@@ -543,15 +551,16 @@ public sealed record SelfCheckJson {
     public IReadOnlyList<string> AvailableRids { get; init; } = [];
 }
 
-/// <summary>Payload of <c>dotquay self update --json</c> and <c>self rollback --json</c> (v0.17).</summary>
+/// <summary>Payload of <c>dotquay self update --json</c> and <c>self rollback --json</c>
+/// (v0.17).</summary>
 public sealed record SelfUpdateJson {
     public required string From { get; init; }
 
     public required string To { get; init; }
 
-    /// <summary>False for "already current" and for <c>--dry-run</c> alike. A consumer that needs to
-    /// tell those apart reads <c>messages</c>; a consumer that only needs to know whether to re-read
-    /// the version reads this.</summary>
+    /// <summary>False for "already current" and for <c>--dry-run</c> alike. A consumer that needs
+    /// to tell those apart reads <c>messages</c>; a consumer that only needs to know whether to
+    /// re-read the version reads this.</summary>
     public bool Changed { get; init; }
 
     public required string Executable { get; init; }

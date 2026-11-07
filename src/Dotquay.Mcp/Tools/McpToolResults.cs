@@ -14,9 +14,10 @@ namespace Dotquay.Mcp.Tools;
 /// <remarks>
 /// Parses the JSON it just wrote with <see cref="JsonDocument"/> rather than
 /// <c>JsonNode</c>/<c>JsonSerializer.Deserialize&lt;JsonElement&gt;</c>: the former is what
-/// <see cref="CallToolResult.StructuredContent"/> is typed as, and the latter two either don't match
-/// that type or trigger the IL2026/IL3050 trim warnings <see cref="JsonDocument.Parse(string, JsonDocumentOptions)"/>
-/// doesn't (confirmed during the Phase 0 spike — docs/DESIGN-v0.18-MCP.md §3.1).
+/// <see cref="CallToolResult.StructuredContent"/> is typed as, and the latter two either don't
+/// match that type or trigger the IL2026/IL3050 trim warnings
+/// <see cref="JsonDocument.Parse(string, JsonDocumentOptions)"/> doesn't (confirmed during the
+/// Phase 0 spike — docs/DESIGN-v0.18-MCP.md §3.1).
 /// </remarks>
 internal static class McpToolResults {
     public static CallToolResult FromJson(string json, bool isError = false) => new() {
@@ -26,25 +27,29 @@ internal static class McpToolResults {
     };
 
     /// <summary>The one shape every tool failure takes, mirroring
-    /// <c>Dotquay.Cli.Commands.JsonOutput.Fail</c>: always <see cref="OperationJson"/>, regardless of
-    /// which payload the tool would have returned on success, so a client parses one failure shape for
-    /// every tool rather than one per success schema.</summary>
+    /// <c>Dotquay.Cli.Commands.JsonOutput.Fail</c>: always <see cref="OperationJson"/>, regardless
+    /// of which payload the tool would have returned on success, so a client parses one failure
+    /// shape for every tool rather than one per success schema.</summary>
     public static CallToolResult Failure(string toolName, string kind, string message) =>
-        FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Failure(toolName, new JsonError(kind, message))), isError: true);
+        FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Failure(toolName,
+            new JsonError(kind, message))), isError: true);
 
     /// <summary>A <see cref="WriteGuardRefusal"/> turned into the <c>needs_confirmation</c> shape
     /// (§5.4) — one overload per detail type a guard policy can produce, since the type is what
     /// picks the right <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo{T}"/> under
     /// AOT (see <see cref="FromJson"/>'s remarks).</summary>
-    public static CallToolResult FromRefusal(string toolName, WriteGuardRefusal refusal) => refusal.Detail switch {
-        ForceConfirmationDetailJson detail => NeedsConfirmation(toolName, refusal.Message, detail),
-        SourceApprovalDetailJson detail => NeedsConfirmation(toolName, refusal.Message, detail),
-        _ => throw new InvalidOperationException(
-            $"Unhandled write-guard refusal detail type: {refusal.Detail.GetType()}. Add an overload of "
-            + $"{nameof(NeedsConfirmation)} and a case in {nameof(FromRefusal)}."),
-    };
+    public static CallToolResult FromRefusal(string toolName,
+        WriteGuardRefusal refusal) => refusal.Detail switch {
+            ForceConfirmationDetailJson detail =>
+                NeedsConfirmation(toolName, refusal.Message, detail),
+            SourceApprovalDetailJson detail => NeedsConfirmation(toolName, refusal.Message, detail),
+            _ => throw new InvalidOperationException(
+                $"Unhandled write-guard refusal detail type: {refusal.Detail.GetType()}. Add an "
+                + $"overload of {nameof(NeedsConfirmation)} and a case in {nameof(FromRefusal)}."),
+        };
 
-    public static CallToolResult NeedsConfirmation(string toolName, string message, ForceConfirmationDetailJson detail) =>
+    public static CallToolResult NeedsConfirmation(string toolName, string message,
+        ForceConfirmationDetailJson detail) =>
         FromJson(DotquayMcpJson.Write(new McpRefusalJson<ForceConfirmationDetailJson> {
             Version = DotquayVersion.Current,
             Command = toolName,
@@ -53,7 +58,8 @@ internal static class McpToolResults {
             Detail = detail,
         }), isError: true);
 
-    public static CallToolResult NeedsConfirmation(string toolName, string message, SourceApprovalDetailJson detail) =>
+    public static CallToolResult NeedsConfirmation(string toolName, string message,
+        SourceApprovalDetailJson detail) =>
         FromJson(DotquayMcpJson.Write(new McpRefusalJson<SourceApprovalDetailJson> {
             Version = DotquayVersion.Current,
             Command = toolName,

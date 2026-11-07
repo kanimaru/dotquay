@@ -9,17 +9,20 @@ using ModelContextProtocol.Protocol;
 
 namespace Dotquay.Mcp.Tools;
 
-/// <summary>MCP mirror of <c>dotquay override &lt;name&gt; --clear</c>: removes an override and hands
-/// the name back to normal resolution (SPEC.md §7.1/§8). See <c>Dotquay.Cli.Commands.OverrideCommand</c>.
+/// <summary>MCP mirror of <c>dotquay override &lt;name&gt; --clear</c>: removes an override and
+/// hands the name back to normal resolution (SPEC.md §7.1/§8). See
+/// <c>Dotquay.Cli.Commands.OverrideCommand</c>.
 /// </summary>
-/// <remarks>A pure manifest edit, same as <see cref="DotquayOverrideSetTool"/> — no follow-on resync.
-/// Clearing an override may resurface the conflict it was hiding; that's the point of an override
-/// being a decision the user can take back.</remarks>
-public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
+/// <remarks>A pure manifest edit, same as <see cref="DotquayOverrideSetTool"/> — no follow-on
+/// resync. Clearing an override may resurface the conflict it was hiding; that's the point of an
+/// override being a decision the user can take back.</remarks>
+public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate)
+    : McpToolBase(scope, gate) {
     public override string Name => "dotquay_override_clear";
 
     public override string Description =>
-        "Remove an addon's [overrides.<name>] entry, handing it back to normal conflict resolution. " +
+        "Remove an addon's [overrides.<name>] entry, handing it back to normal conflict "
+        + "resolution. " +
         "Writes the manifest only; call dotquay_update to apply the change.";
 
     public override JsonElement InputSchema { get; } = JsonDocument.Parse("""
@@ -38,11 +41,13 @@ public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate ga
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments,
+        IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
         if (string.IsNullOrWhiteSpace(name)) {
-            return ValueTask.FromResult(McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the override to remove."));
+            return ValueTask.FromResult(McpToolResults.Failure(Name, JsonErrorKind.Workflow,
+                "'name' is required: the override to remove."));
         }
 
         var overrides = McpInfrastructure.CreateOverrides();
@@ -59,12 +64,15 @@ public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate ga
                 {
                     Name = result.Name,
                     Kind = JsonMapper.ChangeKind.Addon,
-                    Action = result.Change == OverrideChange.Removed ? JsonMapper.ChangeAction.Removed : JsonMapper.ChangeAction.Unchanged,
+                    Action = result.Change == OverrideChange.Removed
+                    ? JsonMapper.ChangeAction.Removed : JsonMapper.ChangeAction.Unchanged,
                 },
             ],
             Messages = [message],
         };
 
-        return ValueTask.FromResult(McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload))));
+        return ValueTask.FromResult(
+            McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name,
+                payload))));
     }
 }

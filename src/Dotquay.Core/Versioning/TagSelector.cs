@@ -8,7 +8,8 @@ namespace Dotquay.Core.Versioning;
 public static class TagSelector {
     public sealed record Match(GitRef Ref, AddonVersion Version);
 
-    public static Match? SelectHighestMatching(IEnumerable<GitRef> refs, VersionConstraint constraint) {
+    public static Match? SelectHighestMatching(IEnumerable<GitRef> refs,
+        VersionConstraint constraint) {
         Match? best = null;
 
         foreach (var gitRef in refs) {

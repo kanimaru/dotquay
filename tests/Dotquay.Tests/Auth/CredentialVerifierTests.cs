@@ -7,8 +7,10 @@ using Xunit;
 namespace Dotquay.Tests.Auth;
 
 public class CredentialVerifierTests {
-    private const string Feed = "https://gitlab.example.com/api/v4/projects/124/packages/nuget/index.json";
-    private const string Remote = "https://gitlab.example.com/kani/widget.git/info/refs?service=git-upload-pack";
+    private const string Feed =
+        "https://gitlab.example.com/api/v4/projects/124/packages/nuget/index.json";
+    private const string Remote =
+        "https://gitlab.example.com/kani/widget.git/info/refs?service=git-upload-pack";
 
     private static readonly Credential Kani = new("kani", "glpat-secret");
 
@@ -20,7 +22,8 @@ public class CredentialVerifierTests {
 
         var header = Assert.Single(handler.Requests).Headers.Authorization!;
         Assert.Equal("Basic", header.Scheme);
-        Assert.Equal("kani:glpat-secret", Encoding.UTF8.GetString(Convert.FromBase64String(header.Parameter!)));
+        Assert.Equal("kani:glpat-secret",
+            Encoding.UTF8.GetString(Convert.FromBase64String(header.Parameter!)));
     }
 
     [Theory]
@@ -29,7 +32,8 @@ public class CredentialVerifierTests {
     public async Task VerifyAsync_AuthFailure_IsRejected(HttpStatusCode status) {
         var handler = new RoutingHandler { [Feed] = status };
 
-        var (outcome, detail) = await new CredentialVerifier(new HttpClient(handler)).VerifyAsync(Feed, Kani);
+        var (outcome, detail) = await new CredentialVerifier(new HttpClient(handler))
+            .VerifyAsync(Feed, Kani);
 
         Assert.Equal(CredentialVerifier.Result.Rejected, outcome);
         Assert.Contains(((int)status).ToString(), detail);
@@ -41,7 +45,8 @@ public class CredentialVerifierTests {
     public async Task VerifyAsync_SuccessOrWrongPath_IsAccepted(HttpStatusCode status) {
         var handler = new RoutingHandler { [Feed] = status };
 
-        var (outcome, _) = await new CredentialVerifier(new HttpClient(handler)).VerifyAsync(Feed, Kani);
+        var (outcome, _) = await new CredentialVerifier(new HttpClient(handler))
+            .VerifyAsync(Feed, Kani);
 
         Assert.Equal(CredentialVerifier.Result.Accepted, outcome);
     }
@@ -50,7 +55,8 @@ public class CredentialVerifierTests {
     public async Task VerifyAsync_ServerError_IsInconclusive() {
         var handler = new RoutingHandler { [Feed] = HttpStatusCode.InternalServerError };
 
-        var (outcome, _) = await new CredentialVerifier(new HttpClient(handler)).VerifyAsync(Feed, Kani);
+        var (outcome, _) = await new CredentialVerifier(new HttpClient(handler))
+            .VerifyAsync(Feed, Kani);
 
         Assert.Equal(CredentialVerifier.Result.Inconclusive, outcome);
     }
@@ -59,7 +65,8 @@ public class CredentialVerifierTests {
     public async Task VerifyAsync_TransportFailure_IsInconclusive() {
         var handler = new RoutingHandler { Failure = new HttpRequestException("no such host") };
 
-        var (outcome, detail) = await new CredentialVerifier(new HttpClient(handler)).VerifyAsync(Feed, Kani);
+        var (outcome, detail) = await new CredentialVerifier(new HttpClient(handler))
+            .VerifyAsync(Feed, Kani);
 
         Assert.Equal(CredentialVerifier.Result.Inconclusive, outcome);
         Assert.Equal("no such host", detail);
@@ -114,14 +121,16 @@ public class CredentialVerifierTests {
     public async Task VerifyAnyAsync_NoUrls_IsInconclusiveWithoutTouchingTheNetwork() {
         var handler = new RoutingHandler();
 
-        var (outcome, _) = await new CredentialVerifier(new HttpClient(handler)).VerifyAnyAsync([], Kani);
+        var (outcome, _) = await new CredentialVerifier(new HttpClient(handler))
+            .VerifyAnyAsync([], Kani);
 
         Assert.Equal(CredentialVerifier.Result.Inconclusive, outcome);
         Assert.Empty(handler.Requests);
     }
 
-    /// <summary>Answers each URL with its configured status (404 for an unknown one), or fails every
-    /// request with <see cref="Failure"/> when set. Records the requests for assertions.</summary>
+    /// <summary>Answers each URL with its configured status (404 for an unknown one), or fails
+    /// every request with <see cref="Failure"/> when set. Records the requests for
+    /// assertions.</summary>
     private sealed class RoutingHandler : HttpMessageHandler {
         private readonly Dictionary<string, HttpStatusCode> _routes = new(StringComparer.Ordinal);
 
@@ -133,7 +142,8 @@ public class CredentialVerifierTests {
             set => _routes[url] = value;
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken) {
             Requests.Add(request);
 
             if (Failure is not null) {

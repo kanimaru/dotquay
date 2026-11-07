@@ -5,8 +5,9 @@ using Xunit;
 namespace Dotquay.Tests.Workflows;
 
 /// <summary>
-/// Covers <see cref="AddonNaming"/> — which <c>[addons.&lt;name&gt;]</c> key <c>dotquay add</c> writes,
-/// including a second addon out of a repository that ships several (the BotV2 / <c>vbeami_vcam</c> report).
+/// Covers <see cref="AddonNaming"/> — which <c>[addons.&lt;name&gt;]</c> key <c>dotquay add</c>
+/// writes, including a second addon out of a repository that ships several (the BotV2 /
+/// <c>vbeami_vcam</c> report).
 /// </summary>
 public class AddonNamingTests {
     private const string VbeamiUrl = "https://gitlab.kemomi.de/wild-alliance/vbeami/";
@@ -15,13 +16,15 @@ public class AddonNamingTests {
     private static Dictionary<string, AddonSpec> Declared(params AddonSpec[] specs) =>
         specs.ToDictionary(s => s.Name, StringComparer.Ordinal);
 
-    private static AddonSpec Vbeami(string name = "vbeami", string? path = "godot/addons/vbeami", string git = VbeamiUrl) =>
+    private static AddonSpec Vbeami(string name = "vbeami", string? path = "godot/addons/vbeami",
+        string git = VbeamiUrl) =>
         new() { Name = name, Git = git, Branch = "main", Path = path };
 
     // -- the historical default is untouched ------------------------------------------------------
 
     [Theory]
-    [InlineData("https://github.com/nathanhoad/godot_dialogue_manager.git", "godot_dialogue_manager")]
+    [InlineData("https://github.com/nathanhoad/godot_dialogue_manager.git",
+        "godot_dialogue_manager")]
     [InlineData("https://gitlab.kemomi.de/wild-alliance/vbeami/", "vbeami")]
     [InlineData("git@github.com:kanimaru/twitcher.git", "twitcher")]
     [InlineData("git@gitlab.kemomi.de:wild-alliance/dotquay.git", "dotquay")]
@@ -32,8 +35,8 @@ public class AddonNamingTests {
 
     [Fact]
     public void Choose_FreeUrlName_IsUsedEvenWithPathAndInstallAs() {
-        // Pinned by an older workflow test too: --path alone never renames an addon whose URL name is
-        // free. The fallback only exists for the case that used to be refused outright.
+        // Pinned by an older workflow test too: --path alone never renames an addon whose URL name
+        // is free. The fallback only exists for the case that used to be refused outright.
         var choice = AddonNaming.Choose(
             VbeamiUrl,
             new AddonAddOptions { Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" },
@@ -50,7 +53,11 @@ public class AddonNamingTests {
     public void Choose_SecondSubtreeOfSameRepo_FallsBackToInstallAs() {
         var choice = AddonNaming.Choose(
             VbeamiUrl,
-            new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" },
+            new AddonAddOptions {
+                Branch = "main",
+                Path = "godot/addons/vbeami_vcam",
+                InstallAs = "vbeami_vcam"
+            },
             Declared(Vbeami()),
             ManifestPath);
 
@@ -65,7 +72,8 @@ public class AddonNamingTests {
     [InlineData("godot/addons/vbeami_vcam/")]
     [InlineData("godot\\addons\\vbeami_vcam")]
     public void Choose_SecondSubtreeWithoutInstallAs_FallsBackToPathLeaf(string path) {
-        var choice = AddonNaming.Choose(VbeamiUrl, new AddonAddOptions { Path = path }, Declared(Vbeami()), ManifestPath);
+        var choice = AddonNaming.Choose(VbeamiUrl, new AddonAddOptions { Path = path },
+            Declared(Vbeami()), ManifestPath);
 
         Assert.Equal("vbeami_vcam", choice.Name);
         Assert.Equal(AddonNameSource.PathLeaf, choice.Source);
@@ -79,7 +87,8 @@ public class AddonNamingTests {
             Declared(Vbeami(), Vbeami(name: "cam", path: "godot/addons/other_cam")),
             ManifestPath);
 
-        Assert.Equal(new AddonNameChoice("vbeami_vcam", AddonNameSource.PathLeaf, "vbeami"), choice);
+        Assert.Equal(new AddonNameChoice("vbeami_vcam", AddonNameSource.PathLeaf, "vbeami"),
+            choice);
     }
 
     [Fact]
@@ -102,7 +111,9 @@ public class AddonNamingTests {
         // No subtree named means "the one I already have", even though the default guess
         // (addons/vbeami) differs from the declared godot/addons/vbeami.
         var exception = Assert.Throws<WorkflowException>(
-            () => AddonNaming.Choose(VbeamiUrl, new AddonAddOptions(), Declared(Vbeami()), ManifestPath));
+            () =>
+                AddonNaming.Choose(VbeamiUrl, new AddonAddOptions(), Declared(Vbeami()),
+                    ManifestPath));
 
         Assert.Contains("already declared", exception.Message, StringComparison.Ordinal);
         Assert.Contains("dotquay update vbeami", exception.Message, StringComparison.Ordinal);
@@ -122,7 +133,8 @@ public class AddonNamingTests {
 
     [Fact]
     public void Choose_DefaultSubtreeDeclaredWithoutPath_MatchesExplicitDefault() {
-        // An entry without `path` extracts addons/<name>; naming that same subtree is the same addon.
+        // An entry without `path` extracts addons/<name>; naming that same subtree is the same
+        // addon.
         var declared = Declared(Vbeami(path: null));
 
         Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
@@ -137,7 +149,8 @@ public class AddonNamingTests {
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
             VbeamiUrl, new AddonAddOptions { Path = "." }, Declared(Vbeami()), ManifestPath));
 
-        Assert.Contains("'vbeami' is already declared", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("'vbeami' is already declared", exception.Message,
+            StringComparison.Ordinal);
         Assert.Contains("--name <name>", exception.Message, StringComparison.Ordinal);
         Assert.Contains("--install-as <folder>", exception.Message, StringComparison.Ordinal);
     }
@@ -150,7 +163,8 @@ public class AddonNamingTests {
             Declared(Vbeami(), Vbeami(name: "vbeami_vcam", path: "elsewhere/vbeami_vcam")),
             ManifestPath));
 
-        Assert.Contains("'vbeami' and 'vbeami_vcam' are already declared", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("'vbeami' and 'vbeami_vcam' are already declared", exception.Message,
+            StringComparison.Ordinal);
         Assert.Contains("--name <name>", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("--install-as <folder>", exception.Message, StringComparison.Ordinal);
     }
@@ -158,7 +172,11 @@ public class AddonNamingTests {
     [Fact]
     public void Choose_DifferentRepoSharingTheName_FallsBackToo() {
         // Two forks both called "gut": the second is a different addon, not a re-add.
-        var declared = Declared(new AddonSpec { Name = "gut", Git = "https://github.com/bitwes/Gut.git", Version = "~9" });
+        var declared = Declared(new AddonSpec {
+            Name = "gut",
+            Git = "https://github.com/bitwes/Gut.git",
+            Version = "~9"
+        });
 
         var choice = AddonNaming.Choose(
             "https://example.com/someone/gut.git",
@@ -175,7 +193,11 @@ public class AddonNamingTests {
     public void Choose_ExplicitName_WinsOverEverything() {
         var choice = AddonNaming.Choose(
             VbeamiUrl,
-            new AddonAddOptions { Name = "camera", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" },
+            new AddonAddOptions {
+                Name = "camera",
+                Path = "godot/addons/vbeami_vcam",
+                InstallAs = "vbeami_vcam"
+            },
             Declared(),
             ManifestPath);
 
@@ -185,7 +207,8 @@ public class AddonNamingTests {
     [Fact]
     public void Choose_ExplicitNameTaken_Refuses() {
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
-            VbeamiUrl, new AddonAddOptions { Name = "vbeami", Path = "godot/addons/vbeami_vcam" }, Declared(Vbeami()), ManifestPath));
+            VbeamiUrl, new AddonAddOptions { Name = "vbeami", Path = "godot/addons/vbeami_vcam" },
+            Declared(Vbeami()), ManifestPath));
 
         Assert.Contains("Pick a different --name", exception.Message, StringComparison.Ordinal);
     }
@@ -206,8 +229,8 @@ public class AddonNamingTests {
 
     [Fact]
     public void Choose_UnsafeInstallAs_IsNeverUsedAsAName() {
-        // install_as is validated later by the manifest reader; the naming fallback must not turn an
-        // unsafe folder into a manifest key on the way there.
+        // install_as is validated later by the manifest reader; the naming fallback must not turn
+        // an unsafe folder into a manifest key on the way there.
         var choice = AddonNaming.Choose(
             VbeamiUrl,
             new AddonAddOptions { Path = "godot/addons/vbeami_vcam", InstallAs = "../escape" },

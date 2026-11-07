@@ -9,7 +9,8 @@ namespace Dotquay.Core.Dotnet;
 /// process-running shape — same rationale: let the real tool do the real work).</summary>
 public sealed class ProcessDotnetCliRunner : IDotnetCliRunner {
     public async Task RestoreAsync(
-        string csprojPath, IReadOnlyDictionary<string, string>? environmentVariables = null, CancellationToken cancellationToken = default) {
+        string csprojPath, IReadOnlyDictionary<string, string>? environmentVariables = null,
+        CancellationToken cancellationToken = default) {
         var startInfo = new ProcessStartInfo("dotnet") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -34,7 +35,8 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner {
             process.Start();
         } catch (Win32Exception ex) {
             trace.Failed(ex);
-            throw new DotnetSyncException("Could not start 'dotnet'. Is the .NET SDK installed and on PATH?", ex);
+            throw new DotnetSyncException("Could not start 'dotnet'. Is the .NET SDK installed and "
+                + "on PATH?", ex);
         }
 
         var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -49,7 +51,8 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner {
 
         if (process.ExitCode != 0) {
             throw new DotnetSyncException(
-                $"'dotnet restore {csprojPath}' failed (exit {process.ExitCode}):{Environment.NewLine}{stdErr}{stdOut}");
+                $"'dotnet restore {csprojPath}' failed (exit "
+                + $"{process.ExitCode}):{Environment.NewLine}{stdErr}{stdOut}");
         }
     }
 }

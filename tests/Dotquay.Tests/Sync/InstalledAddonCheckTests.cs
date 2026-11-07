@@ -9,8 +9,8 @@ using Xunit;
 namespace Dotquay.Tests.Sync;
 
 /// <summary>
-/// Reinstalling a commit that is already on disk, untouched, must not rewrite the folder - and every
-/// way it is *not* untouched must still take the full install path, refusals included.
+/// Reinstalling a commit that is already on disk, untouched, must not rewrite the folder - and
+/// every way it is *not* untouched must still take the full install path, refusals included.
 /// </summary>
 public class InstalledAddonCheckTests {
     private const string RepoUrl = "https://example.com/dialogue_manager.git";
@@ -21,7 +21,8 @@ public class InstalledAddonCheckTests {
 
     private static readonly ProjectLayout Layout = ProjectLayout.WithoutPatches(Project);
 
-    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build() {
+    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem,
+        FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
@@ -30,14 +31,17 @@ public class InstalledAddonCheckTests {
         };
 
         var cache = new RepoCache(fileSystem, gitClient, "cache");
-        var installer = new AddonInstaller(fileSystem, cache, new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+        var installer = new AddonInstaller(fileSystem, cache, new SyncEngine(fileSystem),
+            new FakePatchTool(fileSystem));
         return (installer, fileSystem, gitClient);
     }
 
-    private static ResolvedAddon Resolved(string sha = Sha, string? displayVersion = "v2.44.0", string? installAs = null) =>
+    private static ResolvedAddon Resolved(string sha = Sha, string? displayVersion = "v2.44.0",
+        string? installAs = null) =>
         new("dialogue_manager", RepoUrl, sha, displayVersion, "addons/dialogue_manager", installAs);
 
-    private static async Task<(AddonInstaller Installer, InMemoryFileSystem FileSystem, FakeGitClient Git, LockedAddon Locked)> InstalledOnce() {
+    private static async Task<(AddonInstaller Installer, InMemoryFileSystem FileSystem,
+        FakeGitClient Git, LockedAddon Locked)> InstalledOnce() {
         var (installer, fileSystem, git) = Build();
         var locked = await installer.InstallAsync(Resolved(), Layout, previous: null, force: false);
         fileSystem.DirectoryMoves.Clear();
@@ -47,7 +51,7 @@ public class InstalledAddonCheckTests {
     private static int MovesInto(InMemoryFileSystem fileSystem, string folder) =>
         fileSystem.DirectoryMoves.Count(m => m.Destination == folder);
 
-    // --- the installer -------------------------------------------------------------------------------
+    // --- the installer ---------------------------------------------------------------------------
 
     [Fact]
     public async Task SameCommit_CleanFolder_IsLeftAlone_AndYieldsTheSameEntry() {
@@ -66,7 +70,8 @@ public class InstalledAddonCheckTests {
         git.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
         var stale = first with { Version = "0.0.0-20200101-1111111" };
 
-        var second = await installer.InstallAsync(Resolved(displayVersion: null), Layout, stale, force: false);
+        var second = await installer.InstallAsync(Resolved(displayVersion: null), Layout, stale,
+            force: false);
 
         Assert.Equal("0.0.0-20260930-1111111", second.Version);
     }
@@ -79,7 +84,8 @@ public class InstalledAddonCheckTests {
         await installer.InstallAsync(Resolved(), Layout, first, force: false);
 
         Assert.Equal(0, MovesInto(fileSystem, Folder));
-        Assert.Equal("[remap]\nimporter=\"texture\"", fileSystem.ReadAllText($"{Folder}/icon.png.import"));
+        Assert.Equal("[remap]\nimporter=\"texture\"",
+            fileSystem.ReadAllText($"{Folder}/icon.png.import"));
     }
 
     [Fact]
@@ -129,20 +135,22 @@ public class InstalledAddonCheckTests {
         Assert.Equal("cfg v2", fileSystem.ReadAllText($"{Folder}/plugin.cfg"));
     }
 
-    // --- the check's conditions, one at a time -----------------------------------------------------
+    // --- the check's conditions, one at a time ---------------------------------------------------
 
     [Fact]
     public async Task Check_NoPreviousRecord_IsNotInPlace() {
         var (_, fileSystem, _, _) = await InstalledOnce();
 
-        Assert.False(InstalledAddonCheck.IsAlreadyInPlace(fileSystem, Layout, Resolved(), previous: null));
+        Assert.False(InstalledAddonCheck.IsAlreadyInPlace(fileSystem, Layout, Resolved(),
+            previous: null));
     }
 
     [Fact]
     public async Task Check_PreviousWithoutContentHash_IsNotInPlace() {
         var (_, fileSystem, _, locked) = await InstalledOnce();
 
-        Assert.False(InstalledAddonCheck.IsAlreadyInPlace(fileSystem, Layout, Resolved(), locked with { ContentHash = null }));
+        Assert.False(InstalledAddonCheck.IsAlreadyInPlace(fileSystem, Layout, Resolved(),
+            locked with { ContentHash = null }));
     }
 
     [Fact]
@@ -167,7 +175,8 @@ public class InstalledAddonCheckTests {
             _ => throw new ArgumentOutOfRangeException(nameof(field)),
         };
 
-        Assert.False(InstalledAddonCheck.IsAlreadyInPlace(fileSystem, Layout, Resolved(), previous));
+        Assert.False(InstalledAddonCheck.IsAlreadyInPlace(fileSystem, Layout, Resolved(),
+            previous));
     }
 
     [Fact]
@@ -208,7 +217,7 @@ public class InstalledAddonCheckTests {
         Assert.Empty(fileSystem.DirectoryMoves);
     }
 
-    // --- through the whole update ------------------------------------------------------------------
+    // --- through the whole update ----------------------------------------------------------------
 
     [Fact]
     public async Task Update_WithNothingNew_RewritesNoAddonFolder_AndLeavesTheLockfileAsItWas() {
@@ -229,7 +238,8 @@ public class InstalledAddonCheckTests {
         await workflow.AddAsync(Project, RepoUrl);
         fileSystem.WriteAllText($"{Folder}/plugin.cfg", "hand-edited");
 
-        await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(Project, name: null, force: false));
+        await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(Project, name: null, force: false));
 
         Assert.Equal("hand-edited", fileSystem.ReadAllText($"{Folder}/plugin.cfg"));
     }
@@ -239,7 +249,8 @@ public class InstalledAddonCheckTests {
         fileSystem.WriteAllText($"{Project}/dotquay.toml", "[project]\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('1', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('1', 40),
+            GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };

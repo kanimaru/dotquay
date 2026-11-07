@@ -14,31 +14,35 @@ using ModelContextProtocol.Protocol;
 namespace Dotquay.Mcp;
 
 /// <summary>
-/// Assembles the Generic Host that hosts dotquay's MCP server: every tool, prompt, and resource, the
-/// project scope, the request log, and the transport.
+/// Assembles the Generic Host that hosts dotquay's MCP server: every tool, prompt, and resource,
+/// the project scope, the request log, and the transport.
 /// </summary>
 /// <remarks>
-/// The <see cref="IHost"/> is built here but never run here — <see cref="RunStdioAsync"/> is the one
-/// production entry point (called from <c>dotquay mcp</c>), and <see cref="BuildForStreams"/> exists
-/// so a test can drive the exact same tool/resource/prompt wiring over an in-memory pipe instead of
-/// real stdio (design doc §8, test layer 1: "Handler conformance — WithStreamServerTransport"). Both
-/// share <see cref="Configure"/>, so a test that passes never means the stdio path was untested — it
-/// means the one difference between them (which <c>Stream</c>s the transport reads and writes) is the
-/// only thing not exercised without a real published binary, which is what each phase's exit criterion
-/// (Inspector + a real AOT publish) covers instead (docs/DESIGN-v0.18-MCP.md §9).
+/// The <see cref="IHost"/> is built here but never run here — <see cref="RunStdioAsync"/> is the
+/// one production entry point (called from <c>dotquay mcp</c>), and <see cref="BuildForStreams"/>
+/// exists so a test can drive the exact same tool/resource/prompt wiring over an in-memory pipe
+/// instead of real stdio (design doc §8, test layer 1: "Handler conformance —
+/// WithStreamServerTransport"). Both share <see cref="Configure"/>, so a test that passes never
+/// means the stdio path was untested — it means the one difference between them (which
+/// <c>Stream</c>s the transport reads and writes) is the only thing not exercised without a real
+/// published binary, which is what each phase's exit criterion (Inspector + a real AOT publish)
+/// covers instead (docs/DESIGN-v0.18-MCP.md §9).
 /// </remarks>
 public static class McpServerBuilder {
-    public static async Task RunStdioAsync(IReadOnlyList<string> projectRoots, string? logFile = null, CancellationToken cancellationToken = default) {
+    public static async Task RunStdioAsync(IReadOnlyList<string> projectRoots,
+        string? logFile = null, CancellationToken cancellationToken = default) {
         using var host = Configure(projectRoots, stdio: true, input: null, output: null, logFile);
         await host.RunAsync(cancellationToken);
     }
 
     /// <summary>For tests: the same tool/resource/prompt wiring as production, driven over an
     /// in-memory pipe instead of real stdio.</summary>
-    public static IHost BuildForStreams(IReadOnlyList<string> projectRoots, Stream input, Stream output, string? logFile = null) =>
+    public static IHost BuildForStreams(IReadOnlyList<string> projectRoots, Stream input,
+        Stream output, string? logFile = null) =>
         Configure(projectRoots, stdio: false, input, output, logFile);
 
-    private static IHost Configure(IReadOnlyList<string> projectRoots, bool stdio, Stream? input, Stream? output, string? logFile) {
+    private static IHost Configure(IReadOnlyList<string> projectRoots, bool stdio, Stream? input,
+        Stream? output, string? logFile) {
         var builder = Host.CreateApplicationBuilder();
 
         // stdout is the wire (design doc §3.2): Host.CreateApplicationBuilder registers a console
@@ -60,7 +64,10 @@ public static class McpServerBuilder {
 
         var mcpBuilder = builder.Services
             .AddMcpServer(options => {
-                options.ServerInfo = new Implementation { Name = "dotquay", Version = DotquayVersion.Current };
+                options.ServerInfo = new Implementation {
+                    Name = "dotquay",
+                    Version = DotquayVersion.Current
+                };
             })
             .WithListToolsHandler(toolRegistry.ListAsync)
             .WithCallToolHandler(toolRegistry.CallAsync)
@@ -70,19 +77,28 @@ public static class McpServerBuilder {
             .WithGetPromptHandler(promptRegistry.GetAsync)
             .WithRequestFilters(filters => {
                 // One filter per request kind this server actually handles (design doc §6): every
-                // request id, method, and duration goes to `requestLog`, win or lose. The protocol's
-                // Logging feature is deprecated as of 2026-07-28 (SEP-2577), so the log stays on the
-                // --log file or stderr and nothing is ever sent as `notifications/message`; a failure
-                // reaches the client only as the error result of its own request. (The SDK still
-                // answers `logging/setLevel` by itself on older protocol versions — harmless here.)
-                // RequestLoggingFilters.Create is the one place that logic lives — see its own
-                // remarks for why this isn't six near-identical filters.
-                filters.AddListToolsFilter(RequestLoggingFilters.Create<ListToolsRequestParams, ListToolsResult>("tools/list", requestLog));
-                filters.AddCallToolFilter(RequestLoggingFilters.Create<CallToolRequestParams, CallToolResult>("tools/call", requestLog));
-                filters.AddListResourcesFilter(RequestLoggingFilters.Create<ListResourcesRequestParams, ListResourcesResult>("resources/list", requestLog));
-                filters.AddReadResourceFilter(RequestLoggingFilters.Create<ReadResourceRequestParams, ReadResourceResult>("resources/read", requestLog));
-                filters.AddListPromptsFilter(RequestLoggingFilters.Create<ListPromptsRequestParams, ListPromptsResult>("prompts/list", requestLog));
-                filters.AddGetPromptFilter(RequestLoggingFilters.Create<GetPromptRequestParams, GetPromptResult>("prompts/get", requestLog));
+                // request id, method, and duration goes to `requestLog`, win or lose. The
+                // protocol's Logging feature is deprecated as of 2026-07-28 (SEP-2577), so the log
+                // stays on the --log file or stderr and nothing is ever sent as
+                // `notifications/message`; a failure reaches the client only as the error result of
+                // its own request. (The SDK still answers `logging/setLevel` by itself on older
+                // protocol versions — harmless here.) RequestLoggingFilters.Create is the one place
+                // that logic lives — see its own remarks for why this isn't six near-identical
+                // filters.
+                filters.AddListToolsFilter(RequestLoggingFilters.Create<ListToolsRequestParams,
+                    ListToolsResult>("tools/list", requestLog));
+                filters.AddCallToolFilter(RequestLoggingFilters.Create<CallToolRequestParams,
+                    CallToolResult>("tools/call", requestLog));
+                filters.AddListResourcesFilter(
+                    RequestLoggingFilters.Create<ListResourcesRequestParams,
+                        ListResourcesResult>("resources/list", requestLog));
+                filters.AddReadResourceFilter(
+                    RequestLoggingFilters.Create<ReadResourceRequestParams,
+                        ReadResourceResult>("resources/read", requestLog));
+                filters.AddListPromptsFilter(RequestLoggingFilters.Create<ListPromptsRequestParams,
+                    ListPromptsResult>("prompts/list", requestLog));
+                filters.AddGetPromptFilter(RequestLoggingFilters.Create<GetPromptRequestParams,
+                    GetPromptResult>("prompts/get", requestLog));
             });
 
         if (stdio) {
@@ -96,11 +112,12 @@ public static class McpServerBuilder {
         // `requestLog` is constructed directly (not resolved from DI), so nothing disposes it
         // automatically — a pre-created singleton instance registered with the container is *not*
         // disposed by it (the container assumes the caller who built it owns its lifetime). Hooking
-        // ApplicationStopping is what ties its lifetime to the host's without handing DI an instance
-        // it would otherwise leave dangling: every write is already flushed immediately (see
-        // RequestLog.WriteLine), so this is about closing the file handle cleanly, not about losing
-        // data if it never ran.
-        host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(requestLog.Dispose);
+        // ApplicationStopping is what ties its lifetime to the host's without handing DI an
+        // instance it would otherwise leave dangling: every write is already flushed immediately
+        // (see RequestLog.WriteLine), so this is about closing the file handle cleanly, not about
+        // losing data if it never ran.
+        host.Services.GetRequiredService<IHostApplicationLifetime>()
+            .ApplicationStopping.Register(requestLog.Dispose);
 
         return host;
     }
@@ -153,7 +170,8 @@ public static class McpServerBuilder {
         }
 
         var stream = new FileStream(logFile, FileMode.Append, FileAccess.Write, FileShare.Read);
-        var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = false };
+        var writer = new StreamWriter(stream,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = false };
 
         return (writer, true);
     }

@@ -35,10 +35,12 @@ public static class PluginCfgReader {
             return null;
         }
 
-        if (!table.TryGetValue("plugin", out var pluginObj) || pluginObj is not TomlTable pluginTable) {
+        if (!table.TryGetValue("plugin", out var pluginObj)
+            || pluginObj is not TomlTable pluginTable) {
             return null;
         }
 
-        return pluginTable.TryGetValue("version", out var versionObj) && versionObj is string version ? version : null;
+        return pluginTable.TryGetValue("version", out var versionObj)
+            && versionObj is string version ? version : null;
     }
 }

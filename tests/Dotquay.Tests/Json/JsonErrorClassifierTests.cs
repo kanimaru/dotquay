@@ -11,9 +11,10 @@ namespace Dotquay.Tests.Json;
 
 /// <summary>
 /// <see cref="JsonErrorClassifier"/> on the project's own files: a broken <c>dotquay.toml</c>,
-/// <c>dotquay.lock</c> or <c>dotquay.local.toml</c> is <c>invalid_project_file</c>, bare or wrapped,
-/// and its message (path and parser position) passes through unchanged. A broken user-level file
-/// (<c>~/.dotquay/credentials.toml</c>, <c>config.toml</c>) is <c>invalid_config_file</c> the same way.
+/// <c>dotquay.lock</c> or <c>dotquay.local.toml</c> is <c>invalid_project_file</c>, bare or
+/// wrapped, and its message (path and parser position) passes through unchanged. A broken
+/// user-level file (<c>~/.dotquay/credentials.toml</c>, <c>config.toml</c>) is
+/// <c>invalid_config_file</c> the same way.
 /// </summary>
 public sealed class JsonErrorClassifierTests {
     private const string Message = @"C:\p\dotquay.lock: invalid TOML.
@@ -42,7 +43,8 @@ C:\p\dotquay.lock(1,6) : error : Expected `=` after key but was `is`.";
 
     [Fact]
     public void A_link_target_problem_stays_a_workflow_failure() {
-        var exception = new WorkflowException("'x' is not a directory.", new LocalLinkException("'x' is not a directory."));
+        var exception = new WorkflowException("'x' is not a directory.",
+            new LocalLinkException("'x' is not a directory."));
 
         Assert.Equal(JsonErrorKind.Workflow, JsonErrorClassifier.Classify(exception).Kind);
         Assert.False(JsonErrorClassifier.IsInvalidProjectFile(exception));

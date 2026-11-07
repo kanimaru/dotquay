@@ -10,13 +10,14 @@ namespace Dotquay.Tests.Sync;
 /// </summary>
 /// <remarks>
 /// The worked example is SproutyDialogs, because it is where this was found: the repository is
-/// <c>SproutyLabs/SproutyDialogs</c> and the addon is <c>addons/sprouty_dialogs</c>, which differs by
-/// more than case — so <see cref="SubtreeExtractor.ResolveSubtreePath"/>'s capitalisation fix
-/// correctly declines and, before this, the user got an error naming only the path that didn't work.
+/// <c>SproutyLabs/SproutyDialogs</c> and the addon is <c>addons/sprouty_dialogs</c>, which differs
+/// by more than case — so <see cref="SubtreeExtractor.ResolveSubtreePath"/>'s capitalisation fix
+/// correctly declines and, before this, the user got an error naming only the path that didn't
+/// work.
 /// <para>
-/// Half these tests exist to pin down what is deliberately <em>not</em> matched. The rules are narrow
-/// on purpose, and a rule that quietly widens is how dotquay would start inferring layout (SPEC.md
-/// §7.1, OQ-2) without anyone deciding to.
+/// Half these tests exist to pin down what is deliberately <em>not</em> matched. The rules are
+/// narrow on purpose, and a rule that quietly widens is how dotquay would start inferring layout
+/// (SPEC.md §7.1, OQ-2) without anyone deciding to.
 /// </para>
 /// </remarks>
 public class SubtreeCandidatesTests {
@@ -43,8 +44,8 @@ public class SubtreeCandidatesTests {
 
     [Fact]
     public void Find_GuessOnlyDiffersByCase_ReturnsNothing() {
-        // Already handled, silently and correctly, by the casing fix. Re-reporting it here would ask
-        // the user to confirm a correction dotquay is entitled to make on its own.
+        // Already handled, silently and correctly, by the casing fix. Re-reporting it here would
+        // ask the user to confirm a correction dotquay is entitled to make on its own.
         var fileSystem = RepoWith("addons/gut");
 
         Assert.Null(SubtreeCandidates.Find(fileSystem, Repo, "addons/Gut"));
@@ -89,15 +90,17 @@ public class SubtreeCandidatesTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Repo}/addons/pixel_fonts/font.ttf", "not a plugin");
 
-        Assert.Equal("addons/pixel_fonts", SubtreeCandidates.Find(fileSystem, Repo, "addons/PixelFonts")?.Suggestion?.Path);
+        Assert.Equal("addons/pixel_fonts",
+            SubtreeCandidates.Find(fileSystem, Repo, "addons/PixelFonts")?.Suggestion?.Path);
     }
 
     [Fact]
     public void Find_DroppedWord_IsNotAMatch() {
-        // godot_dialogue_manager -> addons/dialogue_manager is real and common, and deliberately not
-        // matched by name: the same rule would match 'core' against 'vbeami_core', which is a
+        // godot_dialogue_manager -> addons/dialogue_manager is real and common, and deliberately
+        // not matched by name: the same rule would match 'core' against 'vbeami_core', which is a
         // different addon rather than the same one spelled differently. Rule 2 catches this
-        // repository anyway, which is the point of having a second rule instead of a looser first one.
+        // repository anyway, which is the point of having a second rule instead of a looser first
+        // one.
         var fileSystem = RepoWith("addons/dialogue_manager", "addons/dialogue_manager_examples");
 
         var finding = SubtreeCandidates.Find(fileSystem, Repo, "addons/godot_dialogue_manager");
@@ -136,8 +139,9 @@ public class SubtreeCandidatesTests {
 
     [Fact]
     public void Find_FolderWithoutAPluginCfg_IsNotOfferedOnNameAlone() {
-        // 'examples' is not this addon under another name and has no plugin.cfg, so there is nothing
-        // to say about it. Suggesting it would be a guess with no evidence behind it at all.
+        // 'examples' is not this addon under another name and has no plugin.cfg, so there is
+        // nothing to say about it. Suggesting it would be a guess with no evidence behind it at
+        // all.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Repo}/addons/examples/demo.tscn", "scene");
 
@@ -146,7 +150,8 @@ public class SubtreeCandidatesTests {
         Assert.NotNull(finding);
         Assert.Null(finding!.Suggestion);
         Assert.Empty(finding.Candidates);
-        Assert.Contains("nothing in its repository looks like an addon folder", finding.DescribeWhereTheAddonIs());
+        Assert.Contains("nothing in its repository looks like an addon folder",
+            finding.DescribeWhereTheAddonIs());
     }
 
     // -- the two other shapes a repository comes in -----------------------------------------------
@@ -161,9 +166,9 @@ public class SubtreeCandidatesTests {
 
         Assert.Equal(".", finding?.Suggestion?.Path);
 
-        // The folder stays what was being looked for: the cache directory this was read from is named
-        // after a URL and a commit, and a root-level addon says nothing about what it wants to be
-        // called.
+        // The folder stays what was being looked for: the cache directory this was read from is
+        // named after a URL and a commit, and a root-level addon says nothing about what it wants
+        // to be called.
         Assert.Equal("thing", finding?.Suggestion?.Folder);
         Assert.Contains("the addon is the repository itself", finding!.DescribeWhereTheAddonIs());
     }

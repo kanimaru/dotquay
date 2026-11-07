@@ -8,8 +8,8 @@ namespace Dotquay.Tests.Git;
 /// </summary>
 /// <remarks>
 /// A second developer hit an ssh fetch refused with <c>Permission denied (publickey,password)</c>,
-/// followed the old advice to run <c>dotquay login</c>, and got the identical failure: dotquay hands
-/// its token to git through a credential helper, and git only consults helpers over https.
+/// followed the old advice to run <c>dotquay login</c>, and got the identical failure: dotquay
+/// hands its token to git through a credential helper, and git only consults helpers over https.
 /// </remarks>
 public class GitAuthenticationRemediationTests {
     private const string SshUrl = "git@gitlab.kemomi.de:wild-alliance/vbeami_gdmp.git";
@@ -26,7 +26,8 @@ public class GitAuthenticationRemediationTests {
 
     private const string HttpsRefused =
         "remote: HTTP Basic: Access denied\n"
-        + "fatal: Authentication failed for 'https://gitlab.kemomi.de/wild-alliance/vbeami_gdmp.git/'";
+        + "fatal: Authentication failed for "
+        + "'https://gitlab.kemomi.de/wild-alliance/vbeami_gdmp.git/'";
 
     [Fact]
     public void The_reported_stderr_is_an_authentication_failure() =>

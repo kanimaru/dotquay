@@ -45,7 +45,8 @@ public class LockfileWriterTests {
     [Fact]
     public void Serialize_NoPatch_OmitsPatchKeysEntirely() {
         var lockfile = new DotquayLockfile {
-            Addons = [new LockedAddon { Name = "clean", Git = "https://example.com/c", Resolved = FullSha, Path = "addons/clean" }],
+            Addons = [new LockedAddon { Name = "clean", Git = "https://example.com/c",
+                Resolved = FullSha, Path = "addons/clean" }],
         };
 
         var toml = LockfileWriter.Serialize(lockfile);
@@ -59,8 +60,10 @@ public class LockfileWriterTests {
         var lockfile = new DotquayLockfile {
             Addons =
             [
-                new LockedAddon { Name = "zeta", Git = "https://example.com/z", Resolved = FullSha, Path = "addons/zeta" },
-                new LockedAddon { Name = "alpha", Git = "https://example.com/a", Resolved = FullSha, Path = "addons/alpha" },
+                new LockedAddon { Name = "zeta", Git = "https://example.com/z", Resolved = FullSha,
+                    Path = "addons/zeta" },
+                new LockedAddon { Name = "alpha", Git = "https://example.com/a", Resolved = FullSha,
+                    Path = "addons/alpha" },
             ],
         };
 

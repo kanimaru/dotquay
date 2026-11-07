@@ -3,9 +3,9 @@ namespace Dotquay.Core.Git;
 /// <summary>What git was actually complaining about, as far as its stderr can be read.</summary>
 /// <remarks>
 /// Ordered from most specific to least: <see cref="Classify"/> returns the first match, and several
-/// of these co-occur in one message. An SSH host-key rejection, for instance, ends with git's generic
-/// "make sure you have the correct access rights", which reads as an authentication problem and is
-/// not one -- no credential will ever fix it.
+/// of these co-occur in one message. An SSH host-key rejection, for instance, ends with git's
+/// generic "make sure you have the correct access rights", which reads as an authentication problem
+/// and is not one -- no credential will ever fix it.
 /// </remarks>
 public enum GitFailureKind {
     /// <summary>Nothing recognised. Reported as a plain git error with git's own words.</summary>
@@ -36,17 +36,18 @@ public enum GitFailureKind {
     /// <summary>Credentials were missing or rejected.</summary>
     Authentication,
 
-    /// <summary>The host could not be reached at all: DNS, routing, or a refused connection.</summary>
+    /// <summary>The host could not be reached at all: DNS, routing, or a refused
+    /// connection.</summary>
     HostUnreachable,
 
     /// <summary>
     /// The server answered and reported no such repository.
     /// </summary>
     /// <remarks>
-    /// Deliberately not folded into <see cref="Authentication"/>, even though GitHub returns exactly
-    /// this for a private repository fetched without credentials. A typo in the URL produces the same
-    /// message and is at least as likely, and labelling it an auth failure sends someone to configure
-    /// a token when what they need is to fix a character.
+    /// Deliberately not folded into <see cref="Authentication"/>, even though GitHub returns
+    /// exactly this for a private repository fetched without credentials. A typo in the URL
+    /// produces the same message and is at least as likely, and labelling it an auth failure sends
+    /// someone to configure a token when what they need is to fix a character.
     /// </remarks>
     RepositoryNotFound,
 
@@ -62,8 +63,8 @@ public enum GitFailureKind {
     /// consistent outcome: the same underlying fault produces a precise message on one developer's
     /// PC and a useless one on the next.
     /// <para>
-    /// So this kind means "the cause is real but off-screen", and its remedy is to say where to look
-    /// rather than to guess.
+    /// So this kind means "the cause is real but off-screen", and its remedy is to say where to
+    /// look rather than to guess.
     /// </para>
     /// </remarks>
     RemoteUnreadable,
@@ -74,10 +75,10 @@ public enum GitFailureKind {
 /// </summary>
 /// <remarks>
 /// String matching on another program's output is unpleasant, and it is the only option: git exits
-/// 128 for almost everything and has no machine-readable failure categories. It is done here, at the
-/// point that still holds the exit code and stderr, rather than in the presentation layer -- so there
-/// is exactly one list to correct when a git release rewords a message, and nothing downstream is
-/// re-parsing prose.
+/// 128 for almost everything and has no machine-readable failure categories. It is done here, at
+/// the point that still holds the exit code and stderr, rather than in the presentation layer -- so
+/// there is exactly one list to correct when a git release rewords a message, and nothing
+/// downstream is re-parsing prose.
 /// </remarks>
 public static class GitErrorClassifier {
     // Matched in this order. Each group is checked in full before the next, so a message carrying
@@ -162,74 +163,82 @@ public static class GitErrorClassifier {
     /// </summary>
     /// <remarks>
     /// Kept as its own predicate because it is a wire contract: it decides
-    /// <c>error.kind = "auth"</c> (SPEC.md section 17), which is what lets a UI offer a login prompt
-    /// instead of a wall of text. Narrower than it used to be, and deliberately: a host-key rejection
-    /// carries git's generic "correct access rights" wording and used to be reported as an auth
-    /// failure, putting a login prompt in front of a problem no credential can solve.
+    /// <c>error.kind = "auth"</c> (SPEC.md section 17), which is what lets a UI offer a login
+    /// prompt instead of a wall of text. Narrower than it used to be, and deliberately: a host-key
+    /// rejection carries git's generic "correct access rights" wording and used to be reported as
+    /// an auth failure, putting a login prompt in front of a problem no credential can solve.
     /// </remarks>
     public static bool LooksLikeAuthenticationFailure(string? stderr) =>
         Classify(stderr) == GitFailureKind.Authentication;
 
     /// <summary>
-    /// A sentence saying what to do about <paramref name="kind"/> on <paramref name="repositoryUrl"/>'s
-    /// host, or null when git's own message is already the best available answer.
+    /// A sentence saying what to do about <paramref name="kind"/> on
+    /// <paramref name="repositoryUrl"/>'s host, or null when git's own message is already the best
+    /// available answer.
     /// </summary>
     /// <remarks>
     /// Written for the person hitting this on a machine that has never talked to the host before --
-    /// which is when all of these actually occur. The SSH hints name the two-OpenSSH trap explicitly
-    /// because it is invisible from the error alone: <c>ssh-keyscan</c> can fail at key exchange
-    /// while git, using a different binary, gets far enough to reject the host key, so the two
-    /// symptoms look unrelated and the obvious fix appears not to work.
+    /// which is when all of these actually occur. The SSH hints name the two-OpenSSH trap
+    /// explicitly because it is invisible from the error alone: <c>ssh-keyscan</c> can fail at key
+    /// exchange while git, using a different binary, gets far enough to reject the host key, so the
+    /// two symptoms look unrelated and the obvious fix appears not to work.
     /// </remarks>
     public static string? Remediation(GitFailureKind kind, string? repositoryUrl) {
-        var host = GitUrl.TryParse(repositoryUrl, out var url) && url is not null && url.Host.Length > 0
+        var host = GitUrl.TryParse(repositoryUrl, out var url) && url is not null
+            && url.Host.Length > 0
             ? url.Host
             : null;
         var hostText = host ?? "the server";
 
         return kind switch {
             GitFailureKind.HostKeyVerification =>
-                $"ssh has no trusted host key for {hostText}. Verify its fingerprint out of band, then add it: "
-                + $"'ssh-keyscan {hostText}' prints the keys and 'ssh-keygen -F {hostText}' checks what is already "
-                + "trusted. Note that git may use a different ssh than the first one on PATH, and only that one's "
-                + "known_hosts counts.",
+                $"ssh has no trusted host key for {hostText}. Verify its fingerprint out of band, "
+                + $"then add it: 'ssh-keyscan {hostText}' prints the keys and 'ssh-keygen -F "
+                + $"{hostText}' checks what is already "
+                + "trusted. Note that git may use a different ssh than the first one on PATH, and "
+                + "only that one's known_hosts counts.",
 
             GitFailureKind.SshAlgorithmMismatch =>
-                $"the ssh client and {hostText} agree on no common algorithm, which usually means the ssh being "
-                + "run is older than the server expects. Check with 'ssh -V' -- on Windows the OpenSSH in "
-                + "System32 often shadows the newer one shipped with Git.",
+                $"the ssh client and {hostText} agree on no common algorithm, which usually means "
+                + "the ssh being run is older than the server expects. Check with 'ssh -V' -- on "
+                + "Windows the OpenSSH in System32 often shadows the newer one shipped with Git.",
 
-            // Split by transport because the remedies share nothing. dotquay hands its stored token to
-            // git through a credential helper, and git only asks a helper over https - an ssh fetch
-            // never sees it. Found on a second developer's PC: they ran 'dotquay login' exactly as the
-            // old single message suggested, and the ssh fetch failed identically, because no token
-            // can answer "Permission denied (publickey)".
+            // Split by transport because the remedies share nothing. dotquay hands its stored token
+            // to git through a credential helper, and git only asks a helper over https - an ssh
+            // fetch never sees it. Found on a second developer's PC: they ran 'dotquay login'
+            // exactly as the old single message suggested, and the ssh fetch failed identically,
+            // because no token can answer "Permission denied (publickey)".
             GitFailureKind.Authentication when IsSsh(repositoryUrl) =>
-                $"the server {hostText} refused the ssh key, or none was offered. A token stored with 'dotquay login' is never "
-                + "used for an ssh URL like this one. Either register a key with your account on "
-                + $"{hostText} and check it with 'ssh -T git@{hostText}', or fetch over https, where a stored login "
-                + "does apply: add an [overrides.<addon>] entry to dotquay.toml with the repository's https URL.",
+                $"the server {hostText} refused the ssh key, or none was offered. A token stored "
+                + "with 'dotquay login' is never used for an ssh URL like this one. Either "
+                + $"register a key with your account on {hostText} and check it with 'ssh -T "
+                + $"git@{hostText}', or fetch over https, where a stored login "
+                + "does apply: add an [overrides.<addon>] entry to dotquay.toml with the "
+                + "repository's https URL.",
 
             GitFailureKind.Authentication =>
-                $"git was refused for want of credentials. 'dotquay login {hostText}' stores a token for this host.",
+                $"git was refused for want of credentials. 'dotquay login {hostText}' stores a "
+                + $"token for this host.",
 
             GitFailureKind.HostUnreachable =>
-                $"{hostText} could not be reached at all -- check the hostname, your network, and any VPN the host "
-                + "sits behind.",
+                $"{hostText} could not be reached at all -- check the hostname, your network, and "
+                + "any VPN the host sits behind.",
 
             GitFailureKind.RepositoryNotFound =>
-                $"{hostText} answered but reported no such repository. That is the same answer it gives for a "
-                + "private repository you are not allowed to see, so check the path for a typo first, then your access.",
+                $"{hostText} answered but reported no such repository. That is the same answer it "
+                + "gives for a private repository you are not allowed to see, so check the path "
+                + "for a typo first, then your access.",
 
             GitFailureKind.RemoteUnreadable when IsSsh(repositoryUrl) =>
-                $"git did not report why. ssh's own explanation is often lost when git runs from a tool rather "
-                + $"than a terminal, and the usual cause on a machine that has not reached {hostText} before is an "
-                + $"untrusted host key. Run 'dotquay doctor', which checks that without needing the network, or "
-                + $"reproduce it directly with 'ssh -T git@{hostText}'.",
+                $"git did not report why. ssh's own explanation is often lost when git runs from a "
+                + $"tool rather than a terminal, and the usual cause on a machine that has not "
+                + $"reached {hostText} before is an untrusted host key. Run 'dotquay doctor', "
+                + $"which checks that without needing the network, or reproduce it directly with "
+                + $"'ssh -T git@{hostText}'.",
 
             GitFailureKind.RemoteUnreadable =>
-                $"git did not report why. Check that {hostText} is reachable and that your credentials for it are "
-                + "current.",
+                $"git did not report why. Check that {hostText} is reachable and that your "
+                + "credentials for it are current.",
 
             _ => null,
         };
@@ -243,16 +252,16 @@ public static class GitErrorClassifier {
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Fetching tries shallow first and falls back to a full fetch, so a failure has two stderrs. They
-    /// are usually the same words twice -- a host that refuses a connection refuses both attempts --
-    /// and printing both taught readers to skim past the part that mattered. They are reported
-    /// separately only when they genuinely differ, which is the case worth seeing: a shallow fetch
-    /// refused for one reason and the fallback failing for another.
+    /// Fetching tries shallow first and falls back to a full fetch, so a failure has two stderrs.
+    /// They are usually the same words twice -- a host that refuses a connection refuses both
+    /// attempts -- and printing both taught readers to skim past the part that mattered. They are
+    /// reported separately only when they genuinely differ, which is the case worth seeing: a
+    /// shallow fetch refused for one reason and the fallback failing for another.
     /// </para>
     /// <para>
     /// Pure and public so it can be tested directly against real captured stderr. Every bug this is
-    /// meant to fix showed up as unhelpful <em>text</em>, which nothing tests when the text is built
-    /// inline at the throw site.
+    /// meant to fix showed up as unhelpful <em>text</em>, which nothing tests when the text is
+    /// built inline at the throw site.
     /// </para>
     /// </remarks>
     public static string DescribeFetchFailure(
@@ -266,8 +275,9 @@ public static class GitErrorClassifier {
                 ? full
                 : $"Shallow fetch: {shallow} Full fetch: {full}";
 
-        // Classified from whichever attempt actually said something. The full fetch is the last word
-        // on whether the repository is reachable at all, so it is preferred when the two disagree.
+        // Classified from whichever attempt actually said something. The full fetch is the last
+        // word on whether the repository is reachable at all, so it is preferred when the two
+        // disagree.
         var kind = Classify(full);
         if (kind == GitFailureKind.Unknown) {
             kind = Classify(shallow);
@@ -296,7 +306,8 @@ public static class GitErrorClassifier {
     /// <c>dotquay add</c> does with a new URL - printed git's stderr raw. An ssh key refusal there
     /// read as git's boilerplate about access rights and nothing else.
     /// </remarks>
-    public static string DescribeRemoteFailure(string failure, string repositoryUrl, string? stderr) {
+    public static string DescribeRemoteFailure(string failure, string repositoryUrl,
+        string? stderr) {
         var detail = (stderr ?? string.Empty).Trim();
         var message = detail.Length > 0 ? $"{failure}: {detail}" : failure;
 

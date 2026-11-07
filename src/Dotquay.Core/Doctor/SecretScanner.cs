@@ -11,8 +11,8 @@ namespace Dotquay.Core.Doctor;
 /// URL, because that is where the URL lives and it looks like where the credential should go. Broad
 /// entropy heuristics would produce false positives on git SHAs and content hashes, which this file
 /// is full of, and a check that cries wolf gets ignored.</para>
-/// <para>Prefix patterns are drawn from the providers dotquay actually targets. Missing a novel token
-/// format is acceptable; flagging a legitimate commit SHA is not.</para>
+/// <para>Prefix patterns are drawn from the providers dotquay actually targets. Missing a novel
+/// token format is acceptable; flagging a legitimate commit SHA is not.</para>
 /// </remarks>
 public static partial class SecretScanner {
     /// <summary>A short description of what was found, or null when nothing was. Never includes the
@@ -32,11 +32,12 @@ public static partial class SecretScanner {
 
     /// <summary>GitLab PATs and deploy tokens, GitHub PATs (classic and fine-grained), and GitHub
     /// app/OAuth tokens.</summary>
-    [GeneratedRegex(@"\b(glpat-|gldt-|glrt-|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[A-Za-z0-9_\-]{8,}")]
+    [GeneratedRegex(
+        @"\b(glpat-|gldt-|glrt-|ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[A-Za-z0-9_\-]{8,}")]
     private static partial Regex ProviderTokenPattern();
 
-    /// <summary>An <c>https://user:secret@host/…</c> authority. Excludes an empty password, which is
-    /// how some tooling writes a username-only URL.</summary>
+    /// <summary>An <c>https://user:secret@host/…</c> authority. Excludes an empty password, which
+    /// is how some tooling writes a username-only URL.</summary>
     [GeneratedRegex(@"https?://[^/\s:@""]+:[^/\s@""]+@")]
     private static partial Regex UrlCredentialPattern();
 }

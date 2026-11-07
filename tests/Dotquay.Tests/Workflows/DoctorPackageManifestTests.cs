@@ -12,8 +12,9 @@ namespace Dotquay.Tests.Workflows;
 /// This is the offline half of the same problem <see cref="Resolve.GraphWarningTests"/> covers.
 /// It matters on its own because it needs no network and no re-resolve: the installed
 /// <c>addons/&lt;name&gt;/</c> folder <em>is</em> the subtree the graph walk would extract, so
-/// whatever is wrong with the manifest is already sitting on disk waiting to be read. Someone asking
-/// "why isn't this dependency showing up" can get the answer from a command that works on a plane.
+/// whatever is wrong with the manifest is already sitting on disk waiting to be read. Someone
+/// asking "why isn't this dependency showing up" can get the answer from a command that works on a
+/// plane.
 /// </remarks>
 public class DoctorPackageManifestTests {
     private const string ProjectDirectory = "project";
@@ -21,7 +22,8 @@ public class DoctorPackageManifestTests {
 
     private static string Sha => new('a', 40);
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string? addonManifest) {
+    private static (DependencyWorkflow Workflow,
+        InMemoryFileSystem FileSystem) Build(string? addonManifest) {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -42,10 +44,12 @@ public class DoctorPackageManifestTests {
             path = "addons/leaf"
             """);
 
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "leaf", "plugin.cfg"), "cfg");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "leaf",
+            "plugin.cfg"), "cfg");
 
         if (addonManifest is not null) {
-            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "leaf", "dotquay.toml"), addonManifest);
+            fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "leaf",
+                "dotquay.toml"), addonManifest);
         }
 
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
@@ -56,7 +60,8 @@ public class DoctorPackageManifestTests {
         var (workflow, _) = Build(addonManifest);
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
-        return result.Issues.Where(i => i.Kind == DoctorIssueKind.UnreadablePackageManifest).ToList();
+        return result.Issues.Where(i => i.Kind == DoctorIssueKind.UnreadablePackageManifest)
+            .ToList();
     }
 
     [Fact]
@@ -89,8 +94,8 @@ public class DoctorPackageManifestTests {
             version = "1.0.0"
             """);
 
-        // `name` is the one key still required, so a [package] without it is as unusable as no header
-        // at all — the graph walk would skip the addon's dependencies just the same.
+        // `name` is the one key still required, so a [package] without it is as unusable as no
+        // header at all — the graph walk would skip the addon's dependencies just the same.
         var issue = Assert.Single(issues);
         Assert.Contains("'name'", issue.Message);
     }
@@ -102,8 +107,8 @@ public class DoctorPackageManifestTests {
             name = "leaf"
             """);
 
-        // `version` became optional: nothing reads it, and plugin.cfg plus the git tag already carry
-        // it. Flagging its absence would nag about the recommended shape.
+        // `version` became optional: nothing reads it, and plugin.cfg plus the git tag already
+        // carry it. Flagging its absence would nag about the recommended shape.
         Assert.Empty(issues);
     }
 

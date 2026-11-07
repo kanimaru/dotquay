@@ -8,7 +8,8 @@ public class CsprojLocatorTests {
     [Fact]
     public void Locate_ExactlyOneCsproj_ReturnsIt() {
         var fileSystem = new InMemoryFileSystem();
-        fileSystem.WriteAllText("project/MyGame.csproj", "<Project Sdk=\"Godot.NET.Sdk/4.3.0\"></Project>");
+        fileSystem.WriteAllText("project/MyGame.csproj",
+            "<Project Sdk=\"Godot.NET.Sdk/4.3.0\"></Project>");
 
         var path = CsprojLocator.Locate(fileSystem, "project");
 
@@ -20,7 +21,8 @@ public class CsprojLocatorTests {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.CreateDirectory("project");
 
-        var ex = Assert.Throws<DotnetSyncException>(() => CsprojLocator.Locate(fileSystem, "project"));
+        var ex = Assert.Throws<DotnetSyncException>(() =>
+            CsprojLocator.Locate(fileSystem, "project"));
         Assert.Contains("No .csproj", ex.Message);
     }
 
@@ -30,7 +32,8 @@ public class CsprojLocatorTests {
         fileSystem.WriteAllText("project/A.csproj", "<Project></Project>");
         fileSystem.WriteAllText("project/B.csproj", "<Project></Project>");
 
-        var ex = Assert.Throws<DotnetSyncException>(() => CsprojLocator.Locate(fileSystem, "project"));
+        var ex = Assert.Throws<DotnetSyncException>(() =>
+            CsprojLocator.Locate(fileSystem, "project"));
         Assert.Contains("Multiple .csproj", ex.Message);
     }
 

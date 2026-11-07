@@ -63,7 +63,8 @@ public class SelfUpdateWorkflowTests {
         Assert.Equal("0.18.0", result.ToVersion);
         Assert.Equal($"dotquay 0.18.0 for {Rid}", fileSystem.ReadAllText(Executable));
 
-        // The retired binary is the rollback target, so it must both exist and still be the old one.
+        // The retired binary is the rollback target, so it must both exist and still be the old
+        // one.
         Assert.Equal("/home/kani/.local/bin/dotquay.old-0.17.0", result.PreviousBinary);
         Assert.Equal("dotquay 0.17.0 installed", fileSystem.ReadAllText(result.PreviousBinary!));
 
@@ -94,7 +95,8 @@ public class SelfUpdateWorkflowTests {
         var result = await workflow.UpdateAsync(new SelfUpdateOptions());
 
         Assert.False(result.Changed);
-        Assert.Contains(result.Messages, message => message.Contains("ahead of the newest release"));
+        Assert.Contains(result.Messages, message =>
+            message.Contains("ahead of the newest release"));
     }
 
     [Fact]
@@ -106,7 +108,8 @@ public class SelfUpdateWorkflowTests {
         var result = await workflow.UpdateAsync(new SelfUpdateOptions(ToVersion: "0.17.5"));
 
         Assert.True(result.Changed);
-        Assert.Contains(result.Messages, message => message.Contains("Downgrading from 0.18.0 to 0.17.5"));
+        Assert.Contains(result.Messages, message =>
+            message.Contains("Downgrading from 0.18.0 to 0.17.5"));
         Assert.Equal($"dotquay 0.17.5 for {Rid}", fileSystem.ReadAllText(Executable));
     }
 
@@ -139,7 +142,8 @@ public class SelfUpdateWorkflowTests {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid).Corrupt("0.18.0");
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
 
         Assert.Contains("does not match the checksum", error.Message);
         Assert.Equal("dotquay 0.17.0 installed", fileSystem.ReadAllText(Executable));
@@ -151,7 +155,8 @@ public class SelfUpdateWorkflowTests {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.PublishWithoutChecksum("0.18.0", Rid);
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
 
         Assert.Contains("no checksum", error.Message);
         Assert.Equal(0, channel.Downloads);
@@ -164,7 +169,8 @@ public class SelfUpdateWorkflowTests {
         channel.Publish("0.18.0", Rid);
         probe.Reports("/home/kani/.local/bin/dotquay.new-0.18.0", null);
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
 
         Assert.Contains("does not start", error.Message);
         Assert.Equal("dotquay 0.17.0 installed", fileSystem.ReadAllText(Executable));
@@ -177,7 +183,8 @@ public class SelfUpdateWorkflowTests {
         channel.Publish("0.18.0", Rid);
         probe.Reports("/home/kani/.local/bin/dotquay.new-0.18.0", "0.4.4");
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
 
         Assert.Contains("reports version '0.4.4'", error.Message);
         Assert.Equal("dotquay 0.17.0 installed", fileSystem.ReadAllText(Executable));
@@ -188,7 +195,8 @@ public class SelfUpdateWorkflowTests {
         var (workflow, _, channel) = Build("0.17.0");
         channel.Publish("0.18.0", "win-x64");
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
 
         Assert.Contains("no build for linux-x64", error.Message);
         Assert.Contains("win-x64", error.Message);
@@ -201,11 +209,13 @@ public class SelfUpdateWorkflowTests {
         fileSystem.WriteAllBytes(path, "dotquay 0.9.0 installed"u8.ToArray());
 
         var channel = new FakeReleaseChannel().Publish("0.18.0", Rid);
-        var workflow = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), path, "0.9.0") {
+        var workflow = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), path,
+            "0.9.0") {
             RuntimeIdentifier = Rid,
         };
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
         Assert.Contains("looks like a build output", error.Message);
 
         // --force is the documented escape hatch, and it must reach the actual install.
@@ -229,7 +239,8 @@ public class SelfUpdateWorkflowTests {
         channel.Publish("0.18.0", Rid);
         fileSystem.ReadOnlyDirectories.Add("/home/kani/.local/bin");
 
-        var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(new SelfUpdateOptions()));
+        var error = await Assert.ThrowsAsync<WorkflowException>(() =>
+            workflow.UpdateAsync(new SelfUpdateOptions()));
 
         Assert.Contains("cannot write to", error.Message);
         Assert.Equal(0, channel.Downloads);
@@ -242,7 +253,8 @@ public class SelfUpdateWorkflowTests {
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
         // A new workflow, because the binary now running is the one that was just installed.
-        var updated = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), Executable, "0.18.0") {
+        var updated = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(),
+            Executable, "0.18.0") {
             RuntimeIdentifier = Rid,
         };
 
@@ -272,7 +284,8 @@ public class SelfUpdateWorkflowTests {
         channel.Publish("0.18.0", Rid);
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
-        var probe = new FakeExecutableProbe().Reports("/home/kani/.local/bin/dotquay.old-0.17.0", null);
+        var probe = new FakeExecutableProbe()
+            .Reports("/home/kani/.local/bin/dotquay.old-0.17.0", null);
         var updated = new SelfUpdateWorkflow(fileSystem, channel, probe, Executable, "0.18.0") {
             RuntimeIdentifier = Rid,
         };
@@ -287,7 +300,8 @@ public class SelfUpdateWorkflowTests {
     public async Task An_update_sweeps_what_an_earlier_failed_attempt_left_behind() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
-        fileSystem.WriteAllText("/home/kani/.local/bin/dotquay.new-0.17.9", "a download rejected last week");
+        fileSystem.WriteAllText("/home/kani/.local/bin/dotquay.new-0.17.9",
+            "a download rejected last week");
 
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
@@ -301,7 +315,8 @@ public class SelfUpdateWorkflowTests {
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
         channel.Publish("0.19.0", Rid);
-        var second = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), Executable, "0.18.0") {
+        var second = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(),
+            Executable, "0.18.0") {
             RuntimeIdentifier = Rid,
         };
         await second.UpdateAsync(new SelfUpdateOptions());
@@ -312,13 +327,15 @@ public class SelfUpdateWorkflowTests {
         Assert.Equal("0.18.0", retired[0].Version);
     }
 
-    private static (SelfUpdateWorkflow Workflow, InMemoryFileSystem FileSystem, FakeReleaseChannel Channel) Build(
+    private static (SelfUpdateWorkflow Workflow, InMemoryFileSystem FileSystem,
+        FakeReleaseChannel Channel) Build(
         string currentVersion) {
         var (workflow, fileSystem, channel, _) = BuildWithProbe(currentVersion);
         return (workflow, fileSystem, channel);
     }
 
-    private static (SelfUpdateWorkflow Workflow, InMemoryFileSystem FileSystem, FakeReleaseChannel Channel, FakeExecutableProbe Probe)
+    private static (SelfUpdateWorkflow Workflow, InMemoryFileSystem FileSystem,
+        FakeReleaseChannel Channel, FakeExecutableProbe Probe)
         BuildWithProbe(string currentVersion) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(Executable, $"dotquay {currentVersion} installed");
@@ -327,7 +344,8 @@ public class SelfUpdateWorkflowTests {
         var probe = new FakeExecutableProbe();
 
         return (
-            new SelfUpdateWorkflow(fileSystem, channel, probe, Executable, currentVersion) { RuntimeIdentifier = Rid },
+            new SelfUpdateWorkflow(fileSystem, channel, probe, Executable,
+                currentVersion) { RuntimeIdentifier = Rid },
             fileSystem,
             channel,
             probe);

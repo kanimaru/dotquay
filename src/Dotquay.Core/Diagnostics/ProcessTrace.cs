@@ -11,8 +11,8 @@ namespace Dotquay.Core.Diagnostics;
 /// <para>
 /// One type rather than a few log lines pasted into each <c>Process.Start</c> site, because the
 /// sites (<c>ProcessGitClient</c>, <c>ProcessPatchTool</c>, <c>ProcessDotnetCliRunner</c>,
-/// <c>SystemFileSystem</c>'s junction, <c>ProcessExecutableProbe</c>) were each written separately and
-/// would drift: one forgetting to redact, another logging the duration in seconds.
+/// <c>SystemFileSystem</c>'s junction, <c>ProcessExecutableProbe</c>) were each written separately
+/// and would drift: one forgetting to redact, another logging the duration in seconds.
 /// </para>
 /// <para>
 /// The command line is written the way a person would retype it into a shell - arguments with
@@ -21,8 +21,8 @@ namespace Dotquay.Core.Diagnostics;
 /// </para>
 /// </remarks>
 public sealed class ProcessTrace {
-    /// <summary>Per stream. A <c>git ls-remote</c> against a busy repo prints thousands of refs; the
-    /// head of it is what diagnoses a problem and the rest buries every other line.</summary>
+    /// <summary>Per stream. A <c>git ls-remote</c> against a busy repo prints thousands of refs;
+    /// the head of it is what diagnoses a problem and the rest buries every other line.</summary>
     internal const int MaxCapturedCharacters = 4000;
 
     private static readonly ProcessTrace Disabled = new(string.Empty, enabled: false);
@@ -39,23 +39,29 @@ public sealed class ProcessTrace {
 
     /// <summary>Logs the command about to run and starts its clock.</summary>
     /// <param name="fileName">The executable as passed to <see cref="ProcessStartInfo"/>.</param>
-    /// <param name="arguments">The <see cref="ProcessStartInfo.ArgumentList"/>, redacted here.</param>
+    /// <param name="arguments">The <see cref="ProcessStartInfo.ArgumentList"/>, redacted
+    /// here.</param>
     /// <param name="workingDirectory">Null when the child inherits dotquay's own.</param>
-    /// <param name="category">Defaults to the executable's file name (<c>git</c>, <c>dotnet</c>).</param>
+    /// <param name="category">Defaults to the executable's file name (<c>git</c>,
+    /// <c>dotnet</c>).</param>
     public static ProcessTrace Start(
-        string fileName, IEnumerable<string> arguments, string? workingDirectory, string? category = null) {
+        string fileName, IEnumerable<string> arguments, string? workingDirectory,
+        string? category = null) {
         if (!DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose)) {
             return Disabled;
         }
 
         var trace = new ProcessTrace(category ?? CategoryFor(fileName), enabled: true);
-        var where = string.IsNullOrEmpty(workingDirectory) ? string.Empty : $"  (in {workingDirectory})";
-        DiagnosticLog.Write(DiagnosticLevel.Verbose, trace._category, $"$ {FormatCommandLine(fileName, arguments)}{where}");
+        var where = string.IsNullOrEmpty(workingDirectory) ? string.Empty
+            : $"  (in {workingDirectory})";
+        DiagnosticLog.Write(DiagnosticLevel.Verbose, trace._category,
+            $"$ {FormatCommandLine(fileName, arguments)}{where}");
         return trace;
     }
 
     /// <summary>Logs how the process ended and, at trace level, what it printed.</summary>
-    public void Completed(int exitCode, string? standardOutput = null, string? standardError = null) {
+    public void Completed(int exitCode, string? standardOutput = null,
+        string? standardError = null) {
         if (!_enabled) {
             return;
         }
@@ -67,7 +73,8 @@ public sealed class ProcessTrace {
         WriteStream("stderr", standardError);
     }
 
-    /// <summary>Logs a process that never started, or was abandoned (timeout, cancellation).</summary>
+    /// <summary>Logs a process that never started, or was abandoned (timeout,
+    /// cancellation).</summary>
     public void Failed(Exception exception) {
         if (!_enabled) {
             return;
@@ -77,7 +84,8 @@ public sealed class ProcessTrace {
         DiagnosticLog.Write(
             DiagnosticLevel.Verbose,
             _category,
-            $"failed after {elapsed}: {exception.GetType().Name}: {SecretRedactor.Redact(exception.Message)}");
+            $"failed after {elapsed}: {exception.GetType().Name}: "
+            + $"{SecretRedactor.Redact(exception.Message)}");
     }
 
     /// <summary>A shell-pasteable rendering of the command, with secrets masked.</summary>
@@ -115,7 +123,8 @@ public sealed class ProcessTrace {
 
         if (truncated) {
             builder.Append('\n').Append(label).Append("| ... (")
-                .Append(content.Length - MaxCapturedCharacters).Append(" more characters not shown)");
+                .Append(content.Length - MaxCapturedCharacters)
+                .Append(" more characters not shown)");
         }
 
         return builder.ToString();
@@ -136,7 +145,8 @@ public sealed class ProcessTrace {
         // Split on both separators by hand: Path treats a backslash as an ordinary character off
         // Windows, and an executable path from a Windows-flavoured config should name the same
         // category wherever dotquay runs.
-        var name = Path.GetFileNameWithoutExtension(fileName[(fileName.LastIndexOfAny(['/', '\\']) + 1)..]);
+        var name = Path.GetFileNameWithoutExtension(fileName[(fileName.LastIndexOfAny(['/', '\\'])
+            + 1)..]);
         return string.IsNullOrEmpty(name) ? "process" : name.ToLowerInvariant();
     }
 

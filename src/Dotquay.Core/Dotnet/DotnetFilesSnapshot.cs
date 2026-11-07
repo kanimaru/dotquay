@@ -18,7 +18,8 @@ public sealed class DotnetFilesSnapshot {
     private readonly IFileSystem _fileSystem;
     private readonly IReadOnlyList<(string Path, byte[]? Contents)> _files;
 
-    private DotnetFilesSnapshot(IFileSystem fileSystem, IReadOnlyList<(string Path, byte[]? Contents)> files) {
+    private DotnetFilesSnapshot(IFileSystem fileSystem,
+        IReadOnlyList<(string Path, byte[]? Contents)> files) {
         _fileSystem = fileSystem;
         _files = files;
     }
@@ -30,8 +31,8 @@ public sealed class DotnetFilesSnapshot {
             fileSystem.CombinePath(projectDirectory, "nuget.config"),
         };
 
-        // No .csproj (or several) is the installer's error to report, with its own message; there is
-        // nothing of it to snapshot here.
+        // No .csproj (or several) is the installer's error to report, with its own message; there
+        // is nothing of it to snapshot here.
         try {
             paths.Add(CsprojLocator.Locate(fileSystem, projectDirectory));
         } catch (DotnetSyncException) {
@@ -39,7 +40,8 @@ public sealed class DotnetFilesSnapshot {
 
         var files = paths
             .Distinct(StringComparer.Ordinal)
-            .Select(path => (path, fileSystem.FileExists(path) ? fileSystem.ReadAllBytes(path) : null))
+            .Select(path =>
+                (path, fileSystem.FileExists(path) ? fileSystem.ReadAllBytes(path) : null))
             .ToList();
 
         return new DotnetFilesSnapshot(fileSystem, files);

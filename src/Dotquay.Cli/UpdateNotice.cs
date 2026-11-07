@@ -14,9 +14,9 @@ namespace Dotquay.Cli;
 /// <para>Four rules make it safe to have on by default, and each of them is load-bearing:</para>
 /// <list type="bullet">
 /// <item><b>stderr, never stdout.</b> stdout is a contract — <c>list --json</c> is parsed by the
-/// editor plugin and <c>source list</c> by shell scripts. Suppressing this under <c>--json</c> alone
-/// would not be enough: a plain <c>dotquay list | grep</c> is just as parseable, and just as broken
-/// by a stray human sentence.</item>
+/// editor plugin and <c>source list</c> by shell scripts. Suppressing this under <c>--json</c>
+/// alone would not be enough: a plain <c>dotquay list | grep</c> is just as parseable, and just as
+/// broken by a stray human sentence.</item>
 /// <item><b>Rendered from the cache, never from a request.</b> No command's latency depends on a
 /// network the user did not ask this command to touch.</item>
 /// <item><b>The refresh is detached and given 500 ms at exit.</b> If it does not finish, nothing is
@@ -34,7 +34,8 @@ internal sealed class UpdateNotice {
     private readonly Task<string?>? _refresh;
     private readonly CancellationTokenSource? _cancellation;
 
-    private UpdateNotice(UpdateSettings settings, UpdateCheckCache cache, Task<string?>? refresh, CancellationTokenSource? cancellation) {
+    private UpdateNotice(UpdateSettings settings, UpdateCheckCache cache, Task<string?>? refresh,
+        CancellationTokenSource? cancellation) {
         _settings = settings;
         _cache = cache;
         _refresh = refresh;
@@ -63,10 +64,12 @@ internal sealed class UpdateNotice {
             var refresh = Task.Run(
                 async () => {
                     try {
-                        var release = await SelfUpdateFactory.Channel(settings).GetLatestAsync(cancellation.Token);
+                        var release = await SelfUpdateFactory.Channel(settings)
+                            .GetLatestAsync(cancellation.Token);
                         return release?.Version;
                     } catch {
-                        // Offline, logged out, channel moved. All of them mean "no notice this time".
+                        // Offline, logged out, channel moved. All of them mean "no notice this
+                        // time".
                         return null;
                     }
                 },
@@ -79,7 +82,8 @@ internal sealed class UpdateNotice {
     }
 
     /// <summary>Prints the notice if there is one to print, then gets out of the way. Called after
-    /// the command has produced all of its own output, so the line never lands mid-result.</summary>
+    /// the command has produced all of its own output, so the line never lands
+    /// mid-result.</summary>
     public void Report() {
         try {
             var latest = Settle();
@@ -89,16 +93,17 @@ internal sealed class UpdateNotice {
             }
 
             Console.Error.WriteLine(
-                $"dotquay {latest} is available (you have {DotquayVersion.Current}) - run 'dotquay self update'");
+                $"dotquay {latest} is available (you have {DotquayVersion.Current}) - run 'dotquay "
+                + $"self update'");
             Console.Error.WriteLine("  silence this with 'dotquay self notify off'");
         } catch {
         }
     }
 
     /// <summary>The freshly-fetched version if the refresh finished inside its grace period, else
-    /// whatever was cached. A refresh that is still running is abandoned rather than waited on — and
-    /// deliberately not written from a continuation either, because a process about to exit is not a
-    /// place to be starting file writes.</summary>
+    /// whatever was cached. A refresh that is still running is abandoned rather than waited on —
+    /// and deliberately not written from a continuation either, because a process about to exit is
+    /// not a place to be starting file writes.</summary>
     private string? Settle() {
         if (_refresh is not null) {
             try {
@@ -127,9 +132,9 @@ internal sealed class UpdateNotice {
     /// <c>mcp</c> (v0.18) is excluded for a different reason: <c>Report()</c> only ever runs after
     /// <c>rootCommand.Invoke()</c> returns, and for a server command that blocks until its client
     /// disconnects, that could be hours away — <see cref="Settle"/>'s 500&#160;ms exit grace would
-    /// never be the thing that decides anything, so <see cref="Start"/>'s background fetch would just
-    /// be pointless network and file I/O kicked off, and left running, every time an editor spins the
-    /// server up.
+    /// never be the thing that decides anything, so <see cref="Start"/>'s background fetch would
+    /// just be pointless network and file I/O kicked off, and left running, every time an editor
+    /// spins the server up.
     /// </remarks>
     private static bool IsEligible(string[] args) {
         if (Console.IsErrorRedirected) {

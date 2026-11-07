@@ -22,7 +22,8 @@ public static class ManifestWriter {
     public static string ScaffoldProjectToml(string? nuGetSource = null) {
         var sb = new StringBuilder();
         sb.AppendLine("# Dotquay project manifest.");
-        sb.AppendLine("# Run `dotquay add <git-url>` or `dotquay add <nuget-package-id>` to add a dependency.");
+        sb.AppendLine("# Run `dotquay add <git-url>` or `dotquay add <nuget-package-id>` to add a "
+            + "dependency.");
 
         // No section header unless there is something to put in it. An empty section is a prompt to
         // fill it in, and the only thing anyone ever filled it in with was a Godot version dotquay
@@ -30,10 +31,12 @@ public static class ManifestWriter {
         if (nuGetSource is not null) {
             sb.AppendLine();
             // Plain ASCII, like the rest of the scaffold: this file is committed and gets opened in
-            // whatever editor or shell is to hand, where non-ASCII punctuation renders as mojibake in
-            // anything reading it as ANSI.
-            sb.AppendLine("# V3 service-index URL. Add more feeds as more [nuget.sources.<name>] blocks;");
-            sb.AppendLine("# they are searched in the order written. Credentials come from `dotquay login`,");
+            // whatever editor or shell is to hand, where non-ASCII punctuation renders as mojibake
+            // in anything reading it as ANSI.
+            sb.AppendLine("# V3 service-index URL. Add more feeds as more [nuget.sources.<name>] "
+                + "blocks;");
+            sb.AppendLine("# they are searched in the order written. Credentials come from "
+                + "`dotquay login`,");
             sb.AppendLine("# never from this file - it is meant to be committed.");
             sb.AppendLine($"[nuget.sources.{NuGetSourceSpec.LegacyName}]");
             sb.AppendLine($"url = {Quote(nuGetSource)}");
@@ -53,14 +56,16 @@ public static class ManifestWriter {
     /// folder, next to <c>plugin.cfg</c> (SPEC.md §6, §7.2).</summary>
     public static string ScaffoldPackageToml(string name) {
         var sb = new StringBuilder();
-        sb.AppendLine("# Dotquay package manifest — ships inside this addon's folder, next to plugin.cfg.");
-        sb.AppendLine("# It MUST live inside the folder consumers install, or its dependencies never reach them.");
+        sb.AppendLine("# Dotquay package manifest — ships inside this addon's folder, next to "
+            + "plugin.cfg.");
+        sb.AppendLine("# It MUST live inside the folder consumers install, or its dependencies "
+            + "never reach them.");
         sb.AppendLine("# An addon repo is itself a valid dotquay project (SPEC.md §7.2).");
         sb.AppendLine();
         sb.AppendLine("[package]");
         sb.AppendLine($"name = {Quote(name)}");
-        // No `version` line: plugin.cfg and the git tag already carry it, and a third copy only ever
-        // drifts out of step with them.
+        // No `version` line: plugin.cfg and the git tag already carry it, and a third copy only
+        // ever drifts out of step with them.
         sb.AppendLine();
         sb.AppendLine("# [addons.kani_core]");
         sb.AppendLine("# git = \"https://github.com/kani/kani_core\"");
@@ -92,9 +97,9 @@ public static class ManifestWriter {
     /// <remarks>
     /// <para>Not optional, and not cosmetic. <c>ProjectFileStore.WriteManifest</c> rewrites
     /// <c>dotquay.toml</c> wholesale from this method's output, so anything the model carries and
-    /// this doesn't emit is <em>deleted</em> the next time an unrelated <c>add</c>, <c>remove</c>, or
-    /// <c>override</c> runs. A reader that understood feeds while this didn't would silently erase a
-    /// hand-written multi-feed configuration and surface it later as an unexplained
+    /// this doesn't emit is <em>deleted</em> the next time an unrelated <c>add</c>, <c>remove</c>,
+    /// or <c>override</c> runs. A reader that understood feeds while this didn't would silently
+    /// erase a hand-written multi-feed configuration and surface it later as an unexplained
     /// <c>NU1101</c>.</para>
     /// <para>Ordering is load-bearing too: bare <c>[nuget]</c> keys must come before any
     /// <c>[nuget.sources.*]</c> sub-table, because writing the sub-table first implicitly defines
@@ -112,7 +117,8 @@ public static class ManifestWriter {
             }
 
             if (manifest.TrustedHosts.Count > 0) {
-                sb.AppendLine($"trusted_hosts = [{string.Join(", ", manifest.TrustedHosts.Select(Quote))}]");
+                sb.AppendLine($"trusted_hosts = "
+                    + $"[{string.Join(", ", manifest.TrustedHosts.Select(Quote))}]");
             }
         }
 
@@ -121,9 +127,11 @@ public static class ManifestWriter {
 
             // Attribution is regenerated from the model, never preserved as text: the whole file is
             // rewritten from scratch on every mutating command (see DESIGN-v0.7-AUTH.md §2.7), so a
-            // comment that only existed in the previous file's bytes would vanish on the next write.
+            // comment that only existed in the previous file's bytes would vanish on the next
+            // write.
             if (source.DeclaredByAddon is not null) {
-                sb.AppendLine($"# Adopted from addon '{source.DeclaredByAddon}'. Delete this block to stop using it.");
+                sb.AppendLine($"# Adopted from addon '{source.DeclaredByAddon}'. Delete this block "
+                    + $"to stop using it.");
             }
 
             sb.AppendLine($"[nuget.sources.{FormatKey(source.Name)}]");
@@ -142,7 +150,8 @@ public static class ManifestWriter {
         }
     }
 
-    private static void AppendAddons(StringBuilder sb, string sectionKey, IReadOnlyDictionary<string, AddonSpec> addons) {
+    private static void AppendAddons(StringBuilder sb, string sectionKey,
+        IReadOnlyDictionary<string, AddonSpec> addons) {
         foreach (var name in addons.Keys.OrderBy(k => k, StringComparer.Ordinal)) {
             var addon = addons[name];
             StartBlock(sb);
@@ -172,7 +181,8 @@ public static class ManifestWriter {
         }
     }
 
-    private static void AppendDotnet(StringBuilder sb, string sectionKey, IReadOnlyDictionary<string, DotnetSpec> dependencies) {
+    private static void AppendDotnet(StringBuilder sb, string sectionKey,
+        IReadOnlyDictionary<string, DotnetSpec> dependencies) {
         foreach (var name in dependencies.Keys.OrderBy(k => k, StringComparer.Ordinal)) {
             var dependency = dependencies[name];
             StartBlock(sb);

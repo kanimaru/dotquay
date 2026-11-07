@@ -15,10 +15,10 @@ namespace Dotquay.Tests.Workflows;
 /// (DESIGN-v0.19 §7a.1), plus the matching <c>remove</c> of a pin (§7a.2).
 /// </summary>
 /// <remarks>
-/// The fixture is the Phase 1 verification project in miniature. It has one reachable addon, <c>root</c>,
-/// whose installed package manifest declares <c>VBeami.Core</c>. The project itself declares
-/// <c>Newtonsoft.Json</c>, pinned to the <c>core</c> feed with private assets, so a change can prove it
-/// kept both.
+/// The fixture is the Phase 1 verification project in miniature. It has one reachable addon,
+/// <c>root</c>, whose installed package manifest declares <c>VBeami.Core</c>. The project itself
+/// declares <c>Newtonsoft.Json</c>, pinned to the <c>core</c> feed with private assets, so a change
+/// can prove it kept both.
 /// </remarks>
 public class DeclareDotnetTests {
     private const string ProjectDirectory = "project";
@@ -87,14 +87,18 @@ public class DeclareDotnetTests {
         """;
 
     private sealed record Fixture(
-        DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClientFactory Factory, FakeDotnetCliRunner Runner) {
+        DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClientFactory Factory,
+        FakeDotnetCliRunner Runner) {
         public ProjectManifest ReadManifest() =>
-            ManifestReader.ReadProject(FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "dotquay.toml")));
+            ManifestReader.ReadProject(
+                FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "dotquay.toml")));
 
         public DotquayLockfile ReadLockfile() =>
-            LockfileReader.Read(FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "dotquay.lock")));
+            LockfileReader.Read(FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory,
+                "dotquay.lock")));
 
-        public string ReadCsproj() => FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
+        public string ReadCsproj() =>
+            FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
     }
 
     private static Fixture Build() {
@@ -102,23 +106,28 @@ public class DeclareDotnetTests {
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), Manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), Lockfile);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"), Csproj);
-        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root", "plugin.cfg"), "cfg");
+        fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root",
+            "plugin.cfg"), "cfg");
         fileSystem.WriteAllText(
-            fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"), RootPackageManifest);
+            fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"),
+            RootPackageManifest);
 
         var publicFeed = new FakeNuGetClient()
             .With("VBeami.Core", "0.4.7", "0.4.9", "0.5.0")
             .With("Brand.New", "1.0.0", "2.0.0")
             .With("Zed.Last", "1.0.0", "1.1.0");
         var factory = new FakeNuGetClientFactory(publicFeed);
-        factory.ClientsBySource["core"] = new FakeNuGetClient("core").With("Newtonsoft.Json", "12.0.3", "13.0.3");
+        factory.ClientsBySource["core"] = new FakeNuGetClient("core")
+            .With("Newtonsoft.Json", "12.0.3", "13.0.3");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var runner = new FakeDotnetCliRunner();
         var addonInstaller = new AddonInstaller(
-            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
+            fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem),
+            new FakePatchTool(fileSystem));
         var workflow = new DependencyWorkflow(
-            fileSystem, gitClient, factory, addonInstaller, new DotnetInstaller(fileSystem, runner, TestCredentials.None()));
+            fileSystem, gitClient, factory, addonInstaller,
+            new DotnetInstaller(fileSystem, runner, TestCredentials.None()));
 
         return new Fixture(workflow, fileSystem, factory, runner);
     }
@@ -150,12 +159,14 @@ public class DeclareDotnetTests {
     public async Task DeclaredPackage_WithANewVersion_IsChangedEverywhere() {
         var fixture = Build();
 
-        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "Newtonsoft.Json", "12.0.3");
+        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory,
+            "Newtonsoft.Json", "12.0.3");
 
         Assert.Equal(DotnetDeclarationOutcome.Changed, declaration.Outcome);
         Assert.Equal("13.0.3", declaration.PreviousResolved);
         Assert.Equal("12.0.3", fixture.ReadManifest().Dotnet["Newtonsoft.Json"].Version);
-        Assert.Equal("12.0.3", fixture.ReadLockfile().Dotnet.Single(d => d.Name == "Newtonsoft.Json").Resolved);
+        Assert.Equal("12.0.3", fixture.ReadLockfile()
+            .Dotnet.Single(d => d.Name == "Newtonsoft.Json").Resolved);
         Assert.Contains("Include=\"Newtonsoft.Json\" Version=\"12.0.3\"", fixture.ReadCsproj());
         Assert.Single(fixture.Runner.RestoreCalls);
     }
@@ -177,21 +188,27 @@ public class DeclareDotnetTests {
     [Fact]
     public async Task DeclaredPackage_SameVersion_IsUnchangedAndTouchesNothing() {
         var fixture = Build();
-        var manifestBefore = fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory, "dotquay.toml"));
+        var manifestBefore =
+            fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory,
+                "dotquay.toml"));
 
-        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "Newtonsoft.Json", "13.0.3");
+        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory,
+            "Newtonsoft.Json", "13.0.3");
 
         Assert.Equal(DotnetDeclarationOutcome.Unchanged, declaration.Outcome);
         Assert.Empty(fixture.Runner.RestoreCalls);
         Assert.Empty(fixture.Factory.RequestedPins);
-        Assert.Equal(manifestBefore, fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory, "dotquay.toml")));
+        Assert.Equal(manifestBefore,
+            fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory,
+                "dotquay.toml")));
     }
 
     [Fact]
     public async Task AddonDeclaredPackage_WithAVersion_IsPinnedInTheProject() {
         var fixture = Build();
 
-        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
+        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core",
+            "0.4.9");
 
         Assert.Equal(DotnetDeclarationOutcome.Pinned, declaration.Outcome);
         Assert.Equal("0.4.7", declaration.PreviousResolved);
@@ -203,7 +220,8 @@ public class DeclareDotnetTests {
     public async Task AddonDeclaredPackage_Pin_InheritsTheAssetsDotquayAlreadyWrote() {
         var fixture = Build();
 
-        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
+        var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core",
+            "0.4.9");
 
         // The addon's analyzer stayed private before the pin; declaring it in the project must not
         // quietly change that.
@@ -217,7 +235,8 @@ public class DeclareDotnetTests {
 
         await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
 
-        Assert.Equal(["Newtonsoft.Json", "VBeami.Core", "Zed.Last"], fixture.ReadLockfile().Dotnet.Select(d => d.Name).ToList());
+        Assert.Equal(["Newtonsoft.Json", "VBeami.Core", "Zed.Last"], fixture.ReadLockfile()
+            .Dotnet.Select(d => d.Name).ToList());
     }
 
     [Fact]
@@ -234,13 +253,17 @@ public class DeclareDotnetTests {
     [Fact]
     public async Task VersionThatDoesNotExist_IsRefusedAndWritesNothing() {
         var fixture = Build();
-        var lockBefore = fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory, "dotquay.lock"));
+        var lockBefore =
+            fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory,
+                "dotquay.lock"));
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
             () => fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "9.9.9"));
 
         Assert.Contains("9.9.9", exception.Message);
-        Assert.Equal(lockBefore, fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory, "dotquay.lock")));
+        Assert.Equal(lockBefore,
+            fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory,
+                "dotquay.lock")));
         Assert.DoesNotContain("VBeami.Core", fixture.ReadManifest().Dotnet.Keys);
     }
 
@@ -249,7 +272,9 @@ public class DeclareDotnetTests {
         var fixture = Build();
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
-            () => fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9", pinnedSourceName: "nope"));
+            () =>
+                fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9",
+                    pinnedSourceName: "nope"));
 
         Assert.Contains("--source 'nope'", exception.Message);
         Assert.Empty(fixture.Factory.RequestedPins);
@@ -289,9 +314,11 @@ public class DeclareDotnetTests {
     [InlineData(DotnetDeclarationOutcome.Pinned, "updated", "0.4.7")]
     [InlineData(DotnetDeclarationOutcome.Changed, "updated", "0.4.7")]
     [InlineData(DotnetDeclarationOutcome.Unchanged, "unchanged", "0.4.7")]
-    public void ToChange_MapsEachOutcomeOntoTheWire(DotnetDeclarationOutcome outcome, string action, string? from) {
+    public void ToChange_MapsEachOutcomeOntoTheWire(DotnetDeclarationOutcome outcome, string action,
+        string? from) {
         var declaration = new DotnetDeclaration(
-            new LockedDotnet { Name = "VBeami.Core", Resolved = "0.4.9" }, outcome, PreviousResolved: "0.4.7");
+            new LockedDotnet { Name = "VBeami.Core", Resolved = "0.4.9" }, outcome,
+            PreviousResolved: "0.4.7");
 
         var change = JsonMapper.ToChange(declaration);
 
@@ -304,7 +331,8 @@ public class DeclareDotnetTests {
     [Fact]
     public void Describe_APin_SaysHowToUndoIt() {
         var declaration = new DotnetDeclaration(
-            new LockedDotnet { Name = "VBeami.Core", Resolved = "0.4.9" }, DotnetDeclarationOutcome.Pinned, "0.4.7");
+            new LockedDotnet { Name = "VBeami.Core", Resolved = "0.4.9" },
+            DotnetDeclarationOutcome.Pinned, "0.4.7");
 
         var text = declaration.Describe(pinnedSourceName: null);
 

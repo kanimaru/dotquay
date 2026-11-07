@@ -69,7 +69,8 @@ public class VersionConstraintTests {
     [InlineData(">*")]
     [InlineData("<x")]
     [InlineData("1.2.3.4.5")]
-    [InlineData("[1.0,2.0)")] // NuGet interval notation is not part of the language (DESIGN-v0.21 §3)
+    // NuGet interval notation is not part of the language (DESIGN-v0.21 §3)
+    [InlineData("[1.0,2.0)")]
     public void TryParse_RejectsUnparseableConstraint(string text) {
         var ok = VersionConstraint.TryParse(text, out var constraint);
 
@@ -106,16 +107,19 @@ public class VersionConstraintTests {
     [InlineData(">1.2", "1.3.0", null, "1.2.9")]
     [InlineData("<=1.2", "0.0.0", "1.3.0", null)]
     [InlineData("v1.2.3", "1.2.3", "1.2.4", "1.2.2")]
-    public void Grammar_MatchesTheDesignTable(string text, string lowest, string? aboveMiss, string? belowMiss) {
+    public void Grammar_MatchesTheDesignTable(string text, string lowest, string? aboveMiss,
+        string? belowMiss) {
         Assert.True(VersionConstraint.TryParse(text, out var constraint), $"'{text}' should parse");
 
         Assert.True(constraint!.IsSatisfiedBy(Version(lowest)), $"'{text}' should accept {lowest}");
         if (aboveMiss is not null) {
-            Assert.False(constraint.IsSatisfiedBy(Version(aboveMiss)), $"'{text}' should refuse {aboveMiss}");
+            Assert.False(constraint.IsSatisfiedBy(Version(aboveMiss)),
+                $"'{text}' should refuse {aboveMiss}");
         }
 
         if (belowMiss is not null) {
-            Assert.False(constraint.IsSatisfiedBy(Version(belowMiss)), $"'{text}' should refuse {belowMiss}");
+            Assert.False(constraint.IsSatisfiedBy(Version(belowMiss)),
+                $"'{text}' should refuse {belowMiss}");
         }
     }
 
@@ -183,7 +187,8 @@ public class VersionConstraintTests {
     [InlineData("5.1.0-rc1", "5.1.0-rc5", false)]
     [InlineData("5.1.0-rc1", "5.1.0", false)]
     [InlineData(">=5.1.0-rc.2", "5.1.0-rc.10", true)] // numeric identifiers compare as numbers
-    public void Prerelease_OnlyWhenTheRangeNamesOneOfTheSameVersion(string text, string candidate, bool expected) {
+    public void Prerelease_OnlyWhenTheRangeNamesOneOfTheSameVersion(string text, string candidate,
+        bool expected) {
         Assert.True(VersionConstraint.TryParse(text, out var constraint));
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));

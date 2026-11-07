@@ -22,9 +22,9 @@ public sealed record LocalLinkSet(
 }
 
 /// <summary>
-/// Reads and writes <c>dotquay.local.toml</c> — the per-machine file that points an addon at a local
-/// folder instead of its upstream repository (SPEC.md §7.4), and a <c>[dotnet.*]</c> package at a
-/// local <c>.csproj</c> instead of a published package (v0.11).
+/// Reads and writes <c>dotquay.local.toml</c> — the per-machine file that points an addon at a
+/// local folder instead of its upstream repository (SPEC.md §7.4), and a <c>[dotnet.*]</c> package
+/// at a local <c>.csproj</c> instead of a published package (v0.11).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -37,18 +37,18 @@ public sealed record LocalLinkSet(
 /// </para>
 /// <para>
 /// Deliberately a <em>separate, gitignored</em> file rather than a key in <c>dotquay.toml</c>. The
-/// value is an absolute path on one person's disk: committing it would break every teammate and every
-/// CI run, and it would make the lockfile's reproducibility claim (goal #1) a lie. Same reasoning as
-/// the editor plugin's CLI path being an editor setting rather than a project setting — and the same
-/// reasoning is why a dotnet link never touches the committed <c>.csproj</c>.
+/// value is an absolute path on one person's disk: committing it would break every teammate and
+/// every CI run, and it would make the lockfile's reproducibility claim (goal #1) a lie. Same
+/// reasoning as the editor plugin's CLI path being an editor setting rather than a project setting
+/// — and the same reasoning is why a dotnet link never touches the committed <c>.csproj</c>.
 /// </para>
 /// <para>
 /// The v0.6 file had one flat <c>[link.&lt;name&gt;]</c> section. v0.11 namespaces it into
 /// <c>[link.addon.*]</c> and <c>[link.dotnet.*]</c>, mirroring <c>dotquay.toml</c>'s own
-/// <c>[addons.*]</c>/<c>[dotnet.*]</c> split, because an addon and a package could otherwise collide
-/// on a name. The old shape is still read as an addon link — the file never leaves one machine, so
-/// there is no migration to coordinate, but silently forgetting someone's existing link would leave
-/// them staring at an addon that stopped being linked with nothing said about why.
+/// <c>[addons.*]</c>/<c>[dotnet.*]</c> split, because an addon and a package could otherwise
+/// collide on a name. The old shape is still read as an addon link — the file never leaves one
+/// machine, so there is no migration to coordinate, but silently forgetting someone's existing link
+/// would leave them staring at an addon that stopped being linked with nothing said about why.
 /// </para>
 /// </remarks>
 public sealed class LocalLinks {
@@ -64,13 +64,15 @@ public sealed class LocalLinks {
         _fileSystem = fileSystem;
     }
 
-    public string PathFor(string projectDirectory) => _fileSystem.CombinePath(projectDirectory, FileName);
+    public string PathFor(string projectDirectory) =>
+        _fileSystem.CombinePath(projectDirectory, FileName);
 
     /// <summary>
-    /// Every addon link declared for this project, keyed by addon name. Empty when the file is absent
-    /// — the overwhelmingly common case, and not something to report.
+    /// Every addon link declared for this project, keyed by addon name. Empty when the file is
+    /// absent — the overwhelmingly common case, and not something to report.
     /// </summary>
-    public IReadOnlyDictionary<string, LocalLink> Read(string projectDirectory) => ReadAll(projectDirectory).Addons;
+    public IReadOnlyDictionary<string, LocalLink> Read(string projectDirectory) =>
+        ReadAll(projectDirectory).Addons;
 
     /// <summary>Every dotnet link declared for this project, keyed by package ID.</summary>
     public IReadOnlyDictionary<string, DotnetLink> ReadDotnet(string projectDirectory) =>
@@ -94,7 +96,8 @@ public sealed class LocalLinks {
         try {
             table = DotquayToml.Parse(_fileSystem.ReadAllText(path), path);
         } catch (TomlException ex) {
-            throw new LocalLinksParseException($"{path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
+            throw new LocalLinksParseException($"{path}: invalid "
+                + $"TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         var addons = new Dictionary<string, LocalLink>(StringComparer.Ordinal);
@@ -106,23 +109,28 @@ public sealed class LocalLinks {
 
         foreach (var key in links.Keys) {
             if (links[key] is not TomlTable entry) {
-                throw new LocalLinksParseException($"{path}: [{SectionKey}.{key}] must be a table with a 'path' key.");
+                throw new LocalLinksParseException($"{path}: [{SectionKey}.{key}] must be a table "
+                    + $"with a 'path' key.");
             }
 
             switch (key) {
                 case AddonSection:
-                    foreach (var (name, addonEntry) in Leaves(entry, path, $"{SectionKey}.{AddonSection}")) {
-                        addons[name] = new LocalLink(name, RequirePath(addonEntry, path, $"{SectionKey}.{AddonSection}.{name}"));
+                    foreach (var (name, addonEntry) in Leaves(entry, path,
+                        $"{SectionKey}.{AddonSection}")) {
+                        addons[name] = new LocalLink(name,
+                            RequirePath(addonEntry, path, $"{SectionKey}.{AddonSection}.{name}"));
                     }
 
                     break;
 
                 case DotnetSection:
-                    foreach (var (id, dotnetEntry) in Leaves(entry, path, $"{SectionKey}.{DotnetSection}")) {
+                    foreach (var (id, dotnetEntry) in Leaves(entry, path,
+                        $"{SectionKey}.{DotnetSection}")) {
                         dotnet[id] = new DotnetLink(
                             id,
                             RequirePath(dotnetEntry, path, $"{SectionKey}.{DotnetSection}.{id}"),
-                            dotnetEntry.TryGetValue("analyzer", out var analyzer) && analyzer is true);
+                            dotnetEntry.TryGetValue("analyzer", out var analyzer)
+                            && analyzer is true);
                     }
 
                     break;
@@ -131,7 +139,8 @@ public sealed class LocalLinks {
                     // The v0.6 flat shape. An addon genuinely called "addon" or "dotnet" is
                     // unreachable here, which is the price of reading both layouts and is why the
                     // writer only ever emits the namespaced one.
-                    addons[key] = new LocalLink(key, RequirePath(entry, path, $"{SectionKey}.{key}"));
+                    addons[key] = new LocalLink(key,
+                        RequirePath(entry, path, $"{SectionKey}.{key}"));
                     break;
             }
         }
@@ -140,20 +149,23 @@ public sealed class LocalLinks {
     }
 
     /// <summary>
-    /// Walks nested tables and yields every table carrying a <c>path</c> key, reassembling the dotted
-    /// name from the route taken to reach it.
+    /// Walks nested tables and yields every table carrying a <c>path</c> key, reassembling the
+    /// dotted name from the route taken to reach it.
     /// </summary>
     /// <remarks>
-    /// The same problem <c>ManifestReader</c> solves for <c>[dotnet.&lt;PackageId&gt;]</c>: a package
-    /// like <c>Kani.Core</c> written unquoted parses as nested tables rather than one key. Written
-    /// separately rather than shared with that walk because the two differ in what makes a leaf and in
-    /// what an unexpected key means — a helper taking both as parameters would be longer than either.
-    /// dotquay's own writer always quotes the key, so this only ever matters for a hand-edit.
+    /// The same problem <c>ManifestReader</c> solves for <c>[dotnet.&lt;PackageId&gt;]</c>: a
+    /// package like <c>Kani.Core</c> written unquoted parses as nested tables rather than one key.
+    /// Written separately rather than shared with that walk because the two differ in what makes a
+    /// leaf and in what an unexpected key means — a helper taking both as parameters would be
+    /// longer than either. dotquay's own writer always quotes the key, so this only ever matters
+    /// for a hand-edit.
     /// </remarks>
-    private static IEnumerable<(string Name, TomlTable Entry)> Leaves(TomlTable table, string sourcePath, string section) {
+    private static IEnumerable<(string Name, TomlTable Entry)> Leaves(TomlTable table,
+        string sourcePath, string section) {
         foreach (var key in table.Keys) {
             if (table[key] is not TomlTable child) {
-                throw new LocalLinksParseException($"{sourcePath}: [{section}.{key}] must be a table with a 'path' key.");
+                throw new LocalLinksParseException($"{sourcePath}: [{section}.{key}] must be a "
+                    + $"table with a 'path' key.");
             }
 
             if (child.ContainsKey("path")) {
@@ -170,7 +182,8 @@ public sealed class LocalLinks {
     private static string RequirePath(TomlTable entry, string sourcePath, string section) =>
         entry.TryGetValue("path", out var value) && value is string path && path.Length > 0
             ? path
-            : throw new LocalLinksParseException($"{sourcePath}: [{section}] is missing required key 'path'.");
+            : throw new LocalLinksParseException($"{sourcePath}: [{section}] is missing required "
+            + $"key 'path'.");
 
     /// <summary>Adds or replaces one addon link and writes the file back.</summary>
     public void Set(string projectDirectory, string name, string localPath) {
@@ -178,8 +191,9 @@ public sealed class LocalLinks {
 
         if (!_fileSystem.DirectoryExists(resolved)) {
             throw new LocalLinkException(
-                $"'{resolved}' is not a directory. A link points at the addon folder itself — the one whose "
-                + "contents should appear under addons/ — not at the repository root unless they are the same.");
+                $"'{resolved}' is not a directory. A link points at the addon folder itself — the "
+                + "one whose contents should appear under addons/ — not at the repository root "
+                + "unless they are the same.");
         }
 
         var current = ReadAll(projectDirectory);
@@ -191,11 +205,12 @@ public sealed class LocalLinks {
     }
 
     /// <summary>
-    /// Adds or replaces one dotnet link. <paramref name="localPath"/> may be a folder holding exactly
-    /// one <c>.csproj</c> or the <c>.csproj</c> itself; either way the stored value is the project
-    /// file, so nothing downstream has to re-derive it.
+    /// Adds or replaces one dotnet link. <paramref name="localPath"/> may be a folder holding
+    /// exactly one <c>.csproj</c> or the <c>.csproj</c> itself; either way the stored value is the
+    /// project file, so nothing downstream has to re-derive it.
     /// </summary>
-    public void SetDotnet(string projectDirectory, string packageId, string localPath, bool analyzer) {
+    public void SetDotnet(string projectDirectory, string packageId, string localPath,
+        bool analyzer) {
         RefuseIfBuiltFromSource(projectDirectory, packageId);
 
         var resolved = _fileSystem.GetFullPath(localPath);
@@ -207,8 +222,8 @@ public sealed class LocalLinks {
                 : throw new LocalLinkException($"'{resolved}' does not exist.");
         } else if (_fileSystem.DirectoryExists(resolved)) {
             try {
-                // The same "exactly one .csproj, or say so" rule the consuming project already uses,
-                // rather than a second notion of how to find a project.
+                // The same "exactly one .csproj, or say so" rule the consuming project already
+                // uses, rather than a second notion of how to find a project.
                 projectFile = CsprojLocator.Locate(_fileSystem, resolved);
             } catch (DotnetSyncException ex) {
                 throw new LocalLinkException(ex.Message, ex);
@@ -231,34 +246,39 @@ public sealed class LocalLinks {
     /// (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md §E, decision 3).
     /// </summary>
     /// <remarks>
-    /// The overlay works by removing the package and adding a <c>ProjectReference</c>. Beside a committed
-    /// <c>ProjectReference</c> to the same package that is a second one, possibly to a different checkout,
-    /// and MSBuild then builds whichever it settles on. Conditional or not: a conditional source reference
-    /// still builds from source in its configuration, and the overlay would duplicate it there. Checked
-    /// before anything about the local path, because no path makes this link safe.
+    /// The overlay works by removing the package and adding a <c>ProjectReference</c>. Beside a
+    /// committed <c>ProjectReference</c> to the same package that is a second one, possibly to a
+    /// different checkout, and MSBuild then builds whichever it settles on. Conditional or not: a
+    /// conditional source reference still builds from source in its configuration, and the overlay
+    /// would duplicate it there. Checked before anything about the local path, because no path
+    /// makes this link safe.
     /// </remarks>
     private void RefuseIfBuiltFromSource(string projectDirectory, string packageId) {
         string csprojPath;
         try {
             csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
         } catch (DotnetSyncException) {
-            // No .csproj (or several): nothing to collide with here, and the install that follows says so.
+            // No .csproj (or several): nothing to collide with here, and the install that follows
+            // says so.
             return;
         }
 
-        var existing = SourceProvidedPackages.ReferencesTo(_fileSystem, csprojPath, packageId).FirstOrDefault();
+        var existing = SourceProvidedPackages.ReferencesTo(_fileSystem, csprojPath, packageId)
+            .FirstOrDefault();
         if (existing is null) {
             return;
         }
 
         var when = existing.IsUnconditional ? string.Empty : $" when {existing.Condition}";
         throw new LocalLinkException(
-            $"'{packageId}' is already built from source by {existing.Include} in {csprojPath}{when}. A local "
-            + "link would add a second ProjectReference to the same package. Point that ProjectReference at the "
-            + "checkout you want to build instead, or remove it before linking.");
+            $"'{packageId}' is already built from source by {existing.Include} in "
+            + $"{csprojPath}{when}. A local "
+            + "link would add a second ProjectReference to the same package. Point that "
+            + "ProjectReference at the checkout you want to build instead, or remove it before "
+            + "linking.");
     }
-    /// <summary>Removes one addon link. Returns false when there was nothing to remove, so a caller can
-    /// say so rather than reporting a change that didn't happen.</summary>
+    /// <summary>Removes one addon link. Returns false when there was nothing to remove, so a caller
+    /// can say so rather than reporting a change that didn't happen.</summary>
     public bool Remove(string projectDirectory, string name) {
         var current = ReadAll(projectDirectory);
         var addons = new Dictionary<string, LocalLink>(current.Addons, StringComparer.Ordinal);
@@ -288,8 +308,8 @@ public sealed class LocalLinks {
         var path = PathFor(projectDirectory);
 
         if (links.IsEmpty) {
-            // An empty file is indistinguishable from no links, and leaving one behind means the next
-            // person to open the project finds a mysterious empty file suggesting something is
+            // An empty file is indistinguishable from no links, and leaving one behind means the
+            // next person to open the project finds a mysterious empty file suggesting something is
             // configured when nothing is.
             _fileSystem.DeleteFile(path);
             return;
@@ -297,8 +317,10 @@ public sealed class LocalLinks {
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("# Dotquay local links — per-machine, NOT for committing (SPEC.md §7.4).");
-        sb.AppendLine("# [link.addon.*] replaces an addon's install with a directory link into a folder on this");
-        sb.AppendLine("# machine. [link.dotnet.*] swaps a NuGet package for a local .csproj via the generated");
+        sb.AppendLine("# [link.addon.*] replaces an addon's install with a directory link into a "
+            + "folder on this");
+        sb.AppendLine("# machine. [link.dotnet.*] swaps a NuGet package for a local .csproj via "
+            + "the generated");
         sb.AppendLine($"# {LocalTargetsWriter.FileName}, which is also per-machine.");
         sb.AppendLine($"# Add {FileName} and {LocalTargetsWriter.FileName} to .gitignore.");
 

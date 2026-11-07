@@ -17,7 +17,8 @@ namespace Dotquay.Tests.Mcp.Guards;
 public sealed class SourceApprovalPolicyTests {
     private const string ProjectDir = "project";
     private const string VbeamiUrl = "https://gitlab.example.com/wild-alliance/vbeami.git";
-    private const string FeedUrl = "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
+    private const string FeedUrl =
+        "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
 
     private const string VbeamiPackageManifest = $"""
         [package]
@@ -37,32 +38,36 @@ public sealed class SourceApprovalPolicyTests {
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40), GitRefKind.Tag)];
+        gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40),
+            GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string> {
             ["addons/vbeami/plugin.cfg"] = "vbeami",
             ["addons/vbeami/dotquay.toml"] = VbeamiPackageManifest,
         };
 
         var factory = new FakeNuGetClientFactory(new FakeNuGetClient());
-        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami").With("VBeami.Core", "1.2.0");
+        factory.ClientsBySource["vbeami"] = new FakeNuGetClient("vbeami")
+            .With("VBeami.Core", "1.2.0");
 
         return new DependencyWorkflow(fileSystem, gitClient, factory, "cache") {
             SourceApproval = DenyAllSourceApproval.Instance,
         };
     }
 
-    private static WriteGuardContext ContextFor(DependencyWorkflow workflow, IReadOnlyList<string>? approvedSourceUrls = null) => new() {
-        ProjectDirectory = ProjectDir,
-        InspectionWorkflow = workflow,
-        AddPreview = new AddSourcePreviewRequest(VbeamiUrl, new AddonAddOptions()),
-        ApprovedSourceUrls = approvedSourceUrls ?? [],
-    };
+    private static WriteGuardContext ContextFor(DependencyWorkflow workflow,
+        IReadOnlyList<string>? approvedSourceUrls = null) => new() {
+            ProjectDirectory = ProjectDir,
+            InspectionWorkflow = workflow,
+            AddPreview = new AddSourcePreviewRequest(VbeamiUrl, new AddonAddOptions()),
+            ApprovedSourceUrls = approvedSourceUrls ?? [],
+        };
 
     [Fact]
     public async Task No_approvals_refuses_naming_the_declared_feed() {
         var workflow = Build();
 
-        var verdict = await new SourceApprovalPolicy().EvaluateAsync(ContextFor(workflow), CancellationToken.None);
+        var verdict = await new SourceApprovalPolicy()
+            .EvaluateAsync(ContextFor(workflow), CancellationToken.None);
 
         var refusal = Assert.IsType<WriteGuardRefusal>(verdict);
         var detail = Assert.IsType<SourceApprovalDetailJson>(refusal.Detail);
@@ -76,7 +81,8 @@ public sealed class SourceApprovalPolicyTests {
     public async Task Approving_the_declared_feed_url_allows() {
         var workflow = Build();
 
-        var verdict = await new SourceApprovalPolicy().EvaluateAsync(ContextFor(workflow, [FeedUrl]), CancellationToken.None);
+        var verdict = await new SourceApprovalPolicy()
+            .EvaluateAsync(ContextFor(workflow, [FeedUrl]), CancellationToken.None);
 
         Assert.IsType<WriteGuardAllow>(verdict);
     }
@@ -87,7 +93,8 @@ public sealed class SourceApprovalPolicyTests {
         var workflow = Build();
 
         var verdict = await new SourceApprovalPolicy().EvaluateAsync(
-            new WriteGuardContext { ProjectDirectory = ProjectDir, InspectionWorkflow = workflow }, CancellationToken.None);
+            new WriteGuardContext { ProjectDirectory = ProjectDir, InspectionWorkflow = workflow },
+            CancellationToken.None);
 
         Assert.IsType<WriteGuardAllow>(verdict);
     }
@@ -99,7 +106,8 @@ public sealed class SourceApprovalPolicyTests {
 
     [Fact]
     public void Resolve_with_urls_approves_exactly_those() {
-        var approval = Assert.IsType<PreApprovedSourceApproval>(SourceApprovalPolicy.Resolve([FeedUrl]));
+        var approval =
+            Assert.IsType<PreApprovedSourceApproval>(SourceApprovalPolicy.Resolve([FeedUrl]));
         Assert.Contains(FeedUrl, approval.Urls);
     }
 }

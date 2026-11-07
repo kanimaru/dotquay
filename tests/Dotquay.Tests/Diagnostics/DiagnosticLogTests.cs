@@ -87,7 +87,8 @@ public sealed class DiagnosticLogTests {
         var sink = RecordingDiagnosticSink.Install(out var scope);
         using (scope) {
             var count = 3;
-            DiagnosticLog.Write(DiagnosticLevel.Verbose, "t", $"{count} addon(s), {1.5:0.00} s, [{"x",3}]");
+            DiagnosticLog.Write(DiagnosticLevel.Verbose, "t",
+                $"{count} addon(s), {1.5:0.00} s, [{"x",3}]");
         }
 
         Assert.Equal(["3 addon(s), 1.50 s, [  x]"], sink.Messages("t"));
@@ -119,7 +120,8 @@ public sealed class DiagnosticLogTests {
             return sink;
         }
 
-        var results = await Task.WhenAll(Task.Run(() => RunAsync("a")), Task.Run(() => RunAsync("b")));
+        var results = await Task.WhenAll(Task.Run(() => RunAsync("a")),
+            Task.Run(() => RunAsync("b")));
 
         Assert.All(results[0].Messages("t"), m => Assert.Equal("a", m));
         Assert.All(results[1].Messages("t"), m => Assert.Equal("b", m));
@@ -152,6 +154,7 @@ public sealed class DiagnosticLogTests {
     [InlineData(12.6, "13 ms")]
     [InlineData(2500, "2500 ms")]
     public void Durations_are_whole_milliseconds(double milliseconds, string expected) {
-        Assert.Equal(expected, DiagnosticLog.FormatDuration(TimeSpan.FromMilliseconds(milliseconds)));
+        Assert.Equal(expected,
+            DiagnosticLog.FormatDuration(TimeSpan.FromMilliseconds(milliseconds)));
     }
 }

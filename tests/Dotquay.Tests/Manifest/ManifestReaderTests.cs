@@ -43,7 +43,8 @@ public class ManifestReaderTests {
         var someAddon = manifest.Addons["some_addon"];
         Assert.Equal(AddonSourceKind.Branch, someAddon.SourceKind);
         Assert.Equal("godot4", someAddon.Branch);
-        Assert.Equal("addons/some_addon", someAddon.EffectivePath); // default path, no explicit "path" key
+        // default path, no explicit "path" key
+        Assert.Equal("addons/some_addon", someAddon.EffectivePath);
 
         var otherAddon = manifest.Addons["other_addon"];
         Assert.Equal(AddonSourceKind.Rev, otherAddon.SourceKind);
@@ -190,8 +191,8 @@ public class ManifestReaderTests {
 
     [Fact]
     public void ReadProject_DotnetSourceAsATable_IsAPackageIdSegmentNotAPin() {
-        // Told apart by TOML type: a string 'source' is a feed pin, a *table* named 'source' is part
-        // of a dotted package ID. A key can't be both in TOML, so the two never collide.
+        // Told apart by TOML type: a string 'source' is a feed pin, a *table* named 'source' is
+        // part of a dotted package ID. A key can't be both in TOML, so the two never collide.
         var manifest = ManifestReader.ReadProject("""
             [dotnet.Foo.source]
             version = "2.0.0"

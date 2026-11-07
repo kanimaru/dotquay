@@ -4,9 +4,9 @@ using Xunit;
 namespace Dotquay.Tests.Git;
 
 /// <summary>
-/// Covers the inference in <see cref="GitTransportPreference"/>: reading a project's own git URLs as
-/// a statement about how this machine reaches each host, then applying it to URLs the project did
-/// not write.
+/// Covers the inference in <see cref="GitTransportPreference"/>: reading a project's own git URLs
+/// as a statement about how this machine reaches each host, then applying it to URLs the project
+/// did not write.
 /// </summary>
 public class GitTransportPreferenceTests {
     private static GitTransportPreference From(params string?[] urls) =>
@@ -23,7 +23,8 @@ public class GitTransportPreferenceTests {
         // named arrives as SSH.
         var preference = From("https://gitlab.kemomi.de/wild-alliance/vbeami");
 
-        Assert.True(preference.TryRewrite("git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git", out var rewritten));
+        Assert.True(preference.TryRewrite("git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git",
+            out var rewritten));
         Assert.Equal("https://gitlab.kemomi.de/wild-alliance/mtoon-shader", rewritten);
     }
 
@@ -33,7 +34,8 @@ public class GitTransportPreferenceTests {
         // prompts where their keys would have worked silently.
         var preference = From("git@gitlab.kemomi.de:wild-alliance/vbeami.git");
 
-        Assert.True(preference.TryRewrite("https://gitlab.kemomi.de/wild-alliance/mtoon-shader", out var rewritten));
+        Assert.True(preference.TryRewrite("https://gitlab.kemomi.de/wild-alliance/mtoon-shader",
+            out var rewritten));
         Assert.Equal("git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git", rewritten);
     }
 
@@ -75,8 +77,8 @@ public class GitTransportPreferenceTests {
 
     [Fact]
     public void FirstDeclarationWins_ForSpellingAmongAgreeingUrls() {
-        // Same transport, different house style. Deterministic beats clever: the result depends only
-        // on the manifest, in declaration order.
+        // Same transport, different house style. Deterministic beats clever: the result depends
+        // only on the manifest, in declaration order.
         var preference = From("https://host/g/a.git", "https://host/g/b");
 
         Assert.Equal("https://host/g/c.git", Rewrite(preference, "git@host:g/c"));
@@ -103,8 +105,8 @@ public class GitTransportPreferenceTests {
 
     [Fact]
     public void UnparseableDeclarations_AreIgnoredRatherThanFatal() {
-        // A manifest can contain anything; resolution reports a bad URL properly elsewhere. Inference
-        // is a best-effort convenience and must never be the thing that fails a command.
+        // A manifest can contain anything; resolution reports a bad URL properly elsewhere.
+        // Inference is a best-effort convenience and must never be the thing that fails a command.
         var preference = From("ftp://nope", null, "", "https://host/g/a");
 
         Assert.True(preference.TryRewrite("git@host:g/b.git", out _));

@@ -58,8 +58,8 @@ public sealed class ToolSchemaTests {
         Assert.True(properties.TryGetProperty("project", out var project));
         Assert.Equal("string", project.GetProperty("type").GetString());
 
-        // additionalProperties: false everywhere, so a caller's typo in an argument name fails loudly
-        // (as an unrecognized property) instead of being silently ignored.
+        // additionalProperties: false everywhere, so a caller's typo in an argument name fails
+        // loudly (as an unrecognized property) instead of being silently ignored.
         Assert.True(schema.TryGetProperty("additionalProperties", out var additional));
         Assert.Equal(JsonValueKind.False, additional.ValueKind);
     }
@@ -72,7 +72,8 @@ public sealed class ToolSchemaTests {
 
     [Fact]
     public void Phase_1_exposes_exactly_the_eight_designed_read_tools() {
-        var names = Tools().Select(row => ((IMcpTool)row[0]).Name).ToHashSet(StringComparer.Ordinal);
+        var names = Tools().Select(row => ((IMcpTool)row[0]).Name)
+            .ToHashSet(StringComparer.Ordinal);
 
         Assert.Equal(
             new HashSet<string>(StringComparer.Ordinal)

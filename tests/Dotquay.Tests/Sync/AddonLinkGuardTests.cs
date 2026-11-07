@@ -41,9 +41,10 @@ public class AddonLinkGuardTests {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectory(Destination);
 
-        // A link that was declared but never installed is not a disagreement — installing is exactly
-        // what turns the declaration into a link, and refusing here would deadlock that.
-        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination, new LocalLink("my-addon", Checkout));
+        // A link that was declared but never installed is not a disagreement — installing is
+        // exactly what turns the declaration into a link, and refusing here would deadlock that.
+        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination,
+            new LocalLink("my-addon", Checkout));
 
         Assert.Equal(AddonLinkState.NotLinked, verdict.State);
         Assert.False(verdict.ForbidsWriting);
@@ -54,7 +55,8 @@ public class AddonLinkGuardTests {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectoryLink(Destination, Checkout);
 
-        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination, new LocalLink("my-addon", Checkout));
+        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination,
+            new LocalLink("my-addon", Checkout));
 
         Assert.Equal(AddonLinkState.LinkedAsDeclared, verdict.State);
         Assert.False(verdict.ForbidsWriting);
@@ -66,7 +68,8 @@ public class AddonLinkGuardTests {
         fileSystem.WriteAllText("somewhere-else/thing.gd", "# a different checkout");
         fileSystem.CreateDirectoryLink(Destination, "somewhere-else");
 
-        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination, new LocalLink("my-addon", Checkout));
+        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination,
+            new LocalLink("my-addon", Checkout));
 
         Assert.Equal(AddonLinkState.TargetMismatch, verdict.State);
         Assert.True(verdict.ForbidsWriting);
@@ -90,7 +93,8 @@ public class AddonLinkGuardTests {
 
         // The checkout was moved or deleted. Installing over the link would quietly replace a
         // developer's link with a copy on the strength of a path that no longer means anything.
-        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination, new LocalLink("my-addon", "gone/missing"));
+        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination,
+            new LocalLink("my-addon", "gone/missing"));
 
         Assert.Equal(AddonLinkState.TargetMissing, verdict.State);
         Assert.True(verdict.ForbidsWriting);
@@ -102,8 +106,8 @@ public class AddonLinkGuardTests {
         fileSystem.CreateDirectoryLink(Destination, Checkout);
 
         // Separators and a trailing slash are spelling, not meaning — the same discipline GitUrl
-        // applies to remotes. A person who types the path by hand must not be told it is a different
-        // folder because they used a backslash.
+        // applies to remotes. A person who types the path by hand must not be told it is a
+        // different folder because they used a backslash.
         var verdict = AddonLinkGuard.Inspect(
             fileSystem, Destination, new LocalLink("my-addon", @"elsewhere\my-addon/"));
 
@@ -129,7 +133,8 @@ public class AddonLinkGuardTests {
         fileSystem.WriteAllText("somewhere-else/thing.gd", "# a different checkout");
         fileSystem.CreateDirectoryLink(Destination, "somewhere-else");
 
-        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination, new LocalLink("my-addon", Checkout));
+        var verdict = AddonLinkGuard.Inspect(fileSystem, Destination,
+            new LocalLink("my-addon", Checkout));
         var message = AddonLinkGuard.Explain("my-addon", "my-addon", "v1.2.3", verdict);
 
         // Either statement can be the stale one, so the message reports both and picks neither.
@@ -155,9 +160,11 @@ public class AddonLinkGuardTests {
         // force is set deliberately: the flag that discards local modifications must not also buy a
         // write into a folder dotquay does not own.
         var exception = Assert.Throws<SyncException>(() =>
-            new SyncEngine(fileSystem).SwapAndHash("staging", Destination, expectedContentHash: null, force: true));
+            new SyncEngine(fileSystem)
+            .SwapAndHash("staging", Destination, expectedContentHash: null, force: true));
 
         Assert.Contains("bug in dotquay", exception.Message);
-        Assert.Equal("# live edit", fileSystem.ReadAllText(fileSystem.CombinePath(Checkout, "thing.gd")));
+        Assert.Equal("# live edit",
+            fileSystem.ReadAllText(fileSystem.CombinePath(Checkout, "thing.gd")));
     }
 }

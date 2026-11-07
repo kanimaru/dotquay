@@ -6,10 +6,10 @@ using Dotquay.Core.Workflows;
 namespace Dotquay.Cli.Commands;
 
 /// <summary>
-/// <c>dotquay override</c> (v0.5) — writes, clears, or lists <c>[overrides.&lt;name&gt;]</c> entries,
-/// the project's unconditional escape hatch out of a dependency conflict (SPEC.md §7.1/§8). Every
-/// conflict message dotquay prints already tells the user to add one; before v0.5 the only way to do
-/// that was to hand-edit TOML.
+/// <c>dotquay override</c> (v0.5) — writes, clears, or lists <c>[overrides.&lt;name&gt;]</c>
+/// entries, the project's unconditional escape hatch out of a dependency conflict (SPEC.md
+/// §7.1/§8). Every conflict message dotquay prints already tells the user to add one; before v0.5
+/// the only way to do that was to hand-edit TOML.
 /// </summary>
 /// <remarks>
 /// Writing an override is followed by <see cref="DependencyWorkflow.ResyncAsync"/>, not a plain
@@ -26,28 +26,48 @@ internal static class OverrideCommand {
             Arity = ArgumentArity.ZeroOrOne,
         };
 
-        var versionOption = new Option<string?>("--version") { Description = "Force a version constraint, e.g. \"~1.4\"." };
-        var branchOption = new Option<string?>("--branch") { Description = "Force a branch; the lockfile still pins the resolved SHA." };
+        var versionOption = new Option<string?>("--version") {
+            Description = "Force a version "
+            + "constraint, e.g. \"~1.4\"."
+        };
+        var branchOption = new Option<string?>("--branch") {
+            Description = "Force a branch; the "
+            + "lockfile still pins the resolved SHA."
+        };
         var revOption = new Option<string?>("--rev") { Description = "Force an exact commit." };
         var gitOption = new Option<string?>("--git") {
-            Description = "Repository to pin to. Defaults to whatever the manifest or lockfile already "
-                + "records for this name — only needed when two requirers disagree about the repo itself.",
+            Description = "Repository to pin to. Defaults to whatever the manifest or lockfile "
+                + "already records for this name — only needed when two requirers disagree about "
+                + "the repo itself.",
         };
-        var pathOption = new Option<string?>("--path") { Description = "Subtree to extract, if it isn't addons/<name>." };
+        var pathOption = new Option<string?>("--path") {
+            Description = "Subtree to extract, if it "
+            + "isn't addons/<name>."
+        };
         var installAsOption = new Option<string?>("--install-as") {
-            Description = "Folder to install into under addons/, if it shouldn't be the addon's own name. "
-                + "Settles a conflict where two addons want the same dependency in different folders.",
+            Description = "Folder to install into under addons/, if it shouldn't be the addon's "
+                + "own name. Settles a conflict where two addons want the same dependency in "
+                + "different folders.",
         };
-        var clearOption = new Option<bool>("--clear") { Description = "Remove the override and hand the name back to normal resolution." };
+        var clearOption = new Option<bool>("--clear") {
+            Description = "Remove the override and "
+            + "hand the name back to normal resolution."
+        };
         var noInstallOption = new Option<bool>("--no-install") {
-            Description = "Write the manifest only. Skips the resync, so nothing is fetched or installed.",
+            Description = "Write the manifest only. Skips the resync, so nothing is fetched or "
+                + "installed.",
         };
-        var forceOption = new Option<bool>("--force") { Description = "Overwrite hand-modified addons during the resync (SPEC.md P0-6)." };
+        var forceOption = new Option<bool>("--force") {
+            Description = "Overwrite hand-modified "
+            + "addons during the resync (SPEC.md P0-6)."
+        };
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command(CommandName, "Force one addon to a specific version, branch, or commit — the conflict escape hatch.")
+        var command = new Command(CommandName,
+            "Force one addon to a specific version, branch, or commit — the conflict escape hatch.")
         {
-            nameArgument, versionOption, branchOption, revOption, gitOption, pathOption, installAsOption,
+            nameArgument, versionOption, branchOption, revOption, gitOption, pathOption,
+                installAsOption,
             clearOption, noInstallOption, forceOption, jsonOption,
         };
 
@@ -76,7 +96,8 @@ internal static class OverrideCommand {
                 if (value is null) {
                     return JsonOutput.Fail(
                         json, CommandName, JsonErrorKind.Workflow,
-                        $"'{name}': pass exactly one of --version, --branch, or --rev (or --clear to remove the override).");
+                        $"'{name}': pass exactly one of --version, --branch, or --rev (or --clear "
+                        + $"to remove the override).");
                 }
 
                 var result = overrides.Set(
@@ -106,7 +127,8 @@ internal static class OverrideCommand {
     /// <summary>Exactly one source flag may be set; two would silently make one of them a lie about
     /// what got written.</summary>
     private static (AddonSourceKind Kind, string? Value) ReadSource(
-        ParseResult parseResult, Option<string?> version, Option<string?> branch, Option<string?> rev) {
+        ParseResult parseResult, Option<string?> version, Option<string?> branch,
+        Option<string?> rev) {
         var values = new (AddonSourceKind Kind, string? Value)[]
         {
             (AddonSourceKind.Version, parseResult.GetValue(version)),
@@ -140,7 +162,8 @@ internal static class OverrideCommand {
                     _ => JsonMapper.ChangeAction.Unchanged,
                 },
                 From = null,
-                To = result.Spec is null ? null : Core.Resolve.AddonRequirement.ConstraintText(result.Spec),
+                To = result.Spec is null ? null
+                : Core.Resolve.AddonRequirement.ConstraintText(result.Spec),
             },
         };
 
@@ -150,9 +173,11 @@ internal static class OverrideCommand {
         var shouldResync = !noInstall && result.Change != OverrideChange.Unchanged;
 
         if (shouldResync) {
-            var update = await WorkflowFactory.Create().ResyncAsync(projectDirectory, force, cancellationToken);
+            var update = await WorkflowFactory.Create()
+                .ResyncAsync(projectDirectory, force, cancellationToken);
             var applied = JsonMapper.ToJson(update);
-            changes.AddRange(applied.Changes.Where(c => c.Action != JsonMapper.ChangeAction.Unchanged));
+            changes.AddRange(applied.Changes.Where(c =>
+                c.Action != JsonMapper.ChangeAction.Unchanged));
 
             foreach (var change in changes.Skip(1)) {
                 messages.Add($"{change.Name}: {change.From ?? "(new)"} -> {change.To}");
@@ -162,7 +187,8 @@ internal static class OverrideCommand {
         }
 
         if (json) {
-            JsonOutput.WriteOperation(CommandName, new OperationJson { Changes = changes, Messages = messages });
+            JsonOutput.WriteOperation(CommandName,
+                new OperationJson { Changes = changes, Messages = messages });
         } else {
             foreach (var message in messages) {
                 ConsoleOutput.WriteLine(ConsoleColor.Green, message);
@@ -173,13 +199,18 @@ internal static class OverrideCommand {
     }
 
     private static string Describe(OverrideResult result) => result.Change switch {
-        OverrideChange.Added => $"Added [overrides.{result.Name}] -> {Core.Resolve.AddonRequirement.ConstraintText(result.Spec!)}",
-        OverrideChange.Replaced => $"Changed [overrides.{result.Name}] -> {Core.Resolve.AddonRequirement.ConstraintText(result.Spec!)}",
+        OverrideChange.Added =>
+            $"Added [overrides.{result.Name}] -> "
+            + $"{Core.Resolve.AddonRequirement.ConstraintText(result.Spec!)}",
+        OverrideChange.Replaced =>
+            $"Changed [overrides.{result.Name}] -> "
+            + $"{Core.Resolve.AddonRequirement.ConstraintText(result.Spec!)}",
         OverrideChange.Removed => $"Removed [overrides.{result.Name}]",
         _ => $"[overrides.{result.Name}] already says that — nothing to do.",
     };
 
-    private static int ListOverrides(OverrideWorkflow overrides, string projectDirectory, bool json) {
+    private static int ListOverrides(OverrideWorkflow overrides, string projectDirectory,
+        bool json) {
         var entries = overrides.List(projectDirectory);
 
         if (json) {
@@ -200,12 +231,14 @@ internal static class OverrideCommand {
         }
 
         if (entries.Count == 0) {
-            Console.WriteLine("No overrides. Add one with 'dotquay override <name> --version <tag>'.");
+            Console.WriteLine("No overrides. Add one with 'dotquay override <name> --version "
+                + "<tag>'.");
             return 0;
         }
 
         foreach (var (name, spec) in entries.OrderBy(kv => kv.Key, StringComparer.Ordinal)) {
-            Console.WriteLine($"{name}  {JsonMapper.ToWire(spec.SourceKind)} {Core.Resolve.AddonRequirement.ConstraintText(spec)}  {spec.Git}");
+            Console.WriteLine($"{name}  {JsonMapper.ToWire(spec.SourceKind)} "
+                + $"{Core.Resolve.AddonRequirement.ConstraintText(spec)}  {spec.Git}");
         }
 
         return 0;

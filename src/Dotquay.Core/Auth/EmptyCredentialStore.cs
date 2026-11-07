@@ -7,11 +7,11 @@ namespace Dotquay.Core.Auth;
 /// credential file in.
 /// </summary>
 /// <remarks>
-/// A null object rather than a nullable store, so <see cref="CredentialResolver"/> has one code path
-/// instead of a null check at every step of its precedence chain. The situation is ordinary rather
-/// than exceptional: a container with no <c>$HOME</c> is a normal CI shape, and it authenticates
-/// through <c>DOTQUAY_NUGET_*</c> environment variables, which sit above the file in precedence
-/// anyway (SPEC.md §11.2).
+/// A null object rather than a nullable store, so <see cref="CredentialResolver"/> has one code
+/// path instead of a null check at every step of its precedence chain. The situation is ordinary
+/// rather than exceptional: a container with no <c>$HOME</c> is a normal CI shape, and it
+/// authenticates through <c>DOTQUAY_NUGET_*</c> environment variables, which sit above the file in
+/// precedence anyway (SPEC.md §11.2).
 /// </remarks>
 public sealed class EmptyCredentialStore : ICredentialStore {
     public Credential? Find(CredentialScope scope) => null;

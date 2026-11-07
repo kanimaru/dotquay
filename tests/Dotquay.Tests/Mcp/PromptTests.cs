@@ -9,7 +9,8 @@ namespace Dotquay.Tests.Mcp;
 /// validate their required arguments.
 /// </summary>
 public sealed class PromptTests : IAsyncDisposable {
-    private readonly string _projectDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-prompt-test-").FullName;
+    private readonly string _projectDirectory =
+        Directory.CreateTempSubdirectory("dotquay-mcp-prompt-test-").FullName;
     private McpTestHarness? _harness;
 
     private async Task<McpTestHarness> HarnessAsync() =>
@@ -36,7 +37,8 @@ public sealed class PromptTests : IAsyncDisposable {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.GetPromptAsync(
-            "dotquay_diagnose_modified", new Dictionary<string, object?> { ["name"] = "Godot-MToon-Shader" });
+            "dotquay_diagnose_modified",
+            new Dictionary<string, object?> { ["name"] = "Godot-MToon-Shader" });
 
         var text = ((TextContentBlock)Assert.Single(result.Messages).Content).Text;
         Assert.Contains("Godot-MToon-Shader", text, StringComparison.Ordinal);
@@ -49,7 +51,8 @@ public sealed class PromptTests : IAsyncDisposable {
         var harness = await HarnessAsync();
 
         await Assert.ThrowsAnyAsync<McpException>(() =>
-            harness.Client.GetPromptAsync("dotquay_diagnose_modified", new Dictionary<string, object?>()).AsTask());
+            harness.Client.GetPromptAsync("dotquay_diagnose_modified",
+                new Dictionary<string, object?>()).AsTask());
     }
 
     [Fact]
@@ -57,7 +60,8 @@ public sealed class PromptTests : IAsyncDisposable {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.GetPromptAsync(
-            "dotquay_add_addon", new Dictionary<string, object?> { ["git_url"] = "https://example.com/addon.git" });
+            "dotquay_add_addon",
+            new Dictionary<string, object?> { ["git_url"] = "https://example.com/addon.git" });
 
         var text = ((TextContentBlock)Assert.Single(result.Messages).Content).Text;
         Assert.Contains("https://example.com/addon.git", text, StringComparison.Ordinal);
@@ -69,14 +73,16 @@ public sealed class PromptTests : IAsyncDisposable {
         var harness = await HarnessAsync();
 
         await Assert.ThrowsAnyAsync<McpException>(() =>
-            harness.Client.GetPromptAsync("dotquay_add_addon", new Dictionary<string, object?>()).AsTask());
+            harness.Client.GetPromptAsync("dotquay_add_addon", new Dictionary<string, object?>())
+            .AsTask());
     }
 
     [Fact]
     public async Task Upgrade_safely_takes_no_arguments_and_renders_its_static_text() {
         var harness = await HarnessAsync();
 
-        var result = await harness.Client.GetPromptAsync("dotquay_upgrade_safely", new Dictionary<string, object?>());
+        var result = await harness.Client.GetPromptAsync("dotquay_upgrade_safely",
+            new Dictionary<string, object?>());
 
         var text = ((TextContentBlock)Assert.Single(result.Messages).Content).Text;
         Assert.Contains("dotquay_outdated", text, StringComparison.Ordinal);
@@ -88,7 +94,8 @@ public sealed class PromptTests : IAsyncDisposable {
         var harness = await HarnessAsync();
 
         await Assert.ThrowsAnyAsync<McpException>(() =>
-            harness.Client.GetPromptAsync("dotquay_does_not_exist", new Dictionary<string, object?>()).AsTask());
+            harness.Client.GetPromptAsync("dotquay_does_not_exist",
+                new Dictionary<string, object?>()).AsTask());
     }
 
     public async ValueTask DisposeAsync() {

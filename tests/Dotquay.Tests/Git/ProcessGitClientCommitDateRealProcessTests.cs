@@ -5,23 +5,27 @@ using Xunit;
 namespace Dotquay.Tests.Git;
 
 /// <summary>
-/// <see cref="ProcessGitClient.GetCommitDateAsync"/> against a real git: a commit with a known committer date,
-/// shallow-fetched the way the cache fetches it, reads back as that date.
+/// <see cref="ProcessGitClient.GetCommitDateAsync"/> against a real git: a commit with a known
+/// committer date, shallow-fetched the way the cache fetches it, reads back as that date.
 /// </summary>
 /// <remarks>
-/// Needs a real git: the fakes return whatever date they are given, so only this proves the format string and the
-/// parse agree with what git prints, and that a depth-1 fetch still carries the commit's date. Returns early,
-/// passing, without git (same convention as the other real-process tests).
+/// Needs a real git: the fakes return whatever date they are given, so only this proves the format
+/// string and the parse agree with what git prints, and that a depth-1 fetch still carries the
+/// commit's date. Returns early, passing, without git (same convention as the other real-process
+/// tests).
 /// </remarks>
 public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable {
-    // 01:30 on 1 October at UTC+2: 23:30 on 30 September in UTC, so a local-time reading shows as the wrong day.
+    // 01:30 on 1 October at UTC+2: 23:30 on 30 September in UTC, so a local-time reading shows as
+    // the wrong day.
     private const string CommitterDate = "2026-10-01T01:30:00+02:00";
 
-    private readonly string _root = Directory.CreateTempSubdirectory("dotquay-commitdate-real-").FullName;
+    private readonly string _root = Directory.CreateTempSubdirectory("dotquay-commitdate-real-")
+        .FullName;
 
     public void Dispose() {
         try {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
+            foreach (var file in Directory.EnumerateFiles(_root, "*",
+                SearchOption.AllDirectories)) {
                 File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
             }
 
@@ -69,7 +73,8 @@ public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable {
         try { return Git(Path.GetTempPath(), "--version").Exit == 0; } catch { return false; }
     }
 
-    /// <summary>A bare repository with two commits, so the fetched one is not the root and depth 1 really cuts history.</summary>
+    /// <summary>A bare repository with two commits, so the fetched one is not the root and depth 1
+    /// really cuts history.</summary>
     private (string Remote, string Sha) MakeRemote() {
         var remote = Path.Combine(_root, "remote.git");
         var work = Path.Combine(_root, "work");

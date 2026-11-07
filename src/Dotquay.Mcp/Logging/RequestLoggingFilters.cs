@@ -14,7 +14,8 @@ namespace Dotquay.Mcp.Logging;
 /// duplication <see cref="Tools.McpToolBase"/> already exists to avoid on the tool side.
 /// </remarks>
 internal static class RequestLoggingFilters {
-    public static McpRequestFilter<TParams, TResult> Create<TParams, TResult>(string method, RequestLog log) =>
+    public static McpRequestFilter<TParams, TResult> Create<TParams, TResult>(string method,
+        RequestLog log) =>
         next => async (context, cancellationToken) => {
             var stopwatch = Stopwatch.StartNew();
             var requestId = context.JsonRpcRequest?.Id.ToString() ?? "?";

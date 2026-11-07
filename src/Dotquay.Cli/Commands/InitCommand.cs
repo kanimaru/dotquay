@@ -15,13 +15,15 @@ internal static class InitCommand {
         };
 
         var packageOption = new Option<bool>("--package") {
-            Description = "Scaffold a package manifest (with a [package] header) for an addon, instead of a project manifest.",
+            Description = "Scaffold a package manifest (with a [package] header) for an addon, "
+                + "instead of a project manifest.",
         };
 
         var nuGetSourceOption = new Option<string?>("--nuget-source") {
-            Description = "V3 service-index URL of a private NuGet feed (e.g. a GitLab/Azure Artifacts "
-                + "package registry). Only used without --package. Omit to use the public nuget.org. "
-                + "Credentials come from DOTQUAY_NUGET_USERNAME/DOTQUAY_NUGET_TOKEN, never this file.",
+            Description = "V3 service-index URL of a private NuGet feed (e.g. a GitLab/Azure "
+                + "Artifacts package registry). Only used without --package. Omit to use the "
+                + "public nuget.org. Credentials come from "
+                + "DOTQUAY_NUGET_USERNAME/DOTQUAY_NUGET_TOKEN, never this file.",
         };
 
         var nameOption = new Option<string?>("--name") {
@@ -30,7 +32,9 @@ internal static class InitCommand {
 
         var jsonOption = JsonOutput.CreateOption();
 
-        var command = new Command(CommandName, "Scaffold a dotquay.toml in the project root (or, with --package, inside an addon folder).")
+        var command = new Command(CommandName,
+            "Scaffold a dotquay.toml in the project root (or, with --package, inside an addon "
+            + "folder).")
         {
             directoryArgument,
             packageOption,
@@ -41,23 +45,26 @@ internal static class InitCommand {
 
         command.SetAction(parseResult => {
             // The positional argument wins over --project: `init <dir>` predates the global option
-            // and reads more naturally for the one command whose whole job is to create a directory's
-            // manifest.
-            var directory = Path.GetFullPath(parseResult.GetValue(directoryArgument) ?? GlobalOptions.Resolve(parseResult));
+            // and reads more naturally for the one command whose whole job is to create a
+            // directory's manifest.
+            var directory = Path.GetFullPath(parseResult.GetValue(directoryArgument)
+                ?? GlobalOptions.Resolve(parseResult));
             var isPackage = parseResult.GetValue(packageOption);
             var json = parseResult.GetValue(jsonOption);
             var initService = new InitService(new SystemFileSystem());
 
             var result = isPackage
-                ? initService.InitPackage(directory, parseResult.GetValue(nameOption) ?? new DirectoryInfo(directory).Name)
+                ? initService.InitPackage(directory, parseResult.GetValue(nameOption)
+                    ?? new DirectoryInfo(directory).Name)
                 : initService.InitProject(directory, parseResult.GetValue(nuGetSourceOption));
 
             var kind = isPackage ? "package" : "project";
 
             if (!result.WasCreated) {
-                // Not an error envelope: the manifest the caller asked for exists, which is the state
-                // it wanted. Refusing to overwrite is the safety behaviour, not a failure — a GUI
-                // that treated this as an error would show a red banner on a project that is fine.
+                // Not an error envelope: the manifest the caller asked for exists, which is the
+                // state it wanted. Refusing to overwrite is the safety behaviour, not a failure — a
+                // GUI that treated this as an error would show a red banner on a project that is
+                // fine.
                 var message = $"{result.ManifestPath} already exists — not overwriting.";
 
                 if (json) {
