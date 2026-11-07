@@ -22,8 +22,7 @@ namespace Dotquay.Core.SelfUpdate;
 /// <see cref="Dotnet.NuGetV3Client"/> does (SPEC.md §12): a reflection-based client library is a
 /// NativeAOT failure waiting for its first published build.</para>
 /// </remarks>
-public sealed class GitLabReleaseChannel : IReleaseChannel
-{
+public sealed class GitLabReleaseChannel : IReleaseChannel {
     /// <summary>The asset link CI attaches to every release. Named, not positional — a release's
     /// links are ordered by whoever wrote the pipeline.</summary>
     public const string ManifestLinkName = "manifest.json";
@@ -44,14 +43,12 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// <param name="credentials">Resolved through the same stack as every other host dotquay
     /// authenticates to, so someone already logged in for the private NuGet feed is already logged
     /// in for updates. Null resolves to anonymous, which is correct for a public channel.</param>
-    public GitLabReleaseChannel(string projectApiUrl, CredentialResolver? credentials = null, HttpClient? httpClient = null)
-    {
+    public GitLabReleaseChannel(string projectApiUrl, CredentialResolver? credentials = null, HttpClient? httpClient = null) {
         _projectApiUrl = projectApiUrl.TrimEnd('/');
         _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
 
         var credential = credentials?.ForGitRepository(_projectApiUrl).Credential;
-        if (credential is not null)
-        {
+        if (credential is not null) {
             // Both headers, on purpose. GitLab's two halves want different things: the v4 REST API
             // (where /releases lives) authenticates a personal access token through PRIVATE-TOKEN
             // and does not accept HTTP Basic, while the generic package registry the assets are
@@ -80,8 +77,7 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// </remarks>
     public bool StoredCredentialRejected { get; private set; }
 
-    public async Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default) {
         // per_page=1 rather than /releases/permalink/latest: the permalink endpoint resolves by
         // semantic version and 404s on a project whose newest release is a prerelease, which is a
         // state this project's auto-tagging can produce.
@@ -95,8 +91,7 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
         return release is null ? null : await ResolveAsync(release, cancellationToken);
     }
 
-    public async Task<ReleaseManifest?> GetVersionAsync(string version, CancellationToken cancellationToken = default)
-    {
+    public async Task<ReleaseManifest?> GetVersionAsync(string version, CancellationToken cancellationToken = default) {
         var tag = version.StartsWith('v') ? version : $"v{version}";
 
         var release = await ReadAsync(
@@ -109,8 +104,7 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
         return release is null ? null : await ResolveAsync(release, cancellationToken);
     }
 
-    public async Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default)
-    {
+    public async Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default) {
         var (response, authenticated) = await SendAsync(asset.Url, $"downloading {asset.FileName}", cancellationToken);
         using var _ = response;
         await ThrowIfUnsuccessfulAsync(response, authenticated, $"downloading {asset.FileName}", cancellationToken);
@@ -122,15 +116,13 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// with no manifest is reported as having no assets, which the workflow refuses by name — that
     /// is a release published by a pipeline older than v0.17, and saying so beats "no build for your
     /// platform".</summary>
-    private async Task<ReleaseManifest> ResolveAsync(GitLabRelease release, CancellationToken cancellationToken)
-    {
+    private async Task<ReleaseManifest> ResolveAsync(GitLabRelease release, CancellationToken cancellationToken) {
         var version = release.TagName.TrimStart('v', 'V');
         var manifestUrl = release.Assets?.Links
             .FirstOrDefault(link => string.Equals(link.Name, ManifestLinkName, StringComparison.OrdinalIgnoreCase))
             ?.Url;
 
-        if (manifestUrl is null)
-        {
+        if (manifestUrl is null) {
             return new ReleaseManifest(version, release.ReleasedAt, []);
         }
 
@@ -140,13 +132,11 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
             $"reading the manifest for {release.TagName}",
             cancellationToken);
 
-        if (document is null)
-        {
+        if (document is null) {
             return new ReleaseManifest(version, release.ReleasedAt, []);
         }
 
-        if (document.Schema > 1)
-        {
+        if (document.Schema > 1) {
             throw new WorkflowException(
                 $"Release {release.TagName} publishes a manifest with schema {document.Schema}, and this dotquay "
                 + "understands 1. Update by hand this once; a newer dotquay will understand it.");
@@ -173,13 +163,11 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
         string what,
         CancellationToken cancellationToken,
-        bool nullOnNotFound = false)
-    {
+        bool nullOnNotFound = false) {
         var (response, authenticated) = await SendAsync(url, what, cancellationToken);
         using var _ = response;
 
-        if (nullOnNotFound && response.StatusCode == HttpStatusCode.NotFound && authenticated)
-        {
+        if (nullOnNotFound && response.StatusCode == HttpStatusCode.NotFound && authenticated) {
             // Only with a credential. Without one, GitLab answers 404 for "no such release" and
             // "you cannot see this project" identically, and silently reporting the second as the
             // first is how someone spends an afternoon on a missing token.
@@ -210,22 +198,18 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// an anonymous 404 would point at the URL instead.</para>
     /// </remarks>
     private async Task<(HttpResponseMessage Response, bool Authenticated)> SendAsync(
-        string url, string what, CancellationToken cancellationToken)
-    {
-        if (!_credentialActive)
-        {
+        string url, string what, CancellationToken cancellationToken) {
+        if (!_credentialActive) {
             return (await SendOnceAsync(url, what, withCredential: false, cancellationToken), false);
         }
 
         var response = await SendOnceAsync(url, what, withCredential: true, cancellationToken);
-        if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
-        {
+        if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)) {
             return (response, true);
         }
 
         var anonymous = await SendOnceAsync(url, what, withCredential: false, cancellationToken);
-        if (!anonymous.IsSuccessStatusCode)
-        {
+        if (!anonymous.IsSuccessStatusCode) {
             anonymous.Dispose();
             return (response, true);
         }
@@ -240,25 +224,19 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     }
 
     private async Task<HttpResponseMessage> SendOnceAsync(
-        string url, string what, bool withCredential, CancellationToken cancellationToken)
-    {
+        string url, string what, bool withCredential, CancellationToken cancellationToken) {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (withCredential && _authHeader is not null)
-        {
+        if (withCredential && _authHeader is not null) {
             request.Headers.Authorization = _authHeader;
         }
 
-        if (withCredential && _privateToken is not null)
-        {
+        if (withCredential && _privateToken is not null) {
             request.Headers.Add("PRIVATE-TOKEN", _privateToken);
         }
 
-        try
-        {
+        try {
             return await _httpClient.SendAsync(request, cancellationToken);
-        }
-        catch (HttpRequestException ex)
-        {
+        } catch (HttpRequestException ex) {
             throw new WorkflowException(
                 $"The update channel ({_describe}) could not be reached while {what}: {ex.Message}", ex);
         }
@@ -278,10 +256,8 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// carried the credential - not whether one is configured. After a fallback they differ, and the
     /// advice for each is different.</param>
     private async Task ThrowIfUnsuccessfulAsync(
-        HttpResponseMessage response, bool authenticated, string what, CancellationToken cancellationToken)
-    {
-        if (response.IsSuccessStatusCode)
-        {
+        HttpResponseMessage response, bool authenticated, string what, CancellationToken cancellationToken) {
+        if (response.IsSuccessStatusCode) {
             return;
         }
 
@@ -300,21 +276,16 @@ public sealed class GitLabReleaseChannel : IReleaseChannel
     /// <summary>GitLab's <c>error_description</c> or <c>message</c>, or null when the body is not one
     /// of those shapes. Every failure here is null: an error body that cannot be parsed must not
     /// replace the error it was describing.</summary>
-    private static async Task<string?> ReadErrorDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        try
-        {
+    private static async Task<string?> ReadErrorDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
+        try {
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (body.Length is 0 or > 8192)
-            {
+            if (body.Length is 0 or > 8192) {
                 return null;
             }
 
             var error = JsonSerializer.Deserialize(body, SelfUpdateJsonContext.Default.GitLabApiError);
             return error?.ErrorDescription ?? error?.Message;
-        }
-        catch (Exception ex) when (ex is JsonException or HttpRequestException or IOException or NotSupportedException)
-        {
+        } catch (Exception ex) when (ex is JsonException or HttpRequestException or IOException or NotSupportedException) {
             return null;
         }
     }

@@ -11,8 +11,7 @@ namespace Dotquay.Core.Dotnet.SourceBuild;
 /// <param name="Condition">Null when the reference is unconditional; otherwise the condition that
 /// guards it, or a description of the <c>&lt;Choose&gt;</c> branch it sits in.</param>
 /// <param name="Identity">What the referenced project builds.</param>
-public sealed record SourceReference(string Include, string ProjectPath, string? Condition, ProjectIdentity Identity)
-{
+public sealed record SourceReference(string Include, string ProjectPath, string? Condition, ProjectIdentity Identity) {
     public bool IsUnconditional => Condition is null;
 
     public bool Builds(string packageId) =>
@@ -36,8 +35,7 @@ public sealed record SourceReference(string Include, string ProjectPath, string?
 /// can do is what dotquay already did before it existed.
 /// </para>
 /// </remarks>
-public static class SourceProvidedPackages
-{
+public static class SourceProvidedPackages {
     /// <summary>The unconditional reference that builds <paramref name="packageId"/>, or null.</summary>
     public static SourceReference? FindProvider(IFileSystem fileSystem, string csprojPath, string packageId) =>
         ReferencesTo(fileSystem, csprojPath, packageId).FirstOrDefault(r => r.IsUnconditional);
@@ -50,25 +48,19 @@ public static class SourceProvidedPackages
     /// <summary>Every <c>ProjectReference</c> in <paramref name="csprojPath"/> that survives its own file's
     /// <c>Remove</c> items. An unreadable file has none: the writer reports that problem in its own words
     /// the moment it touches the file.</summary>
-    public static IReadOnlyList<SourceReference> ReadAll(IFileSystem fileSystem, string csprojPath)
-    {
-        if (!fileSystem.FileExists(csprojPath))
-        {
+    public static IReadOnlyList<SourceReference> ReadAll(IFileSystem fileSystem, string csprojPath) {
+        if (!fileSystem.FileExists(csprojPath)) {
             return [];
         }
 
         XElement? project;
-        try
-        {
+        try {
             project = XDocument.Parse(fileSystem.ReadAllText(csprojPath)).Root;
-        }
-        catch (XmlException)
-        {
+        } catch (XmlException) {
             return [];
         }
 
-        if (project is null)
-        {
+        if (project is null) {
             return [];
         }
 
@@ -82,18 +74,14 @@ public static class SourceProvidedPackages
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var references = new List<SourceReference>();
-        foreach (var element in elements)
-        {
-            foreach (var include in Items((string?)element.Attribute("Include")))
-            {
-                if (IsUnevaluable(include))
-                {
+        foreach (var element in elements) {
+            foreach (var include in Items((string?)element.Attribute("Include"))) {
+                if (IsUnevaluable(include)) {
                     continue;
                 }
 
                 var target = RelativeProjectPath.Resolve(csprojPath, include);
-                if (removed.Contains(target))
-                {
+                if (removed.Contains(target)) {
                     continue;
                 }
 
@@ -119,17 +107,13 @@ public static class SourceProvidedPackages
         || include.Contains("%(", StringComparison.Ordinal);
 
     /// <summary>The first condition between the reference and the project root, if any.</summary>
-    private static string? ConditionOf(XElement reference)
-    {
-        for (var node = reference; node is not null && node.Name.LocalName != "Project"; node = node.Parent)
-        {
-            if (MsbuildProperties.HasCondition(node))
-            {
+    private static string? ConditionOf(XElement reference) {
+        for (var node = reference; node is not null && node.Name.LocalName != "Project"; node = node.Parent) {
+            if (MsbuildProperties.HasCondition(node)) {
                 return ((string)node.Attribute("Condition")!).Trim();
             }
 
-            if (node.Name.LocalName == "Otherwise")
-            {
+            if (node.Name.LocalName == "Otherwise") {
                 return "the <Otherwise> branch of a <Choose>";
             }
         }

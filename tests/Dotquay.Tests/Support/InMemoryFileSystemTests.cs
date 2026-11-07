@@ -5,11 +5,9 @@ namespace Dotquay.Tests.Support;
 /// <summary>Tests the test double itself. Worth the ceremony: every other test in this project
 /// trusts <see cref="InMemoryFileSystem"/> to behave like a real filesystem, so a bug here would
 /// silently invalidate everything that depends on it.</summary>
-public class InMemoryFileSystemTests
-{
+public class InMemoryFileSystemTests {
     [Fact]
-    public void WriteAllText_ThenReadAllText_RoundTrips()
-    {
+    public void WriteAllText_ThenReadAllText_RoundTrips() {
         var fs = new InMemoryFileSystem();
 
         fs.WriteAllText("a/b/c.txt", "hello");
@@ -19,8 +17,7 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void WriteAllText_ImplicitlyCreatesParentDirectories()
-    {
+    public void WriteAllText_ImplicitlyCreatesParentDirectories() {
         var fs = new InMemoryFileSystem();
 
         fs.WriteAllText("a/b/c.txt", "hello");
@@ -30,16 +27,14 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void ReadAllText_ThrowsForMissingFile()
-    {
+    public void ReadAllText_ThrowsForMissingFile() {
         var fs = new InMemoryFileSystem();
 
         Assert.Throws<FileNotFoundException>(() => fs.ReadAllText("missing.txt"));
     }
 
     [Fact]
-    public void DeleteDirectory_RemovesNestedFilesAndSubdirectories()
-    {
+    public void DeleteDirectory_RemovesNestedFilesAndSubdirectories() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", "cfg");
         fs.WriteAllText("addons/foo/scripts/main.gd", "gd");
@@ -52,8 +47,7 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void MoveDirectory_MovesNestedFilesAndReplacesExistingDestination()
-    {
+    public void MoveDirectory_MovesNestedFilesAndReplacesExistingDestination() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("staging/plugin.cfg", "new");
         fs.WriteAllText("addons/foo/plugin.cfg", "old");
@@ -67,8 +61,7 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void EnumerateFiles_NonRecursive_ExcludesNestedFiles()
-    {
+    public void EnumerateFiles_NonRecursive_ExcludesNestedFiles() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", "cfg");
         fs.WriteAllText("addons/foo/scripts/main.gd", "gd");
@@ -81,8 +74,7 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void EnumerateDirectories_DefaultsToTopLevelOnly()
-    {
+    public void EnumerateDirectories_DefaultsToTopLevelOnly() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", "cfg");
         fs.WriteAllText("addons/foo/scripts/inner.gd", "gd");
@@ -97,8 +89,7 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void EnumerateDirectories_Recursive_IncludesNestedSubdirectories()
-    {
+    public void EnumerateDirectories_Recursive_IncludesNestedSubdirectories() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/scripts/inner.gd", "gd");
 
@@ -109,8 +100,7 @@ public class InMemoryFileSystemTests
     }
 
     [Fact]
-    public void EnumerateDirectories_NoSubdirectories_ReturnsEmpty()
-    {
+    public void EnumerateDirectories_NoSubdirectories_ReturnsEmpty() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo.txt", "not a directory");
 

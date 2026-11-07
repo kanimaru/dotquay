@@ -16,13 +16,11 @@ namespace Dotquay.Core.Dotnet;
 /// <c>Kani.Core 99.0.0</c> to a public feed and every project that resolves a private
 /// <c>Kani.Core</c> across both silently switches to it.</para>
 /// </remarks>
-public sealed class MultiSourceNuGetClient : INuGetClient
-{
+public sealed class MultiSourceNuGetClient : INuGetClient {
     private readonly IReadOnlyList<(NuGetSourceSpec Source, INuGetClient Client)> _clients;
     private readonly List<string> _warnings = [];
 
-    public MultiSourceNuGetClient(IReadOnlyList<(NuGetSourceSpec Source, INuGetClient Client)> clients)
-    {
+    public MultiSourceNuGetClient(IReadOnlyList<(NuGetSourceSpec Source, INuGetClient Client)> clients) {
         _clients = clients;
     }
 
@@ -31,13 +29,11 @@ public sealed class MultiSourceNuGetClient : INuGetClient
     /// than printed, so a GUI caller gets them too.</summary>
     public IReadOnlyList<string> Warnings => _warnings;
 
-    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default)
-    {
+    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default) {
         NuGetVersionQuery? winner = null;
         var checkedSources = new List<string>();
 
-        foreach (var (source, client) in _clients)
-        {
+        foreach (var (source, client) in _clients) {
             // A 401 propagates out of here on purpose: NuGetV3Client throws
             // NuGetAuthenticationException rather than returning empty, so a feed that *might* have
             // the package and won't say stops the search instead of quietly deferring to a public
@@ -48,13 +44,11 @@ public sealed class MultiSourceNuGetClient : INuGetClient
             var query = await client.GetVersionsAsync(packageId, cancellationToken);
             checkedSources.Add(source.Name);
 
-            if (!query.Found)
-            {
+            if (!query.Found) {
                 continue;
             }
 
-            if (winner is null)
-            {
+            if (winner is null) {
                 winner = query;
                 continue;
             }
@@ -89,14 +83,11 @@ public sealed class MultiSourceNuGetClient : INuGetClient
     /// nuspec has said nothing about the package either way.
     /// </remarks>
     public async Task<PackageShape> GetPackageShapeAsync(
-        string packageId, string version, CancellationToken cancellationToken = default)
-    {
-        foreach (var (_, client) in _clients)
-        {
+        string packageId, string version, CancellationToken cancellationToken = default) {
+        foreach (var (_, client) in _clients) {
             var shape = await client.GetPackageShapeAsync(packageId, version, cancellationToken);
 
-            if (shape.IsDevelopmentDependency is not null)
-            {
+            if (shape.IsDevelopmentDependency is not null) {
                 return shape;
             }
         }
@@ -106,10 +97,8 @@ public sealed class MultiSourceNuGetClient : INuGetClient
 
     /// <summary>Verifies every source, in declared order, and stops at the first that fails — so the
     /// error names the feed actually at fault rather than reporting the set as broken.</summary>
-    public async Task VerifySourceAsync(CancellationToken cancellationToken = default)
-    {
-        foreach (var (_, client) in _clients)
-        {
+    public async Task VerifySourceAsync(CancellationToken cancellationToken = default) {
+        foreach (var (_, client) in _clients) {
             await client.VerifySourceAsync(cancellationToken);
         }
     }

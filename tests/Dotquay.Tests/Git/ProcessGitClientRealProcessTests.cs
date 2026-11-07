@@ -26,13 +26,10 @@ namespace Dotquay.Tests.Git;
 /// `dotquay mcp` itself, over real OS pipes, and talks newline-delimited JSON-RPC to it directly,
 /// the same way an MCP client (or the Python driver used to first find this bug) would.
 /// </remarks>
-public sealed class ProcessGitClientRealProcessTests
-{
+public sealed class ProcessGitClientRealProcessTests {
     [Fact]
-    public async Task Doctor_tool_call_completes_quickly_over_the_real_mcp_stdio_transport()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
+    public async Task Doctor_tool_call_completes_quickly_over_the_real_mcp_stdio_transport() {
+        if (!OperatingSystem.IsWindows()) {
             // The hang this guards against is a Windows console/pipe-handle-inheritance quirk;
             // git's process model under Unix shells doesn't reproduce it the same way.
             return;
@@ -46,12 +43,10 @@ public sealed class ProcessGitClientRealProcessTests
 
         var projectDirectory = Directory.CreateTempSubdirectory("dotquay-git-realprocess-test-").FullName;
 
-        try
-        {
+        try {
             await RunOneShotAsync(cliExe, ["init", "--json", "--project", projectDirectory]);
 
-            var startInfo = new ProcessStartInfo(cliExe)
-            {
+            var startInfo = new ProcessStartInfo(cliExe) {
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -71,15 +66,12 @@ public sealed class ProcessGitClientRealProcessTests
             server.ErrorDataReceived += (_, _) => { };
             server.BeginErrorReadLine();
 
-            try
-            {
-                await SendAsync(server.StandardInput, new
-                {
+            try {
+                await SendAsync(server.StandardInput, new {
                     jsonrpc = "2.0",
                     id = 1,
                     method = "initialize",
-                    @params = new
-                    {
+                    @params = new {
                         protocolVersion = "2025-06-18",
                         capabilities = new { },
                         clientInfo = new { name = "process-git-client-regression-test", version = "0.0.1" },
@@ -91,8 +83,7 @@ public sealed class ProcessGitClientRealProcessTests
 
                 await SendAsync(server.StandardInput, new { jsonrpc = "2.0", method = "notifications/initialized" });
 
-                await SendAsync(server.StandardInput, new
-                {
+                await SendAsync(server.StandardInput, new {
                     jsonrpc = "2.0",
                     id = 2,
                     method = "tools/call",
@@ -106,42 +97,30 @@ public sealed class ProcessGitClientRealProcessTests
 
                 Assert.Contains("\"id\":2", doctorResponse);
                 Assert.Contains("healthy", doctorResponse);
-            }
-            finally
-            {
-                try
-                {
+            } finally {
+                try {
                     server.Kill(entireProcessTree: true);
-                }
-                catch
-                {
+                } catch {
                     // Best-effort: the assertions above already reported anything worth reporting.
                 }
             }
-        }
-        finally
-        {
+        } finally {
             Directory.Delete(projectDirectory, recursive: true);
         }
     }
 
-    private static async Task SendAsync(StreamWriter stdin, object message)
-    {
+    private static async Task SendAsync(StreamWriter stdin, object message) {
         var json = JsonSerializer.Serialize(message);
         await stdin.WriteAsync(json + "\n");
         await stdin.FlushAsync();
     }
 
-    private static async Task<string> ReadLineWithTimeoutAsync(StreamReader stdout, TimeSpan timeout)
-    {
+    private static async Task<string> ReadLineWithTimeoutAsync(StreamReader stdout, TimeSpan timeout) {
         using var cancellation = new CancellationTokenSource(timeout);
-        try
-        {
+        try {
             var line = await stdout.ReadLineAsync(cancellation.Token);
             return line ?? throw new InvalidOperationException("Server closed stdout before sending a response.");
-        }
-        catch (OperationCanceledException)
-        {
+        } catch (OperationCanceledException) {
             Assert.Fail(
                 $"No line received on the MCP server's stdout within {timeout.TotalSeconds}s -- this is the exact "
                 + "hang ProcessGitClient produced under `dotquay mcp` before redirecting its git children's "
@@ -151,17 +130,14 @@ public sealed class ProcessGitClientRealProcessTests
         }
     }
 
-    private static async Task RunOneShotAsync(string exePath, string[] args)
-    {
-        var startInfo = new ProcessStartInfo(exePath)
-        {
+    private static async Task RunOneShotAsync(string exePath, string[] args) {
+        var startInfo = new ProcessStartInfo(exePath) {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 

@@ -24,8 +24,7 @@ namespace Dotquay.Core.Workflows;
 /// extract the subtree into a diff-only staging folder, compare, delete in a <c>finally</c>.
 /// </para>
 /// </remarks>
-public sealed partial class DependencyWorkflow
-{
+public sealed partial class DependencyWorkflow {
     /// <summary>Distinct from the installer's stage-and-swap target for the same addon: this is a
     /// read-only scratch copy for diffing, following the precedent
     /// <c>&lt;name&gt;-patch-base</c> set in <see cref="PatchAsync"/>.</summary>
@@ -53,12 +52,10 @@ public sealed partial class DependencyWorkflow
     /// </para>
     /// </remarks>
     public async Task<StatusResult> StatusAsync(
-        string projectDirectory, bool explain, CancellationToken cancellationToken = default)
-    {
+        string projectDirectory, bool explain, CancellationToken cancellationToken = default) {
         var status = Status(projectDirectory);
 
-        if (!explain || status.Addons.All(addon => addon.Kind != AddonStatusKind.Modified))
-        {
+        if (!explain || status.Addons.All(addon => addon.Kind != AddonStatusKind.Modified)) {
             return status;
         }
 
@@ -68,10 +65,8 @@ public sealed partial class DependencyWorkflow
 
         var explained = new List<AddonStatusInfo>(status.Addons.Count);
 
-        foreach (var addon in status.Addons)
-        {
-            if (addon.Kind != AddonStatusKind.Modified || !locked.TryGetValue(addon.Name, out var entry))
-            {
+        foreach (var addon in status.Addons) {
+            if (addon.Kind != AddonStatusKind.Modified || !locked.TryGetValue(addon.Name, out var entry)) {
                 explained.Add(addon);
                 continue;
             }
@@ -83,21 +78,18 @@ public sealed partial class DependencyWorkflow
     }
 
     private async Task<AddonExplanation> ExplainAsync(
-        ProjectLayout layout, LockedAddon locked, CancellationToken cancellationToken)
-    {
+        ProjectLayout layout, LockedAddon locked, CancellationToken cancellationToken) {
         var installedPath = InstallPaths.For(_fileSystem, layout.ProjectDirectory, locked);
         var baselinePath = _fileSystem.CombinePath(
             layout.ProjectDirectory, ProjectLayout.DotquayDirectory, "staging", locked.Name + ExplainStagingSuffix);
 
-        try
-        {
+        try {
             var baseline = await BuildBaselineAsync(layout, locked, baselinePath, cancellationToken);
 
             var changes = TreeComparer.Compare(_fileSystem, baselinePath, installedPath);
             var counts = ChangeCounts.From(changes);
 
-            return new AddonExplanation
-            {
+            return new AddonExplanation {
                 // Only a real content difference is worth stopping for. Everything else the editor
                 // either regenerates or never needed — see ChangeClass.
                 Verdict = counts.Content > 0 ? ExplainVerdict.ReviewNeeded : ExplainVerdict.SafeToForce,
@@ -106,22 +98,17 @@ public sealed partial class DependencyWorkflow
                 BaselineIncludesPatch = baseline.IncludesPatch,
                 PatchCouldNotBeApplied = baseline.PatchFailed,
             };
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
             // Broad on purpose. Offline with a cold cache, a force-pushed-away commit, a repository
             // that moved, a subtree that no longer exists at that SHA — every one of them means "no
             // explanation available", and an honest report of that is the correct output. It must
             // never take the whole `status` down with it, since the other addons are still
             // explainable and the status verdicts themselves were computed before any of this ran.
-            return new AddonExplanation
-            {
+            return new AddonExplanation {
                 Verdict = ExplainVerdict.Unavailable,
                 UnavailableReason = ex.Message,
             };
-        }
-        finally
-        {
+        } finally {
             _fileSystem.DeleteDirectory(baselinePath);
         }
     }
@@ -147,20 +134,17 @@ public sealed partial class DependencyWorkflow
     /// </para>
     /// </remarks>
     private async Task<string> DescribeLocalChangesAsync(
-        string projectDirectory, LockedAddon? locked, string modifiedPath, CancellationToken cancellationToken)
-    {
+        string projectDirectory, LockedAddon? locked, string modifiedPath, CancellationToken cancellationToken) {
         if (locked is null
             || !string.Equals(
-                InstallPaths.For(_fileSystem, projectDirectory, locked), modifiedPath, StringComparison.Ordinal))
-        {
+                InstallPaths.For(_fileSystem, projectDirectory, locked), modifiedPath, StringComparison.Ordinal)) {
             return string.Empty;
         }
 
         var explanation = await ExplainAsync(ReadLayout(projectDirectory), locked, cancellationToken);
 
         var hashed = explanation.Changes.Where(change => change.Class != ChangeClass.EditorArtifact).ToList();
-        if (explanation.Verdict == ExplainVerdict.Unavailable || hashed.Count == 0)
-        {
+        if (explanation.Verdict == ExplainVerdict.Unavailable || hashed.Count == 0) {
             return string.Empty;
         }
 
@@ -171,14 +155,12 @@ public sealed partial class DependencyWorkflow
         var builder = new StringBuilder();
         builder.Append($"{newLine}  Changed locally ({total} file{(total == 1 ? "" : "s")}):");
 
-        foreach (var change in hashed.Take(MaxListedLocalChanges))
-        {
+        foreach (var change in hashed.Take(MaxListedLocalChanges)) {
             var kind = DescribeChangeKind(change.Kind);
             builder.Append($"{newLine}    {kind,-8} {change.Path}{DescribeChangeClass(change.Class)}");
         }
 
-        if (total > MaxListedLocalChanges)
-        {
+        if (total > MaxListedLocalChanges) {
             builder.Append(
                 $"{newLine}    ... and {total - MaxListedLocalChanges} more. "
                 + "Run 'dotquay status --explain' for the full list.");
@@ -196,12 +178,10 @@ public sealed partial class DependencyWorkflow
     /// Derived from the same counts <c>status --explain</c> reports, with editor artifacts left out for
     /// the reason the list leaves them out. Advice only — the refusal itself has already been decided.
     /// </remarks>
-    private static string DescribeVerdict(ChangeCounts counts)
-    {
+    private static string DescribeVerdict(ChangeCounts counts) {
         var newLine = Environment.NewLine;
 
-        if (counts.Content > 0)
-        {
+        if (counts.Content > 0) {
             var one = counts.Content == 1;
             return $"  {counts.Content} real content change{(one ? "" : "s")}: --force would discard "
                 + $"{(one ? "it" : "them")}. Capture {(one ? "it" : "them")} with 'dotquay patch' first if "
@@ -217,18 +197,14 @@ public sealed partial class DependencyWorkflow
             + $"rewrote them).{newLine}  'dotquay update --force' is safe.";
     }
 
-    private static void AppendCount(List<string> parts, int count, string singular, string plural)
-    {
-        if (count > 0)
-        {
+    private static void AppendCount(List<string> parts, int count, string singular, string plural) {
+        if (count > 0) {
             parts.Add($"{count} {(count == 1 ? singular : plural)}");
         }
     }
 
-    private static string DescribeChangeKind(ChangeKind kind)
-    {
-        return kind switch
-        {
+    private static string DescribeChangeKind(ChangeKind kind) {
+        return kind switch {
             ChangeKind.Added => "added",
             ChangeKind.Removed => "removed",
             _ => "changed",
@@ -237,10 +213,8 @@ public sealed partial class DependencyWorkflow
 
     /// <summary>Flags the changes nobody made by hand, so the reader can tell editor churn from their
     /// own work at a glance. A real content change carries no suffix: it is the default reading.</summary>
-    private static string DescribeChangeClass(ChangeClass @class)
-    {
-        return @class switch
-        {
+    private static string DescribeChangeClass(ChangeClass @class) {
+        return @class switch {
             ChangeClass.UidOnly => "  (uid only)",
             ChangeClass.WhitespaceOnly => "  (whitespace only)",
             ChangeClass.LineEndingsOnly => "  (line endings only)",
@@ -264,28 +238,24 @@ public sealed partial class DependencyWorkflow
     /// modification — the single most confusing answer this command could give.
     /// </remarks>
     private async Task<Baseline> BuildBaselineAsync(
-        ProjectLayout layout, LockedAddon locked, string baselinePath, CancellationToken cancellationToken)
-    {
+        ProjectLayout layout, LockedAddon locked, string baselinePath, CancellationToken cancellationToken) {
         var cachedRepoPath = await _repoCache.GetOrFetchAsync(locked.Git, locked.Resolved, cancellationToken);
         SubtreeExtractor.Extract(_fileSystem, cachedRepoPath, locked.Path, baselinePath);
 
-        if (locked is not { PatchHash: not null, PatchBaseSha: not null })
-        {
+        if (locked is not { PatchHash: not null, PatchBaseSha: not null }) {
             // No patch to include and none missing — the ordinary case, and not worth a caveat.
             return new Baseline(IncludesPatch: false, PatchFailed: false);
         }
 
         var patchFilePath = layout.PatchFilePath(_fileSystem, locked.Name);
-        if (!_fileSystem.FileExists(patchFilePath))
-        {
+        if (!_fileSystem.FileExists(patchFilePath)) {
             // The lockfile claims a patch the file no longer backs. Not this command's job to fix that
             // (doctor's territory, and AddonInstaller takes the same line) — but the comparison is
             // measurably incomplete, so say so.
             return new Baseline(IncludesPatch: false, PatchFailed: true);
         }
 
-        try
-        {
+        try {
             var conflicts = await new PatchReapplier(_fileSystem, _repoCache, _patchTool).ReapplyAsync(
                 locked.Git,
                 locked.PatchBaseSha,
@@ -294,13 +264,10 @@ public sealed partial class DependencyWorkflow
                 baselinePath,
                 cancellationToken);
 
-            if (conflicts.Count == 0)
-            {
+            if (conflicts.Count == 0) {
                 return new Baseline(IncludesPatch: true, PatchFailed: false);
             }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
             // Falls through to the pristine baseline below, exactly as a conflict does.
         }
 

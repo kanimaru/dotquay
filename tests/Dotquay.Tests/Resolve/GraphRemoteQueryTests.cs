@@ -13,8 +13,7 @@ namespace Dotquay.Tests.Resolve;
 /// How many remote lookups one graph resolution makes, and how many at once - the two things that
 /// decided how long a no-op <c>update</c> took (eight sequential ssh handshakes for four addons, on vbeami).
 /// </summary>
-public class GraphRemoteQueryTests
-{
+public class GraphRemoteQueryTests {
     private const string ToolUrl = "https://example.com/tool.git";
     private const string UiUrl = "https://example.com/ui.git";
     private const string CoreUrl = "https://example.com/core.git";
@@ -22,8 +21,7 @@ public class GraphRemoteQueryTests
 
     private static Dictionary<string, AddonSpec> NoOverrides() => new();
 
-    private static (DependencyGraphResolver Resolver, ObservedGitClient Git, FakeGitClient Fake) Build(TimeSpan? latency = null)
-    {
+    private static (DependencyGraphResolver Resolver, ObservedGitClient Git, FakeGitClient Fake) Build(TimeSpan? latency = null) {
         var fileSystem = new InMemoryFileSystem();
         var fake = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var observed = new ObservedGitClient(fake, latency ?? TimeSpan.Zero);
@@ -46,18 +44,15 @@ public class GraphRemoteQueryTests
 
     /// <summary>tool (version) and ui (branch) both depend on core - the shape where discovery and
     /// unification each used to ask every remote again.</summary>
-    private static Dictionary<string, AddonSpec> SetUpDiamond(FakeGitClient git)
-    {
+    private static Dictionary<string, AddonSpec> SetUpDiamond(FakeGitClient git) {
         SetTags(git, ToolUrl, "v1.0.0");
-        git.FetchedFilesByUrl[ToolUrl] = new Dictionary<string, string>
-        {
+        git.FetchedFilesByUrl[ToolUrl] = new Dictionary<string, string> {
             ["addons/tool/plugin.cfg"] = "tool",
             ["addons/tool/dotquay.toml"] = DependsOnCore("tool"),
         };
 
         git.BranchTips[(UiUrl, "main")] = UiTip;
-        git.FetchedFilesByUrl[UiUrl] = new Dictionary<string, string>
-        {
+        git.FetchedFilesByUrl[UiUrl] = new Dictionary<string, string> {
             ["addons/ui/plugin.cfg"] = "ui",
             ["addons/ui/dotquay.toml"] = DependsOnCore("ui"),
         };
@@ -65,16 +60,14 @@ public class GraphRemoteQueryTests
         SetTags(git, CoreUrl, "v1.0.0", "v1.0.3", "v1.1.0");
         git.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
 
-        return new Dictionary<string, AddonSpec>
-        {
+        return new Dictionary<string, AddonSpec> {
             ["tool"] = new AddonSpec { Name = "tool", Git = ToolUrl, Version = "~1.0", Path = "addons/tool" },
             ["ui"] = new AddonSpec { Name = "ui", Git = UiUrl, Branch = "main", Path = "addons/ui" },
         };
     }
 
     [Fact]
-    public async Task ResolveGraph_AsksEachRemoteOnce_ThoughDiscoveryAndUnificationBothResolve()
-    {
+    public async Task ResolveGraph_AsksEachRemoteOnce_ThoughDiscoveryAndUnificationBothResolve() {
         var (resolver, git, fake) = Build();
         var roots = SetUpDiamond(fake);
 
@@ -89,8 +82,7 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_ResultIsUnchangedByMemoizationAndPrefetch()
-    {
+    public async Task ResolveGraph_ResultIsUnchangedByMemoizationAndPrefetch() {
         // The same graph through a plain, uncached resolver path: each addon resolved on its own.
         var (resolver, _, fake) = Build();
         var roots = SetUpDiamond(fake);
@@ -104,8 +96,7 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_SeparateResolutions_DoNotShareAnswers()
-    {
+    public async Task ResolveGraph_SeparateResolutions_DoNotShareAnswers() {
         // One resolver per resolution is the cache's whole lifetime: a branch moved between two updates
         // must be seen by the second one.
         var fileSystem = new InMemoryFileSystem();
@@ -122,12 +113,10 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_LooksUpRootsConcurrently()
-    {
+    public async Task ResolveGraph_LooksUpRootsConcurrently() {
         var (resolver, git, fake) = Build(latency: TimeSpan.FromMilliseconds(150));
         var roots = new Dictionary<string, AddonSpec>();
-        foreach (var name in new[] { "a", "b", "c", "d" })
-        {
+        foreach (var name in new[] { "a", "b", "c", "d" }) {
             var url = $"https://example.com/{name}.git";
             SetTags(fake, url, "v1.0.0");
             fake.FetchedFilesByUrl[url] = new Dictionary<string, string> { [$"addons/{name}/plugin.cfg"] = name };
@@ -141,12 +130,10 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_CapsConcurrentLookups()
-    {
+    public async Task ResolveGraph_CapsConcurrentLookups() {
         var (resolver, git, fake) = Build(latency: TimeSpan.FromMilliseconds(60));
         var roots = new Dictionary<string, AddonSpec>();
-        for (var i = 0; i < 12; i++)
-        {
+        for (var i = 0; i < 12; i++) {
             var name = $"addon{i}";
             var url = $"https://example.com/{name}.git";
             SetTags(fake, url, "v1.0.0");
@@ -163,12 +150,10 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_RevPinnedRoots_MakeNoLookupsAtAll()
-    {
+    public async Task ResolveGraph_RevPinnedRoots_MakeNoLookupsAtAll() {
         var (resolver, git, fake) = Build();
         fake.FetchedFilesByUrl[ToolUrl] = new Dictionary<string, string> { ["addons/tool/plugin.cfg"] = "tool" };
-        var roots = new Dictionary<string, AddonSpec>
-        {
+        var roots = new Dictionary<string, AddonSpec> {
             ["tool"] = new AddonSpec { Name = "tool", Git = ToolUrl, Rev = new string('e', 40), Path = "addons/tool" },
         };
 
@@ -178,13 +163,11 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_FailingRemote_StillFails_AndIsAskedOnlyOnce()
-    {
+    public async Task ResolveGraph_FailingRemote_StillFails_AndIsAskedOnlyOnce() {
         // The prefetch swallows its copy of the failure; the walk must still see it, unchanged.
         var (resolver, git, fake) = Build();
         fake.RemoteFailuresByUrl[ToolUrl] = new GitCommandException("fatal: repository not found");
-        var roots = new Dictionary<string, AddonSpec>
-        {
+        var roots = new Dictionary<string, AddonSpec> {
             ["tool"] = new AddonSpec { Name = "tool", Git = ToolUrl, Version = "~1.0", Path = "addons/tool" },
         };
 
@@ -195,13 +178,11 @@ public class GraphRemoteQueryTests
     }
 
     [Fact]
-    public async Task ResolveGraph_OverriddenRoot_IsPrefetchedWithTheOverride_NotTheRequestedSpec()
-    {
+    public async Task ResolveGraph_OverriddenRoot_IsPrefetchedWithTheOverride_NotTheRequestedSpec() {
         var (resolver, git, fake) = Build();
         var roots = SetUpDiamond(fake);
         fake.BranchTips[(ToolUrl, "next")] = "ffffffffffffffffffffffffffffffffffffffff";
-        var overrides = new Dictionary<string, AddonSpec>
-        {
+        var overrides = new Dictionary<string, AddonSpec> {
             ["tool"] = new AddonSpec { Name = "tool", Git = ToolUrl, Branch = "next", Path = "addons/tool" },
         };
 
@@ -216,8 +197,7 @@ public class GraphRemoteQueryTests
 
     /// <summary>Counts and delays the remote lookups of a <see cref="FakeGitClient"/>, and tracks the
     /// most that were ever in flight at once.</summary>
-    private sealed class ObservedGitClient(FakeGitClient inner, TimeSpan latency) : IGitClient
-    {
+    private sealed class ObservedGitClient(FakeGitClient inner, TimeSpan latency) : IGitClient {
         private readonly ConcurrentQueue<string> _calls = new();
         private int _inFlight;
         private int _maxInFlight;
@@ -237,8 +217,7 @@ public class GraphRemoteQueryTests
         public Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default) =>
             Observe($"default {repositoryUrl}", () => inner.ResolveDefaultBranchAsync(repositoryUrl, cancellationToken));
 
-        public Task FetchCommitAsync(string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default)
-        {
+        public Task FetchCommitAsync(string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default) {
             // FakeGitClient's fetch writes into a non-thread-safe in-memory file system, so it is kept
             // strictly to the walk's own flow - which is the only place fetches happen.
             return inner.FetchCommitAsync(repositoryUrl, commitSha, destinationPath, cancellationToken);
@@ -249,33 +228,25 @@ public class GraphRemoteQueryTests
 
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => inner.IsAvailableAsync(cancellationToken);
 
-        private async Task<T> Observe<T>(string key, Func<Task<T>> call)
-        {
+        private async Task<T> Observe<T>(string key, Func<Task<T>> call) {
             _calls.Enqueue(key);
             var now = Interlocked.Increment(ref _inFlight);
             UpdateMax(now);
-            try
-            {
-                if (latency > TimeSpan.Zero)
-                {
+            try {
+                if (latency > TimeSpan.Zero) {
                     await Task.Delay(latency);
                 }
 
                 return await call();
-            }
-            finally
-            {
+            } finally {
                 Interlocked.Decrement(ref _inFlight);
             }
         }
 
-        private void UpdateMax(int candidate)
-        {
+        private void UpdateMax(int candidate) {
             int seen;
-            while (candidate > (seen = Volatile.Read(ref _maxInFlight)))
-            {
-                if (Interlocked.CompareExchange(ref _maxInFlight, candidate, seen) == seen)
-                {
+            while (candidate > (seen = Volatile.Read(ref _maxInFlight))) {
+                if (Interlocked.CompareExchange(ref _maxInFlight, candidate, seen) == seen) {
                     return;
                 }
             }

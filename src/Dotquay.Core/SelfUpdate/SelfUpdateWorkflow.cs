@@ -40,8 +40,7 @@ public sealed record SelfUpdateResult(
 /// that fails halfway — are all unreachable from a test that needs a real network and a real
 /// install to reproduce them.
 /// </remarks>
-public sealed class SelfUpdateWorkflow
-{
+public sealed class SelfUpdateWorkflow {
     private readonly IFileSystem _fileSystem;
     private readonly IReleaseChannel _channel;
     private readonly IExecutableProbe _probe;
@@ -54,8 +53,7 @@ public sealed class SelfUpdateWorkflow
         IReleaseChannel channel,
         IExecutableProbe probe,
         string executablePath,
-        string currentVersion)
-    {
+        string currentVersion) {
         _fileSystem = fileSystem;
         _channel = channel;
         _probe = probe;
@@ -67,8 +65,7 @@ public sealed class SelfUpdateWorkflow
     /// <summary>Overridable so a test can pin the platform. Production reads the machine.</summary>
     public string? RuntimeIdentifier { get; init; } = RuntimeIdentifiers.Current;
 
-    public async Task<SelfCheckResult> CheckAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<SelfCheckResult> CheckAsync(CancellationToken cancellationToken = default) {
         var release = await _channel.GetLatestAsync(cancellationToken);
 
         return new SelfCheckResult(
@@ -81,8 +78,7 @@ public sealed class SelfUpdateWorkflow
             release?.Assets.Select(asset => asset.Rid).ToList() ?? []);
     }
 
-    public async Task<SelfUpdateResult> UpdateAsync(SelfUpdateOptions options, CancellationToken cancellationToken = default)
-    {
+    public async Task<SelfUpdateResult> UpdateAsync(SelfUpdateOptions options, CancellationToken cancellationToken = default) {
         var release = options.ToVersion is { Length: > 0 } wanted
             ? await _channel.GetVersionAsync(wanted, cancellationToken)
                 ?? throw new WorkflowException(
@@ -93,8 +89,7 @@ public sealed class SelfUpdateWorkflow
 
         var messages = new List<string>();
 
-        if (!options.Force && options.ToVersion is null && !VersionOrder.IsNewer(release.Version, _currentVersion))
-        {
+        if (!options.Force && options.ToVersion is null && !VersionOrder.IsNewer(release.Version, _currentVersion)) {
             messages.Add(VersionOrder.Compare(_currentVersion, release.Version) > 0
                 ? $"You are on {_currentVersion}, which is ahead of the newest release ({release.Version}). Nothing to do."
                 : $"Already on {release.Version} - the newest release. Nothing to do.");
@@ -102,23 +97,20 @@ public sealed class SelfUpdateWorkflow
             return new SelfUpdateResult(_currentVersion, _currentVersion, Changed: false, _executablePath, null, messages);
         }
 
-        if (options.ToVersion is not null && VersionOrder.Compare(release.Version, _currentVersion) < 0)
-        {
+        if (options.ToVersion is not null && VersionOrder.Compare(release.Version, _currentVersion) < 0) {
             messages.Add($"Downgrading from {_currentVersion} to {release.Version}.");
         }
 
         var asset = SelectAsset(release);
 
-        if (asset.Sha256 is null)
-        {
+        if (asset.Sha256 is null) {
             throw new WorkflowException(
                 $"Release {release.Version} publishes no checksum for {asset.FileName}, so there is no way to tell "
                 + "whether what arrives is what was published. Refusing to install it. This release was built by a "
                 + "pipeline older than v0.17; download it by hand this once, or update to a newer release.");
         }
 
-        if (!options.Force)
-        {
+        if (!options.Force) {
             RefuseIfBuildOutput();
         }
 
@@ -128,8 +120,7 @@ public sealed class SelfUpdateWorkflow
         // ExecutableSwapper.SweepStaged) is collected here rather than left to accumulate.
         _swapper.SweepStaged(_executablePath);
 
-        if (options.DryRun)
-        {
+        if (options.DryRun) {
             messages.Add(
                 $"Would download {asset.FileName} ({Describe(asset.Size)}) from {_channel.Describe} and replace "
                 + $"{_executablePath} ({_currentVersion} -> {release.Version}).");
@@ -147,12 +138,9 @@ public sealed class SelfUpdateWorkflow
         await VerifyStartsAsync(stagedPath, release.Version, cancellationToken);
 
         string retiredPath;
-        try
-        {
+        try {
             retiredPath = _swapper.Swap(_executablePath, stagedPath, _currentVersion);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
             await TryDeleteAsync(stagedPath);
             throw new WorkflowException(
                 $"Could not replace {_executablePath}: {ex.Message} The previous binary is untouched. If another "
@@ -167,15 +155,13 @@ public sealed class SelfUpdateWorkflow
         return new SelfUpdateResult(_currentVersion, release.Version, Changed: true, _executablePath, retiredPath, messages);
     }
 
-    public async Task<SelfUpdateResult> RollbackAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<SelfUpdateResult> RollbackAsync(CancellationToken cancellationToken = default) {
         var previous = _swapper.Retired(_executablePath).FirstOrDefault()
             ?? throw new WorkflowException(
                 $"There is no previous dotquay beside {_executablePath} to roll back to. One is kept only after "
                 + "'dotquay self update' has replaced a binary at least once.");
 
-        if (string.Equals(previous.Version, _currentVersion, StringComparison.OrdinalIgnoreCase))
-        {
+        if (string.Equals(previous.Version, _currentVersion, StringComparison.OrdinalIgnoreCase)) {
             throw new WorkflowException(
                 $"The only binary kept beside {_executablePath} is {previous.Version}, which is what is already "
                 + "running. Rolling back to it would change nothing.");
@@ -185,8 +171,7 @@ public sealed class SelfUpdateWorkflow
         // update, and one that no longer starts is not a rollback target, it is a way to lose the
         // working dotquay that is asking the question.
         var reported = await _probe.ReadVersionAsync(previous.Path, cancellationToken);
-        if (reported is null)
-        {
+        if (reported is null) {
             throw new WorkflowException(
                 $"{previous.Path} does not start, so rolling back to it would leave this machine without a working "
                 + $"dotquay. Leaving {_currentVersion} in place.");
@@ -209,15 +194,13 @@ public sealed class SelfUpdateWorkflow
             ]);
     }
 
-    private ReleaseAsset SelectAsset(ReleaseManifest release)
-    {
+    private ReleaseAsset SelectAsset(ReleaseManifest release) {
         var rid = RuntimeIdentifier
             ?? throw new WorkflowException(
                 "dotquay could not work out what platform this is, so it cannot pick a release build. Download the "
                 + $"right binary by hand from {_channel.Describe}.");
 
-        if (release.AssetFor(rid) is { } asset)
-        {
+        if (release.AssetFor(rid) is { } asset) {
             return asset;
         }
 
@@ -229,18 +212,15 @@ public sealed class SelfUpdateWorkflow
             $"Release {release.Version} has no build for {rid}: {available}.");
     }
 
-    private void VerifyChecksum(ReleaseAsset asset, byte[] bytes)
-    {
-        if (asset.Size > 0 && bytes.LongLength != asset.Size)
-        {
+    private void VerifyChecksum(ReleaseAsset asset, byte[] bytes) {
+        if (asset.Size > 0 && bytes.LongLength != asset.Size) {
             throw new WorkflowException(
                 $"{asset.FileName} arrived as {bytes.LongLength} bytes but the release says it is {asset.Size}. "
                 + "Refusing to install a truncated download.");
         }
 
         var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        if (!string.Equals(actual, asset.Sha256, StringComparison.OrdinalIgnoreCase))
-        {
+        if (!string.Equals(actual, asset.Sha256, StringComparison.OrdinalIgnoreCase)) {
             throw new WorkflowException(
                 $"{asset.FileName} does not match the checksum the release published.{Environment.NewLine}"
                 + $"  expected {asset.Sha256}{Environment.NewLine}"
@@ -249,20 +229,17 @@ public sealed class SelfUpdateWorkflow
         }
     }
 
-    private async Task VerifyStartsAsync(string stagedPath, string expectedVersion, CancellationToken cancellationToken)
-    {
+    private async Task VerifyStartsAsync(string stagedPath, string expectedVersion, CancellationToken cancellationToken) {
         var reported = await _probe.ReadVersionAsync(stagedPath, cancellationToken);
 
-        if (reported is null)
-        {
+        if (reported is null) {
             await TryDeleteAsync(stagedPath);
             throw new WorkflowException(
                 $"The downloaded dotquay {expectedVersion} hashed correctly but does not start on this machine. "
                 + "Nothing was replaced. This is a broken publish, not a broken download - worth reporting.");
         }
 
-        if (!reported.StartsWith(expectedVersion, StringComparison.OrdinalIgnoreCase))
-        {
+        if (!reported.StartsWith(expectedVersion, StringComparison.OrdinalIgnoreCase)) {
             await TryDeleteAsync(stagedPath);
             throw new WorkflowException(
                 $"The downloaded binary reports version '{reported}' but the release says it is {expectedVersion}. "
@@ -284,8 +261,7 @@ public sealed class SelfUpdateWorkflow
     /// build output is <c>obj</c>, a <c>bin</c> followed by a configuration name, or a <c>.pdb</c> /
     /// <c>.deps.json</c> lying beside the binary — none of which appear in an install directory.</para>
     /// </remarks>
-    private void RefuseIfBuildOutput()
-    {
+    private void RefuseIfBuildOutput() {
         var directory = ExecutablePaths.DirectoryOf(_executablePath);
         var segments = directory.Split('/', '\\');
 
@@ -303,8 +279,7 @@ public sealed class SelfUpdateWorkflow
                 file.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase)
                 || file.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase));
 
-        if (looksLikeBuildPath || hasBuildArtifacts)
-        {
+        if (looksLikeBuildPath || hasBuildArtifacts) {
             throw new WorkflowException(
                 $"{_executablePath} looks like a build output, not an installed dotquay. Replacing it with a "
                 + "published release would overwrite what you are working on, and the version a dev build reports "
@@ -313,20 +288,16 @@ public sealed class SelfUpdateWorkflow
         }
     }
 
-    private void RefuseIfNotWritable()
-    {
+    private void RefuseIfNotWritable() {
         var directory = ExecutablePaths.DirectoryOf(_executablePath);
         var probePath = ExecutablePaths.DirectoryOf(_executablePath).Length == 0
             ? ".dotquay-write-probe"
             : _fileSystem.CombinePath(directory, ".dotquay-write-probe");
 
-        try
-        {
+        try {
             _fileSystem.WriteAllBytes(probePath, []);
             _fileSystem.DeleteFile(probePath);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
             throw new WorkflowException(
                 $"dotquay cannot write to {directory}, so it cannot replace itself there. Install it somewhere you "
                 + "own - scripts/install.sh and scripts/install.ps1 put it in ~/.local/bin - or re-run this with "
@@ -345,17 +316,12 @@ public sealed class SelfUpdateWorkflow
     /// start) and a cleanup error must never be the message that reaches the user instead of that
     /// one. Whatever is left behind is collected by the next update's SweepStaged.
     /// </remarks>
-    private async Task TryDeleteAsync(string path)
-    {
-        for (var attempt = 0; attempt < 5; attempt++)
-        {
-            try
-            {
+    private async Task TryDeleteAsync(string path) {
+        for (var attempt = 0; attempt < 5; attempt++) {
+            try {
                 _fileSystem.DeleteFile(path);
                 return;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
+            } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
                 await Task.Delay(TimeSpan.FromMilliseconds(100));
             }
         }

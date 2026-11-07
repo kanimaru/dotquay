@@ -16,12 +16,10 @@ namespace Dotquay.Core.Abstractions;
 /// a security boundary quietly becomes a suggestion.
 /// </para>
 /// </remarks>
-public sealed class PreApprovedSourceApproval : ISourceApproval
-{
+public sealed class PreApprovedSourceApproval : ISourceApproval {
     private readonly HashSet<string> _urls;
 
-    public PreApprovedSourceApproval(IEnumerable<string> urls)
-    {
+    public PreApprovedSourceApproval(IEnumerable<string> urls) {
         _urls = new HashSet<string>(urls, StringComparer.OrdinalIgnoreCase);
     }
 

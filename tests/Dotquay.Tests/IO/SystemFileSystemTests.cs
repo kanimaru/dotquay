@@ -8,20 +8,16 @@ namespace Dotquay.Tests.IO;
 /// the real disk. Everything runs inside a fresh temp directory and cleans up after itself, so
 /// nothing here depends on git, the network, or the machine's state.
 /// </summary>
-public sealed class SystemFileSystemTests : IDisposable
-{
+public sealed class SystemFileSystemTests : IDisposable {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotquay-fs-tests-" + Guid.NewGuid().ToString("N"));
     private readonly SystemFileSystem _fs = new();
 
     public SystemFileSystemTests() => Directory.CreateDirectory(_root);
 
-    public void Dispose()
-    {
+    public void Dispose() {
         // Undo any read-only bits our own fixtures set, then remove the temp tree.
-        if (Directory.Exists(_root))
-        {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
-            {
+        if (Directory.Exists(_root)) {
+            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
                 File.SetAttributes(file, FileAttributes.Normal);
             }
 
@@ -36,8 +32,7 @@ public sealed class SystemFileSystemTests : IDisposable
     /// UnauthorizedAccessException on `.git/objects/pack/*.idx` until the cache was deleted by hand.
     /// </summary>
     [Fact]
-    public void DeleteDirectory_RemovesATreeContainingReadOnlyFiles()
-    {
+    public void DeleteDirectory_RemovesATreeContainingReadOnlyFiles() {
         var target = Path.Combine(_root, "cache-entry");
         var pack = Path.Combine(target, ".git", "objects", "pack");
         Directory.CreateDirectory(pack);
@@ -53,8 +48,7 @@ public sealed class SystemFileSystemTests : IDisposable
     }
 
     [Fact]
-    public void DeleteDirectory_OnAMissingPath_IsANoOp()
-    {
+    public void DeleteDirectory_OnAMissingPath_IsANoOp() {
         _fs.DeleteDirectory(Path.Combine(_root, "never-created"));
     }
 
@@ -66,8 +60,7 @@ public sealed class SystemFileSystemTests : IDisposable
     /// followed the link, the attribute on the target file would be stripped.
     /// </summary>
     [Fact]
-    public void DeleteDirectory_OnALink_RemovesTheLinkAndLeavesTheTargetUntouched()
-    {
+    public void DeleteDirectory_OnALink_RemovesTheLinkAndLeavesTheTargetUntouched() {
         var target = Path.Combine(_root, "checkout");
         Directory.CreateDirectory(target);
         var kept = Path.Combine(target, "work.gd");
@@ -90,8 +83,7 @@ public sealed class SystemFileSystemTests : IDisposable
     /// <summary>A link nested *inside* a tree being deleted is removed as an entry of its own;
     /// the folder it points at is not entered.</summary>
     [Fact]
-    public void DeleteDirectory_WithALinkNestedInside_DoesNotFollowIt()
-    {
+    public void DeleteDirectory_WithALinkNestedInside_DoesNotFollowIt() {
         var elsewhere = Path.Combine(_root, "elsewhere");
         Directory.CreateDirectory(elsewhere);
         var kept = Path.Combine(elsewhere, "keep.txt");

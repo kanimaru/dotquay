@@ -13,13 +13,11 @@ namespace Dotquay.Core.Dotnet;
 /// all of them. Taking the highest is a dependency-confusion substitution attack with extra steps: a
 /// public package can outrank the private one whose name it shadows.</para>
 /// </remarks>
-public sealed class NuGetSourceSet
-{
+public sealed class NuGetSourceSet {
     private readonly List<NuGetSourceSpec> _sources;
     private readonly List<NuGetSourceSpec> _declared;
 
-    private NuGetSourceSet(List<NuGetSourceSpec> sources, List<NuGetSourceSpec> declared)
-    {
+    private NuGetSourceSet(List<NuGetSourceSpec> sources, List<NuGetSourceSpec> declared) {
         _sources = sources;
         _declared = declared;
     }
@@ -27,12 +25,10 @@ public sealed class NuGetSourceSet
     /// <summary>Declared sources in manifest order, then <c>nuget.org</c> — unless a declared source
     /// already points there, in which case it keeps its declared position and no duplicate is
     /// appended.</summary>
-    public static NuGetSourceSet From(IReadOnlyList<NuGetSourceSpec> declared)
-    {
+    public static NuGetSourceSet From(IReadOnlyList<NuGetSourceSpec> declared) {
         var sources = declared.ToList();
 
-        if (!sources.Any(source => source.IsPublicDefault))
-        {
+        if (!sources.Any(source => source.IsPublicDefault)) {
             sources.Add(NuGetSourceSpec.Public);
         }
 
@@ -61,18 +57,15 @@ public sealed class NuGetSourceSet
     /// </summary>
     /// <exception cref="ManifestParseException">The pin names a source that isn't declared. Listing
     /// the ones that are turns "typo" from a mystery into a correction.</exception>
-    public NuGetSourceSet Resolve(string? pinnedSourceName)
-    {
-        if (pinnedSourceName is null)
-        {
+    public NuGetSourceSet Resolve(string? pinnedSourceName) {
+        if (pinnedSourceName is null) {
             return this;
         }
 
         var match = _sources.FirstOrDefault(
             source => string.Equals(source.Name, pinnedSourceName, StringComparison.Ordinal));
 
-        if (match is null)
-        {
+        if (match is null) {
             var known = string.Join(", ", _sources.Select(source => $"'{source.Name}'"));
             throw new ManifestParseException(
                 $"source = \"{pinnedSourceName}\" doesn't match any declared NuGet source. Declared: {known}.");

@@ -15,8 +15,7 @@ namespace Dotquay.Core.Dotnet;
 /// lockfile <c>source</c>) query once and pass the list in, rather than querying twice and hoping
 /// both calls hit the same feed.
 /// </remarks>
-public static class NuGetVersionSelector
-{
+public static class NuGetVersionSelector {
     /// <summary>The newest non-prerelease version, or null if the package has no stable release at
     /// all (a package with only prerelease versions needs an explicit version passed to <c>add</c>).</summary>
     public static string? SelectLatestStable(IReadOnlyList<string> versions) =>
@@ -62,17 +61,14 @@ public static class NuGetVersionSelector
     /// </summary>
     public static async Task<string?> CheckForNewerWithinAsync(
         INuGetClient client, string packageId, string currentVersion, VersionConstraint? constraint,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         var versions = (await client.GetVersionsAsync(packageId, cancellationToken)).Versions;
         var best = constraint is null ? SelectLatestStable(versions) : SelectHighestMatching(versions, constraint);
-        if (best is null)
-        {
+        if (best is null) {
             return null;
         }
 
-        if (!NuGetVersion.TryParse(best, out var bestVersion) || !NuGetVersion.TryParse(currentVersion, out var current))
-        {
+        if (!NuGetVersion.TryParse(best, out var bestVersion) || !NuGetVersion.TryParse(currentVersion, out var current)) {
             return null;
         }
 

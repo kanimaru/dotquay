@@ -28,32 +28,25 @@ namespace Dotquay.Core.Sync;
 /// from reporting it a second time or failing a read-only view over it.
 /// </para>
 /// </remarks>
-public sealed class InstalledPackageManifests
-{
+public sealed class InstalledPackageManifests {
     private readonly IFileSystem _fileSystem;
 
-    public InstalledPackageManifests(IFileSystem fileSystem)
-    {
+    public InstalledPackageManifests(IFileSystem fileSystem) {
         _fileSystem = fileSystem;
     }
 
     /// <summary>The package manifest installed under <c>addons/<paramref name="folder"/></c>, or
     /// null if there is none or it doesn't parse.</summary>
-    public PackageManifest? TryRead(string projectDirectory, string folder)
-    {
+    public PackageManifest? TryRead(string projectDirectory, string folder) {
         var manifestPath = _fileSystem.CombinePath(
             InstallPaths.ForFolder(_fileSystem, projectDirectory, folder), ProjectFileStore.ManifestFileName);
-        if (!_fileSystem.FileExists(manifestPath))
-        {
+        if (!_fileSystem.FileExists(manifestPath)) {
             return null;
         }
 
-        try
-        {
+        try {
             return ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
-        }
-        catch (ManifestParseException)
-        {
+        } catch (ManifestParseException) {
             return null;
         }
     }
@@ -69,15 +62,12 @@ public sealed class InstalledPackageManifests
     /// (usually only the reachable ones); this type doesn't know about the graph.
     /// </remarks>
     public IReadOnlyDictionary<string, IReadOnlyList<DotnetSpec>> DotnetDeclarationsByAddon(
-        string projectDirectory, IEnumerable<LockedAddon> addons)
-    {
+        string projectDirectory, IEnumerable<LockedAddon> addons) {
         var result = new Dictionary<string, IReadOnlyList<DotnetSpec>>(StringComparer.Ordinal);
 
-        foreach (var locked in addons)
-        {
+        foreach (var locked in addons) {
             var package = TryRead(projectDirectory, locked.EffectiveFolder);
-            if (package is { Dotnet.Count: > 0 })
-            {
+            if (package is { Dotnet.Count: > 0 }) {
                 result[locked.Name] = package.Dotnet.Values.ToList();
             }
         }

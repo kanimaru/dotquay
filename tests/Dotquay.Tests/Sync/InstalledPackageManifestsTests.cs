@@ -9,12 +9,10 @@ namespace Dotquay.Tests.Sync;
 /// Covers <see cref="InstalledPackageManifests"/>, the single reader doctor, the graph view and
 /// <c>remove</c> share for "what does this installed addon declare?" (DESIGN-v0.19 §3.1).
 /// </summary>
-public class InstalledPackageManifestsTests
-{
+public class InstalledPackageManifestsTests {
     private const string ProjectDirectory = "project";
 
-    private static LockedAddon Addon(string name, string? folder = null) => new()
-    {
+    private static LockedAddon Addon(string name, string? folder = null) => new() {
         Name = name,
         Git = $"https://example.com/{name}.git",
         Resolved = new string('a', 40),
@@ -22,8 +20,7 @@ public class InstalledPackageManifestsTests
         Folder = folder,
     };
 
-    private static (InstalledPackageManifests Reader, InMemoryFileSystem FileSystem) Build()
-    {
+    private static (InstalledPackageManifests Reader, InMemoryFileSystem FileSystem) Build() {
         var fileSystem = new InMemoryFileSystem();
         return (new InstalledPackageManifests(fileSystem), fileSystem);
     }
@@ -44,8 +41,7 @@ public class InstalledPackageManifestsTests
         """;
 
     [Fact]
-    public void DotnetDeclarationsByAddon_ReturnsEachAddonsDeclaredPackages()
-    {
+    public void DotnetDeclarationsByAddon_ReturnsEachAddonsDeclaredPackages() {
         var (reader, fileSystem) = Build();
         Install(fileSystem, "a", DeclaresTwo);
 
@@ -58,8 +54,7 @@ public class InstalledPackageManifestsTests
     }
 
     [Fact]
-    public void DotnetDeclarationsByAddon_FollowsInstallAs()
-    {
+    public void DotnetDeclarationsByAddon_FollowsInstallAs() {
         var (reader, fileSystem) = Build();
         Install(fileSystem, "renamed", DeclaresTwo);
 
@@ -69,8 +64,7 @@ public class InstalledPackageManifestsTests
     }
 
     [Fact]
-    public void DotnetDeclarationsByAddon_SkipsAddonsThatDeclareNothing()
-    {
+    public void DotnetDeclarationsByAddon_SkipsAddonsThatDeclareNothing() {
         var (reader, fileSystem) = Build();
         Install(fileSystem, "plain", "[package]\nname = \"plain\"\nversion = \"1.0.0\"\n");
 
@@ -80,8 +74,7 @@ public class InstalledPackageManifestsTests
     }
 
     [Fact]
-    public void TryRead_MalformedManifest_IsNull()
-    {
+    public void TryRead_MalformedManifest_IsNull() {
         var (reader, fileSystem) = Build();
         Install(fileSystem, "broken", "this is [not toml");
 
@@ -89,8 +82,7 @@ public class InstalledPackageManifestsTests
     }
 
     [Fact]
-    public void TryRead_NoManifest_IsNull()
-    {
+    public void TryRead_NoManifest_IsNull() {
         var (reader, _) = Build();
 
         Assert.Null(reader.TryRead(ProjectDirectory, "nothing-here"));

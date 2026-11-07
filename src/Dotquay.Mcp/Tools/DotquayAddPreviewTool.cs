@@ -22,8 +22,7 @@ namespace Dotquay.Mcp.Tools;
 /// unambiguous where a shared parsing helper would otherwise have to be duplicated from
 /// <c>Dotquay.Cli</c> (internal there) for a convenience a structured caller doesn't need.
 /// </remarks>
-public sealed class DotquayAddPreviewTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayAddPreviewTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_add_preview";
 
     public override string Description =>
@@ -60,17 +59,14 @@ public sealed class DotquayAddPreviewTool(IProjectScope scope, ProjectGate gate)
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var git = McpArgs.GetString(arguments, "git");
 
-        if (string.IsNullOrWhiteSpace(git))
-        {
+        if (string.IsNullOrWhiteSpace(git)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'git' is required: the repository URL to preview adding.");
         }
 
-        var options = new AddonAddOptions
-        {
+        var options = new AddonAddOptions {
             Version = McpArgs.GetString(arguments, "version"),
             Branch = McpArgs.GetString(arguments, "branch"),
             Rev = McpArgs.GetString(arguments, "rev"),

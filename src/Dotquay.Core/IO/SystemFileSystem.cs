@@ -6,19 +6,16 @@ namespace Dotquay.Core.IO;
 /// <summary>Real, disk-backed <see cref="IFileSystem"/>. Everything else in Dotquay.Core takes
 /// <see cref="IFileSystem"/> as a dependency instead of calling <see cref="System.IO"/> directly,
 /// so this is the only type in the codebase allowed to do so.</summary>
-public sealed class SystemFileSystem : IFileSystem
-{
+public sealed class SystemFileSystem : IFileSystem {
     public bool FileExists(string path) => File.Exists(path);
 
     public bool DirectoryExists(string path) => Directory.Exists(path);
 
     public string ReadAllText(string path) => File.ReadAllText(path);
 
-    public void WriteAllText(string path, string contents)
-    {
+    public void WriteAllText(string path, string contents) {
         var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
-        {
+        if (!string.IsNullOrEmpty(directory)) {
             Directory.CreateDirectory(directory);
         }
 
@@ -30,11 +27,9 @@ public sealed class SystemFileSystem : IFileSystem
 
     public long GetFileLength(string path) => new FileInfo(path).Length;
 
-    public void WriteAllBytes(string path, byte[] contents)
-    {
+    public void WriteAllBytes(string path, byte[] contents) {
         var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
-        {
+        if (!string.IsNullOrEmpty(directory)) {
             Directory.CreateDirectory(directory);
         }
 
@@ -44,10 +39,8 @@ public sealed class SystemFileSystem : IFileSystem
 
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);
 
-    public void DeleteDirectory(string path)
-    {
-        if (!Directory.Exists(path))
-        {
+    public void DeleteDirectory(string path) {
+        if (!Directory.Exists(path)) {
             return;
         }
 
@@ -55,8 +48,7 @@ public sealed class SystemFileSystem : IFileSystem
         // a developer's own checkout (SPEC.md §7.4), and a recursive delete through it would destroy
         // their working copy. Passing recursive: false on a reparse point removes the link itself and
         // leaves the target untouched.
-        if (IsDirectoryLink(path))
-        {
+        if (IsDirectoryLink(path)) {
             DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"delete link {path} (target left untouched)");
             Directory.Delete(path, recursive: false);
             return;
@@ -83,17 +75,13 @@ public sealed class SystemFileSystem : IFileSystem
     /// invariant <see cref="DeleteDirectory"/> keeps for the root.</item>
     /// </list>
     /// </summary>
-    private static void DeleteTree(DirectoryInfo directory)
-    {
-        foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", SearchOption.TopDirectoryOnly))
-        {
-            if ((entry.Attributes & FileAttributes.ReadOnly) != 0)
-            {
+    private static void DeleteTree(DirectoryInfo directory) {
+        foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", SearchOption.TopDirectoryOnly)) {
+            if ((entry.Attributes & FileAttributes.ReadOnly) != 0) {
                 entry.Attributes &= ~FileAttributes.ReadOnly;
             }
 
-            switch (entry)
-            {
+            switch (entry) {
                 case DirectoryInfo link when (link.Attributes & FileAttributes.ReparsePoint) != 0:
                     link.Delete(recursive: false); // the link only; its target is not ours
                     break;
@@ -112,25 +100,19 @@ public sealed class SystemFileSystem : IFileSystem
     public bool IsDirectoryLink(string path) =>
         Directory.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
 
-    public string? ResolveDirectoryLinkTarget(string path)
-    {
-        if (!IsDirectoryLink(path))
-        {
+    public string? ResolveDirectoryLinkTarget(string path) {
+        if (!IsDirectoryLink(path)) {
             return null;
         }
 
-        try
-        {
+        try {
             // returnFinalTarget walks a chain of links through to the real folder: two junctions
             // hopping to the same checkout are the same claim and must compare equal.
             var final = Directory.ResolveLinkTarget(path, returnFinalTarget: true);
-            if (final is not null)
-            {
+            if (final is not null) {
                 return Path.GetFullPath(final.FullName);
             }
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // A link whose target is gone cannot be walked to the end. The immediate target is still
             // the claim it makes, and reporting that is what lets the caller say so by name.
         }
@@ -139,21 +121,18 @@ public sealed class SystemFileSystem : IFileSystem
         return immediate is null ? null : Path.GetFullPath(immediate.FullName);
     }
 
-    public void CreateDirectoryLink(string linkPath, string targetPath)
-    {
+    public void CreateDirectoryLink(string linkPath, string targetPath) {
         DeleteDirectory(linkPath);
 
         var parent = Path.GetDirectoryName(linkPath);
-        if (!string.IsNullOrEmpty(parent))
-        {
+        if (!string.IsNullOrEmpty(parent)) {
             Directory.CreateDirectory(parent);
         }
 
         var target = Path.GetFullPath(targetPath);
         DiagnosticLog.Write(DiagnosticLevel.Verbose, "fs", $"link {linkPath} -> {target}");
 
-        if (OperatingSystem.IsWindows())
-        {
+        if (OperatingSystem.IsWindows()) {
             // A junction, not a symlink. Windows only lets an unprivileged process create a symlink
             // when Developer Mode is enabled, which is off by default and is not something a package
             // manager should ask a Godot user to turn on. Directory junctions have no such
@@ -168,13 +147,11 @@ public sealed class SystemFileSystem : IFileSystem
     /// <summary>Shells out to <c>cmd /c mklink /J</c>, in the same spirit as this project already
     /// shelling out to <c>git</c> and <c>dotnet</c> (SPEC.md §12): the OS tool does the real work and
     /// there is no supported .NET API for creating a junction.</summary>
-    private static void CreateWindowsJunction(string linkPath, string targetPath)
-    {
+    private static void CreateWindowsJunction(string linkPath, string targetPath) {
         var arguments = new[] { "/c", "mklink", "/J", linkPath, targetPath };
         var trace = ProcessTrace.Start("cmd.exe", arguments, workingDirectory: null);
 
-        var startInfo = new System.Diagnostics.ProcessStartInfo
-        {
+        var startInfo = new System.Diagnostics.ProcessStartInfo {
             FileName = "cmd.exe",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -182,8 +159,7 @@ public sealed class SystemFileSystem : IFileSystem
             CreateNoWindow = true,
         };
 
-        foreach (var argument in arguments)
-        {
+        foreach (var argument in arguments) {
             startInfo.ArgumentList.Add(argument);
         }
 
@@ -199,8 +175,7 @@ public sealed class SystemFileSystem : IFileSystem
         process.WaitForExit();
         trace.Completed(process.ExitCode, standardOutput, standardError);
 
-        if (process.ExitCode != 0)
-        {
+        if (process.ExitCode != 0) {
             var error = standardError.Trim();
             throw new IOException(
                 $"Could not create a directory junction at '{linkPath}' -> '{targetPath}'."
@@ -208,20 +183,16 @@ public sealed class SystemFileSystem : IFileSystem
         }
     }
 
-    public void DeleteFile(string path)
-    {
-        if (File.Exists(path))
-        {
+    public void DeleteFile(string path) {
+        if (File.Exists(path)) {
             DiagnosticLog.Write(DiagnosticLevel.Trace, "fs", $"delete {path}");
             File.Delete(path);
         }
     }
 
-    public void MoveFile(string source, string destination, bool overwrite = false)
-    {
+    public void MoveFile(string source, string destination, bool overwrite = false) {
         var directory = Path.GetDirectoryName(destination);
-        if (!string.IsNullOrEmpty(directory))
-        {
+        if (!string.IsNullOrEmpty(directory)) {
             Directory.CreateDirectory(directory);
         }
 
@@ -229,10 +200,8 @@ public sealed class SystemFileSystem : IFileSystem
         File.Move(source, destination, overwrite);
     }
 
-    public void SetExecutablePermissions(string path)
-    {
-        if (!File.Exists(path) || OperatingSystem.IsWindows())
-        {
+    public void SetExecutablePermissions(string path) {
+        if (!File.Exists(path) || OperatingSystem.IsWindows()) {
             // Windows decides executability by extension, so there is nothing to set. Returning
             // rather than throwing keeps the self-update swap one code path on both platforms.
             return;
@@ -244,15 +213,12 @@ public sealed class SystemFileSystem : IFileSystem
             mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
     }
 
-    public void SetOwnerOnlyPermissions(string path)
-    {
-        if (!File.Exists(path))
-        {
+    public void SetOwnerOnlyPermissions(string path) {
+        if (!File.Exists(path)) {
             return;
         }
 
-        if (OperatingSystem.IsWindows())
-        {
+        if (OperatingSystem.IsWindows()) {
             // No-op by design. The equivalent would be rewriting the file's DACL, which needs
             // Windows-only ACL APIs; the file already sits under %USERPROFILE%, whose default ACL is
             // already owner-only. `dotquay doctor` verifies that rather than assuming it.
@@ -262,15 +228,13 @@ public sealed class SystemFileSystem : IFileSystem
         File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
 
-    public void MoveDirectory(string source, string destination)
-    {
+    public void MoveDirectory(string source, string destination) {
         // Same link guard as DeleteDirectory, for the same reason: the swap's destination is
         // addons/<folder>, which may currently be a link into someone's own checkout.
         DeleteDirectory(destination);
 
         var destinationParent = Path.GetDirectoryName(destination);
-        if (!string.IsNullOrEmpty(destinationParent))
-        {
+        if (!string.IsNullOrEmpty(destinationParent)) {
             Directory.CreateDirectory(destinationParent);
         }
 

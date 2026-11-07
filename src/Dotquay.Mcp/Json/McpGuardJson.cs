@@ -9,8 +9,7 @@ namespace Dotquay.Mcp.Json;
 
 /// <summary>Detail for a <c>Dotquay.Mcp.Guards.ForceConfirmationPolicy</c> refusal: which addons
 /// <c>force</c> would discard real content from, and why.</summary>
-public sealed record ForceConfirmationDetailJson
-{
+public sealed record ForceConfirmationDetailJson {
     public required string Policy { get; init; }
 
     public IReadOnlyList<StatusEntryJson> UnconfirmedAddons { get; init; } = [];
@@ -18,8 +17,7 @@ public sealed record ForceConfirmationDetailJson
 
 /// <summary>Detail for a <c>Dotquay.Mcp.Guards.SourceApprovalPolicy</c> refusal: which NuGet feeds
 /// the add would need to trust that weren't in <c>approved_source_urls</c>.</summary>
-public sealed record SourceApprovalDetailJson
-{
+public sealed record SourceApprovalDetailJson {
     public required string Policy { get; init; }
 
     public IReadOnlyList<PreviewSourceJson> UnapprovedSources { get; init; } = [];
@@ -37,8 +35,7 @@ public sealed record SourceApprovalDetailJson
 /// plugin's wire contract (SPEC.md §17) and this shape exists only at the MCP boundary.
 /// </remarks>
 public sealed record McpRefusalJson<TDetail>
-    where TDetail : class
-{
+    where TDetail : class {
     public int Schema { get; init; } = JsonEnvelope<OperationJson>.CurrentSchema;
 
     public string Tool { get; init; } = JsonEnvelope<OperationJson>.ToolName;

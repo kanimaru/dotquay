@@ -18,20 +18,16 @@ namespace Dotquay.Cli.Diagnostics;
 /// (the two have diverged before - see the NativeAOT notes in docs/SPRINT-01.md), which OS, and which
 /// directory <c>--project</c> actually resolved to.
 /// </remarks>
-internal sealed class RunDiagnostics
-{
+internal sealed class RunDiagnostics {
     private readonly long _started = Stopwatch.GetTimestamp();
 
-    private RunDiagnostics()
-    {
+    private RunDiagnostics() {
     }
 
-    public static RunDiagnostics Begin(IReadOnlyList<string> args, ParseResult parseResult)
-    {
+    public static RunDiagnostics Begin(IReadOnlyList<string> args, ParseResult parseResult) {
         var run = new RunDiagnostics();
 
-        if (!DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose))
-        {
+        if (!DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose)) {
             return run;
         }
 
@@ -50,8 +46,7 @@ internal sealed class RunDiagnostics
         return run;
     }
 
-    public void End(int exitCode)
-    {
+    public void End(int exitCode) {
         DiagnosticLog.Write(
             DiagnosticLevel.Verbose,
             "dotquay",
@@ -60,8 +55,7 @@ internal sealed class RunDiagnostics
 
     // A switch, not Enum.ToString: enum names are reflection metadata, and this project has been
     // bitten by the NativeAOT trimmer removing exactly that kind of thing before.
-    private static string Describe(DiagnosticLevel level) => level switch
-    {
+    private static string Describe(DiagnosticLevel level) => level switch {
         DiagnosticLevel.Trace => "trace",
         DiagnosticLevel.Verbose => "verbose",
         _ => "off",

@@ -10,8 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay source list</c>: the NuGet feeds this project searches, in order
 /// (SPEC.md §7.1, §11.1). See <c>Dotquay.Cli.Commands.SourceCommand</c>.</summary>
-public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_source_list";
 
     public override string Description => "Show the declared NuGet feeds this project searches, in order. Read-only.";
@@ -30,16 +29,13 @@ public sealed class DotquaySourceListTool(IProjectScope scope, ProjectGate gate)
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var sources = McpInfrastructure.CreateSources().List(projectDirectory);
         var credentials = McpInfrastructure.CreateCredentialResolver();
 
-        var payload = new SourceListJson
-        {
+        var payload = new SourceListJson {
             Sources = sources
-                .Select(source => new SourceJson
-                {
+                .Select(source => new SourceJson {
                     Name = source.Name,
                     Url = source.Url,
                     Packages = source.Packages,

@@ -5,8 +5,7 @@ namespace Dotquay.Core.Abstractions;
 /// readers, and <see cref="Dotquay.Core.Init.InitService"/> are testable without touching a real
 /// filesystem (see docs/SPEC.md §12, "Testable without network/disk").
 /// </summary>
-public interface IFileSystem
-{
+public interface IFileSystem {
     bool FileExists(string path);
 
     bool DirectoryExists(string path);

@@ -19,22 +19,17 @@ namespace Dotquay.Mcp.Resources;
 /// every resource this server could ever serve is already knowable at list time. Template support can
 /// be added later without breaking anything here; nothing about this shape forecloses it.
 /// </remarks>
-public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope)
-{
-    public ValueTask<ListResourcesResult> ListAsync(RequestContext<ListResourcesRequestParams> context, CancellationToken cancellationToken)
-    {
+public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope) {
+    public ValueTask<ListResourcesResult> ListAsync(RequestContext<ListResourcesRequestParams> context, CancellationToken cancellationToken) {
         var resources = new List<Resource>();
         var store = new ProjectFileStore(fileSystem);
         var localLinks = new LocalLinks(fileSystem);
 
-        foreach (var root in scope.Roots)
-        {
+        foreach (var root in scope.Roots) {
             var label = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
-            if (fileSystem.FileExists(store.ManifestPath(root)))
-            {
-                resources.Add(new Resource
-                {
+            if (fileSystem.FileExists(store.ManifestPath(root))) {
+                resources.Add(new Resource {
                     Uri = DotquayResourceUri.Manifest(root),
                     Name = $"{label}/{ProjectFileStore.ManifestFileName}",
                     Description = $"Manifest for the dotquay project at {root}.",
@@ -42,10 +37,8 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
                 });
             }
 
-            if (fileSystem.FileExists(store.LockfilePath(root)))
-            {
-                resources.Add(new Resource
-                {
+            if (fileSystem.FileExists(store.LockfilePath(root))) {
+                resources.Add(new Resource {
                     Uri = DotquayResourceUri.Lockfile(root),
                     Name = $"{label}/{ProjectFileStore.LockfileFileName}",
                     Description = $"Lockfile for the dotquay project at {root}.",
@@ -53,10 +46,8 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
                 });
             }
 
-            if (fileSystem.FileExists(localLinks.PathFor(root)))
-            {
-                resources.Add(new Resource
-                {
+            if (fileSystem.FileExists(localLinks.PathFor(root))) {
+                resources.Add(new Resource {
                     Uri = DotquayResourceUri.LocalLinks(root),
                     Name = $"{label}/{LocalLinks.FileName}",
                     Description = $"Local (per-machine, gitignored) addon links for the project at {root}.",
@@ -70,22 +61,18 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
         return ValueTask.FromResult(new ListResourcesResult { Resources = resources });
     }
 
-    private IEnumerable<Resource> ListPatches(string root, string label)
-    {
+    private IEnumerable<Resource> ListPatches(string root, string label) {
         var layout = ProjectLayout.For(fileSystem, root, manifest: null);
         var patchesDirectory = layout.PatchesPath(fileSystem);
 
-        if (!fileSystem.DirectoryExists(patchesDirectory))
-        {
+        if (!fileSystem.DirectoryExists(patchesDirectory)) {
             yield break;
         }
 
-        foreach (var patchFile in fileSystem.EnumerateFiles(patchesDirectory))
-        {
+        foreach (var patchFile in fileSystem.EnumerateFiles(patchesDirectory)) {
             var addonName = Path.GetFileNameWithoutExtension(patchFile);
 
-            yield return new Resource
-            {
+            yield return new Resource {
                 Uri = DotquayResourceUri.Patch(root, addonName),
                 Name = $"{label}/patches/{addonName}",
                 Description = $"Captured patch for '{addonName}' in the project at {root}.",
@@ -94,12 +81,10 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
         }
     }
 
-    public ValueTask<ReadResourceResult> ReadAsync(RequestContext<ReadResourceRequestParams> context, CancellationToken cancellationToken)
-    {
+    public ValueTask<ReadResourceResult> ReadAsync(RequestContext<ReadResourceRequestParams> context, CancellationToken cancellationToken) {
         var uri = context.Params?.Uri;
 
-        if (uri is null || !DotquayResourceUri.TryParse(uri, out var rawProjectDirectory, out var segments))
-        {
+        if (uri is null || !DotquayResourceUri.TryParse(uri, out var rawProjectDirectory, out var segments)) {
             throw new McpException($"'{uri}' is not a dotquay resource URI.");
         }
 
@@ -108,19 +93,15 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
         // way an out-of-scope tool call does, not read whatever the fabricated path happens to name.
         string projectDirectory;
 
-        try
-        {
+        try {
             projectDirectory = scope.Resolve(rawProjectDirectory);
-        }
-        catch (ScopeException ex)
-        {
+        } catch (ScopeException ex) {
             throw new McpException(Dotquay.Core.Diagnostics.SecretRedactor.Redact(ex.Message), ex);
         }
 
         var store = new ProjectFileStore(fileSystem);
 
-        var (path, mimeType) = segments[0] switch
-        {
+        var (path, mimeType) = segments[0] switch {
             "manifest" => (store.ManifestPath(projectDirectory), "application/toml"),
             "lockfile" => (store.LockfilePath(projectDirectory), "application/toml"),
             "local-links" => (new LocalLinks(fileSystem).PathFor(projectDirectory), "application/toml"),
@@ -129,13 +110,11 @@ public sealed class ResourceRegistry(IFileSystem fileSystem, IProjectScope scope
             _ => (null, null),
         };
 
-        if (path is null || !fileSystem.FileExists(path))
-        {
+        if (path is null || !fileSystem.FileExists(path)) {
             throw new McpException($"'{uri}' does not name a file this server can read.");
         }
 
-        return ValueTask.FromResult(new ReadResourceResult
-        {
+        return ValueTask.FromResult(new ReadResourceResult {
             Contents =
             [
                 new TextResourceContents

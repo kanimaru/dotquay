@@ -12,8 +12,7 @@ namespace Dotquay.Core.Dotnet.SourceBuild;
 /// matches anything - see <see cref="SourceProvidedPackages"/>.</param>
 /// <param name="Version">The literal version the project builds, or null when it states none (MSBuild's
 /// default then applies, which is not this project's statement) or cannot be told.</param>
-public sealed record ProjectIdentity(string? PackageId, string? Version)
-{
+public sealed record ProjectIdentity(string? PackageId, string? Version) {
     public static ProjectIdentity Unknown { get; } = new(null, null);
 
     /// <summary>
@@ -27,35 +26,27 @@ public sealed record ProjectIdentity(string? PackageId, string? Version)
     /// does when nothing sets them, which is the overwhelmingly common case for a library in the same
     /// repository.
     /// </remarks>
-    public static ProjectIdentity Read(IFileSystem fileSystem, string projectPath)
-    {
-        if (!fileSystem.FileExists(projectPath))
-        {
+    public static ProjectIdentity Read(IFileSystem fileSystem, string projectPath) {
+        if (!fileSystem.FileExists(projectPath)) {
             return Unknown;
         }
 
         XElement? project;
-        try
-        {
+        try {
             project = XDocument.Parse(fileSystem.ReadAllText(projectPath)).Root;
-        }
-        catch (XmlException)
-        {
+        } catch (XmlException) {
             return Unknown;
         }
 
-        if (project is null || project.Name.LocalName != "Project")
-        {
+        if (project is null || project.Name.LocalName != "Project") {
             return Unknown;
         }
 
         var properties = new MsbuildProperties(project);
 
-        var packageId = properties.Get("PackageId") switch
-        {
+        var packageId = properties.Get("PackageId") switch {
             { IsKnown: true } known => known.Value,
-            { IsAbsent: true } => properties.Get("AssemblyName") switch
-            {
+            { IsAbsent: true } => properties.Get("AssemblyName") switch {
                 { IsKnown: true } known => known.Value,
                 { IsAbsent: true } => FileStem(projectPath),
                 _ => null,
@@ -66,31 +57,26 @@ public sealed record ProjectIdentity(string? PackageId, string? Version)
         return new ProjectIdentity(packageId, ReadVersion(properties));
     }
 
-    private static string? ReadVersion(MsbuildProperties properties)
-    {
+    private static string? ReadVersion(MsbuildProperties properties) {
         var version = properties.Get("Version");
-        if (!version.IsAbsent)
-        {
+        if (!version.IsAbsent) {
             return version.IsKnown ? version.Value : null;
         }
 
         var prefix = properties.Get("VersionPrefix");
-        if (!prefix.IsKnown)
-        {
+        if (!prefix.IsKnown) {
             return null;
         }
 
         var suffix = properties.Get("VersionSuffix");
-        return suffix switch
-        {
+        return suffix switch {
             { IsAbsent: true } => prefix.Value,
             { IsKnown: true } => $"{prefix.Value}-{suffix.Value}",
             _ => null,
         };
     }
 
-    private static string FileStem(string path)
-    {
+    private static string FileStem(string path) {
         var name = path.Replace('\\', '/');
         name = name[(name.LastIndexOf('/') + 1)..];
         var dot = name.LastIndexOf('.');
@@ -108,10 +94,8 @@ public sealed record ProjectIdentity(string? PackageId, string? Version)
 /// value is set and dotquay cannot tell which, so falling through would guess - and a wrong guess here
 /// is a <c>PackageReference</c> silently left out of somebody's build.
 /// </remarks>
-internal sealed class MsbuildProperties(XElement project)
-{
-    public readonly record struct Property(bool IsAbsent, bool IsKnown, string? Value)
-    {
+internal sealed class MsbuildProperties(XElement project) {
+    public readonly record struct Property(bool IsAbsent, bool IsKnown, string? Value) {
         public static Property Absent { get; } = new(true, false, null);
 
         public static Property Unknown { get; } = new(false, false, null);
@@ -119,8 +103,7 @@ internal sealed class MsbuildProperties(XElement project)
         public static Property Known(string value) => new(false, true, value);
     }
 
-    public Property Get(string name)
-    {
+    public Property Get(string name) {
         var definitions = project.Elements()
             .Where(e => e.Name.LocalName == "PropertyGroup")
             .SelectMany(group => group.Elements().Where(e => e.Name.LocalName == name).Select(e => (Group: group, Element: e)))
@@ -128,26 +111,22 @@ internal sealed class MsbuildProperties(XElement project)
 
         // A property defined inside <Choose> lives under When/Otherwise, not directly under Project, and so
         // is not in the list above; it still decides the value, so its existence alone makes it unknown.
-        if (project.Descendants().Any(e => e.Name.LocalName == name && e.Ancestors().Any(IsChooseBranch)))
-        {
+        if (project.Descendants().Any(e => e.Name.LocalName == name && e.Ancestors().Any(IsChooseBranch))) {
             return Property.Unknown;
         }
 
-        if (definitions.Count == 0)
-        {
+        if (definitions.Count == 0) {
             return Property.Absent;
         }
 
-        if (definitions.Any(d => HasCondition(d.Group) || HasCondition(d.Element)))
-        {
+        if (definitions.Any(d => HasCondition(d.Group) || HasCondition(d.Element))) {
             return Property.Unknown;
         }
 
         // Later definitions override earlier ones in MSBuild's evaluation order.
         var value = definitions[^1].Element.Value.Trim();
 
-        if (value.Length == 0)
-        {
+        if (value.Length == 0) {
             // An empty PackageId/AssemblyName/Version is what the SDK's defaults test for, so it behaves as
             // if never set.
             return Property.Absent;

@@ -13,8 +13,7 @@ namespace Dotquay.Core.Abstractions;
 /// The CLI implements it as a prompt; <c>--json</c>, CI, and <c>install</c> use
 /// <see cref="DenyAllSourceApproval"/>.
 /// </remarks>
-public interface ISourceApproval
-{
+public interface ISourceApproval {
     /// <summary>True to adopt the feed. Never called for a host already in
     /// <c>[nuget] trusted_hosts</c>, and never called at all during <c>install</c>.</summary>
     bool Approve(SourceAdoptionRequest request);
@@ -38,8 +37,7 @@ public sealed record SourceAdoptionRequest(
 /// behalf; it should fail and say what to add. Denial is not an error in itself: the caller decides
 /// whether an unadopted feed is fatal.
 /// </remarks>
-public sealed class DenyAllSourceApproval : ISourceApproval
-{
+public sealed class DenyAllSourceApproval : ISourceApproval {
     public static readonly DenyAllSourceApproval Instance = new();
 
     public bool Approve(SourceAdoptionRequest request) => false;

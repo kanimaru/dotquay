@@ -15,15 +15,13 @@ namespace Dotquay.Tests.Workflows;
 /// whatever is wrong with the manifest is already sitting on disk waiting to be read. Someone asking
 /// "why isn't this dependency showing up" can get the answer from a command that works on a plane.
 /// </remarks>
-public class DoctorPackageManifestTests
-{
+public class DoctorPackageManifestTests {
     private const string ProjectDirectory = "project";
     private const string AddonUrl = "https://example.com/leaf.git";
 
     private static string Sha => new('a', 40);
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string? addonManifest)
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string? addonManifest) {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -46,8 +44,7 @@ public class DoctorPackageManifestTests
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "leaf", "plugin.cfg"), "cfg");
 
-        if (addonManifest is not null)
-        {
+        if (addonManifest is not null) {
             fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "leaf", "dotquay.toml"), addonManifest);
         }
 
@@ -55,8 +52,7 @@ public class DoctorPackageManifestTests
         return (workflow, fileSystem);
     }
 
-    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(string? addonManifest)
-    {
+    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(string? addonManifest) {
         var (workflow, _) = Build(addonManifest);
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
@@ -64,8 +60,7 @@ public class DoctorPackageManifestTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonManifestWithoutAPackageHeader_IsReported()
-    {
+    public async Task DoctorAsync_AddonManifestWithoutAPackageHeader_IsReported() {
         var issues = await RunAsync("""
             [project]
             godot = "4.7"
@@ -81,16 +76,14 @@ public class DoctorPackageManifestTests
     }
 
     [Fact]
-    public async Task DoctorAsync_MalformedTomlInAnAddon_IsReported()
-    {
+    public async Task DoctorAsync_MalformedTomlInAnAddon_IsReported() {
         var issues = await RunAsync("this is not valid toml = = =");
 
         Assert.Single(issues);
     }
 
     [Fact]
-    public async Task DoctorAsync_PackageManifestMissingName_IsReported()
-    {
+    public async Task DoctorAsync_PackageManifestMissingName_IsReported() {
         var issues = await RunAsync("""
             [package]
             version = "1.0.0"
@@ -103,8 +96,7 @@ public class DoctorPackageManifestTests
     }
 
     [Fact]
-    public async Task DoctorAsync_PackageManifestWithoutAVersion_IsNotReported()
-    {
+    public async Task DoctorAsync_PackageManifestWithoutAVersion_IsNotReported() {
         var issues = await RunAsync("""
             [package]
             name = "leaf"
@@ -116,8 +108,7 @@ public class DoctorPackageManifestTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ValidPackageManifest_IsNotReported()
-    {
+    public async Task DoctorAsync_ValidPackageManifest_IsNotReported() {
         var issues = await RunAsync("""
             [package]
             name = "leaf"
@@ -132,8 +123,7 @@ public class DoctorPackageManifestTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonWithNoManifestAtAll_IsNotReported()
-    {
+    public async Task DoctorAsync_AddonWithNoManifestAtAll_IsNotReported() {
         var issues = await RunAsync(addonManifest: null);
 
         // The overwhelmingly common case for third-party addons (SPEC.md §7.2). Flagging it would

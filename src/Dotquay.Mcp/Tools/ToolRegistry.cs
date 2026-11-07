@@ -13,14 +13,11 @@ namespace Dotquay.Mcp.Tools;
 /// git/NuGet work any real tool call does, and it means adding a tool is exactly one line
 /// (<see cref="Dotquay.Mcp.McpServerBuilder"/> constructing this registry), never two.
 /// </remarks>
-public sealed class ToolRegistry(IReadOnlyList<IMcpTool> tools)
-{
+public sealed class ToolRegistry(IReadOnlyList<IMcpTool> tools) {
     public ValueTask<ListToolsResult> ListAsync(RequestContext<ListToolsRequestParams> context, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(new ListToolsResult
-        {
+        ValueTask.FromResult(new ListToolsResult {
             Tools = tools
-                .Select(tool => new Tool
-                {
+                .Select(tool => new Tool {
                     Name = tool.Name,
                     Description = tool.Description,
                     InputSchema = tool.InputSchema,
@@ -28,13 +25,11 @@ public sealed class ToolRegistry(IReadOnlyList<IMcpTool> tools)
                 .ToList(),
         });
 
-    public ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> context, CancellationToken cancellationToken)
-    {
+    public ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> context, CancellationToken cancellationToken) {
         var name = context.Params?.Name;
         var tool = tools.FirstOrDefault(t => t.Name == name);
 
-        if (tool is null)
-        {
+        if (tool is null) {
             return ValueTask.FromResult(McpToolResults.Failure(
                 name ?? "(unknown)",
                 Dotquay.Core.Json.JsonErrorKind.Unexpected,

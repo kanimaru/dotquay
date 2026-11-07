@@ -13,15 +13,13 @@ namespace Dotquay.Tests.Git;
 /// strictly reports a conflict on a project that is fine; rewriting too eagerly sends a fetch at a
 /// host the user never named.
 /// </remarks>
-public class GitUrlTests
-{
+public class GitUrlTests {
     // -----------------------------------------------------------------------------------------
     // Parsing: the scp-like form
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void Parse_ScpLike_SplitsUserHostAndPath()
-    {
+    public void Parse_ScpLike_SplitsUserHostAndPath() {
         var url = GitUrl.Parse("git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git");
 
         Assert.Equal(GitTransport.Ssh, url.Transport);
@@ -34,8 +32,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void Parse_ScpLike_ColonDoesNotIntroduceAPort()
-    {
+    public void Parse_ScpLike_ColonDoesNotIntroduceAPort() {
         // git reads the scp-like colon as the path separator, so this is the path "2222/x" and not
         // port 2222. Matching git matters more than being intuitive: dotquay hands these strings
         // straight back to git.
@@ -50,8 +47,7 @@ public class GitUrlTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void Parse_Https_TrailingSlashAndSuffixAreNotPartOfThePath()
-    {
+    public void Parse_Https_TrailingSlashAndSuffixAreNotPartOfThePath() {
         var url = GitUrl.Parse("https://gitlab.kemomi.de/wild-alliance/vbeami/");
 
         Assert.Equal(GitTransport.Https, url.Transport);
@@ -76,8 +72,7 @@ public class GitUrlTests
         Assert.False(GitUrl.TryParse(raw, out _));
 
     [Fact]
-    public void Parse_DefaultPort_IsDiscarded()
-    {
+    public void Parse_DefaultPort_IsDiscarded() {
         // Otherwise "ssh://host:22/x" and "git@host:x" -- the same thing said two ways -- would
         // report as different repositories.
         Assert.Null(GitUrl.Parse("ssh://host:22/x").Port);
@@ -86,8 +81,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void Parse_AuthorityWithEmbeddedAt_SplitsOnTheLastOne()
-    {
+    public void Parse_AuthorityWithEmbeddedAt_SplitsOnTheLastOne() {
         var url = GitUrl.Parse("ssh://user@example.com@host/x");
 
         Assert.Equal("user@example.com", url.User);
@@ -108,8 +102,7 @@ public class GitUrlTests
         Assert.Equal(GitTransport.Local, GitUrl.Parse(raw).Transport);
 
     [Fact]
-    public void Parse_SingleLetterHostWithoutASeparator_IsStillAHost()
-    {
+    public void Parse_SingleLetterHostWithoutASeparator_IsStillAHost() {
         // The drive-letter rule keys on the separator, not on length alone: "c:x/y" is a valid
         // scp-like URL for a host literally named "c", and a drive reference always has a separator.
         var url = GitUrl.Parse("c:x/y");
@@ -123,8 +116,7 @@ public class GitUrlTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void SameRepositoryAs_AcrossTransports_IsTrue()
-    {
+    public void SameRepositoryAs_AcrossTransports_IsTrue() {
         // The whole point. These two strings are what the incident was made of.
         var https = GitUrl.Parse("https://gitlab.kemomi.de/wild-alliance/mtoon-shader");
         var ssh = GitUrl.Parse("git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git");
@@ -138,8 +130,7 @@ public class GitUrlTests
         Assert.True(GitUrl.Parse("https://GitLab.Kemomi.DE/g/r").SameRepositoryAs(GitUrl.Parse("https://gitlab.kemomi.de/g/r")));
 
     [Fact]
-    public void SameRepositoryAs_PathCasing_IsNotIgnored()
-    {
+    public void SameRepositoryAs_PathCasing_IsNotIgnored() {
         // Stricter than GitHub and GitLab need, on purpose: a self-hosted server on a case-sensitive
         // filesystem really does serve two repositories here. Over-reporting costs one [overrides]
         // line; under-reporting silently merges two addons into one folder.
@@ -151,8 +142,7 @@ public class GitUrlTests
         Assert.False(GitUrl.Parse("ssh://host:2222/g/r").SameRepositoryAs(GitUrl.Parse("git@host:g/r")));
 
     [Fact]
-    public void SameRepositoryAs_LocalPathAndRemote_IsNeverTrue()
-    {
+    public void SameRepositoryAs_LocalPathAndRemote_IsNeverTrue() {
         // A checkout of a repository is not that repository. Treating them as one would let a graph
         // walk substitute somebody's working copy for a pinned dependency.
         var local = GitUrl.Parse(@"C:\repos\mtoon-shader");
@@ -167,8 +157,7 @@ public class GitUrlTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void WithTransportOf_SshToHttps_KeepsTheRepositoryAndDropsTheUser()
-    {
+    public void WithTransportOf_SshToHttps_KeepsTheRepositoryAndDropsTheUser() {
         var declared = GitUrl.Parse("git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git");
         var template = GitUrl.Parse("https://gitlab.kemomi.de/wild-alliance/vbeami");
 
@@ -179,8 +168,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_MirrorsTheTemplatesGitSuffixConvention()
-    {
+    public void WithTransportOf_MirrorsTheTemplatesGitSuffixConvention() {
         var declared = GitUrl.Parse("git@host:g/r.git");
 
         Assert.Equal("https://host/g/r.git", declared.WithTransportOf(GitUrl.Parse("https://host/g/other.git")).Original);
@@ -188,8 +176,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_HttpsToSsh_MirrorsTheTemplatesSpelling()
-    {
+    public void WithTransportOf_HttpsToSsh_MirrorsTheTemplatesSpelling() {
         var declared = GitUrl.Parse("https://host/g/r");
 
         Assert.Equal("git@host:g/r.git", declared.WithTransportOf(GitUrl.Parse("git@host:g/other.git")).Original);
@@ -197,8 +184,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_NeverWritesAUserIntoAnHttpsUrl()
-    {
+    public void WithTransportOf_NeverWritesAUserIntoAnHttpsUrl() {
         // git would read it as the credential identity for that remote, changing which stored
         // credential matches. A transport rewrite has no business deciding that.
         var rewritten = GitUrl.Parse("ssh://deploy@host/g/r").WithTransportOf(GitUrl.Parse("https://host/g/other"));
@@ -207,8 +193,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_DifferentHost_IsRefused()
-    {
+    public void WithTransportOf_DifferentHost_IsRefused() {
         // Keys, credentials and firewall rules are per-host. Nothing about reaching host A is
         // evidence about host B.
         var declared = GitUrl.Parse("git@other-host:g/r.git");
@@ -217,8 +202,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_TemplateWithExplicitPort_IsRefused()
-    {
+    public void WithTransportOf_TemplateWithExplicitPort_IsRefused() {
         // The port belongs to the template's own route onto that host, not necessarily to this
         // repository -- an SSH gateway on 2222 does not imply every repo is reachable through it.
         var declared = GitUrl.Parse("https://host/g/r");
@@ -227,8 +211,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_LocalOnEitherSide_IsRefused()
-    {
+    public void WithTransportOf_LocalOnEitherSide_IsRefused() {
         var local = GitUrl.Parse(@"C:\repos\r");
         var remote = GitUrl.Parse("https://host/g/r");
 
@@ -237,8 +220,7 @@ public class GitUrlTests
     }
 
     [Fact]
-    public void WithTransportOf_SameTransport_ReturnsTheSameInstance()
-    {
+    public void WithTransportOf_SameTransport_ReturnsTheSameInstance() {
         // Not just equal: identical, so a caller can use reference equality to mean "nothing to
         // report" without comparing strings.
         var declared = GitUrl.Parse("https://host/g/r");

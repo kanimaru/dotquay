@@ -7,8 +7,7 @@ namespace Dotquay.Mcp.Prompts;
 
 /// <summary>Diagnose why an addon shows <c>modified</c> and recommend exactly one fix
 /// (design doc §7).</summary>
-public sealed class DotquayDiagnoseModifiedPrompt : IMcpPrompt
-{
+public sealed class DotquayDiagnoseModifiedPrompt : IMcpPrompt {
     public string Name => "dotquay_diagnose_modified";
 
     public string Description =>
@@ -25,19 +24,16 @@ public sealed class DotquayDiagnoseModifiedPrompt : IMcpPrompt
         },
     ];
 
-    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken)
-    {
+    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(context.Params?.Arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             throw new McpException("'name' is required: the addon name (as dotquay_status reports it) to diagnose.");
         }
 
         var text = McpPromptText.Render("dotquay_diagnose_modified.md", new Dictionary<string, string> { ["name"] = name });
 
-        return ValueTask.FromResult(new GetPromptResult
-        {
+        return ValueTask.FromResult(new GetPromptResult {
             Description = Description,
             Messages = [new PromptMessage { Role = Role.User, Content = new TextContentBlock { Text = text } }],
         });

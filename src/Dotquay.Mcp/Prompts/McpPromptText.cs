@@ -15,10 +15,8 @@ namespace Dotquay.Mcp.Prompts;
 /// reflection-based discovery, so it carries none of the AOT risk §3.1 rejected attribute-based tool
 /// discovery for.
 /// </remarks>
-internal static class McpPromptText
-{
-    public static string Render(string resourceFileName, IReadOnlyDictionary<string, string>? placeholders = null)
-    {
+internal static class McpPromptText {
+    public static string Render(string resourceFileName, IReadOnlyDictionary<string, string>? placeholders = null) {
         var resourceName = $"Dotquay.Mcp.Prompts.{resourceFileName}";
         var assembly = typeof(McpPromptText).Assembly;
 
@@ -30,13 +28,11 @@ internal static class McpPromptText
         using var reader = new StreamReader(stream);
         var text = reader.ReadToEnd();
 
-        if (placeholders is null)
-        {
+        if (placeholders is null) {
             return text;
         }
 
-        foreach (var (key, value) in placeholders)
-        {
+        foreach (var (key, value) in placeholders) {
             text = text.Replace("{{" + key + "}}", value);
         }
 

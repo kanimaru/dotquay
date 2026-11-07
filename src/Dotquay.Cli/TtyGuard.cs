@@ -13,8 +13,7 @@ namespace Dotquay.Cli;
 /// but it can assert the boolean logic directly. <see cref="Commands.McpCommand"/> is the one call
 /// site that passes the real <see cref="System.Console.IsInputRedirected"/>.
 /// </remarks>
-public static class TtyGuard
-{
+public static class TtyGuard {
     /// <summary>Exit code the design doc names for this specific refusal (OQ-2).</summary>
     public const int ExitCode = 2;
 

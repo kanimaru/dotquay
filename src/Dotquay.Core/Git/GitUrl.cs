@@ -2,8 +2,7 @@ namespace Dotquay.Core.Git;
 
 /// <summary>How a git URL reaches its host. Identity, not preference: two URLs can name the same
 /// repository over different transports.</summary>
-public enum GitTransport
-{
+public enum GitTransport {
     /// <summary>Either <c>git@host:path</c> (scp-like) or <c>ssh://host/path</c>.</summary>
     Ssh,
 
@@ -45,8 +44,7 @@ public enum GitTransport
 /// separator is a drive, not a host.
 /// </para>
 /// </remarks>
-public sealed record GitUrl
-{
+public sealed record GitUrl {
     private GitUrl(
         GitTransport transport,
         string? user,
@@ -55,8 +53,7 @@ public sealed record GitUrl
         string path,
         bool hadGitSuffix,
         bool scpLike,
-        string original)
-    {
+        string original) {
         Transport = transport;
         User = user;
         Host = host;
@@ -154,25 +151,20 @@ public sealed record GitUrl
     /// whether to write <c>.git</c> -- so a rewritten URL landing in a lockfile looks like the ones
     /// the project wrote by hand rather than announcing itself as machine-generated.</para>
     /// </remarks>
-    public GitUrl WithTransportOf(GitUrl template)
-    {
-        if (Transport == template.Transport)
-        {
+    public GitUrl WithTransportOf(GitUrl template) {
+        if (Transport == template.Transport) {
             return this;
         }
 
-        if (Transport == GitTransport.Local || template.Transport == GitTransport.Local)
-        {
+        if (Transport == GitTransport.Local || template.Transport == GitTransport.Local) {
             return this;
         }
 
-        if (!string.Equals(Host, template.Host, StringComparison.Ordinal))
-        {
+        if (!string.Equals(Host, template.Host, StringComparison.Ordinal)) {
             return this;
         }
 
-        if (template.Port is not null)
-        {
+        if (template.Port is not null) {
             return this;
         }
 
@@ -191,17 +183,14 @@ public sealed record GitUrl
     /// this type did not construct itself.</summary>
     public override string ToString() => Original;
 
-    private static string Render(GitTransport transport, string? user, string host, string path, bool gitSuffix, bool scpLike)
-    {
+    private static string Render(GitTransport transport, string? user, string host, string path, bool gitSuffix, bool scpLike) {
         var suffix = gitSuffix ? ".git" : string.Empty;
 
-        if (transport == GitTransport.Ssh && scpLike)
-        {
+        if (transport == GitTransport.Ssh && scpLike) {
             return $"{user ?? "git"}@{host}:{path}{suffix}";
         }
 
-        var scheme = transport switch
-        {
+        var scheme = transport switch {
             GitTransport.Ssh => "ssh",
             GitTransport.Https => "https",
             GitTransport.Http => "http",
@@ -217,12 +206,10 @@ public sealed record GitUrl
         return $"{scheme}://{authority}/{path}{suffix}";
     }
 
-    public static bool TryParse(string? raw, out GitUrl? url)
-    {
+    public static bool TryParse(string? raw, out GitUrl? url) {
         url = null;
 
-        if (string.IsNullOrWhiteSpace(raw))
-        {
+        if (string.IsNullOrWhiteSpace(raw)) {
             return false;
         }
 
@@ -240,8 +227,7 @@ public sealed record GitUrl
             ? url
             : throw new GitCommandException($"'{raw}' is not a git URL dotquay can parse.");
 
-    private static bool TryParseSchemed(string raw, out GitUrl? url)
-    {
+    private static bool TryParseSchemed(string raw, out GitUrl? url) {
         url = null;
 
         var separatorIndex = raw.IndexOf("://", StringComparison.Ordinal);
@@ -249,13 +235,11 @@ public sealed record GitUrl
         var rest = raw[(separatorIndex + 3)..];
 
         // "git+ssh://" and friends: the transport is the half that names a protocol.
-        if (scheme.StartsWith("git+", StringComparison.Ordinal))
-        {
+        if (scheme.StartsWith("git+", StringComparison.Ordinal)) {
             scheme = scheme[4..];
         }
 
-        var transport = scheme switch
-        {
+        var transport = scheme switch {
             "ssh" => GitTransport.Ssh,
             "https" => GitTransport.Https,
             "http" => GitTransport.Http,
@@ -264,13 +248,11 @@ public sealed record GitUrl
             _ => (GitTransport?)null,
         };
 
-        if (transport is null)
-        {
+        if (transport is null) {
             return false;
         }
 
-        if (transport == GitTransport.Local)
-        {
+        if (transport == GitTransport.Local) {
             url = new GitUrl(GitTransport.Local, null, string.Empty, null, NormalizePath(rest, out _), false, false, raw);
             return true;
         }
@@ -279,14 +261,12 @@ public sealed record GitUrl
         var authority = slashIndex < 0 ? rest : rest[..slashIndex];
         var pathPart = slashIndex < 0 ? string.Empty : rest[(slashIndex + 1)..];
 
-        if (!TryParseAuthority(authority, out var user, out var host, out var port) || host.Length == 0)
-        {
+        if (!TryParseAuthority(authority, out var user, out var host, out var port) || host.Length == 0) {
             return false;
         }
 
         var path = NormalizePath(pathPart, out var hadGitSuffix);
-        if (path.Length == 0)
-        {
+        if (path.Length == 0) {
             return false;
         }
 
@@ -294,14 +274,12 @@ public sealed record GitUrl
         return true;
     }
 
-    private static bool TryParseScpLikeOrLocal(string raw, out GitUrl? url)
-    {
+    private static bool TryParseScpLikeOrLocal(string raw, out GitUrl? url) {
         url = null;
 
         var colonIndex = raw.IndexOf(':');
 
-        if (colonIndex < 0)
-        {
+        if (colonIndex < 0) {
             url = Local(raw);
             return true;
         }
@@ -318,22 +296,19 @@ public sealed record GitUrl
 
         if (isWindowsDrive
             || beforeColon.Contains('/', StringComparison.Ordinal)
-            || beforeColon.Contains('\\', StringComparison.Ordinal))
-        {
+            || beforeColon.Contains('\\', StringComparison.Ordinal)) {
             url = Local(raw);
             return true;
         }
 
-        if (!TryParseAuthority(beforeColon, out var user, out var host, out _) || host.Length == 0)
-        {
+        if (!TryParseAuthority(beforeColon, out var user, out var host, out _) || host.Length == 0) {
             return false;
         }
 
         // No port here, and that is not an oversight: in the scp-like form a colon separates the
         // path, so "git@host:2222/x" means the path "2222/x" to git too. A port needs ssh:// form.
         var path = NormalizePath(raw[(colonIndex + 1)..], out var hadGitSuffix);
-        if (path.Length == 0)
-        {
+        if (path.Length == 0) {
             return false;
         }
 
@@ -344,32 +319,27 @@ public sealed record GitUrl
     private static GitUrl Local(string raw) =>
         new(GitTransport.Local, null, string.Empty, null, NormalizePath(raw, out _), false, false, raw);
 
-    private static bool TryParseAuthority(string authority, out string? user, out string host, out int? port)
-    {
+    private static bool TryParseAuthority(string authority, out string? user, out string host, out int? port) {
         user = null;
         host = string.Empty;
         port = null;
 
-        if (authority.Length == 0)
-        {
+        if (authority.Length == 0) {
             return false;
         }
 
         // Last '@', not first: a password-bearing authority ("user:pw@host") and an '@' inside a
         // username both end at the final separator.
         var atIndex = authority.LastIndexOf('@');
-        if (atIndex >= 0)
-        {
+        if (atIndex >= 0) {
             user = authority[..atIndex];
             authority = authority[(atIndex + 1)..];
         }
 
         var colonIndex = authority.LastIndexOf(':');
-        if (colonIndex >= 0)
-        {
+        if (colonIndex >= 0) {
             var portText = authority[(colonIndex + 1)..];
-            if (!int.TryParse(portText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsedPort))
-            {
+            if (!int.TryParse(portText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsedPort)) {
                 return false;
             }
 
@@ -381,15 +351,12 @@ public sealed record GitUrl
         return host.Length > 0;
     }
 
-    private static int? NormalizePort(GitTransport transport, int? port)
-    {
-        if (port is null)
-        {
+    private static int? NormalizePort(GitTransport transport, int? port) {
+        if (port is null) {
             return null;
         }
 
-        var defaultPort = transport switch
-        {
+        var defaultPort = transport switch {
             GitTransport.Ssh => 22,
             GitTransport.Https => 443,
             GitTransport.Http => 80,
@@ -400,19 +367,16 @@ public sealed record GitUrl
         return port.Value == defaultPort ? null : port;
     }
 
-    private static string NormalizePath(string path, out bool hadGitSuffix)
-    {
+    private static string NormalizePath(string path, out bool hadGitSuffix) {
         hadGitSuffix = false;
 
         var normalized = path.Replace('\\', '/').Trim('/');
 
-        while (normalized.Contains("//", StringComparison.Ordinal))
-        {
+        while (normalized.Contains("//", StringComparison.Ordinal)) {
             normalized = normalized.Replace("//", "/", StringComparison.Ordinal);
         }
 
-        if (normalized.EndsWith(".git", StringComparison.OrdinalIgnoreCase) && normalized.Length > 4)
-        {
+        if (normalized.EndsWith(".git", StringComparison.OrdinalIgnoreCase) && normalized.Length > 4) {
             hadGitSuffix = true;
             normalized = normalized[..^4];
         }

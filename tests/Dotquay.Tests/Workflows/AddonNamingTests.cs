@@ -8,8 +8,7 @@ namespace Dotquay.Tests.Workflows;
 /// Covers <see cref="AddonNaming"/> — which <c>[addons.&lt;name&gt;]</c> key <c>dotquay add</c> writes,
 /// including a second addon out of a repository that ships several (the BotV2 / <c>vbeami_vcam</c> report).
 /// </summary>
-public class AddonNamingTests
-{
+public class AddonNamingTests {
     private const string VbeamiUrl = "https://gitlab.kemomi.de/wild-alliance/vbeami/";
     private const string ManifestPath = "project/dotquay.toml";
 
@@ -27,14 +26,12 @@ public class AddonNamingTests
     [InlineData("git@github.com:kanimaru/twitcher.git", "twitcher")]
     [InlineData("git@gitlab.kemomi.de:wild-alliance/dotquay.git", "dotquay")]
     [InlineData("file:///F:/projects/godot/vbeami", "vbeami")]
-    public void DeriveFromUrl_TakesTheRepositoryName(string url, string expected)
-    {
+    public void DeriveFromUrl_TakesTheRepositoryName(string url, string expected) {
         Assert.Equal(expected, AddonNaming.DeriveFromUrl(url));
     }
 
     [Fact]
-    public void Choose_FreeUrlName_IsUsedEvenWithPathAndInstallAs()
-    {
+    public void Choose_FreeUrlName_IsUsedEvenWithPathAndInstallAs() {
         // Pinned by an older workflow test too: --path alone never renames an addon whose URL name is
         // free. The fallback only exists for the case that used to be refused outright.
         var choice = AddonNaming.Choose(
@@ -50,8 +47,7 @@ public class AddonNamingTests
     // -- the reported bug: a second subtree of the same repo --------------------------------------
 
     [Fact]
-    public void Choose_SecondSubtreeOfSameRepo_FallsBackToInstallAs()
-    {
+    public void Choose_SecondSubtreeOfSameRepo_FallsBackToInstallAs() {
         var choice = AddonNaming.Choose(
             VbeamiUrl,
             new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" },
@@ -68,8 +64,7 @@ public class AddonNamingTests
     [InlineData("godot/addons/vbeami_vcam")]
     [InlineData("godot/addons/vbeami_vcam/")]
     [InlineData("godot\\addons\\vbeami_vcam")]
-    public void Choose_SecondSubtreeWithoutInstallAs_FallsBackToPathLeaf(string path)
-    {
+    public void Choose_SecondSubtreeWithoutInstallAs_FallsBackToPathLeaf(string path) {
         var choice = AddonNaming.Choose(VbeamiUrl, new AddonAddOptions { Path = path }, Declared(Vbeami()), ManifestPath);
 
         Assert.Equal("vbeami_vcam", choice.Name);
@@ -77,8 +72,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_InstallAsTaken_FallsThroughToPathLeaf()
-    {
+    public void Choose_InstallAsTaken_FallsThroughToPathLeaf() {
         var choice = AddonNaming.Choose(
             VbeamiUrl,
             new AddonAddOptions { Path = "godot/addons/vbeami_vcam", InstallAs = "cam" },
@@ -89,8 +83,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_SameRepoOverAnotherTransport_IsStillTheSameRepository()
-    {
+    public void Choose_SameRepoOverAnotherTransport_IsStillTheSameRepository() {
         // GitUrl identity (v0.15): the ssh spelling of the repo is the same repo, so asking for the
         // same subtree again over ssh is a re-add, not a second addon.
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
@@ -105,8 +98,7 @@ public class AddonNamingTests
     // -- the accidental re-add keeps its old refusal ---------------------------------------------
 
     [Fact]
-    public void Choose_SameRepoNoPathNamed_RefusesWithUpdateHint()
-    {
+    public void Choose_SameRepoNoPathNamed_RefusesWithUpdateHint() {
         // No subtree named means "the one I already have", even though the default guess
         // (addons/vbeami) differs from the declared godot/addons/vbeami.
         var exception = Assert.Throws<WorkflowException>(
@@ -117,8 +109,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_SameRepoSameSubtree_RefusesEvenWithInstallAs()
-    {
+    public void Choose_SameRepoSameSubtree_RefusesEvenWithInstallAs() {
         // Same files from the same repo: a fallback name here would install a second copy of it.
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
             VbeamiUrl,
@@ -130,8 +121,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_DefaultSubtreeDeclaredWithoutPath_MatchesExplicitDefault()
-    {
+    public void Choose_DefaultSubtreeDeclaredWithoutPath_MatchesExplicitDefault() {
         // An entry without `path` extracts addons/<name>; naming that same subtree is the same addon.
         var declared = Declared(Vbeami(path: null));
 
@@ -142,8 +132,7 @@ public class AddonNamingTests
     // -- nothing left to fall back to ------------------------------------------------------------
 
     [Fact]
-    public void Choose_DifferentSubtreeNothingToFallBackTo_AsksForName()
-    {
+    public void Choose_DifferentSubtreeNothingToFallBackTo_AsksForName() {
         // The repo root has no leaf, and no --install-as was given.
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
             VbeamiUrl, new AddonAddOptions { Path = "." }, Declared(Vbeami()), ManifestPath));
@@ -154,8 +143,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_EveryCandidateTaken_NamesThemAllAndAsksForName()
-    {
+    public void Choose_EveryCandidateTaken_NamesThemAllAndAsksForName() {
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
             VbeamiUrl,
             new AddonAddOptions { Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" },
@@ -168,8 +156,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_DifferentRepoSharingTheName_FallsBackToo()
-    {
+    public void Choose_DifferentRepoSharingTheName_FallsBackToo() {
         // Two forks both called "gut": the second is a different addon, not a re-add.
         var declared = Declared(new AddonSpec { Name = "gut", Git = "https://github.com/bitwes/Gut.git", Version = "~9" });
 
@@ -185,8 +172,7 @@ public class AddonNamingTests
     // -- --name -----------------------------------------------------------------------------------
 
     [Fact]
-    public void Choose_ExplicitName_WinsOverEverything()
-    {
+    public void Choose_ExplicitName_WinsOverEverything() {
         var choice = AddonNaming.Choose(
             VbeamiUrl,
             new AddonAddOptions { Name = "camera", Path = "godot/addons/vbeami_vcam", InstallAs = "vbeami_vcam" },
@@ -197,8 +183,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_ExplicitNameTaken_Refuses()
-    {
+    public void Choose_ExplicitNameTaken_Refuses() {
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
             VbeamiUrl, new AddonAddOptions { Name = "vbeami", Path = "godot/addons/vbeami_vcam" }, Declared(Vbeami()), ManifestPath));
 
@@ -212,8 +197,7 @@ public class AddonNamingTests
     [InlineData("..")]
     [InlineData("C:")]
     [InlineData("vbeami.vcam")]
-    public void Choose_ExplicitNameNotAPlainFolderName_Refuses(string name)
-    {
+    public void Choose_ExplicitNameNotAPlainFolderName_Refuses(string name) {
         var exception = Assert.Throws<WorkflowException>(() => AddonNaming.Choose(
             VbeamiUrl, new AddonAddOptions { Name = name }, Declared(), ManifestPath));
 
@@ -221,8 +205,7 @@ public class AddonNamingTests
     }
 
     [Fact]
-    public void Choose_UnsafeInstallAs_IsNeverUsedAsAName()
-    {
+    public void Choose_UnsafeInstallAs_IsNeverUsedAsAName() {
         // install_as is validated later by the manifest reader; the naming fallback must not turn an
         // unsafe folder into a manifest key on the way there.
         var choice = AddonNaming.Choose(
@@ -244,8 +227,7 @@ public class AddonNamingTests
     [InlineData("addons/gut", "gut")]
     [InlineData("/godot/addons/vbeami_vcam/", "vbeami_vcam")]
     [InlineData("src\\Dotquay.Godot\\addons\\dotquay", "dotquay")]
-    public void PathLeaf_TakesTheLastSegment(string? path, string? expected)
-    {
+    public void PathLeaf_TakesTheLastSegment(string? path, string? expected) {
         Assert.Equal(expected, AddonNaming.PathLeaf(path));
     }
 }

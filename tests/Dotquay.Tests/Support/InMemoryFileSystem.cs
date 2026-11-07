@@ -7,8 +7,7 @@ namespace Dotquay.Tests.Support;
 /// hermetic (SPEC.md §12: "testable without network/disk") — no temp directories, no cleanup, no
 /// tests that leak state into each other via a shared real filesystem.
 /// </summary>
-public sealed class InMemoryFileSystem : IFileSystem
-{
+public sealed class InMemoryFileSystem : IFileSystem {
     // Bytes are the single source of truth — ReadAllText/WriteAllText are just UTF-8 views over
     // the same store, so a file written as bytes is visible as text and vice versa, the way a
     // real filesystem behaves.
@@ -31,19 +30,16 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public void WriteAllText(string path, string contents) => WriteAllBytes(path, System.Text.Encoding.UTF8.GetBytes(contents));
 
-    public byte[] ReadAllBytes(string path)
-    {
+    public byte[] ReadAllBytes(string path) {
         var key = Resolve(path);
-        if (!_files.TryGetValue(key, out var contents))
-        {
+        if (!_files.TryGetValue(key, out var contents)) {
             throw new FileNotFoundException($"No such file in the in-memory filesystem: {path}", path);
         }
 
         return contents;
     }
 
-    public void WriteAllBytes(string path, byte[] contents)
-    {
+    public void WriteAllBytes(string path, byte[] contents) {
         var key = Resolve(path);
         GuardWritable(key);
         CreateDirectory(ParentOf(key));
@@ -61,48 +57,40 @@ public sealed class InMemoryFileSystem : IFileSystem
     /// on and the only reason the bit is modelled at all.</summary>
     public HashSet<string> ExecutableFiles { get; } = new(StringComparer.Ordinal);
 
-    private void GuardWritable(string key)
-    {
+    private void GuardWritable(string key) {
         var parent = ParentOf(key);
 
-        foreach (var directory in ReadOnlyDirectories)
-        {
+        foreach (var directory in ReadOnlyDirectories) {
             var normalized = Normalize(directory);
-            if (parent == normalized || parent.StartsWith(normalized + "/", StringComparison.Ordinal))
-            {
+            if (parent == normalized || parent.StartsWith(normalized + "/", StringComparison.Ordinal)) {
                 throw new UnauthorizedAccessException($"Access to the path '{key}' is denied.");
             }
         }
     }
 
-    public void CreateDirectory(string path)
-    {
+    public void CreateDirectory(string path) {
         var current = "";
         _directories.Add(current);
 
-        foreach (var segment in Normalize(path).Split('/', StringSplitOptions.RemoveEmptyEntries))
-        {
+        foreach (var segment in Normalize(path).Split('/', StringSplitOptions.RemoveEmptyEntries)) {
             current = current.Length == 0 ? segment : $"{current}/{segment}";
             _directories.Add(current);
         }
     }
 
-    public void DeleteDirectory(string path)
-    {
+    public void DeleteDirectory(string path) {
         var key = Normalize(path);
 
         // Deleting a link removes the link and nothing else. The target is somebody's own checkout of
         // the addon; recursing into it would delete their working copy, uncommitted work included.
-        if (_links.Remove(key))
-        {
+        if (_links.Remove(key)) {
             _directories.Remove(key);
             return;
         }
 
         _directories.RemoveWhere(d => d == key || d.StartsWith(key + "/", StringComparison.Ordinal));
 
-        foreach (var file in _files.Keys.Where(f => f == key || f.StartsWith(key + "/", StringComparison.Ordinal)).ToList())
-        {
+        foreach (var file in _files.Keys.Where(f => f == key || f.StartsWith(key + "/", StringComparison.Ordinal)).ToList()) {
             _files.Remove(file);
         }
     }
@@ -112,8 +100,7 @@ public sealed class InMemoryFileSystem : IFileSystem
     public string? ResolveDirectoryLinkTarget(string path) =>
         _links.TryGetValue(Normalize(path), out var target) ? GetFullPath(target) : null;
 
-    public void CreateDirectoryLink(string linkPath, string targetPath)
-    {
+    public void CreateDirectoryLink(string linkPath, string targetPath) {
         var key = Normalize(linkPath);
 
         DeleteDirectory(key);
@@ -125,18 +112,15 @@ public sealed class InMemoryFileSystem : IFileSystem
 
     public void DeleteFile(string path) => _files.Remove(Normalize(path));
 
-    public void MoveFile(string source, string destination, bool overwrite = false)
-    {
+    public void MoveFile(string source, string destination, bool overwrite = false) {
         var from = Resolve(source);
         var to = Resolve(destination);
 
-        if (!_files.TryGetValue(from, out var contents))
-        {
+        if (!_files.TryGetValue(from, out var contents)) {
             throw new FileNotFoundException($"No such file in the in-memory filesystem: {source}", source);
         }
 
-        if (!overwrite && _files.ContainsKey(to))
-        {
+        if (!overwrite && _files.ContainsKey(to)) {
             throw new IOException($"The file '{destination}' already exists.");
         }
 
@@ -146,19 +130,16 @@ public sealed class InMemoryFileSystem : IFileSystem
         _files[to] = contents;
         _files.Remove(from);
 
-        if (ExecutableFiles.Remove(from))
-        {
+        if (ExecutableFiles.Remove(from)) {
             ExecutableFiles.Add(to);
         }
     }
 
-    public void SetExecutablePermissions(string path)
-    {
+    public void SetExecutablePermissions(string path) {
         var key = Resolve(path);
 
         // Matches the real implementation, which returns early for a missing file.
-        if (_files.ContainsKey(key))
-        {
+        if (_files.ContainsKey(key)) {
             ExecutableFiles.Add(key);
         }
     }
@@ -168,14 +149,12 @@ public sealed class InMemoryFileSystem : IFileSystem
     /// real assertion instead of a code review.</summary>
     public HashSet<string> OwnerOnlyPaths { get; } = new(StringComparer.Ordinal);
 
-    public void SetOwnerOnlyPermissions(string path)
-    {
+    public void SetOwnerOnlyPermissions(string path) {
         var key = Normalize(path);
 
         // Matches the real implementation, which returns early for a missing file — so a store that
         // set permissions before writing would fail this fake exactly as it fails on disk.
-        if (_files.ContainsKey(key))
-        {
+        if (_files.ContainsKey(key)) {
             OwnerOnlyPaths.Add(key);
         }
     }
@@ -185,23 +164,20 @@ public sealed class InMemoryFileSystem : IFileSystem
     /// left it alone - content alone cannot, since both end with the same files.</summary>
     public List<(string Source, string Destination)> DirectoryMoves { get; } = [];
 
-    public void MoveDirectory(string source, string destination)
-    {
+    public void MoveDirectory(string source, string destination) {
         var sourceKey = Normalize(source);
         var destinationKey = Normalize(destination);
         DirectoryMoves.Add((sourceKey, destinationKey));
 
         DeleteDirectory(destinationKey);
 
-        foreach (var file in _files.Keys.Where(f => f == sourceKey || f.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList())
-        {
+        foreach (var file in _files.Keys.Where(f => f == sourceKey || f.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList()) {
             var suffix = file[sourceKey.Length..];
             _files[destinationKey + suffix] = _files[file];
             _files.Remove(file);
         }
 
-        foreach (var dir in _directories.Where(d => d == sourceKey || d.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList())
-        {
+        foreach (var dir in _directories.Where(d => d == sourceKey || d.StartsWith(sourceKey + "/", StringComparison.Ordinal)).ToList()) {
             var suffix = dir[sourceKey.Length..];
             _directories.Add(destinationKey + suffix);
             _directories.Remove(dir);
@@ -215,20 +191,16 @@ public sealed class InMemoryFileSystem : IFileSystem
     /// wrote", which has to check files it doesn't know the names of.</summary>
     public IEnumerable<string> AllFilePaths() => _files.Keys.ToList();
 
-    public IEnumerable<string> EnumerateFiles(string path, bool recursive = true)
-    {
+    public IEnumerable<string> EnumerateFiles(string path, bool recursive = true) {
         var key = Resolve(path);
         var prefix = key.Length == 0 ? "" : key + "/";
 
-        foreach (var file in _files.Keys)
-        {
-            if (file != key && !file.StartsWith(prefix, StringComparison.Ordinal))
-            {
+        foreach (var file in _files.Keys) {
+            if (file != key && !file.StartsWith(prefix, StringComparison.Ordinal)) {
                 continue;
             }
 
-            if (!recursive && file.Length > prefix.Length && file[prefix.Length..].Contains('/'))
-            {
+            if (!recursive && file.Length > prefix.Length && file[prefix.Length..].Contains('/')) {
                 continue;
             }
 
@@ -236,21 +208,17 @@ public sealed class InMemoryFileSystem : IFileSystem
         }
     }
 
-    public IEnumerable<string> EnumerateDirectories(string path, bool recursive = false)
-    {
+    public IEnumerable<string> EnumerateDirectories(string path, bool recursive = false) {
         var key = Resolve(path);
         var prefix = key.Length == 0 ? "" : key + "/";
 
-        foreach (var dir in _directories)
-        {
-            if (dir.Length == 0 || dir == key || !dir.StartsWith(prefix, StringComparison.Ordinal))
-            {
+        foreach (var dir in _directories) {
+            if (dir.Length == 0 || dir == key || !dir.StartsWith(prefix, StringComparison.Ordinal)) {
                 continue;
             }
 
             var remainder = dir[prefix.Length..];
-            if (!recursive && remainder.Contains('/'))
-            {
+            if (!recursive && remainder.Contains('/')) {
                 continue;
             }
 
@@ -275,24 +243,19 @@ public sealed class InMemoryFileSystem : IFileSystem
     /// than a mocked one. Deliberately not applied to the link's own bookkeeping (create, delete,
     /// and the link test itself), which must act on the literal path.
     /// </remarks>
-    private string Resolve(string path)
-    {
+    private string Resolve(string path) {
         var key = Normalize(path);
 
-        if (_links.Count == 0)
-        {
+        if (_links.Count == 0) {
             return key;
         }
 
-        foreach (var (link, target) in _links)
-        {
-            if (key == link)
-            {
+        foreach (var (link, target) in _links) {
+            if (key == link) {
                 return target;
             }
 
-            if (key.StartsWith(link + "/", StringComparison.Ordinal))
-            {
+            if (key.StartsWith(link + "/", StringComparison.Ordinal)) {
                 return target + key[link.Length..];
             }
         }
@@ -300,8 +263,7 @@ public sealed class InMemoryFileSystem : IFileSystem
         return key;
     }
 
-    private static string ParentOf(string key)
-    {
+    private static string ParentOf(string key) {
         var index = key.LastIndexOf('/');
         return index < 0 ? "" : key[..index];
     }

@@ -26,8 +26,7 @@ namespace Dotquay.Tests.Workflows;
 /// this, because a full update marks every root fresh; only transitive ones were exposed.
 /// </para>
 /// </remarks>
-public class TransitiveInstallAsTests
-{
+public class TransitiveInstallAsTests {
     private const string ProjectDirectory = "project";
     private const string ParentUrl = "https://example.com/parent.git";
     private const string ChildUrl = "https://example.com/child.git";
@@ -38,16 +37,14 @@ public class TransitiveInstallAsTests
 
     /// <param name="childInstallAs">What the parent's package manifest says about the child's folder,
     /// or null for the pre-fix manifest that said nothing.</param>
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string? childInstallAs)
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string? childInstallAs) {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
 
         var installAsLine = childInstallAs is null ? string.Empty : $"install_as = \"{childInstallAs}\"\n";
 
         gitClient.RemoteRefsByUrl[ParentUrl] = [new GitRef("v1.0.0", ParentSha, GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[ParentUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[ParentUrl] = new Dictionary<string, string> {
             ["addons/parent/plugin.cfg"] = "cfg",
             ["addons/parent/dotquay.toml"] =
                 "[package]\nname = \"parent\"\n\n[addons.child]\n"
@@ -74,8 +71,7 @@ public class TransitiveInstallAsTests
         fileSystem.DirectoryExists(fileSystem.CombinePath(ProjectDirectory, "addons", folder));
 
     [Fact]
-    public async Task UpdateAsync_ParentDeclaringInstallAs_PutsTheChildThere()
-    {
+    public async Task UpdateAsync_ParentDeclaringInstallAs_PutsTheChildThere() {
         var (workflow, fileSystem) = Build(childInstallAs: "Renamed-Child");
 
         await workflow.UpdateAsync(ProjectDirectory, name: null, force: false);
@@ -85,8 +81,7 @@ public class TransitiveInstallAsTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ParentAddsInstallAsLater_MovesAnAlreadyInstalledChild()
-    {
+    public async Task UpdateAsync_ParentAddsInstallAsLater_MovesAnAlreadyInstalledChild() {
         // First install with the old parent manifest, which named no folder.
         var (before, beforeFs) = Build(childInstallAs: null);
         await before.UpdateAsync(ProjectDirectory, name: null, force: false);
@@ -107,8 +102,7 @@ public class TransitiveInstallAsTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ParentAddsInstallAsLater_RecordsTheFolderInTheLockfile()
-    {
+    public async Task UpdateAsync_ParentAddsInstallAsLater_RecordsTheFolderInTheLockfile() {
         var (before, beforeFs) = Build(childInstallAs: null);
         await before.UpdateAsync(ProjectDirectory, name: null, force: false);
 
@@ -126,8 +120,7 @@ public class TransitiveInstallAsTests
     }
 
     [Fact]
-    public async Task UpdateAsync_NothingChanged_StillSkipsTheReinstall()
-    {
+    public async Task UpdateAsync_NothingChanged_StillSkipsTheReinstall() {
         // The optimisation the fix must not defeat: an genuinely unchanged transitive addon should
         // not be refetched and reinstalled on every update.
         var (before, beforeFs) = Build(childInstallAs: "Renamed-Child");
@@ -143,8 +136,7 @@ public class TransitiveInstallAsTests
     }
 
     [Fact]
-    public async Task SyncAddonGraph_PrunesAnOrphanByItsRealFolder()
-    {
+    public async Task SyncAddonGraph_PrunesAnOrphanByItsRealFolder() {
         var (workflow, fileSystem) = Build(childInstallAs: "Renamed-Child");
         await workflow.UpdateAsync(ProjectDirectory, name: null, force: false);
         Assert.True(HasFolder(fileSystem, "Renamed-Child"));

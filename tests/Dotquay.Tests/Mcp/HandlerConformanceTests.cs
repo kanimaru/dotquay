@@ -9,8 +9,7 @@ namespace Dotquay.Tests.Mcp;
 /// behave correctly end to end — initialize, <c>tools/list</c>, <c>tools/call</c> — over
 /// <see cref="McpTestHarness"/>'s in-memory stream transport.
 /// </summary>
-public sealed class HandlerConformanceTests : IAsyncDisposable
-{
+public sealed class HandlerConformanceTests : IAsyncDisposable {
     private readonly string _projectDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-test-").FullName;
     private McpTestHarness? _harness;
 
@@ -18,8 +17,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
         _harness ??= await McpTestHarness.StartAsync([_projectDirectory]);
 
     [Fact]
-    public async Task Tools_list_returns_exactly_the_eight_read_tools_and_eleven_write_tools()
-    {
+    public async Task Tools_list_returns_exactly_the_eight_read_tools_and_eleven_write_tools() {
         var harness = await HarnessAsync();
 
         var tools = await harness.Client.ListToolsAsync();
@@ -54,8 +52,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Calling_an_unknown_tool_fails_cleanly_instead_of_throwing()
-    {
+    public async Task Calling_an_unknown_tool_fails_cleanly_instead_of_throwing() {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.CallToolAsync("dotquay_does_not_exist", new Dictionary<string, object?>());
@@ -65,8 +62,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Add_preview_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash()
-    {
+    public async Task Add_preview_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash() {
         // dotquay_status tolerates a missing manifest (it only reads the lockfile, defaulting to
         // empty — DependencyWorkflow.Status), so it can't exercise this path. dotquay_add_preview
         // calls ReadManifestOrThrow first (DependencyWorkflow.Preview.cs), guaranteeing it.
@@ -86,10 +82,8 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     [InlineData("dotquay.toml", "dotquay_doctor")]
     [InlineData("dotquay.local.toml", "dotquay_doctor")]
     [InlineData("dotquay.toml", "dotquay_add_preview")]
-    public async Task A_malformed_project_file_is_a_tool_error_of_kind_invalid_project_file(string file, string tool)
-    {
-        if (file != "dotquay.toml")
-        {
+    public async Task A_malformed_project_file_is_a_tool_error_of_kind_invalid_project_file(string file, string tool) {
+        if (file != "dotquay.toml") {
             File.WriteAllText(Path.Combine(_projectDirectory, "dotquay.toml"), "[project]\n");
         }
 
@@ -109,8 +103,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Add_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash()
-    {
+    public async Task Add_on_a_project_with_no_manifest_reports_no_manifest_not_a_crash() {
         // dotquay_add's write guard runs PreviewAddAsync first (SourceApprovalPolicy), which hits the
         // same ReadManifestOrThrow as dotquay_add_preview — so the missing manifest is caught before
         // AddAsync itself ever runs, and before anything is written.
@@ -125,14 +118,12 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Add_with_a_nuget_source_argument_is_refused_before_touching_the_manifest()
-    {
+    public async Task Add_with_a_nuget_source_argument_is_refused_before_touching_the_manifest() {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.CallToolAsync(
             "dotquay_add",
-            new Dictionary<string, object?>
-            {
+            new Dictionary<string, object?> {
                 ["project"] = _projectDirectory,
                 ["git_url"] = "https://example.com/addon.git",
                 ["nuget_source"] = "some-feed",
@@ -143,8 +134,7 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Init_on_an_empty_directory_creates_a_project_manifest()
-    {
+    public async Task Init_on_an_empty_directory_creates_a_project_manifest() {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.CallToolAsync(
@@ -155,48 +145,39 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task A_project_path_outside_every_configured_root_is_refused_by_scope_not_read_from_disk()
-    {
+    public async Task A_project_path_outside_every_configured_root_is_refused_by_scope_not_read_from_disk() {
         var harness = await HarnessAsync();
         var outsideDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-outside-").FullName;
 
-        try
-        {
+        try {
             var result = await harness.Client.CallToolAsync(
                 "dotquay_status", new Dictionary<string, object?> { ["project"] = outsideDirectory });
 
             Assert.True(result.IsError);
             AssertErrorKind(result, "scope");
-        }
-        finally
-        {
+        } finally {
             Directory.Delete(outsideDirectory, recursive: true);
         }
     }
 
     [Fact]
-    public async Task A_write_tool_is_also_refused_by_scope_before_it_can_write_anything()
-    {
+    public async Task A_write_tool_is_also_refused_by_scope_before_it_can_write_anything() {
         var harness = await HarnessAsync();
         var outsideDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-outside-").FullName;
 
-        try
-        {
+        try {
             var result = await harness.Client.CallToolAsync(
                 "dotquay_init", new Dictionary<string, object?> { ["project"] = outsideDirectory });
 
             Assert.True(result.IsError);
             AssertErrorKind(result, "scope");
             Assert.False(File.Exists(Path.Combine(outsideDirectory, "dotquay.toml")));
-        }
-        finally
-        {
+        } finally {
             Directory.Delete(outsideDirectory, recursive: true);
         }
     }
 
-    private static void AssertErrorKind(CallToolResult result, string expectedKind)
-    {
+    private static void AssertErrorKind(CallToolResult result, string expectedKind) {
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         using var document = JsonDocument.Parse(text);
 
@@ -209,10 +190,8 @@ public sealed class HandlerConformanceTests : IAsyncDisposable
         Assert.Equal(text, result.StructuredContent.Value.GetRawText());
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        if (_harness is not null)
-        {
+    public async ValueTask DisposeAsync() {
+        if (_harness is not null) {
             await _harness.DisposeAsync();
         }
 

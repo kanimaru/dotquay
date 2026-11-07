@@ -4,8 +4,7 @@ namespace Dotquay.Tests.Support;
 
 /// <summary>Configurable <see cref="IGitClient"/> test double — no real git process or network
 /// call needed to test the resolver (SPEC.md §12: testable without network/disk).</summary>
-public sealed class FakeGitClient : IGitClient
-{
+public sealed class FakeGitClient : IGitClient {
     public Dictionary<string, IReadOnlyList<GitRef>> RemoteRefsByUrl { get; } = new();
 
     public Dictionary<(string Url, string Branch), string> BranchTips { get; } = new();
@@ -40,8 +39,7 @@ public sealed class FakeGitClient : IGitClient
     public List<(string CheckoutPath, string Sha)> CommitDateCalls { get; } = [];
 
     public Task<DateTimeOffset?> GetCommitDateAsync(
-        string checkoutPath, string commitSha, CancellationToken cancellationToken = default)
-    {
+        string checkoutPath, string commitSha, CancellationToken cancellationToken = default) {
         CommitDateCalls.Add((checkoutPath, commitSha));
         return Task.FromResult<DateTimeOffset?>(CommitDates.TryGetValue(commitSha, out var date) ? date : null);
     }
@@ -57,20 +55,16 @@ public sealed class FakeGitClient : IGitClient
             ? Task.FromException<IReadOnlyList<GitRef>>(failure)
             : Task.FromResult(RemoteRefsByUrl.TryGetValue(repositoryUrl, out var refs) ? refs : []);
 
-    public Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default)
-    {
-        if (!BranchTips.TryGetValue((repositoryUrl, branch), out var sha))
-        {
+    public Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default) {
+        if (!BranchTips.TryGetValue((repositoryUrl, branch), out var sha)) {
             throw new InvalidOperationException($"No fake branch tip configured for {repositoryUrl}@{branch}.");
         }
 
         return Task.FromResult(sha);
     }
 
-    public Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default)
-    {
-        if (!DefaultBranches.TryGetValue(repositoryUrl, out var branch))
-        {
+    public Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
+        if (!DefaultBranches.TryGetValue(repositoryUrl, out var branch)) {
             throw new InvalidOperationException($"No fake default branch configured for {repositoryUrl}.");
         }
 
@@ -78,20 +72,16 @@ public sealed class FakeGitClient : IGitClient
     }
 
     public Task FetchCommitAsync(
-        string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default)
-    {
+        string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default) {
         FetchCalls.Add((repositoryUrl, commitSha, destinationPath));
 
-        if (FileSystemForFetchedContent is { } fileSystem)
-        {
+        if (FileSystemForFetchedContent is { } fileSystem) {
             var files = FetchedFilesByUrlAndSha.TryGetValue((repositoryUrl, commitSha), out var perSha)
                 ? perSha
                 : FetchedFilesByUrl.TryGetValue(repositoryUrl, out var perUrl) ? perUrl : null;
 
-            if (files is not null)
-            {
-                foreach (var (relativePath, content) in files)
-                {
+            if (files is not null) {
+                foreach (var (relativePath, content) in files) {
                     fileSystem.WriteAllText(fileSystem.CombinePath(destinationPath, relativePath), content);
                 }
             }

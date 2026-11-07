@@ -7,8 +7,7 @@ namespace Dotquay.Core.Workflows;
 /// it returned anything, <c>remove --json</c> and the MCP remove tool reported every removal as
 /// <c>"addon"</c>, because the caller had no way to know which branch had matched.
 /// </remarks>
-public enum DependencyKind
-{
+public enum DependencyKind {
     Addon,
     Dotnet,
 }

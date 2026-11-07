@@ -27,8 +27,7 @@ namespace Dotquay.Tests.Local;
 /// docs/HANDOVER-link-analyzer-staging.md.
 /// </para>
 /// </remarks>
-public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
-{
+public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable {
     private const string PackageId = "Gen.Pkg";
     private const int BuildTimeoutMilliseconds = 180_000;
 
@@ -36,8 +35,7 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
     private readonly string _generatorDirectory;
     private readonly string _consumerDirectory;
 
-    public LinkedAnalyzerStagingRealProcessTests()
-    {
+    public LinkedAnalyzerStagingRealProcessTests() {
         _root = Directory.CreateTempSubdirectory("dotquay-analyzer-staging-").FullName;
         _generatorDirectory = Path.Combine(_root, "Gen");
         _consumerDirectory = Path.Combine(_root, "App");
@@ -67,8 +65,7 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
         File.WriteAllText(
             Path.Combine(_consumerDirectory, "Program.cs"), "System.Console.WriteLine(\"app\");");
 
-        var links = new Dictionary<string, DotnetLink>
-        {
+        var links = new Dictionary<string, DotnetLink> {
             [PackageId] = new DotnetLink(
                 PackageId, Path.Combine(_generatorDirectory, "Gen.csproj"), Analyzer: true),
         };
@@ -76,8 +73,7 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
     }
 
     [Fact]
-    public async Task AHostHoldingTheStagedAnalyzer_DoesNotBlockTheGeneratorsRebuild()
-    {
+    public async Task AHostHoldingTheStagedAnalyzer_DoesNotBlockTheGeneratorsRebuild() {
         var first = await BuildAsync(_consumerDirectory, "App.csproj");
         Assert.True(first.ExitCode == 0, first.Output);
 
@@ -100,21 +96,17 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
         // The rebuilt generator landed in a directory of its own. Where the OS enforces the lock
         // the held one survives the sweep; where it does not (Unix), the sweep takes it too.
         var after = StagedAnalyzers();
-        if (OperatingSystem.IsWindows())
-        {
+        if (OperatingSystem.IsWindows()) {
             Assert.Contains(single, after);
             Assert.Equal(2, after.Count);
-        }
-        else
-        {
+        } else {
             Assert.DoesNotContain(single, after);
             Assert.Single(after);
         }
     }
 
     [Fact]
-    public async Task AStaleStagedDirectory_IsSweptOnceNothingHoldsIt()
-    {
+    public async Task AStaleStagedDirectory_IsSweptOnceNothingHoldsIt() {
         Assert.Equal(0, (await BuildAsync(_consumerDirectory, "App.csproj")).ExitCode);
         var original = Assert.Single(StagedAnalyzers());
 
@@ -128,12 +120,10 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
     }
 
     [Fact]
-    public async Task WithStagingDisabled_TheSameLockBreaksTheRebuild()
-    {
+    public async Task WithStagingDisabled_TheSameLockBreaksTheRebuild() {
         // The control: without it the tests above could pass for a reason that has nothing to do
         // with staging, e.g. a host lock that never actually bites.
-        if (!OperatingSystem.IsWindows())
-        {
+        if (!OperatingSystem.IsWindows()) {
             return;
         }
 
@@ -157,23 +147,16 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
         Assert.NotEqual(0, rebuild.ExitCode);
     }
 
-    public void Dispose()
-    {
-        try
-        {
+    public void Dispose() {
+        try {
             Directory.Delete(_root, recursive: true);
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // Best effort: a build node still winding down must not fail a test that has passed.
-        }
-        catch (UnauthorizedAccessException)
-        {
+        } catch (UnauthorizedAccessException) {
         }
     }
 
-    private List<string> StagedAnalyzers()
-    {
+    private List<string> StagedAnalyzers() {
         var objDirectory = Path.Combine(_consumerDirectory, "obj");
         return Directory
             .EnumerateFiles(objDirectory, "Gen.dll", SearchOption.AllDirectories)
@@ -181,18 +164,15 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
             .ToList();
     }
 
-    private void WriteGeneratorSource(int revision)
-    {
+    private void WriteGeneratorSource(int revision) {
         File.WriteAllText(
             Path.Combine(_generatorDirectory, "Gen.cs"),
             $"public static class Gen{revision} {{ public const int Revision = {revision}; }}");
     }
 
     private static async Task<BuildResult> BuildAsync(
-        string workingDirectory, string project, params string[] extraArguments)
-    {
-        var startInfo = new ProcessStartInfo("dotnet")
-        {
+        string workingDirectory, string project, params string[] extraArguments) {
+        var startInfo = new ProcessStartInfo("dotnet") {
             WorkingDirectory = workingDirectory,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -205,8 +185,7 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
         startInfo.ArgumentList.Add("-nologo");
         startInfo.ArgumentList.Add("-v:m");
         startInfo.ArgumentList.Add("-nodeReuse:false");
-        foreach (var argument in extraArguments)
-        {
+        foreach (var argument in extraArguments) {
             startInfo.ArgumentList.Add(argument);
         }
 
@@ -220,13 +199,10 @@ public sealed class LinkedAnalyzerStagingRealProcessTests : IDisposable
         var stderr = process.StandardError.ReadToEndAsync();
 
         using var timeout = new CancellationTokenSource(BuildTimeoutMilliseconds);
-        try
-        {
+        try {
             await process.WaitForExitAsync(timeout.Token);
             await Task.WhenAll(stdout, stderr);
-        }
-        catch (OperationCanceledException)
-        {
+        } catch (OperationCanceledException) {
             process.Kill(entireProcessTree: true);
             throw;
         }

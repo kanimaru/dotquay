@@ -18,8 +18,7 @@ namespace Dotquay.Mcp.Tools;
 /// "explained destruction" means here (§4.2's own reasoning): the agent can, and the
 /// <c>dotquay_diagnose_modified</c> prompt (§7, Phase 3) tells it to, run <c>dotquay_status</c> first.
 /// </remarks>
-public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_remove";
 
     public override string Description =>
@@ -42,20 +41,17 @@ public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : M
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the dependency to remove.");
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
         var removal = await workflow.RemoveAsync(projectDirectory, name, cancellationToken);
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson

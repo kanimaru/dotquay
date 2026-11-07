@@ -27,8 +27,7 @@ namespace Dotquay.Core.Git;
 /// network, or git-lfs installed; the real wiring lives in <see cref="ProcessGitClient"/>.
 /// </para>
 /// </remarks>
-public sealed class LfsResolver
-{
+public sealed class LfsResolver {
     /// <summary>Runs <c>git &lt;args&gt;</c> in a directory and returns its exit code and output.</summary>
     public delegate Task<(int ExitCode, string StdOut, string StdErr)> GitRunner(
         string workingDirectory, string[] args, CancellationToken cancellationToken);
@@ -42,8 +41,7 @@ public sealed class LfsResolver
 
     /// <param name="git">How to run git.</param>
     /// <param name="readFile">Reads a file by full path. Defaults to the real file system.</param>
-    public LfsResolver(GitRunner git, Func<string, byte[]>? readFile = null)
-    {
+    public LfsResolver(GitRunner git, Func<string, byte[]>? readFile = null) {
         _git = git;
         _readFile = readFile ?? File.ReadAllBytes;
     }
@@ -53,29 +51,24 @@ public sealed class LfsResolver
     /// <paramref name="remote"/> when it does. Throws a <see cref="GitCommandException"/> written to be shown
     /// to the user if that cannot be done.
     /// </summary>
-    public async Task EnsureResolvedAsync(string checkoutPath, string remote, CancellationToken cancellationToken = default)
-    {
+    public async Task EnsureResolvedAsync(string checkoutPath, string remote, CancellationToken cancellationToken = default) {
         var pointers = await FindPointersAsync(checkoutPath, cancellationToken);
-        if (pointers.Count == 0)
-        {
+        if (pointers.Count == 0) {
             return;
         }
 
         var version = await _git(checkoutPath, ["lfs", "version"], cancellationToken);
-        if (version.ExitCode != 0)
-        {
+        if (version.ExitCode != 0) {
             throw new GitCommandException(NotInstalled(pointers));
         }
 
         var install = await _git(checkoutPath, ["lfs", "install", "--local", "--skip-repo"], cancellationToken);
-        if (install.ExitCode != 0)
-        {
+        if (install.ExitCode != 0) {
             throw new GitCommandException(PullFailed(pointers, install.StdErr));
         }
 
         var pull = await _git(checkoutPath, ["lfs", "pull", remote], cancellationToken);
-        if (pull.ExitCode != 0)
-        {
+        if (pull.ExitCode != 0) {
             throw new GitCommandException(
                 PullFailed(pointers, pull.StdErr),
                 isAuthenticationFailure: GitErrorClassifier.LooksLikeAuthenticationFailure(pull.StdErr));
@@ -84,8 +77,7 @@ public sealed class LfsResolver
         // Trust the result, not the exit code: an LFS server that answers but lacks the objects can
         // report success and leave pointers behind.
         var remaining = await FindPointersAsync(checkoutPath, cancellationToken);
-        if (remaining.Count > 0)
-        {
+        if (remaining.Count > 0) {
             throw new GitCommandException(StillPointers(remaining));
         }
     }
@@ -94,8 +86,7 @@ public sealed class LfsResolver
     /// Tracked files in the working tree that are LFS pointers, as paths relative to
     /// <paramref name="checkoutPath"/>. Empty when there are none.
     /// </summary>
-    public async Task<IReadOnlyList<string>> FindPointersAsync(string checkoutPath, CancellationToken cancellationToken = default)
-    {
+    public async Task<IReadOnlyList<string>> FindPointersAsync(string checkoutPath, CancellationToken cancellationToken = default) {
         // git grep reads tracked files only, skips binaries with -I (a pointer is text, a real library is
         // not), and so stays fast on a repository of large binaries. -z for paths with odd characters.
         var grep = await _git(
@@ -105,26 +96,20 @@ public sealed class LfsResolver
 
         // Exit 1 is "no match". Any other failure also means there is nothing to act on: this is a
         // safeguard, not a gate, and must never turn a working install into a failing one.
-        if (grep.ExitCode != 0 || grep.StdOut.Length == 0)
-        {
+        if (grep.ExitCode != 0 || grep.StdOut.Length == 0) {
             return [];
         }
 
         var found = new List<string>();
-        foreach (var candidate in grep.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries).Take(MaxCandidates))
-        {
-            try
-            {
+        foreach (var candidate in grep.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries).Take(MaxCandidates)) {
+            try {
                 var full = Path.Combine(checkoutPath, candidate);
                 // Cheap guard first: only small files can be pointers, and this avoids reading a large
                 // text file (a changelog) in full.
-                if (new FileInfo(full).Length <= LfsPointer.MaxPointerBytes && LfsPointer.Matches(_readFile(full)))
-                {
+                if (new FileInfo(full).Length <= LfsPointer.MaxPointerBytes && LfsPointer.Matches(_readFile(full))) {
                     found.Add(candidate.Replace('\\', '/'));
                 }
-            }
-            catch (IOException)
-            {
+            } catch (IOException) {
                 // Vanished or unreadable between grep and here: not a pointer we can report on.
             }
         }

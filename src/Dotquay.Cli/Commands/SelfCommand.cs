@@ -18,8 +18,7 @@ namespace Dotquay.Cli.Commands;
 /// cannot answer a prompt (SPEC.md §18), and "are you sure?" before replacing a binary that is
 /// verified, checksummed, and kept for rollback would be ceremony rather than safety.</para>
 /// </remarks>
-internal static class SelfCommand
-{
+internal static class SelfCommand {
     private const string CheckCommandName = "self-check";
     private const string UpdateCommandName = "self-update";
     private const string RollbackCommandName = "self-rollback";
@@ -28,8 +27,7 @@ internal static class SelfCommand
     /// newer dotquay is not a failure, and a pipeline that checks should not go red for it.</summary>
     private const int UpdateAvailableExitCode = 3;
 
-    public static Command Build()
-    {
+    public static Command Build() {
         var command = new Command("self", "Check for, install, or roll back a new version of dotquay itself.")
         {
             BuildCheck(),
@@ -49,8 +47,7 @@ internal static class SelfCommand
         return command;
     }
 
-    private static Command BuildCheck()
-    {
+    private static Command BuildCheck() {
         var jsonOption = JsonOutput.CreateOption();
         var command = new Command("check", $"Ask the release channel whether a newer dotquay exists (exit {UpdateAvailableExitCode} if so).")
         {
@@ -62,10 +59,8 @@ internal static class SelfCommand
         return command;
     }
 
-    private static async Task<int> RunCheck(bool json, CancellationToken cancellationToken)
-    {
-        try
-        {
+    private static async Task<int> RunCheck(bool json, CancellationToken cancellationToken) {
+        try {
             var settings = SelfUpdateFactory.Settings();
             var result = await SelfUpdateFactory.Workflow(settings).CheckAsync(cancellationToken);
 
@@ -73,10 +68,8 @@ internal static class SelfCommand
             // a normal command never contradicts itself.
             SelfUpdateFactory.Cache().Write(settings.ChannelUrl, result.LatestVersion);
 
-            if (json)
-            {
-                Console.WriteLine(DotquayJson.Write(JsonEnvelope<SelfCheckJson>.Success(CheckCommandName, new SelfCheckJson
-                {
+            if (json) {
+                Console.WriteLine(DotquayJson.Write(JsonEnvelope<SelfCheckJson>.Success(CheckCommandName, new SelfCheckJson {
                     CurrentVersion = result.CurrentVersion,
                     LatestVersion = result.LatestVersion,
                     UpdateAvailable = result.UpdateAvailable,
@@ -89,14 +82,12 @@ internal static class SelfCommand
                 return result.UpdateAvailable ? UpdateAvailableExitCode : 0;
             }
 
-            if (result.LatestVersion is null)
-            {
+            if (result.LatestVersion is null) {
                 Console.WriteLine($"{result.Channel} has published no releases yet. You are on {result.CurrentVersion}.");
                 return 0;
             }
 
-            if (!result.UpdateAvailable)
-            {
+            if (!result.UpdateAvailable) {
                 Console.WriteLine($"dotquay {result.CurrentVersion} is up to date ({result.Channel}).");
                 return 0;
             }
@@ -107,28 +98,22 @@ internal static class SelfCommand
             Console.WriteLine($"  run 'dotquay self update' to replace {result.ExecutablePath}");
 
             return UpdateAvailableExitCode;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
             return JsonOutput.Fail(json, CheckCommandName, ex);
         }
     }
 
-    private static Command BuildUpdate()
-    {
-        var toOption = new Option<string?>("--to")
-        {
+    private static Command BuildUpdate() {
+        var toOption = new Option<string?>("--to") {
             Description = "Install this exact version instead of the newest. Older is allowed: pinning back to a "
                 + "known-good build is what this is for.",
         };
 
-        var dryRunOption = new Option<bool>("--dry-run")
-        {
+        var dryRunOption = new Option<bool>("--dry-run") {
             Description = "Report what would be downloaded and replaced, and write nothing.",
         };
 
-        var forceOption = new Option<bool>("--force")
-        {
+        var forceOption = new Option<bool>("--force") {
             Description = "Reinstall even when already current, and skip the build-output guard. Never skips the "
                 + "checksum or the check that the new binary starts.",
         };
@@ -140,12 +125,10 @@ internal static class SelfCommand
             toOption, dryRunOption, forceOption, jsonOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var json = parseResult.GetValue(jsonOption);
 
-            try
-            {
+            try {
                 var settings = SelfUpdateFactory.Settings();
                 var result = await SelfUpdateFactory.Workflow(settings).UpdateAsync(
                     new SelfUpdateOptions(
@@ -160,9 +143,7 @@ internal static class SelfCommand
                 SelfUpdateFactory.Cache().Write(settings.ChannelUrl, result.Changed ? result.ToVersion : null);
 
                 return Report(json, UpdateCommandName, result);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
+            } catch (Exception ex) when (ex is not OperationCanceledException) {
                 return JsonOutput.Fail(json, UpdateCommandName, ex);
             }
         });
@@ -170,22 +151,17 @@ internal static class SelfCommand
         return command;
     }
 
-    private static Command BuildRollback()
-    {
+    private static Command BuildRollback() {
         var jsonOption = JsonOutput.CreateOption();
         var command = new Command("rollback", "Put back the dotquay the last update replaced.") { jsonOption };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var json = parseResult.GetValue(jsonOption);
 
-            try
-            {
+            try {
                 var result = await SelfUpdateFactory.Workflow(SelfUpdateFactory.Settings()).RollbackAsync(cancellationToken);
                 return Report(json, RollbackCommandName, result);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
+            } catch (Exception ex) when (ex is not OperationCanceledException) {
                 return JsonOutput.Fail(json, RollbackCommandName, ex);
             }
         });
@@ -193,10 +169,8 @@ internal static class SelfCommand
         return command;
     }
 
-    private static Command BuildNotify()
-    {
-        var stateArgument = new Argument<string>("state")
-        {
+    private static Command BuildNotify() {
+        var stateArgument = new Argument<string>("state") {
             Description = "on or off.",
         };
 
@@ -207,14 +181,11 @@ internal static class SelfCommand
             stateArgument,
         };
 
-        command.SetAction(parseResult =>
-        {
+        command.SetAction(parseResult => {
             var state = parseResult.GetValue(stateArgument)!;
 
-            try
-            {
-                var enabled = state.ToLowerInvariant() switch
-                {
+            try {
+                var enabled = state.ToLowerInvariant() switch {
                     "on" or "true" or "yes" => true,
                     "off" or "false" or "no" => false,
                     _ => throw new WorkflowException($"'{state}' is not a state. Use 'on' or 'off'."),
@@ -227,15 +198,12 @@ internal static class SelfCommand
                     ConsoleColor.Green,
                     $"Update notices are {(enabled ? "on" : "off")} ({store.Path}).");
 
-                if (!enabled)
-                {
+                if (!enabled) {
                     Console.WriteLine("  'dotquay self check' still works, and still reaches the network when you ask it to.");
                 }
 
                 return 0;
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 return JsonOutput.Fail(json: false, "self-notify", ex);
             }
         });
@@ -243,12 +211,9 @@ internal static class SelfCommand
         return command;
     }
 
-    private static int Report(bool json, string command, SelfUpdateResult result)
-    {
-        if (json)
-        {
-            Console.WriteLine(DotquayJson.Write(JsonEnvelope<SelfUpdateJson>.Success(command, new SelfUpdateJson
-            {
+    private static int Report(bool json, string command, SelfUpdateResult result) {
+        if (json) {
+            Console.WriteLine(DotquayJson.Write(JsonEnvelope<SelfUpdateJson>.Success(command, new SelfUpdateJson {
                 From = result.FromVersion,
                 To = result.ToVersion,
                 Changed = result.Changed,
@@ -260,8 +225,7 @@ internal static class SelfCommand
             return 0;
         }
 
-        foreach (var message in result.Messages)
-        {
+        foreach (var message in result.Messages) {
             ConsoleOutput.WriteLine(result.Changed ? ConsoleColor.Green : ConsoleColor.Gray, message);
         }
 

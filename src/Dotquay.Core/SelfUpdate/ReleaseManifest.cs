@@ -13,8 +13,7 @@ namespace Dotquay.Core.SelfUpdate;
 public sealed record ReleaseManifest(
     string Version,
     DateTimeOffset? ReleasedAt,
-    IReadOnlyList<ReleaseAsset> Assets)
-{
+    IReadOnlyList<ReleaseAsset> Assets) {
     /// <summary>The asset for a runtime identifier, or null when this release shipped nothing for
     /// it. Callers report the RIDs that *are* present rather than a bare "not found" — a release
     /// missing win-x64 is a CI problem, and naming what did ship is what makes that visible.</summary>
@@ -32,8 +31,7 @@ public sealed record ReleaseManifest(
 public sealed record ReleaseAsset(string Rid, string FileName, string Url, string? Sha256, long Size);
 
 /// <summary>Which binary this process would replace itself with.</summary>
-public static class RuntimeIdentifiers
-{
+public static class RuntimeIdentifiers {
     /// <summary>
     /// The RID dotquay publishes under for the running machine, or null when this platform has no
     /// published build.
@@ -44,17 +42,14 @@ public static class RuntimeIdentifiers
     /// was *published* for. That is the same answer today and would silently become the wrong one
     /// the first time a linux-x64 build is run under emulation.
     /// </remarks>
-    public static string? Current
-    {
-        get
-        {
+    public static string? Current {
+        get {
             var os = OperatingSystem.IsWindows() ? "win"
                 : OperatingSystem.IsLinux() ? "linux"
                 : OperatingSystem.IsMacOS() ? "osx"
                 : null;
 
-            var architecture = RuntimeInformation.OSArchitecture switch
-            {
+            var architecture = RuntimeInformation.OSArchitecture switch {
                 Architecture.X64 => "x64",
                 Architecture.Arm64 => "arm64",
                 Architecture.X86 => "x86",

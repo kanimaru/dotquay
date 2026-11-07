@@ -11,8 +11,7 @@ namespace Dotquay.Core.Manifest;
 /// construction. Through v0.6 dotquay held a single <c>[project] nuget_source</c> string, which made
 /// that arrangement impossible to express.
 /// </remarks>
-public sealed partial record NuGetSourceSpec(string Name, string Url)
-{
+public sealed partial record NuGetSourceSpec(string Name, string Url) {
     /// <summary>
     /// Package ID patterns this feed owns, e.g. <c>["VBeami.*"]</c>. Empty means "only the IDs
     /// declared alongside it".

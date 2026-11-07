@@ -6,11 +6,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Resolve;
 
-public class AddonResolverTests
-{
+public class AddonResolverTests {
     [Fact]
-    public async Task ResolveAsync_Rev_PassesThroughWithoutTouchingGit()
-    {
+    public async Task ResolveAsync_Rev_PassesThroughWithoutTouchingGit() {
         var git = new FakeGitClient();
         var resolver = new AddonResolver(git);
         var spec = new AddonSpec { Name = "foo", Git = "https://example.com/foo", Rev = "9f2c1ab" };
@@ -23,8 +21,7 @@ public class AddonResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_Branch_ResolvesTipViaGitClient()
-    {
+    public async Task ResolveAsync_Branch_ResolvesTipViaGitClient() {
         var git = new FakeGitClient();
         git.BranchTips[("https://example.com/foo", "godot4")] = "deadbeef";
         var resolver = new AddonResolver(git);
@@ -37,8 +34,7 @@ public class AddonResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_Version_PicksHighestMatchingTag()
-    {
+    public async Task ResolveAsync_Version_PicksHighestMatchingTag() {
         var git = new FakeGitClient();
         git.RemoteRefsByUrl["https://example.com/foo"] =
         [
@@ -56,8 +52,7 @@ public class AddonResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_Version_ThrowsHelpfulErrorWhenRepoHasNoTags()
-    {
+    public async Task ResolveAsync_Version_ThrowsHelpfulErrorWhenRepoHasNoTags() {
         var git = new FakeGitClient();
         git.RemoteRefsByUrl["https://example.com/foo"] = [];
         var resolver = new AddonResolver(git);
@@ -70,8 +65,7 @@ public class AddonResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_Version_ThrowsHelpfulErrorWhenNoTagSatisfiesConstraint()
-    {
+    public async Task ResolveAsync_Version_ThrowsHelpfulErrorWhenNoTagSatisfiesConstraint() {
         var git = new FakeGitClient();
         git.RemoteRefsByUrl["https://example.com/foo"] =
         [
@@ -86,8 +80,7 @@ public class AddonResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_Version_ThrowsOnInvalidConstraint()
-    {
+    public async Task ResolveAsync_Version_ThrowsOnInvalidConstraint() {
         var git = new FakeGitClient();
         var resolver = new AddonResolver(git);
         var spec = new AddonSpec { Name = "foo", Git = "https://example.com/foo", Version = "not-a-version" };

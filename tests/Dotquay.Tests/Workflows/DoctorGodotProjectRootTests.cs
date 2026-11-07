@@ -15,8 +15,7 @@ namespace Dotquay.Tests.Workflows;
 /// "plugin missing" gives no hint that the path lives in another addon's package manifest. The check
 /// needs no network: the installed folder <em>is</em> the extracted subtree.
 /// </remarks>
-public class DoctorGodotProjectRootTests
-{
+public class DoctorGodotProjectRootTests {
     private const string ProjectDirectory = "project";
     private const string VbeamiUrl = "https://example.com/vbeami.git";
     private const string VrmUrl = "git@example.com:vrm-addon.git";
@@ -26,8 +25,7 @@ public class DoctorGodotProjectRootTests
 
     /// <summary>The BotV2 shape: vrm is transitive via vbeami, and its installed folder holds the
     /// whole vrm-addon repository.</summary>
-    private static InMemoryFileSystem BuildTransitiveProject(bool vrmIsProjectRoot = true, string? overrideBlock = null)
-    {
+    private static InMemoryFileSystem BuildTransitiveProject(bool vrmIsProjectRoot = true, string? overrideBlock = null) {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -59,12 +57,9 @@ public class DoctorGodotProjectRootTests
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "vbeami", "plugin.cfg"), "[plugin]");
 
-        if (vrmIsProjectRoot)
-        {
+        if (vrmIsProjectRoot) {
             WriteVrmAsProjectRoot(fileSystem, fileSystem.CombinePath(ProjectDirectory, "addons", "vrm"));
-        }
-        else
-        {
+        } else {
             fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "vrm", "plugin.cfg"), "[plugin]");
         }
 
@@ -73,8 +68,7 @@ public class DoctorGodotProjectRootTests
 
     /// <summary>What vrm-addon's repository root actually looks like after its restructure: a
     /// playable project with its own [project] manifest, and the plugin two levels down.</summary>
-    private static void WriteVrmAsProjectRoot(InMemoryFileSystem fileSystem, string folder)
-    {
+    private static void WriteVrmAsProjectRoot(InMemoryFileSystem fileSystem, string folder) {
         fileSystem.WriteAllText(fileSystem.CombinePath(folder, "project.godot"), "config_version=5");
         fileSystem.WriteAllText(fileSystem.CombinePath(folder, "dotquay.toml"), """
             [project]
@@ -84,8 +78,7 @@ public class DoctorGodotProjectRootTests
         fileSystem.WriteAllText(fileSystem.CombinePath(folder, "addons", "gut", "plugin.cfg"), "[plugin]");
     }
 
-    private static async Task<DoctorResult> RunAsync(InMemoryFileSystem fileSystem)
-    {
+    private static async Task<DoctorResult> RunAsync(InMemoryFileSystem fileSystem) {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         return await workflow.DoctorAsync(ProjectDirectory);
     }
@@ -94,8 +87,7 @@ public class DoctorGodotProjectRootTests
         result.Issues.Where(i => i.Kind == kind).ToList();
 
     [Fact]
-    public async Task DoctorAsync_TransitiveAddonInstalledAsAProjectRoot_IsReported()
-    {
+    public async Task DoctorAsync_TransitiveAddonInstalledAsAProjectRoot_IsReported() {
         var result = await RunAsync(BuildTransitiveProject());
 
         var issue = Assert.Single(Of(result, DoctorIssueKind.AddonFolderIsGodotProject));
@@ -105,8 +97,7 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_TransitiveAddon_NamesTheParentsPackageManifestAsThePlaceToFix()
-    {
+    public async Task DoctorAsync_TransitiveAddon_NamesTheParentsPackageManifestAsThePlaceToFix() {
         var result = await RunAsync(BuildTransitiveProject());
 
         // The whole reason for the check: the path that is wrong is in vbeami's manifest, and
@@ -118,8 +109,7 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_TransitiveAddon_OffersAnOverridePinnedToTheLockedCommit()
-    {
+    public async Task DoctorAsync_TransitiveAddon_OffersAnOverridePinnedToTheLockedCommit() {
         var result = await RunAsync(BuildTransitiveProject());
 
         // doctor cannot know which branch or range vbeami declared vrm with, so the one override it
@@ -129,8 +119,7 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ProjectRootFolder_DoesNotAlsoReportItsProjectManifestAsUnreadable()
-    {
+    public async Task DoctorAsync_ProjectRootFolder_DoesNotAlsoReportItsProjectManifestAsUnreadable() {
         var result = await RunAsync(BuildTransitiveProject());
 
         // The project's own [project] dotquay.toml has no [package] header, and before this check
@@ -140,16 +129,14 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonInstalledCorrectly_IsNotReported()
-    {
+    public async Task DoctorAsync_AddonInstalledCorrectly_IsNotReported() {
         var result = await RunAsync(BuildTransitiveProject(vrmIsProjectRoot: false));
 
         Assert.Empty(Of(result, DoctorIssueKind.AddonFolderIsGodotProject));
     }
 
     [Fact]
-    public async Task DoctorAsync_OverriddenAddon_NamesTheOverrideAsThePlaceToFix()
-    {
+    public async Task DoctorAsync_OverriddenAddon_NamesTheOverrideAsThePlaceToFix() {
         var fileSystem = BuildTransitiveProject(overrideBlock: $"""
 
             [overrides.vrm]
@@ -169,8 +156,7 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_RootAddon_NamesTheProjectsOwnDeclaration()
-    {
+    public async Task DoctorAsync_RootAddon_NamesTheProjectsOwnDeclaration() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
             [project]
@@ -196,8 +182,7 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_InstallAsFolder_IsCheckedWhereTheAddonActuallyLives()
-    {
+    public async Task DoctorAsync_InstallAsFolder_IsCheckedWhereTheAddonActuallyLives() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
             [project]
@@ -228,8 +213,7 @@ public class DoctorGodotProjectRootTests
     }
 
     [Fact]
-    public async Task DoctorAsync_NoManifestAtAll_StillReportsFromTheLockfileAndDisk()
-    {
+    public async Task DoctorAsync_NoManifestAtAll_StillReportsFromTheLockfileAndDisk() {
         var fileSystem = BuildTransitiveProject();
         fileSystem.DeleteFile(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"));
 

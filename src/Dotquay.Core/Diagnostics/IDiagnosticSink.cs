@@ -18,8 +18,7 @@ public readonly record struct DiagnosticEvent(DiagnosticLevel Level, string Cate
 /// <c>--json</c> one-document guarantee (SPEC.md section 17) or the <c>dotquay mcp</c> JSON-RPC
 /// stream. The CLI's sink writes to stderr; tests record into a list.
 /// </remarks>
-public interface IDiagnosticSink
-{
+public interface IDiagnosticSink {
     /// <summary>The most detailed level this sink wants. Read on every check, so keep it cheap.</summary>
     DiagnosticLevel Level { get; }
 
@@ -29,17 +28,14 @@ public interface IDiagnosticSink
 }
 
 /// <summary>Wants nothing. The ambient default, so no call site ever null-checks a sink.</summary>
-public sealed class NullDiagnosticSink : IDiagnosticSink
-{
+public sealed class NullDiagnosticSink : IDiagnosticSink {
     public static readonly NullDiagnosticSink Instance = new();
 
-    private NullDiagnosticSink()
-    {
+    private NullDiagnosticSink() {
     }
 
     public DiagnosticLevel Level => DiagnosticLevel.Off;
 
-    public void Write(DiagnosticEvent diagnostic)
-    {
+    public void Write(DiagnosticEvent diagnostic) {
     }
 }

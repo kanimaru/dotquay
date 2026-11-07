@@ -24,8 +24,7 @@ namespace Dotquay.Core.Diagnostics;
 /// second line of defence for text that was never meant to carry a secret but might.
 /// </para>
 /// </remarks>
-public static partial class SecretRedactor
-{
+public static partial class SecretRedactor {
     /// <summary>What a secret is replaced with.</summary>
     public const string Mask = "***";
 
@@ -39,10 +38,8 @@ public static partial class SecretRedactor
     };
 
     /// <summary>Masks every credential this class knows how to recognise in free text.</summary>
-    public static string Redact(string? text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
+    public static string Redact(string? text) {
+        if (string.IsNullOrEmpty(text)) {
             return text ?? string.Empty;
         }
 
@@ -59,15 +56,12 @@ public static partial class SecretRedactor
     /// in <see cref="SecretValueOptions"/> wholesale - a token passed as its own argument has no
     /// surrounding syntax for <see cref="Redact"/> to recognise it by.
     /// </summary>
-    public static IReadOnlyList<string> RedactArguments(IEnumerable<string> arguments)
-    {
+    public static IReadOnlyList<string> RedactArguments(IEnumerable<string> arguments) {
         var result = new List<string>();
         var maskNext = false;
 
-        foreach (var argument in arguments)
-        {
-            if (maskNext)
-            {
+        foreach (var argument in arguments) {
+            if (maskNext) {
                 result.Add(Mask);
                 maskNext = false;
                 continue;
@@ -80,14 +74,12 @@ public static partial class SecretRedactor
         return result;
     }
 
-    private static string RedactUserInfo(Match match)
-    {
+    private static string RedactUserInfo(Match match) {
         var scheme = match.Groups["scheme"].Value;
         var userInfo = match.Groups["userinfo"].Value;
         var colon = userInfo.IndexOf(':');
 
-        if (colon >= 0)
-        {
+        if (colon >= 0) {
             // user:password - the user is useful ("which account did it try?"), the password is not.
             return $"{scheme}{userInfo[..colon]}:{Mask}@";
         }

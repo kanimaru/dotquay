@@ -18,30 +18,25 @@ namespace Dotquay.Core.Dotnet;
 /// to authenticate, and sending a private feed's token to a public one would leak it to a party that
 /// never needed it.
 /// </remarks>
-public sealed class NuGetV3ClientFactory : INuGetClientFactory
-{
+public sealed class NuGetV3ClientFactory : INuGetClientFactory {
     private readonly Dictionary<string, INuGetClient> _clientsBySource = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient;
     private readonly CredentialResolver _credentials;
 
-    public NuGetV3ClientFactory(CredentialResolver credentials, HttpClient? httpClient = null)
-    {
+    public NuGetV3ClientFactory(CredentialResolver credentials, HttpClient? httpClient = null) {
         _credentials = credentials;
         _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
     }
 
-    public INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null)
-    {
+    public INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null) {
         var selected = sources.Resolve(pinnedSourceName);
 
         return new MultiSourceNuGetClient(
             selected.All.Select(source => (source, ClientFor(source))).ToList());
     }
 
-    private INuGetClient ClientFor(NuGetSourceSpec source)
-    {
-        if (_clientsBySource.TryGetValue(source.Url, out var cached))
-        {
+    private INuGetClient ClientFor(NuGetSourceSpec source) {
+        if (_clientsBySource.TryGetValue(source.Url, out var cached)) {
             return cached;
         }
 

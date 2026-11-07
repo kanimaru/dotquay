@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Doctor;
 
-public class PluginCfgReaderTests
-{
+public class PluginCfgReaderTests {
     [Fact]
-    public void TryReadVersion_WellFormedPluginCfg_ReturnsVersion()
-    {
+    public void TryReadVersion_WellFormedPluginCfg_ReturnsVersion() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", """
             [plugin]
@@ -26,8 +24,7 @@ public class PluginCfgReaderTests
     }
 
     [Fact]
-    public void TryReadVersion_MissingFile_ReturnsNull()
-    {
+    public void TryReadVersion_MissingFile_ReturnsNull() {
         var fs = new InMemoryFileSystem();
 
         var version = PluginCfgReader.TryReadVersion(fs, "addons/foo/plugin.cfg");
@@ -36,8 +33,7 @@ public class PluginCfgReaderTests
     }
 
     [Fact]
-    public void TryReadVersion_MissingPluginSection_ReturnsNull()
-    {
+    public void TryReadVersion_MissingPluginSection_ReturnsNull() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", "not_a_plugin_section = true\n");
 
@@ -47,8 +43,7 @@ public class PluginCfgReaderTests
     }
 
     [Fact]
-    public void TryReadVersion_MissingVersionKey_ReturnsNull()
-    {
+    public void TryReadVersion_MissingVersionKey_ReturnsNull() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", "[plugin]\nname=\"Foo\"\n");
 
@@ -58,8 +53,7 @@ public class PluginCfgReaderTests
     }
 
     [Fact]
-    public void TryReadVersion_NotValidToml_ReturnsNullRatherThanThrowing()
-    {
+    public void TryReadVersion_NotValidToml_ReturnsNullRatherThanThrowing() {
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("addons/foo/plugin.cfg", "this is not { valid ]] toml at all");
 

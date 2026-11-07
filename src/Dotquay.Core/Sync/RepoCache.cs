@@ -11,8 +11,7 @@ namespace Dotquay.Core.Sync;
 /// projects: fetching the same addon@SHA from two different projects only hits the network once
 /// (requirement P0-8).
 /// </summary>
-public sealed class RepoCache
-{
+public sealed class RepoCache {
     // Written after a fetch completes successfully. Its presence — not just the directory's — is
     // what "already cached" means, so a fetch interrupted mid-way (crash, Ctrl-C) is retried
     // instead of being mistaken for a complete, usable cache entry.
@@ -28,8 +27,7 @@ public sealed class RepoCache
     private readonly IGitClient _gitClient;
     private readonly string _cacheRoot;
 
-    public RepoCache(IFileSystem fileSystem, IGitClient gitClient, string cacheRoot)
-    {
+    public RepoCache(IFileSystem fileSystem, IGitClient gitClient, string cacheRoot) {
         _fileSystem = fileSystem;
         _gitClient = gitClient;
         _cacheRoot = cacheRoot;
@@ -37,17 +35,14 @@ public sealed class RepoCache
 
     /// <summary>Returns the cached path for <paramref name="repositoryUrl"/>@<paramref name="commitSha"/>,
     /// fetching into it first if it isn't already there.</summary>
-    public async Task<string> GetOrFetchAsync(string repositoryUrl, string commitSha, CancellationToken cancellationToken = default)
-    {
+    public async Task<string> GetOrFetchAsync(string repositoryUrl, string commitSha, CancellationToken cancellationToken = default) {
         var path = GetCachePath(repositoryUrl, commitSha);
         var marker = _fileSystem.CombinePath(path, CompletionMarkerFileName);
 
-        if (_fileSystem.FileExists(marker))
-        {
+        if (_fileSystem.FileExists(marker)) {
             DiagnosticLog.Write(DiagnosticLevel.Verbose, "cache", $"hit {SecretRedactor.Redact(repositoryUrl)}@{Short(commitSha)} -> {path}");
 
-            if (!_fileSystem.ReadAllText(marker).Contains(LfsVerifiedToken, StringComparison.Ordinal))
-            {
+            if (!_fileSystem.ReadAllText(marker).Contains(LfsVerifiedToken, StringComparison.Ordinal)) {
                 await _gitClient.EnsureFilesResolvedAsync(path, cancellationToken);
                 _fileSystem.WriteAllText(marker, MarkerContent(commitSha));
             }
@@ -66,8 +61,7 @@ public sealed class RepoCache
     /// <summary>When <paramref name="repositoryUrl"/>@<paramref name="commitSha"/> was committed, read
     /// from its cache entry. Never fetches: null when the commit isn't cached or git can't say.</summary>
     public async Task<DateTimeOffset?> GetCommitDateAsync(
-        string repositoryUrl, string commitSha, CancellationToken cancellationToken = default)
-    {
+        string repositoryUrl, string commitSha, CancellationToken cancellationToken = default) {
         var path = GetCachePath(repositoryUrl, commitSha);
 
         return _fileSystem.FileExists(_fileSystem.CombinePath(path, CompletionMarkerFileName))
@@ -79,15 +73,13 @@ public sealed class RepoCache
 
     private static string MarkerContent(string commitSha) => $"{commitSha}\n{LfsVerifiedToken}";
 
-    public string GetCachePath(string repositoryUrl, string commitSha)
-    {
+    public string GetCachePath(string repositoryUrl, string commitSha) {
         var repoHash = ShortHash(repositoryUrl);
         var shortSha = commitSha.Length > 12 ? commitSha[..12] : commitSha;
         return _fileSystem.CombinePath(_cacheRoot, repoHash, shortSha);
     }
 
-    private static string ShortHash(string value)
-    {
+    private static string ShortHash(string value) {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(bytes)[..12].ToLowerInvariant();
     }

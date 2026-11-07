@@ -27,17 +27,13 @@ namespace Dotquay.Mcp.Tools;
 /// describing.
 /// </para>
 /// </remarks>
-internal sealed class McpProgressReporter(McpServer server, ProgressToken? progressToken) : IProgressReporter
-{
-    public void Report(ProgressUpdate update)
-    {
-        if (progressToken is not { } token)
-        {
+internal sealed class McpProgressReporter(McpServer server, ProgressToken? progressToken) : IProgressReporter {
+    public void Report(ProgressUpdate update) {
+        if (progressToken is not { } token) {
             return;
         }
 
-        var value = new ProgressNotificationValue
-        {
+        var value = new ProgressNotificationValue {
             Progress = update.Completed ?? 0,
             Total = update.Total,
             Message = update.Message,
@@ -46,14 +42,10 @@ internal sealed class McpProgressReporter(McpServer server, ProgressToken? progr
         _ = FireAndForgetAsync(token, value);
     }
 
-    private async Task FireAndForgetAsync(ProgressToken token, ProgressNotificationValue value)
-    {
-        try
-        {
+    private async Task FireAndForgetAsync(ProgressToken token, ProgressNotificationValue value) {
+        try {
             await server.NotifyProgressAsync(token, value, cancellationToken: CancellationToken.None);
-        }
-        catch
-        {
+        } catch {
             // See the type's remarks: a lost progress notification is never a reason to fail the
             // tool call it was describing.
         }

@@ -4,8 +4,7 @@ namespace Dotquay.Core.Manifest;
 /// package ID, including dots (e.g. <c>"Newtonsoft.Json"</c>) — see
 /// <see cref="Manifest.ManifestReader"/> for why reading these back out of TOML's dotted-table
 /// syntax needs a recursive walk.</summary>
-public sealed class DotnetSpec
-{
+public sealed class DotnetSpec {
     public required string Name { get; init; }
 
     /// <summary>A version constraint in dotquay's one language (<see cref="Versioning.VersionConstraint"/>,
@@ -48,8 +47,7 @@ public sealed class DotnetSpec
     /// invites. Keeping the copy here means a new property is added three lines from the code that has
     /// to carry it.
     /// </remarks>
-    public DotnetSpec WithoutSource() => new()
-    {
+    public DotnetSpec WithoutSource() => new() {
         Name = Name,
         Version = Version,
         Source = null,

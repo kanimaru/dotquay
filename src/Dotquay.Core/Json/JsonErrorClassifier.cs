@@ -22,8 +22,7 @@ namespace Dotquay.Core.Json;
 /// failures already use, so an agent and a shell script recognize the same shape. Kept in one place so
 /// every command, and now every MCP tool, reports the same category for the same failure.
 /// </remarks>
-public static class JsonErrorClassifier
-{
+public static class JsonErrorClassifier {
     /// <summary>
     /// The category and the message to show, with credentials masked.
     /// </summary>
@@ -31,8 +30,7 @@ public static class JsonErrorClassifier
     /// Masked here as well as in <see cref="JsonError"/> because the plain (non-<c>--json</c>) CLI
     /// output prints this message directly, without ever building a <see cref="JsonError"/>.
     /// </remarks>
-    public static (string Kind, string Message) Classify(Exception exception)
-    {
+    public static (string Kind, string Message) Classify(Exception exception) {
         var (kind, message) = ClassifyUnredacted(exception);
         return (kind, SecretRedactor.Redact(message));
     }
@@ -58,12 +56,9 @@ public static class JsonErrorClassifier
     /// store is read wherever a feed or a git host needs a credential, so its failure can arrive
     /// wrapped by whichever layer asked.
     /// </remarks>
-    public static bool IsInvalidConfigFile(Exception exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is CredentialsFileException or UserConfigFileException)
-            {
+    public static bool IsInvalidConfigFile(Exception exception) {
+        for (Exception? current = exception; current is not null; current = current.InnerException) {
+            if (current is CredentialsFileException or UserConfigFileException) {
                 return true;
             }
         }
@@ -74,8 +69,7 @@ public static class JsonErrorClassifier
     private static bool IsParseFailure(Exception exception) =>
         exception is LockfileParseException or ManifestParseException or LocalLinksParseException;
 
-    private static (string Kind, string Message) ClassifyUnredacted(Exception exception) => exception switch
-    {
+    private static (string Kind, string Message) ClassifyUnredacted(Exception exception) => exception switch {
         WorkflowException when exception.Message.Contains("Run 'dotquay init' first", StringComparison.Ordinal) =>
             (JsonErrorKind.NoManifest, exception.Message),
 

@@ -7,16 +7,13 @@ namespace Dotquay.Core.Manifest;
 /// <summary>Parses <c>dotquay.toml</c> text (project or package form) into the models in this
 /// namespace. Validation lives here rather than in the models themselves, so the models stay
 /// plain data and every error path is exercised by <c>ManifestReaderTests</c>.</summary>
-public static class ManifestReader
-{
-    public static ProjectManifest ReadProject(string text, string sourcePath = "dotquay.toml")
-    {
+public static class ManifestReader {
+    public static ProjectManifest ReadProject(string text, string sourcePath = "dotquay.toml") {
         var table = Parse(text, sourcePath);
 
         string? legacyNuGetSource = null;
         string? patchesDirectory = null;
-        if (table.TryGetValue("project", out var projectObj) && projectObj is TomlTable projectTable)
-        {
+        if (table.TryGetValue("project", out var projectObj) && projectObj is TomlTable projectTable) {
             patchesDirectory = GetString(projectTable, "patches_dir");
 
             // A `godot` key here is read and discarded on purpose. It existed through v0.5, nothing
@@ -30,8 +27,7 @@ public static class ManifestReader
         var dotnet = ReadDotnetTable(table, "dotnet", sourcePath);
         ValidateSourcePins(dotnet, sources, sourcePath);
 
-        return new ProjectManifest
-        {
+        return new ProjectManifest {
             NuGetSources = sources,
             NuGetSourceMapping = nuget.SourceMapping,
             TrustedHosts = nuget.TrustedHosts,
@@ -55,49 +51,40 @@ public static class ManifestReader
         List<NuGetSourceSpec> Sources, bool SourceMapping, IReadOnlyList<string> TrustedHosts);
 
     private static NuGetSection ReadNuGetSection(
-        TomlTable root, string? legacyNuGetSource, string sourcePath, string? declaredByAddon = null)
-    {
+        TomlTable root, string? legacyNuGetSource, string sourcePath, string? declaredByAddon = null) {
         var sources = new List<NuGetSourceSpec>();
         var sourceMapping = true;
         IReadOnlyList<string> trustedHosts = [];
 
-        if (legacyNuGetSource is not null)
-        {
+        if (legacyNuGetSource is not null) {
             sources.Add(new NuGetSourceSpec(NuGetSourceSpec.LegacyName, legacyNuGetSource));
         }
 
-        if (!root.TryGetValue("nuget", out var raw) || raw is not TomlTable nuget)
-        {
+        if (!root.TryGetValue("nuget", out var raw) || raw is not TomlTable nuget) {
             return new NuGetSection(sources, sourceMapping, trustedHosts);
         }
 
-        if (nuget.TryGetValue("source_mapping", out var mappingValue))
-        {
+        if (nuget.TryGetValue("source_mapping", out var mappingValue)) {
             sourceMapping = mappingValue is bool enabled
                 ? enabled
                 : throw new ManifestParseException($"{sourcePath}: [nuget] source_mapping must be true or false.");
         }
 
-        if (nuget.TryGetValue("trusted_hosts", out var trustedValue))
-        {
+        if (nuget.TryGetValue("trusted_hosts", out var trustedValue)) {
             trustedHosts = ReadStringArray(trustedValue, sourcePath, "[nuget] trusted_hosts");
         }
 
-        if (!nuget.TryGetValue("sources", out var rawSources) || rawSources is not TomlTable sourcesTable)
-        {
+        if (!nuget.TryGetValue("sources", out var rawSources) || rawSources is not TomlTable sourcesTable) {
             return new NuGetSection(sources, sourceMapping, trustedHosts);
         }
 
-        foreach (var name in sourcesTable.Keys)
-        {
-            if (sourcesTable[name] is not TomlTable entry)
-            {
+        foreach (var name in sourcesTable.Keys) {
+            if (sourcesTable[name] is not TomlTable entry) {
                 throw new ManifestParseException(
                     $"{sourcePath}: [nuget.sources.{name}] must be a table with a 'url' key.");
             }
 
-            if (!NuGetSourceSpec.IsValidName(name))
-            {
+            if (!NuGetSourceSpec.IsValidName(name)) {
                 throw new ManifestParseException(
                     $"{sourcePath}: '{name}' is not a valid NuGet source name. Use letters, digits, "
                     + "'.', '-' or '_', starting with a letter or digit — the name becomes part of an "
@@ -109,8 +96,7 @@ public static class ManifestReader
 
             // Both forms mean the same thing, and disagreeing about the URL has no correct answer —
             // so this is an error rather than a silent precedence rule nobody would remember.
-            if (sources.Any(existing => string.Equals(existing.Name, name, StringComparison.Ordinal)))
-            {
+            if (sources.Any(existing => string.Equals(existing.Name, name, StringComparison.Ordinal))) {
                 throw new ManifestParseException(
                     name == NuGetSourceSpec.LegacyName
                         ? $"{sourcePath}: [project] nuget_source and [nuget.sources.{NuGetSourceSpec.LegacyName}] "
@@ -118,8 +104,7 @@ public static class ManifestReader
                         : $"{sourcePath}: NuGet source '{name}' is declared twice.");
             }
 
-            sources.Add(new NuGetSourceSpec(name, url)
-            {
+            sources.Add(new NuGetSourceSpec(name, url) {
                 Packages = entry.TryGetValue("packages", out var packagesValue)
                     ? ReadStringArray(packagesValue, sourcePath, $"[nuget.sources.{name}] packages")
                     : [],
@@ -135,18 +120,14 @@ public static class ManifestReader
     /// <summary>Reads a TOML array of strings, rejecting anything else by name rather than letting a
     /// mistyped value silently become an empty list — a silently-empty <c>trusted_hosts</c> would
     /// turn a security control off without saying so.</summary>
-    private static IReadOnlyList<string> ReadStringArray(object value, string sourcePath, string what)
-    {
-        if (value is not TomlArray array)
-        {
+    private static IReadOnlyList<string> ReadStringArray(object value, string sourcePath, string what) {
+        if (value is not TomlArray array) {
             throw new ManifestParseException($"{sourcePath}: {what} must be an array of strings.");
         }
 
         var result = new List<string>(array.Count);
-        foreach (var item in array)
-        {
-            if (item is not string text || text.Length == 0)
-            {
+        foreach (var item in array) {
+            if (item is not string text || text.Length == 0) {
                 throw new ManifestParseException($"{sourcePath}: {what} must contain only non-empty strings.");
             }
 
@@ -160,14 +141,11 @@ public static class ManifestReader
     /// so a typo is reported against the manifest that contains it rather than as a package that
     /// mysteriously can't be found.</summary>
     private static void ValidateSourcePins(
-        Dictionary<string, DotnetSpec> dotnet, List<NuGetSourceSpec> sources, string sourcePath)
-    {
-        foreach (var spec in dotnet.Values)
-        {
+        Dictionary<string, DotnetSpec> dotnet, List<NuGetSourceSpec> sources, string sourcePath) {
+        foreach (var spec in dotnet.Values) {
             if (spec.Source is null
                 || sources.Any(source => string.Equals(source.Name, spec.Source, StringComparison.Ordinal))
-                || string.Equals(spec.Source, NuGetSourceSpec.PublicName, StringComparison.Ordinal))
-            {
+                || string.Equals(spec.Source, NuGetSourceSpec.PublicName, StringComparison.Ordinal)) {
                 continue;
             }
 
@@ -181,12 +159,10 @@ public static class ManifestReader
         }
     }
 
-    public static PackageManifest ReadPackage(string text, string sourcePath = "dotquay.toml")
-    {
+    public static PackageManifest ReadPackage(string text, string sourcePath = "dotquay.toml") {
         var table = Parse(text, sourcePath);
 
-        if (!table.TryGetValue("package", out var packageObj) || packageObj is not TomlTable packageTable)
-        {
+        if (!table.TryGetValue("package", out var packageObj) || packageObj is not TomlTable packageTable) {
             throw new ManifestParseException(
                 $"{sourcePath}: package manifest is missing the [package] header (SPEC.md §7.2).");
         }
@@ -202,8 +178,7 @@ public static class ManifestReader
 
         // `version` is optional: nothing reads it, the git tag decides resolution, and plugin.cfg is
         // what doctor checks for drift. Requiring it only added a third place to bump.
-        return new PackageManifest
-        {
+        return new PackageManifest {
             Name = name,
             Version = GetString(packageTable, "version"),
             Addons = ReadAddonTable(table, "addons", sourcePath),
@@ -212,31 +187,23 @@ public static class ManifestReader
         };
     }
 
-    private static TomlTable Parse(string text, string sourcePath)
-    {
-        try
-        {
+    private static TomlTable Parse(string text, string sourcePath) {
+        try {
             return DotquayToml.Parse(text, sourcePath);
-        }
-        catch (TomlException ex)
-        {
+        } catch (TomlException ex) {
             throw new ManifestParseException($"{sourcePath}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
     }
 
-    private static Dictionary<string, AddonSpec> ReadAddonTable(TomlTable root, string sectionKey, string sourcePath)
-    {
+    private static Dictionary<string, AddonSpec> ReadAddonTable(TomlTable root, string sectionKey, string sourcePath) {
         var result = new Dictionary<string, AddonSpec>();
 
-        if (!root.TryGetValue(sectionKey, out var raw) || raw is not TomlTable table)
-        {
+        if (!root.TryGetValue(sectionKey, out var raw) || raw is not TomlTable table) {
             return result;
         }
 
-        foreach (var name in table.Keys)
-        {
-            if (table[name] is not TomlTable entry)
-            {
+        foreach (var name in table.Keys) {
+            if (table[name] is not TomlTable entry) {
                 throw new ManifestParseException($"{sourcePath}: [{sectionKey}.{name}] must be a table.");
             }
 
@@ -249,23 +216,20 @@ public static class ManifestReader
             var installAs = GetString(entry, "install_as");
 
             var sourceCount = new[] { version, branch, rev }.Count(v => v is not null);
-            if (sourceCount != 1)
-            {
+            if (sourceCount != 1) {
                 throw new ManifestParseException(
                     $"{sourcePath}: [{sectionKey}.{name}] must set exactly one of 'version', 'branch', or "
                     + $"'rev' (SPEC.md §7.1); found {sourceCount}.");
             }
 
-            if (installAs is not null && !IsSafeFolderName(installAs))
-            {
+            if (installAs is not null && !IsSafeFolderName(installAs)) {
                 throw new ManifestParseException(
                     $"{sourcePath}: [{sectionKey}.{name}] has install_as = \"{installAs}\", which is not a plain "
                     + "folder name. It must be a single directory name — no slashes, no '..', no drive letters — "
                     + "because dotquay deletes and replaces that folder wholesale during install (SPEC.md §9).");
             }
 
-            result[name] = new AddonSpec
-            {
+            result[name] = new AddonSpec {
                 Name = name,
                 Git = git,
                 Version = version,
@@ -286,12 +250,10 @@ public static class ManifestReader
     /// the tree and treats any table carrying a string <c>version</c> key as a leaf package spec,
     /// reassembling the dotted package ID from the path taken to reach it.
     /// </summary>
-    private static Dictionary<string, DotnetSpec> ReadDotnetTable(TomlTable root, string sectionKey, string sourcePath)
-    {
+    private static Dictionary<string, DotnetSpec> ReadDotnetTable(TomlTable root, string sectionKey, string sourcePath) {
         var result = new Dictionary<string, DotnetSpec>();
 
-        if (!root.TryGetValue(sectionKey, out var raw) || raw is not TomlTable table)
-        {
+        if (!root.TryGetValue(sectionKey, out var raw) || raw is not TomlTable table) {
             return result;
         }
 
@@ -304,17 +266,13 @@ public static class ManifestReader
         string? path,
         string sectionKey,
         string sourcePath,
-        Dictionary<string, DotnetSpec> result)
-    {
-        foreach (var key in table.Keys)
-        {
+        Dictionary<string, DotnetSpec> result) {
+        foreach (var key in table.Keys) {
             var childPath = path is null ? key : $"{path}.{key}";
             var value = table[key];
 
-            if (value is TomlTable childTable)
-            {
-                if (childTable.TryGetValue("version", out var versionObj) && versionObj is string version)
-                {
+            if (value is TomlTable childTable) {
+                if (childTable.TryGetValue("version", out var versionObj) && versionObj is string version) {
                     // A string `source` here is a feed pin; a *table* named `source` is a package ID
                     // segment and is handled by the recursion below. TOML can't have both under one
                     // key, so the two readings never collide.
@@ -322,8 +280,7 @@ public static class ManifestReader
                         ? pin
                         : null;
 
-                    result[childPath] = new DotnetSpec
-                    {
+                    result[childPath] = new DotnetSpec {
                         Name = childPath,
                         Version = version,
                         Source = pinned,
@@ -332,9 +289,7 @@ public static class ManifestReader
                 }
 
                 CollectDotnetSpecs(childTable, childPath, sectionKey, sourcePath, result);
-            }
-            else if (key is not ("version" or "source" or AssetKeys.Include or AssetKeys.Exclude or AssetKeys.Private))
-            {
+            } else if (key is not ("version" or "source" or AssetKeys.Include or AssetKeys.Exclude or AssetKeys.Private)) {
                 throw new ManifestParseException(
                     $"{sourcePath}: [{sectionKey}] entry '{childPath}' is not a table — dotnet dependencies "
                     + "must be declared as [dotnet.<PackageId>] with a 'version' key.");
@@ -345,8 +300,7 @@ public static class ManifestReader
     /// <summary>The TOML key names for asset metadata, shared with <see cref="ManifestWriter"/> and
     /// with the whitelist in <see cref="CollectDotnetSpecs"/> — three spellings of each would be three
     /// chances to disagree.</summary>
-    internal static class AssetKeys
-    {
+    internal static class AssetKeys {
         public const string Include = "include_assets";
         public const string Exclude = "exclude_assets";
         public const string Private = "private_assets";
@@ -364,34 +318,29 @@ public static class ManifestReader
     /// (<see cref="PackageAssets.UnknownTags"/>).
     /// </remarks>
     private static PackageAssets ReadAssets(TomlTable table, string sectionKey, string packageId, string sourcePath) =>
-        new()
-        {
+        new() {
             Include = ReadAssetTags(table, AssetKeys.Include, sectionKey, packageId, sourcePath),
             Exclude = ReadAssetTags(table, AssetKeys.Exclude, sectionKey, packageId, sourcePath),
             Private = ReadAssetTags(table, AssetKeys.Private, sectionKey, packageId, sourcePath),
         };
 
     private static IReadOnlyList<string>? ReadAssetTags(
-        TomlTable table, string key, string sectionKey, string packageId, string sourcePath)
-    {
-        if (!table.TryGetValue(key, out var value))
-        {
+        TomlTable table, string key, string sectionKey, string packageId, string sourcePath) {
+        if (!table.TryGetValue(key, out var value)) {
             return null;
         }
 
         var what = $"[{sectionKey}.{packageId}] {key}";
         var tags = PackageAssets.Normalize(ReadStringArray(value, sourcePath, what));
 
-        if (tags.Count == 0)
-        {
+        if (tags.Count == 0) {
             throw new ManifestParseException(
                 $"{sourcePath}: {what} is empty. Remove the key to leave the .csproj alone, or use "
                 + "[\"none\"] to say no assets.");
         }
 
         var misuse = PackageAssets.FindMisuseOfAllOrNone(tags);
-        if (misuse is not null)
-        {
+        if (misuse is not null) {
             throw new ManifestParseException(
                 $"{sourcePath}: {what} lists '{misuse}' alongside other values — '{misuse}' must "
                 + "appear on its own.");

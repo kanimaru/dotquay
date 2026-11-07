@@ -11,8 +11,7 @@ namespace Dotquay.Core.SelfUpdate;
 /// interface because starting a process is exactly the kind of I/O the rest of this codebase keeps
 /// out of unit tests.
 /// </remarks>
-public interface IExecutableProbe
-{
+public interface IExecutableProbe {
     /// <summary>The version the binary at <paramref name="path"/> reports, or null when it did not
     /// start, exited non-zero, or printed something that is not a version.</summary>
     Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default);

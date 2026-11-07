@@ -8,29 +8,25 @@ namespace Dotquay.Tests.Doctor;
 /// <c>dotquay.lock</c> are full of commit SHAs and content hashes, and a check that flagged those
 /// would be turned off within a day.
 /// </summary>
-public class SecretScannerTests
-{
+public class SecretScannerTests {
     [Theory]
     [InlineData("glpat-abcdefghijklmnop")]
     [InlineData("ghp_abcdefghijklmnopqrstuvwxyz0123456789")]
     [InlineData("github_pat_11ABCDEFG0abcdefghijkl")]
     [InlineData("gldt-abcdefghijklmnop")]
-    public void Describe_ProviderTokens_AreFlagged(string token)
-    {
+    public void Describe_ProviderTokens_AreFlagged(string token) {
         Assert.NotNull(SecretScanner.Describe($"nuget_source = \"https://x\"\ntoken = \"{token}\""));
     }
 
     [Fact]
-    public void Describe_UrlWithEmbeddedCredentials_IsFlagged()
-    {
+    public void Describe_UrlWithEmbeddedCredentials_IsFlagged() {
         var found = SecretScanner.Describe("git = \"https://kani:glsecret@gitlab.example.com/kani/addon.git\"");
 
         Assert.Contains("embedded", found, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Describe_NeverQuotesWhatItFound()
-    {
+    public void Describe_NeverQuotesWhatItFound() {
         const string token = "glpat-abcdefghijklmnop";
 
         var found = SecretScanner.Describe($"token = \"{token}\"")!;
@@ -41,8 +37,7 @@ public class SecretScannerTests
     }
 
     [Fact]
-    public void Describe_ARealisticManifest_IsClean()
-    {
+    public void Describe_ARealisticManifest_IsClean() {
         Assert.Null(SecretScanner.Describe("""
             [nuget.sources.core]
             url = "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json"
@@ -54,8 +49,7 @@ public class SecretScannerTests
     }
 
     [Fact]
-    public void Describe_ARealisticLockfile_IsClean()
-    {
+    public void Describe_ARealisticLockfile_IsClean() {
         // Full of 40-character hex strings and sha256 hashes. Any entropy-based heuristic would light
         // this up, and a check that cries wolf gets ignored.
         Assert.Null(SecretScanner.Describe("""
@@ -67,8 +61,7 @@ public class SecretScannerTests
     }
 
     [Fact]
-    public void Describe_UrlWithUsernameButNoPassword_IsNotFlagged()
-    {
+    public void Describe_UrlWithUsernameButNoPassword_IsNotFlagged() {
         Assert.Null(SecretScanner.Describe("git = \"https://git@gitlab.example.com/kani/addon.git\""));
     }
 }

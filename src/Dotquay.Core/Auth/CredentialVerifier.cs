@@ -15,17 +15,14 @@ namespace Dotquay.Core.Auth;
 /// gets checked — GitLab rejects a valid token paired with the wrong username (an email address, say)
 /// exactly as it rejects a wrong token.
 /// </remarks>
-public sealed class CredentialVerifier
-{
+public sealed class CredentialVerifier {
     private readonly HttpClient _httpClient;
 
-    public CredentialVerifier(HttpClient? httpClient = null)
-    {
+    public CredentialVerifier(HttpClient? httpClient = null) {
         _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
     }
 
-    public enum Result
-    {
+    public enum Result {
         /// <summary>The server accepted the credential.</summary>
         Accepted,
 
@@ -39,18 +36,15 @@ public sealed class CredentialVerifier
     }
 
     public async Task<(Result Outcome, string? Detail)> VerifyAsync(
-        string url, Credential credential, CancellationToken cancellationToken = default)
-    {
+        string url, Credential credential, CancellationToken cancellationToken = default) {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{credential.Username}:{credential.Token}")));
 
-        try
-        {
+        try {
             using var response = await _httpClient.SendAsync(request, cancellationToken);
 
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            {
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) {
                 return (Result.Rejected, $"the server answered {(int)response.StatusCode} {response.StatusCode}");
             }
 
@@ -60,13 +54,9 @@ public sealed class CredentialVerifier
             return response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound
                 ? (Result.Accepted, null)
                 : (Result.Inconclusive, $"the server answered {(int)response.StatusCode} {response.StatusCode}");
-        }
-        catch (HttpRequestException ex)
-        {
+        } catch (HttpRequestException ex) {
             return (Result.Inconclusive, ex.Message);
-        }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
+        } catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) {
             return (Result.Inconclusive, "the request timed out");
         }
     }
@@ -79,17 +69,14 @@ public sealed class CredentialVerifier
     /// <returns>The outcome, with the detail naming the URL that produced it so a rejection can be
     /// told apart from "the feed URL in dotquay.toml is wrong".</returns>
     public async Task<(Result Outcome, string? Detail)> VerifyAnyAsync(
-        IReadOnlyList<string> urls, Credential credential, CancellationToken cancellationToken = default)
-    {
+        IReadOnlyList<string> urls, Credential credential, CancellationToken cancellationToken = default) {
         string? lastDetail = null;
 
-        foreach (var url in urls)
-        {
+        foreach (var url in urls) {
             var (outcome, detail) = await VerifyAsync(url, credential, cancellationToken);
             var located = detail is null ? null : $"{detail} for {url}";
 
-            if (outcome != Result.Inconclusive)
-            {
+            if (outcome != Result.Inconclusive) {
                 return (outcome, located);
             }
 

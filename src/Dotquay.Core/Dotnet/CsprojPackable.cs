@@ -19,8 +19,7 @@ namespace Dotquay.Core.Dotnet;
 /// wrong in the loud direction costs one question the user can answer with Enter. Neither guess ever
 /// decides what gets written — that is the user's answer, or a flag.</para>
 /// </remarks>
-public static class CsprojPackable
-{
+public static class CsprojPackable {
     /// <summary>
     /// The <c>.csproj</c> property suggesting this project is published, or null when none is.
     /// </summary>
@@ -29,20 +28,15 @@ public static class CsprojPackable
     /// probe is a guess, and a user being asked an unexpected question about their own project is owed
     /// the evidence behind it.
     /// </remarks>
-    public static string? Evidence(IFileSystem fileSystem, string csprojPath)
-    {
-        if (!fileSystem.FileExists(csprojPath))
-        {
+    public static string? Evidence(IFileSystem fileSystem, string csprojPath) {
+        if (!fileSystem.FileExists(csprojPath)) {
             return null;
         }
 
         XDocument document;
-        try
-        {
+        try {
             document = XDocument.Parse(fileSystem.ReadAllText(csprojPath));
-        }
-        catch (System.Xml.XmlException)
-        {
+        } catch (System.Xml.XmlException) {
             // A malformed .csproj is a real problem and emphatically not this method's to report: the
             // build will say so far more usefully. Staying quiet here means a broken project file never
             // turns into a confusing question about source generators.
@@ -67,20 +61,17 @@ public static class CsprojPackable
 
         // An explicit false settles it outright, whatever else the file says — it is the one
         // unambiguous statement a project can make about this.
-        if (properties.TryGetValue("IsPackable", out var isPackable) && IsFalse(isPackable))
-        {
+        if (properties.TryGetValue("IsPackable", out var isPackable) && IsFalse(isPackable)) {
             return null;
         }
 
         // An explicit PackageId is the strongest positive signal: nobody sets it on a project they do
         // not intend to publish.
-        if (properties.TryGetValue("PackageId", out var packageId) && packageId.Length > 0)
-        {
+        if (properties.TryGetValue("PackageId", out var packageId) && packageId.Length > 0) {
             return "PackageId";
         }
 
-        if (properties.TryGetValue("GeneratePackageOnBuild", out var onBuild) && IsTrue(onBuild))
-        {
+        if (properties.TryGetValue("GeneratePackageOnBuild", out var onBuild) && IsTrue(onBuild)) {
             return "GeneratePackageOnBuild";
         }
 

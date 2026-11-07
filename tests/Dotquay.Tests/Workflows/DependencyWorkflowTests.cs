@@ -10,8 +10,7 @@ using Xunit;
 
 namespace Dotquay.Tests.Workflows;
 
-public class DependencyWorkflowTests
-{
+public class DependencyWorkflowTests {
     private const string RepoUrl = "https://example.com/dialogue_manager.git";
     private const string ProjectDir = "project";
     private const string CsprojText = """
@@ -22,14 +21,12 @@ public class DependencyWorkflowTests
         </Project>
         """;
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build()
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };
 
@@ -39,8 +36,7 @@ public class DependencyWorkflowTests
 
     private static (
         DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient, FakeNuGetClient NuGetClient, FakeDotnetCliRunner Runner)
-        BuildWithDotnet()
-    {
+        BuildWithDotnet() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
@@ -61,14 +57,12 @@ public class DependencyWorkflowTests
     /// <summary>Full seam, with a <see cref="FakePatchTool"/> in place of the real git-shelling
     /// <c>ProcessPatchTool</c> — everything <see cref="DependencyWorkflow.PatchAsync"/> touches stays
     /// in-memory and deterministic (SPEC.md §12).</summary>
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient, FakePatchTool PatchTool) BuildWithPatchTool()
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient, FakePatchTool PatchTool) BuildWithPatchTool() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };
 
@@ -94,8 +88,7 @@ public class DependencyWorkflowTests
             .ToList();
 
     [Fact]
-    public async Task AddAsync_NoManifest_Throws()
-    {
+    public async Task AddAsync_NoManifest_Throws() {
         var fileSystem = new InMemoryFileSystem();
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), "cache");
 
@@ -104,8 +97,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_RepoWithTags_DerivesNameAndTildeConstraintFromLatestTag()
-    {
+    public async Task AddAsync_RepoWithTags_DerivesNameAndTildeConstraintFromLatestTag() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v2.44.0", "v2.43.0", "v2.44.0-rc1");
 
@@ -123,8 +115,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_RepoWithNoTags_PinsDefaultBranchTipAsRev()
-    {
+    public async Task AddAsync_RepoWithNoTags_PinsDefaultBranchTipAsRev() {
         var (workflow, fileSystem, gitClient) = Build();
         gitClient.DefaultBranches[RepoUrl] = "main";
         var tipSha = new string('b', 40);
@@ -140,8 +131,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_PathOverride_ExtractsConfiguredSubtreeInsteadOfDefault()
-    {
+    public async Task AddAsync_PathOverride_ExtractsConfiguredSubtreeInsteadOfDefault() {
         // Mirrors a real repo layout hit during end-to-end verification: the repo is named
         // "godot_dialogue_manager" (so the auto-derived name and default guessed path both become
         // "godot_dialogue_manager"), but the addon folder inside it is actually "dialogue_manager".
@@ -149,8 +139,7 @@ public class DependencyWorkflowTests
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[mismatchedRepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[mismatchedRepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };
         gitClient.RemoteRefsByUrl[mismatchedRepoUrl] =
@@ -168,8 +157,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_NameAlreadyDeclared_Throws()
-    {
+    public async Task AddAsync_NameAlreadyDeclared_Throws() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -179,8 +167,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_NoLockfile_Throws()
-    {
+    public async Task InstallAsync_NoLockfile_Throws() {
         var (workflow, _, _) = Build();
 
         var ex = await Assert.ThrowsAsync<WorkflowException>(() => workflow.InstallAsync(ProjectDir, force: false));
@@ -188,8 +175,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_ManifestDeclaresAddonMissingFromLockfile_Throws()
-    {
+    public async Task InstallAsync_ManifestDeclaresAddonMissingFromLockfile_Throws() {
         var (workflow, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[addons.ghost]\ngit = \"https://example.com/ghost.git\"\nrev = \"" + new string('c', 40) + "\"\n");
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.lock", "");
@@ -199,8 +185,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_ReplaysLockedAddonsWithoutReResolving()
-    {
+    public async Task InstallAsync_ReplaysLockedAddonsWithoutReResolving() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -214,8 +199,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_LeftoverStagingTree_IsSwept()
-    {
+    public async Task InstallAsync_LeftoverStagingTree_IsSwept() {
         // Found as .dotquay/staging/twitcher: a full copy of an addon left behind weeks earlier.
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
@@ -228,8 +212,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_LeftoverStagingTree_IsSwept()
-    {
+    public async Task UpdateAsync_LeftoverStagingTree_IsSwept() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -241,8 +224,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task RemoveAsync_RemovesFromManifestLockfileAndDisk()
-    {
+    public async Task RemoveAsync_RemovesFromManifestLockfileAndDisk() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -259,8 +241,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task RemoveAsync_UnknownName_Throws()
-    {
+    public async Task RemoveAsync_UnknownName_Throws() {
         var (workflow, _, _) = Build();
 
         var ex = await Assert.ThrowsAsync<WorkflowException>(() => workflow.RemoveAsync(ProjectDir, "nope"));
@@ -268,8 +249,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task ListInstalled_ReturnsLockedAddons()
-    {
+    public async Task ListInstalled_ReturnsLockedAddons() {
         var (workflow, _, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -281,16 +261,14 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public void ListInstalled_NoLockfileYet_ReturnsEmpty()
-    {
+    public void ListInstalled_NoLockfileYet_ReturnsEmpty() {
         var (workflow, _, _) = Build();
 
         Assert.Empty(workflow.ListInstalled(ProjectDir));
     }
 
     [Fact]
-    public async Task UpdateAsync_NoNameArg_ReResolvesEveryManifestAddon()
-    {
+    public async Task UpdateAsync_NoNameArg_ReResolvesEveryManifestAddon() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v2.43.0");
         await workflow.AddAsync(ProjectDir, RepoUrl); // locks the manifest to the "~2.43" constraint
@@ -309,8 +287,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_NoNewerMatchingTag_ReportsUnchanged()
-    {
+    public async Task UpdateAsync_NoNewerMatchingTag_ReportsUnchanged() {
         var (workflow, _, gitClient) = Build();
         SetTags(gitClient, "v2.44.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -322,8 +299,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ByName_OnlyTouchesThatAddon()
-    {
+    public async Task UpdateAsync_ByName_OnlyTouchesThatAddon() {
         const string otherUrl = "https://example.com/other.git";
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
@@ -347,8 +323,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_HandAddedManifestEntryWithNoPriorLock_LocksAndInstallsIt()
-    {
+    public async Task UpdateAsync_HandAddedManifestEntryWithNoPriorLock_LocksAndInstallsIt() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         fileSystem.WriteAllText(
@@ -364,8 +339,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_UnknownName_Throws()
-    {
+    public async Task UpdateAsync_UnknownName_Throws() {
         var (workflow, _, _) = Build();
 
         var ex = await Assert.ThrowsAsync<WorkflowException>(() => workflow.UpdateAsync(ProjectDir, "nope", force: false));
@@ -373,8 +347,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DirtyDestinationWithoutForce_Throws()
-    {
+    public async Task UpdateAsync_DirtyDestinationWithoutForce_Throws() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -384,8 +357,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_NoVersionGiven_PicksLatestStableAndInstalls()
-    {
+    public async Task AddDotnetAsync_NoVersionGiven_PicksLatestStableAndInstalls() {
         var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.1", "13.0.3", "13.0.4-beta1"];
 
@@ -404,8 +376,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_ExplicitVersion_UsesItWhenItExists()
-    {
+    public async Task AddDotnetAsync_ExplicitVersion_UsesItWhenItExists() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.1", "13.0.3"];
 
@@ -415,8 +386,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_ExplicitVersionNotFound_Throws()
-    {
+    public async Task AddDotnetAsync_ExplicitVersionNotFound_Throws() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.1"];
 
@@ -426,8 +396,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_NoStableReleaseAndNoOverride_Throws()
-    {
+    public async Task AddDotnetAsync_NoStableReleaseAndNoOverride_Throws() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Only.Prerelease"] = ["1.0.0-beta1"];
 
@@ -435,8 +404,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_AlreadyDeclared_Throws()
-    {
+    public async Task AddDotnetAsync_AlreadyDeclared_Throws() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -446,8 +414,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_ReplaysDotnetLockEntriesAndRestoresOnce()
-    {
+    public async Task InstallAsync_ReplaysDotnetLockEntriesAndRestoresOnce() {
         var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -464,8 +431,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_ManifestDeclaresDotnetMissingFromLockfile_Throws()
-    {
+    public async Task InstallAsync_ManifestDeclaresDotnetMissingFromLockfile_Throws() {
         var (workflow, fileSystem, _, _, _) = BuildWithDotnet();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"13.0.3\"\n");
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.lock", "");
@@ -475,8 +441,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetNewerStableAvailable_BumpsAndRestores()
-    {
+    public async Task UpdateAsync_DotnetNewerStableAvailable_BumpsAndRestores() {
         var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -495,8 +460,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetExactVersionInManifest_KeepsThatVersion()
-    {
+    public async Task UpdateAsync_DotnetExactVersionInManifest_KeepsThatVersion() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["gdUnit4.test.adapter"] = ["3.0.0"];
         await workflow.AddDotnetAsync(ProjectDir, "gdUnit4.test.adapter", versionOverride: "3.0.0");
@@ -509,8 +473,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetPrereleaseVersionInManifest_KeepsThatVersion()
-    {
+    public async Task UpdateAsync_DotnetPrereleaseVersionInManifest_KeepsThatVersion() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["gdUnit4.api"] = ["5.0.0", "5.1.0-rc1"];
         await workflow.AddDotnetAsync(ProjectDir, "gdUnit4.api", versionOverride: "5.1.0-rc1");
@@ -521,8 +484,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetCaretRange_MovesOnlyWithinItsMajor()
-    {
+    public async Task UpdateAsync_DotnetCaretRange_MovesOnlyWithinItsMajor() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"^13.0\"\n");
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.1", "13.2.0", "14.0.0", "13.3.0-beta1"];
@@ -535,8 +497,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_RangeGiven_ResolvesInsideItAndWritesItAsTyped()
-    {
+    public async Task AddDotnetAsync_RangeGiven_ResolvesInsideItAndWritesItAsTyped() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["gdUnit4.api"] = ["5.0.0", "5.1.0-rc1", "5.1.0-rc5"];
 
@@ -548,8 +509,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetNuGetIntervalNotation_IsRefusedWithTheGrammar()
-    {
+    public async Task UpdateAsync_DotnetNuGetIntervalNotation_IsRefusedWithTheGrammar() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"[13.0,14.0)\"\n");
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
@@ -561,8 +521,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetRangeMatchesNothing_NamesTheNewestThatExists()
-    {
+    public async Task UpdateAsync_DotnetRangeMatchesNothing_NamesTheNewestThatExists() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[dotnet.Newtonsoft.Json]\nversion = \"^14.0\"\n");
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
@@ -575,8 +534,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetRestoreFails_LeavesCsprojAndLockfileAsTheyWere()
-    {
+    public async Task UpdateAsync_DotnetRestoreFails_LeavesCsprojAndLockfileAsTheyWere() {
         // The BotV2 failure (DESIGN-v0.21 §1, §4): update wrote the new PackageReference, NuGet refused
         // the restore, and the .csproj was left matching neither the manifest nor the lockfile.
         var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
@@ -595,8 +553,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_RestoreFails_LeavesCsprojAsItWas()
-    {
+    public async Task AddDotnetAsync_RestoreFails_LeavesCsprojAsItWas() {
         var (workflow, fileSystem, _, nuGetClient, runner) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         var csprojBefore = fileSystem.ReadAllBytes($"{ProjectDir}/Game.csproj");
@@ -612,8 +569,7 @@ public class DependencyWorkflowTests
 
     /// <summary>Two addons that each declare <c>Shared.Lib</c> with their own range.</summary>
     private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient NuGetClient)
-        BuildTwoAddonsDeclaringOnePackage(string gizmoRange, string widgetRange, string projectDotnetBlock = "")
-    {
+        BuildTwoAddonsDeclaringOnePackage(string gizmoRange, string widgetRange, string projectDotnetBlock = "") {
         var (workflow, fileSystem, gitClient, nuGetClient, _) = BuildWithDotnet();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", $"""
             [addons.gizmo]
@@ -627,11 +583,9 @@ public class DependencyWorkflowTests
             {projectDotnetBlock}
             """);
 
-        foreach (var (name, url, range, sha) in new[] { ("gizmo", GizmoUrl, gizmoRange, 'c'), ("widget", WidgetUrl, widgetRange, 'd') })
-        {
+        foreach (var (name, url, range, sha) in new[] { ("gizmo", GizmoUrl, gizmoRange, 'c'), ("widget", WidgetUrl, widgetRange, 'd') }) {
             gitClient.RemoteRefsByUrl[url] = [new GitRef("v1.0.0", new string(sha, 40), GitRefKind.Tag)];
-            gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string>
-            {
+            gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string> {
                 [$"addons/{name}/plugin.cfg"] = name,
                 [$"addons/{name}/dotquay.toml"] = $"""
                     [package]
@@ -647,8 +601,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_TwoAddonsDeclareOnePackage_ResolvesInsideBothRanges()
-    {
+    public async Task UpdateAsync_TwoAddonsDeclareOnePackage_ResolvesInsideBothRanges() {
         var (workflow, _, nuGetClient) = BuildTwoAddonsDeclaringOnePackage("^1.2", "~1.3");
         nuGetClient.VersionsByPackageId["Shared.Lib"] = ["1.2.0", "1.3.4", "1.4.0", "2.0.0"];
 
@@ -659,8 +612,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_TwoAddonsDeclareDisjointRanges_NamesBothAndTheirRanges()
-    {
+    public async Task UpdateAsync_TwoAddonsDeclareDisjointRanges_NamesBothAndTheirRanges() {
         var (workflow, _, nuGetClient) = BuildTwoAddonsDeclaringOnePackage("^1.2", "^2.0");
         nuGetClient.VersionsByPackageId["Shared.Lib"] = ["1.2.0", "2.0.0"];
 
@@ -672,8 +624,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ProjectDeclaresAPackageAddonsAlsoDeclare_TheProjectsRangeWins()
-    {
+    public async Task UpdateAsync_ProjectDeclaresAPackageAddonsAlsoDeclare_TheProjectsRangeWins() {
         var (workflow, _, nuGetClient) = BuildTwoAddonsDeclaringOnePackage(
             "^1.2", "^2.0", projectDotnetBlock: "[dotnet.Shared.Lib]\nversion = \"^3.0\"");
         nuGetClient.VersionsByPackageId["Shared.Lib"] = ["1.2.0", "2.0.0", "3.0.0"];
@@ -684,8 +635,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_DotnetNoNewerVersion_ReportsUnchangedAndSkipsRestore()
-    {
+    public async Task UpdateAsync_DotnetNoNewerVersion_ReportsUnchangedAndSkipsRestore() {
         var (workflow, _, _, nuGetClient, runner) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -699,8 +649,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task RemoveAsync_DotnetName_RemovesFromManifestLockfileAndCsproj()
-    {
+    public async Task RemoveAsync_DotnetName_RemovesFromManifestLockfileAndCsproj() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -717,8 +666,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_ManifestDeclaresNuGetSource_RoutesToThatSourcesClient()
-    {
+    public async Task AddDotnetAsync_ManifestDeclaresNuGetSource_RoutesToThatSourcesClient() {
         const string privateSource = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
 
         var fileSystem = new InMemoryFileSystem();
@@ -751,8 +699,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_TwoFeeds_TakesTheFirstThatHasThePackage_NotTheHighestVersion()
-    {
+    public async Task AddDotnetAsync_TwoFeeds_TakesTheFirstThatHasThePackage_NotTheHighestVersion() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", """
             [nuget.sources.core]
@@ -783,8 +730,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_FeedRejectsCredentials_FailsInsteadOfFallingThroughToAPublicFeed()
-    {
+    public async Task AddDotnetAsync_FeedRejectsCredentials_FailsInsteadOfFallingThroughToAPublicFeed() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", """
             [nuget.sources.core]
@@ -815,8 +761,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_PinnedPackage_SearchesOnlyThatFeed()
-    {
+    public async Task AddDotnetAsync_PinnedPackage_SearchesOnlyThatFeed() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", """
             [nuget.sources.core]
@@ -857,12 +802,10 @@ public class DependencyWorkflowTests
     private const string VbeamiUrl = "https://gitlab.example.com/wild-alliance/vbeami.git";
 
     /// <summary>Approves every adoption request and records what it was asked.</summary>
-    private sealed class ApproveAllSources : ISourceApproval
-    {
+    private sealed class ApproveAllSources : ISourceApproval {
         public List<SourceAdoptionRequest> Seen { get; } = [];
 
-        public bool Approve(SourceAdoptionRequest request)
-        {
+        public bool Approve(SourceAdoptionRequest request) {
             Seen.Add(request);
             return true;
         }
@@ -872,16 +815,14 @@ public class DependencyWorkflowTests
     /// manifest declares the NuGet package, which exists only on that feed.</summary>
     private static (DependencyWorkflow Workflow, FakeNuGetClientFactory Factory, InMemoryFileSystem FileSystem)
         BuildAddonDeclaredPrivatePackage(
-            string projectManifest, string addonDotnetBlock, ISourceApproval? approval = null)
-    {
+            string projectManifest, string addonDotnetBlock, ISourceApproval? approval = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", projectManifest);
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string> {
             ["addons/vbeami/plugin.cfg"] = "vbeami",
             ["addons/vbeami/dotquay.toml"] = $"""
                 [package]
@@ -905,8 +846,7 @@ public class DependencyWorkflowTests
             fileSystem, new RepoCache(fileSystem, gitClient, "cache"), new SyncEngine(fileSystem), new FakePatchTool(fileSystem));
         var workflow = new DependencyWorkflow(
             fileSystem, gitClient, factory, addonInstaller,
-            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()))
-        {
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None())) {
             SourceApproval = approval ?? DenyAllSourceApproval.Instance,
         };
 
@@ -914,8 +854,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AddonDeclaredNuGetPackage_ResolvesFromTheProjectsPrivateFeed()
-    {
+    public async Task Update_AddonDeclaredNuGetPackage_ResolvesFromTheProjectsPrivateFeed() {
         var (workflow, factory, fileSystem) = BuildAddonDeclaredPrivatePackage(
             $"""
             [nuget.sources.gitlab]
@@ -947,8 +886,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AddonDeclaredNuGetPackage_ProjectDidNotDeclareTheFeed_FailsInsteadOfSilentlyMissing()
-    {
+    public async Task Update_AddonDeclaredNuGetPackage_ProjectDidNotDeclareTheFeed_FailsInsteadOfSilentlyMissing() {
         // The feed lives in the *project's* manifest; an addon cannot bring one with it. Without it,
         // only nuget.org is searched and the package genuinely isn't there.
         var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(
@@ -977,8 +915,7 @@ public class DependencyWorkflowTests
     /// from the status code alone).
     /// </summary>
     [Fact]
-    public async Task Update_AddonDeclaredFeedIsTrustedAndAdoptedButPackageIsNotThere_NamesTheCheckedFeed()
-    {
+    public async Task Update_AddonDeclaredFeedIsTrustedAndAdoptedButPackageIsNotThere_NamesTheCheckedFeed() {
         var (workflow, factory, _) = BuildAddonDeclaredPrivatePackage(
             $"""
             [nuget]
@@ -1025,8 +962,7 @@ public class DependencyWorkflowTests
     /// "persist an approval immediately" reasoning already applied to feed adoption a few lines up.
     /// </remarks>
     [Fact]
-    public async Task Update_AddonDeclaredNuGetPackage_FeedNotAdopted_RecordsTheInstalledAddonSoARetryDoesNotSeeItAsDirty()
-    {
+    public async Task Update_AddonDeclaredNuGetPackage_FeedNotAdopted_RecordsTheInstalledAddonSoARetryDoesNotSeeItAsDirty() {
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
             $"""
             [addons.vbeami]
@@ -1060,8 +996,7 @@ public class DependencyWorkflowTests
     /// the field report actually used. <c>add</c> writes the new <c>[addons.*]</c> entry itself, so
     /// this also covers the manifest write, not just the lockfile.</summary>
     [Fact]
-    public async Task AddAsync_AddonDeclaredNuGetPackage_FeedNotAdopted_RecordsTheInstalledAddonSoARetryDoesNotSeeItAsDirty()
-    {
+    public async Task AddAsync_AddonDeclaredNuGetPackage_FeedNotAdopted_RecordsTheInstalledAddonSoARetryDoesNotSeeItAsDirty() {
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
             projectManifest: "",
             addonDotnetBlock: """
@@ -1094,8 +1029,7 @@ public class DependencyWorkflowTests
     /// reclaim it, the same way <c>update --force</c> already can (SPEC.md P0-6).
     /// </summary>
     [Fact]
-    public async Task AddAsync_DestinationAlreadyOccupiedByUntrackedContent_RefusesWithoutForce_SucceedsWithForce()
-    {
+    public async Task AddAsync_DestinationAlreadyOccupiedByUntrackedContent_RefusesWithoutForce_SucceedsWithForce() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
 
@@ -1112,8 +1046,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AddonDeclaredSourcePin_IsNotHonoured_ResolutionStillSearchesEveryFeed()
-    {
+    public async Task Update_AddonDeclaredSourcePin_IsNotHonoured_ResolutionStillSearchesEveryFeed() {
         // An addon's `source = "..."` names a feed in the *consuming project's* namespace, which the
         // addon cannot know — the same feed might be called "kemomi" downstream. So the pin is
         // ignored and the package resolves by the normal first-match-in-declared-order rule.
@@ -1161,8 +1094,7 @@ public class DependencyWorkflowTests
         """;
 
     [Fact]
-    public async Task Update_AddonDeclaresItsOwnFeed_TrustedHost_AdoptsWithoutAsking()
-    {
+    public async Task Update_AddonDeclaresItsOwnFeed_TrustedHost_AdoptsWithoutAsking() {
         var approval = new ApproveAllSources();
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
             $"""
@@ -1189,8 +1121,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AddonDeclaresItsOwnFeed_UntrustedHost_AsksAndAdoptsOnYes()
-    {
+    public async Task Update_AddonDeclaresItsOwnFeed_UntrustedHost_AsksAndAdoptsOnYes() {
         var approval = new ApproveAllSources();
         var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(ProjectWithNoFeed, AddonDeclaredFeed, approval);
 
@@ -1205,8 +1136,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AddonDeclaresItsOwnFeed_Refused_ExplainsWhyThePackageIsMissing()
-    {
+    public async Task Update_AddonDeclaresItsOwnFeed_Refused_ExplainsWhyThePackageIsMissing() {
         // DenyAllSourceApproval is the default, so this is also what CI and --json do.
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(ProjectWithNoFeed, AddonDeclaredFeed);
 
@@ -1222,8 +1152,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AdoptionSurvivesALaterFailure_SoARetryDoesNotReAsk()
-    {
+    public async Task Update_AdoptionSurvivesALaterFailure_SoARetryDoesNotReAsk() {
         // Found by running it: adoption used to be persisted only after dotnet resolution, so a
         // resolution failure discarded a decision the user had already made — and the next attempt
         // asked again, forever.
@@ -1242,8 +1171,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Install_NeverAdopts_EvenFromATrustedHost()
-    {
+    public async Task Install_NeverAdopts_EvenFromATrustedHost() {
         var approval = new ApproveAllSources();
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
             $"""
@@ -1269,8 +1197,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Doctor_ReportsTrustWithoutMarkingTheProjectUnhealthy()
-    {
+    public async Task Doctor_ReportsTrustWithoutMarkingTheProjectUnhealthy() {
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
             $"""
             [nuget]
@@ -1294,8 +1221,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Doctor_WildcardTrustedHost_IsReportedAsUnusable()
-    {
+    public async Task Doctor_WildcardTrustedHost_IsReportedAsUnusable() {
         var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(
             $"""
             [nuget]
@@ -1313,8 +1239,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Doctor_NoTrustConfigured_SaysNothingAboutIt()
-    {
+    public async Task Doctor_NoTrustConfigured_SaysNothingAboutIt() {
         var (workflow, _, _) = BuildAddonDeclaredPrivatePackage(ProjectWithNoFeed, AddonDeclaredFeed);
 
         var result = await workflow.DoctorAsync(ProjectDir);
@@ -1324,8 +1249,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Update_AdoptedFeed_IsScopedByPackageSourceMapping()
-    {
+    public async Task Update_AdoptedFeed_IsScopedByPackageSourceMapping() {
         var (workflow, _, fileSystem) = BuildAddonDeclaredPrivatePackage(
             $"""
             [nuget]
@@ -1346,8 +1270,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddDotnetAsync_ManifestDeclaresNuGetSource_AlsoRegistersItInNuGetConfigForRestore()
-    {
+    public async Task AddDotnetAsync_ManifestDeclaresNuGetSource_AlsoRegistersItInNuGetConfigForRestore() {
         const string privateSource = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
 
         var fileSystem = new InMemoryFileSystem();
@@ -1378,8 +1301,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task ListInstalledDotnet_ReturnsLockedDotnetDependencies()
-    {
+    public async Task ListInstalledDotnet_ReturnsLockedDotnetDependencies() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -1391,8 +1313,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_VersionSourcedAddonWithNewerMatchingTag_ReportsOutdated()
-    {
+    public async Task OutdatedAsync_VersionSourcedAddonWithNewerMatchingTag_ReportsOutdated() {
         var (workflow, _, gitClient) = Build();
         SetTags(gitClient, "v2.44.0");
         await workflow.AddAsync(ProjectDir, RepoUrl); // locks ~2.44 @ v2.44.0
@@ -1409,8 +1330,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_VersionSourcedAddonAlreadyAtHighestMatchingTag_ReportsNotOutdated()
-    {
+    public async Task OutdatedAsync_VersionSourcedAddonAlreadyAtHighestMatchingTag_ReportsNotOutdated() {
         var (workflow, _, gitClient) = Build();
         SetTags(gitClient, "v2.44.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1423,8 +1343,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_OverriddenAddon_ChecksOverrideSpecNotBaseSpec_ReportsNotOutdated()
-    {
+    public async Task OutdatedAsync_OverriddenAddon_ChecksOverrideSpecNotBaseSpec_ReportsNotOutdated() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v0.0.5", "v0.7.5");
 
@@ -1450,8 +1369,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_OverriddenAddonWithNewerTagUnderOverrideConstraint_ReportsOutdated()
-    {
+    public async Task OutdatedAsync_OverriddenAddonWithNewerTagUnderOverrideConstraint_ReportsOutdated() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v0.0.5", "v0.7.5", "v0.7.6"); // v0.7.6 appears upstream after locking
 
@@ -1474,8 +1392,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_BranchSourcedAddonTipMoved_ReportsOutdated()
-    {
+    public async Task OutdatedAsync_BranchSourcedAddonTipMoved_ReportsOutdated() {
         var fileSystem = new InMemoryFileSystem();
         var lockedSha = new string('a', 40);
         var newTipSha = new string('b', 40);
@@ -1497,8 +1414,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_RevSourcedAddon_IsSkippedEntirely()
-    {
+    public async Task OutdatedAsync_RevSourcedAddon_IsSkippedEntirely() {
         var fileSystem = new InMemoryFileSystem();
         var pinnedSha = new string('c', 40);
         fileSystem.WriteAllText(
@@ -1514,8 +1430,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_LockedButNoLongerDeclaredInManifest_IsSkipped()
-    {
+    public async Task OutdatedAsync_LockedButNoLongerDeclaredInManifest_IsSkipped() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1529,8 +1444,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_DotnetPackageWithNewerStableVersion_ReportsOutdated()
-    {
+    public async Task OutdatedAsync_DotnetPackageWithNewerStableVersion_ReportsOutdated() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -1546,8 +1460,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_DotnetPackageAlreadyLatest_ReportsNotOutdated()
-    {
+    public async Task OutdatedAsync_DotnetPackageAlreadyLatest_ReportsNotOutdated() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -1566,8 +1479,7 @@ public class DependencyWorkflowTests
     /// as an available upgrade would promise something <c>update</c> never does.
     /// </summary>
     [Fact]
-    public async Task OutdatedAsync_DotnetExactPin_IsCurrentWhileANewerVersionExists()
-    {
+    public async Task OutdatedAsync_DotnetExactPin_IsCurrentWhileANewerVersionExists() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Adapter"] = ["3.0.0", "3.1.1"];
         await workflow.AddDotnetAsync(ProjectDir, "Adapter", versionOverride: "3.0.0");
@@ -1579,8 +1491,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_DotnetCaretRange_OffersTheNewestInsideItNotTheNewestOverall()
-    {
+    public async Task OutdatedAsync_DotnetCaretRange_OffersTheNewestInsideItNotTheNewestOverall() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");   // writes ^13.0.3
@@ -1594,8 +1505,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_DotnetCaretRange_NewerMajorOnlyIsNotReported()
-    {
+    public async Task OutdatedAsync_DotnetCaretRange_NewerMajorOnlyIsNotReported() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -1609,8 +1519,7 @@ public class DependencyWorkflowTests
 
     /// <summary>A prerelease pin is current: the old check compared with the newest stable (5.2.0) and said outdated.</summary>
     [Fact]
-    public async Task OutdatedAsync_DotnetPrereleasePin_IsCurrent()
-    {
+    public async Task OutdatedAsync_DotnetPrereleasePin_IsCurrent() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Api"] = ["5.0.0", "5.1.0-rc1", "5.2.0"];
         await workflow.AddDotnetAsync(ProjectDir, "Api", versionOverride: "5.1.0-rc1");
@@ -1621,8 +1530,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_DotnetPrereleaseRange_OffersALaterPrereleaseOfTheSameVersion()
-    {
+    public async Task OutdatedAsync_DotnetPrereleaseRange_OffersALaterPrereleaseOfTheSameVersion() {
         var (workflow, _, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Api"] = ["5.0.0", "5.1.0-rc1"];
         await workflow.AddDotnetAsync(ProjectDir, "Api", versionOverride: "^5.1.0-rc1");
@@ -1637,8 +1545,7 @@ public class DependencyWorkflowTests
 
     /// <summary>The manifest was edited after locking and the locked version is now above the range: nothing to offer.</summary>
     [Fact]
-    public async Task OutdatedAsync_DotnetLockedAboveTheRange_DoesNotSuggestADowngrade()
-    {
+    public async Task OutdatedAsync_DotnetLockedAboveTheRange_DoesNotSuggestADowngrade() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["12.0.3", "13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");   // locked 13.0.3
@@ -1650,8 +1557,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_DotnetInvalidRange_NamesThePackage()
-    {
+    public async Task OutdatedAsync_DotnetInvalidRange_NamesThePackage() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -1664,8 +1570,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task OutdatedAsync_NoManifest_Throws()
-    {
+    public async Task OutdatedAsync_NoManifest_Throws() {
         var fileSystem = new InMemoryFileSystem();
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), "cache");
 
@@ -1674,8 +1579,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public void Status_NoLockfile_ReturnsEmptyRatherThanThrowing()
-    {
+    public void Status_NoLockfile_ReturnsEmptyRatherThanThrowing() {
         var (workflow, _, _) = Build();
 
         var result = workflow.Status(ProjectDir);
@@ -1684,8 +1588,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Status_UntouchedAfterInstall_IsClean()
-    {
+    public async Task Status_UntouchedAfterInstall_IsClean() {
         var (workflow, _, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1697,8 +1600,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Status_HandEditedAfterInstall_IsModified()
-    {
+    public async Task Status_HandEditedAfterInstall_IsModified() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1712,8 +1614,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Status_FolderDeletedAfterInstall_IsMissing()
-    {
+    public async Task Status_FolderDeletedAfterInstall_IsMissing() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1727,8 +1628,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public void Status_PatchHashRecordedAndContentMatches_IsPatchedAsExpected()
-    {
+    public void Status_PatchHashRecordedAndContentMatches_IsPatchedAsExpected() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/addons/patched_addon/plugin.cfg", "cfg");
         var contentHash = Dotquay.Core.Sync.ContentHasher.HashDirectory(fileSystem, $"{ProjectDir}/addons/patched_addon");
@@ -1746,8 +1646,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_HealthyProject_ReportsNoIssues()
-    {
+    public async Task DoctorAsync_HealthyProject_ReportsNoIssues() {
         var (workflow, _, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1758,8 +1657,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_GitNotAvailable_ReportsIt()
-    {
+    public async Task DoctorAsync_GitNotAvailable_ReportsIt() {
         var (workflow, _, gitClient) = Build();
         gitClient.IsGitAvailable = false;
 
@@ -1769,8 +1667,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_LockedAddonNoLongerInManifest_ReportsDanglingEntry()
-    {
+    public async Task DoctorAsync_LockedAddonNoLongerInManifest_ReportsDanglingEntry() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1784,8 +1681,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_LockedDotnetNoLongerInManifest_ReportsDanglingEntry()
-    {
+    public async Task DoctorAsync_LockedDotnetNoLongerInManifest_ReportsDanglingEntry() {
         var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
         await workflow.AddDotnetAsync(ProjectDir, "Newtonsoft.Json");
@@ -1799,8 +1695,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_PluginCfgVersionDrift_ReportsIt()
-    {
+    public async Task DoctorAsync_PluginCfgVersionDrift_ReportsIt() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v2.44.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1814,8 +1709,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_PluginCfgVersionMatchesLockfile_NoIssue()
-    {
+    public async Task DoctorAsync_PluginCfgVersionMatchesLockfile_NoIssue() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v2.44.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1828,8 +1722,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_LinkedAddonWithANewerUpstream_LeavesTheEntryWholeAndSaysSo()
-    {
+    public async Task UpdateAsync_LinkedAddonWithANewerUpstream_LeavesTheEntryWholeAndSaysSo() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v2.43.0"); // locks the manifest to the "~2.43" constraint
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1858,8 +1751,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_LinkedAddonAlreadyAtTheResolvedCommit_SaysNothing()
-    {
+    public async Task UpdateAsync_LinkedAddonAlreadyAtTheResolvedCommit_SaysNothing() {
         var (workflow, fileSystem, gitClient) = Build();
         SetTags(gitClient, "v2.43.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -1876,8 +1768,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_LinkedAddonWithDifferentPluginCfgVersion_SkipsPluginCfgDriftCheck()
-    {
+    public async Task DoctorAsync_LinkedAddonWithDifferentPluginCfgVersion_SkipsPluginCfgDriftCheck() {
         // Regression test: a linked addon's plugin.cfg is the developer's own live working copy, and
         // the lockfile deliberately never tracks it (LocalLinks keeps naming the last
         // upstream-resolved version through a link) — so an ordinary local version bump must not
@@ -1897,8 +1788,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_PseudoVersionedAddon_SkipsPluginCfgDriftCheck()
-    {
+    public async Task DoctorAsync_PseudoVersionedAddon_SkipsPluginCfgDriftCheck() {
         var (workflow, fileSystem, gitClient) = Build();
         gitClient.DefaultBranches[RepoUrl] = "main";
         var tipSha = new string('b', 40);
@@ -1913,8 +1803,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_OrphanedAddonFolder_ReportsIt()
-    {
+    public async Task DoctorAsync_OrphanedAddonFolder_ReportsIt() {
         var (workflow, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{ProjectDir}/addons/mystery/plugin.cfg", "cfg");
 
@@ -1924,8 +1813,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonFolderGodotNeverScans_IsNotAnOrphan()
-    {
+    public async Task DoctorAsync_AddonFolderGodotNeverScans_IsNotAnOrphan() {
         // Godot skips dot folders and folders holding a .gdignore, so neither can load as an addon.
         var (workflow, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{ProjectDir}/addons/.backup/plugin.cfg", "cfg");
@@ -1937,8 +1825,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task Status_AddonWithPathOverride_ChecksActualInstallLocationNotSourceSubtree()
-    {
+    public async Task Status_AddonWithPathOverride_ChecksActualInstallLocationNotSourceSubtree() {
         // Regression test: LockedAddon.Path records the SOURCE subtree extracted from the upstream
         // repo (spec.EffectivePath), not the install destination — AddonInstaller always installs to
         // "addons/<name>" regardless of --path. Status() must check the real install location.
@@ -1946,8 +1833,7 @@ public class DependencyWorkflowTests
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[mismatchedRepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[mismatchedRepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };
         gitClient.RemoteRefsByUrl[mismatchedRepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
@@ -1964,14 +1850,12 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonWithPathOverride_ChecksActualInstallLocationNotSourceSubtree()
-    {
+    public async Task DoctorAsync_AddonWithPathOverride_ChecksActualInstallLocationNotSourceSubtree() {
         const string mismatchedRepoUrl = "https://example.com/godot_dialogue_manager.git";
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[mismatchedRepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[mismatchedRepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "[plugin]\nversion=\"1.0.0\"\n",
         };
         gitClient.RemoteRefsByUrl[mismatchedRepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
@@ -1990,8 +1874,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_NoManifest_SkipsDanglingCheckButStillRunsOthers()
-    {
+    public async Task DoctorAsync_NoManifest_SkipsDanglingCheckButStillRunsOthers() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/addons/mystery/plugin.cfg", "cfg");
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), "cache");
@@ -2003,8 +1886,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task PatchAsync_HandEditedAddon_WritesPatchFileAndRecordsHashAndBaseSha()
-    {
+    public async Task PatchAsync_HandEditedAddon_WritesPatchFileAndRecordsHashAndBaseSha() {
         var (workflow, fileSystem, gitClient, patchTool) = BuildWithPatchTool();
         SetTags(gitClient, "v1.0.0");
         var locked = await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -2028,8 +1910,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task PatchAsync_NoDifferenceFromPristineBase_DoesNotCapture()
-    {
+    public async Task PatchAsync_NoDifferenceFromPristineBase_DoesNotCapture() {
         var (workflow, _, gitClient, _) = BuildWithPatchTool();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -2042,8 +1923,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task PatchAsync_EmptyDiffAfterPreviouslyCaptured_ClearsPatchAndDeletesFile()
-    {
+    public async Task PatchAsync_EmptyDiffAfterPreviouslyCaptured_ClearsPatchAndDeletesFile() {
         var (workflow, fileSystem, gitClient, patchTool) = BuildWithPatchTool();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -2067,8 +1947,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task PatchAsync_AddonNotLocked_Throws()
-    {
+    public async Task PatchAsync_AddonNotLocked_Throws() {
         var (workflow, _, _, _) = BuildWithPatchTool();
 
         var ex = await Assert.ThrowsAsync<WorkflowException>(() => workflow.PatchAsync(ProjectDir, "unknown_addon"));
@@ -2076,8 +1955,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task PatchAsync_AddonNotInstalledOnDisk_Throws()
-    {
+    public async Task PatchAsync_AddonNotInstalledOnDisk_Throws() {
         var (workflow, fileSystem, gitClient, _) = BuildWithPatchTool();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -2088,8 +1966,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task PatchAsync_DiffToolFails_WrapsAsWorkflowException()
-    {
+    public async Task PatchAsync_DiffToolFails_WrapsAsWorkflowException() {
         var (workflow, fileSystem, gitClient, patchTool) = BuildWithPatchTool();
         SetTags(gitClient, "v1.0.0");
         await workflow.AddAsync(ProjectDir, RepoUrl);
@@ -2113,16 +1990,14 @@ public class DependencyWorkflowTests
     /// tilde ranges as <c>DependencyGraphResolverTests</c>' diamond scenario (<c>~1</c> vs.
     /// <c>~1.4</c>, overlapping only at 1.4.x), so unifying them must land on core's highest
     /// 1.4.x tag.</summary>
-    private static void SetUpDiamond(FakeGitClient gitClient, string aCoreConstraint, string bCoreConstraint)
-    {
+    private static void SetUpDiamond(FakeGitClient gitClient, string aCoreConstraint, string bCoreConstraint) {
         gitClient.RemoteRefsByUrl[CoreUrl] = new[] { "v1.2.0", "v1.3.0", "v1.4.0", "v1.4.2", "v2.0.0" }
             .Select((tag, i) => new GitRef(tag, new string('e', 39) + i, GitRefKind.Tag))
             .ToList();
         gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
 
         gitClient.RemoteRefsByUrl[AUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -2136,8 +2011,7 @@ public class DependencyWorkflowTests
         };
 
         gitClient.RemoteRefsByUrl[BUrl] = [new GitRef("v1.0.0", new string('f', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string> {
             ["addons/b/plugin.cfg"] = "b",
             ["addons/b/dotquay.toml"] = $"""
                 [package]
@@ -2152,8 +2026,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_DiamondDependency_UnifiesToOneSharedCoreAddon()
-    {
+    public async Task AddAsync_DiamondDependency_UnifiesToOneSharedCoreAddon() {
         var (workflow, fileSystem, gitClient) = Build();
         SetUpDiamond(gitClient, aCoreConstraint: "~1", bCoreConstraint: "~1.4");
 
@@ -2178,14 +2051,12 @@ public class DependencyWorkflowTests
     /// <summary>A three-level chain — project → a → mid → core — so there is a locked addon that is
     /// neither a root nor a leaf. Only such an addon takes <c>SyncAddonGraphAsync</c>'s "unchanged"
     /// path during a full update while still having edges of its own to get wrong.</summary>
-    private static void SetUpChain(FakeGitClient gitClient)
-    {
+    private static void SetUpChain(FakeGitClient gitClient) {
         gitClient.RemoteRefsByUrl[CoreUrl] = [new GitRef("v1.0.0", new string('c', 40), GitRefKind.Tag)];
         gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
 
         gitClient.RemoteRefsByUrl[MidUrl] = [new GitRef("v1.0.0", new string('d', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[MidUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[MidUrl] = new Dictionary<string, string> {
             ["addons/mid/plugin.cfg"] = "mid",
             ["addons/mid/dotquay.toml"] = $"""
                 [package]
@@ -2199,8 +2070,7 @@ public class DependencyWorkflowTests
         };
 
         gitClient.RemoteRefsByUrl[AUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -2221,8 +2091,7 @@ public class DependencyWorkflowTests
             lockfileText.Split('\n').Where(line => !line.TrimStart().StartsWith("dependencies", StringComparison.Ordinal)));
 
     [Fact]
-    public async Task UpdateAsync_RewritesDependencyEdgesOfAnAddonThatDidNotMove()
-    {
+    public async Task UpdateAsync_RewritesDependencyEdgesOfAnAddonThatDidNotMove() {
         // A full update re-resolves every root, so 'a' is rebuilt from the walk either way. 'mid' is
         // transitive and its commit doesn't move, so it takes the unchanged path — which used to hand
         // back the previous lockfile entry wholesale, damage and all. An addon whose edges are wrong
@@ -2242,8 +2111,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_SingleNamedAddon_KeepsTheEdgesOfEverythingItDidNotTouch()
-    {
+    public async Task UpdateAsync_SingleNamedAddon_KeepsTheEdgesOfEverythingItDidNotTouch() {
         // `update a` freezes nothing else, but it still walks the whole graph — so the entries it
         // leaves alone must come back out with their edges, not with an empty list that makes their
         // own children unreachable.
@@ -2259,8 +2127,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task InstallAsync_ReplaysRecordedDependencyEdges()
-    {
+    public async Task InstallAsync_ReplaysRecordedDependencyEdges() {
         // `install` never re-resolves, so it has no way to recompute the graph edges — it has to
         // replay them, exactly like `folder`. Dropping them made every transitive addon unreachable
         // from any root, which is what `remove` prunes by and `doctor` reports dangling entries by.
@@ -2275,8 +2142,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AfterInstall_DoesNotReportTransitiveAddonAsDangling()
-    {
+    public async Task DoctorAsync_AfterInstall_DoesNotReportTransitiveAddonAsDangling() {
         // The user-visible half of the same bug: with the edges gone, 'core' is reachable from
         // nothing, so doctor calls a perfectly healthy transitive dependency an orphan.
         var (workflow, _, gitClient) = Build();
@@ -2290,8 +2156,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_DisjointVersionRangesOnSharedDependency_ThrowsWorkflowException()
-    {
+    public async Task AddAsync_DisjointVersionRangesOnSharedDependency_ThrowsWorkflowException() {
         var (workflow, _, gitClient) = Build();
         SetUpDiamond(gitClient, aCoreConstraint: "~1.2", bCoreConstraint: "~1.4"); // never overlap
 
@@ -2302,12 +2167,10 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task RemoveAsync_TransitiveDependencyOrphanedByRemoval_IsPrunedFromDiskAndLockfile()
-    {
+    public async Task RemoveAsync_TransitiveDependencyOrphanedByRemoval_IsPrunedFromDiskAndLockfile() {
         var (workflow, fileSystem, gitClient) = Build();
         gitClient.RemoteRefsByUrl[AUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -2334,8 +2197,7 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task RemoveAsync_TransitiveDependencyStillNeededByAnotherRoot_IsKept()
-    {
+    public async Task RemoveAsync_TransitiveDependencyStillNeededByAnotherRoot_IsKept() {
         var (workflow, fileSystem, gitClient) = Build();
         SetUpDiamond(gitClient, aCoreConstraint: "~1", bCoreConstraint: "~1"); // no conflict, both need core
         await workflow.AddAsync(ProjectDir, AUrl);
@@ -2350,13 +2212,11 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task UpdateAsync_NoNameArg_PrunesOrphanedTransitiveDependencyNoLongerDeclared()
-    {
+    public async Task UpdateAsync_NoNameArg_PrunesOrphanedTransitiveDependencyNoLongerDeclared() {
         var (workflow, fileSystem, gitClient) = Build();
         var originalSha = new string('a', 40);
         gitClient.RemoteRefsByUrl[AUrl] = [new GitRef("v1.0.0", originalSha, GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -2389,16 +2249,14 @@ public class DependencyWorkflowTests
     }
 
     [Fact]
-    public async Task AddAsync_AddonDeclaredDotnetDependency_IsInstalledIntoCsprojAndLocked()
-    {
+    public async Task AddAsync_AddonDeclaredDotnetDependency_IsInstalledIntoCsprojAndLocked() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         gitClient.RemoteRefsByUrl[RepoUrl] = [new GitRef("v1.0.0", new string('a', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/dotquay.toml"] = """
                 [package]

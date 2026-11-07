@@ -13,8 +13,7 @@ namespace Dotquay.Mcp.Prompts;
 /// discovery (docs/DESIGN-v0.18-MCP.md §3.1) — there is no <c>[McpServerPrompt]</c> anywhere in this
 /// codebase for a future contributor to accidentally widen into.
 /// </remarks>
-public interface IMcpPrompt
-{
+public interface IMcpPrompt {
     /// <summary>The wire name a client requests, e.g. <c>"dotquay_diagnose_modified"</c>.</summary>
     string Name { get; }
 

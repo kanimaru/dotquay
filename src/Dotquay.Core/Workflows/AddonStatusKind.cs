@@ -2,8 +2,7 @@ namespace Dotquay.Core.Workflows;
 
 /// <summary>The three (plus one) outcomes <c>dotquay status</c> reports per addon (SPEC.md §6,
 /// requirement P1-4).</summary>
-public enum AddonStatusKind
-{
+public enum AddonStatusKind {
     /// <summary>On-disk content hash matches the lockfile exactly, and no patch is recorded for it.</summary>
     Clean,
 

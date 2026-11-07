@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Sync;
 
-public class SyncEngineTests
-{
+public class SyncEngineTests {
     [Fact]
-    public void SwapAndHash_FreshInstall_MovesStagingAndReturnsHash()
-    {
+    public void SwapAndHash_FreshInstall_MovesStagingAndReturnsHash() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("staging/plugin.cfg", "cfg");
         var engine = new SyncEngine(fileSystem);
@@ -21,8 +19,7 @@ public class SyncEngineTests
     }
 
     [Fact]
-    public void SwapAndHash_DirtyDestinationWithoutForce_ThrowsAndLeavesBothTreesUntouched()
-    {
+    public void SwapAndHash_DirtyDestinationWithoutForce_ThrowsAndLeavesBothTreesUntouched() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("staging/plugin.cfg", "new version");
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "hand-edited");
@@ -35,8 +32,7 @@ public class SyncEngineTests
     }
 
     [Fact]
-    public void SwapAndHash_DirtyDestinationWithForce_Overwrites()
-    {
+    public void SwapAndHash_DirtyDestinationWithForce_Overwrites() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("staging/plugin.cfg", "new version");
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "hand-edited");
@@ -48,8 +44,7 @@ public class SyncEngineTests
     }
 
     [Fact]
-    public void SwapAndHash_MatchingExpectedHash_SwapsWithoutForce()
-    {
+    public void SwapAndHash_MatchingExpectedHash_SwapsWithoutForce() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "unchanged");
         var expectedHash = ContentHasher.HashDirectory(fileSystem, "addons/foo");

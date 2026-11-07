@@ -26,8 +26,7 @@ namespace Dotquay.Cli;
 /// not check for its own updates would be a worse bug than the one this fixes.</item>
 /// </list>
 /// </remarks>
-internal sealed class UpdateNotice
-{
+internal sealed class UpdateNotice {
     private static readonly TimeSpan ExitGrace = TimeSpan.FromMilliseconds(500);
 
     private readonly UpdateSettings _settings;
@@ -35,8 +34,7 @@ internal sealed class UpdateNotice
     private readonly Task<string?>? _refresh;
     private readonly CancellationTokenSource? _cancellation;
 
-    private UpdateNotice(UpdateSettings settings, UpdateCheckCache cache, Task<string?>? refresh, CancellationTokenSource? cancellation)
-    {
+    private UpdateNotice(UpdateSettings settings, UpdateCheckCache cache, Task<string?>? refresh, CancellationTokenSource? cancellation) {
         _settings = settings;
         _cache = cache;
         _refresh = refresh;
@@ -45,38 +43,29 @@ internal sealed class UpdateNotice
 
     /// <summary>Starts a refresh when the cached answer is stale, or returns null when this
     /// invocation is one that must stay silent.</summary>
-    public static UpdateNotice? Start(string[] args)
-    {
-        try
-        {
-            if (!IsEligible(args))
-            {
+    public static UpdateNotice? Start(string[] args) {
+        try {
+            if (!IsEligible(args)) {
                 return null;
             }
 
             var settings = SelfUpdateFactory.Settings();
-            if (!settings.NoticeEnabled)
-            {
+            if (!settings.NoticeEnabled) {
                 return null;
             }
 
             var cache = SelfUpdateFactory.Cache();
-            if (!cache.IsStale(settings.ChannelUrl, settings.Interval))
-            {
+            if (!cache.IsStale(settings.ChannelUrl, settings.Interval)) {
                 return new UpdateNotice(settings, cache, refresh: null, cancellation: null);
             }
 
             var cancellation = new CancellationTokenSource();
             var refresh = Task.Run(
-                async () =>
-                {
-                    try
-                    {
+                async () => {
+                    try {
                         var release = await SelfUpdateFactory.Channel(settings).GetLatestAsync(cancellation.Token);
                         return release?.Version;
-                    }
-                    catch
-                    {
+                    } catch {
                         // Offline, logged out, channel moved. All of them mean "no notice this time".
                         return null;
                     }
@@ -84,32 +73,25 @@ internal sealed class UpdateNotice
                 cancellation.Token);
 
             return new UpdateNotice(settings, cache, refresh, cancellation);
-        }
-        catch
-        {
+        } catch {
             return null;
         }
     }
 
     /// <summary>Prints the notice if there is one to print, then gets out of the way. Called after
     /// the command has produced all of its own output, so the line never lands mid-result.</summary>
-    public void Report()
-    {
-        try
-        {
+    public void Report() {
+        try {
             var latest = Settle();
 
-            if (latest is null || !VersionOrder.IsNewer(latest, DotquayVersion.Current))
-            {
+            if (latest is null || !VersionOrder.IsNewer(latest, DotquayVersion.Current)) {
                 return;
             }
 
             Console.Error.WriteLine(
                 $"dotquay {latest} is available (you have {DotquayVersion.Current}) - run 'dotquay self update'");
             Console.Error.WriteLine("  silence this with 'dotquay self notify off'");
-        }
-        catch
-        {
+        } catch {
         }
     }
 
@@ -117,23 +99,17 @@ internal sealed class UpdateNotice
     /// whatever was cached. A refresh that is still running is abandoned rather than waited on — and
     /// deliberately not written from a continuation either, because a process about to exit is not a
     /// place to be starting file writes.</summary>
-    private string? Settle()
-    {
-        if (_refresh is not null)
-        {
-            try
-            {
-                if (_refresh.Wait(ExitGrace))
-                {
+    private string? Settle() {
+        if (_refresh is not null) {
+            try {
+                if (_refresh.Wait(ExitGrace)) {
                     var fetched = _refresh.Result;
                     _cache.Write(_settings.ChannelUrl, fetched);
                     return fetched;
                 }
 
                 _cancellation?.Cancel();
-            }
-            catch
-            {
+            } catch {
             }
         }
 
@@ -155,25 +131,20 @@ internal sealed class UpdateNotice
     /// be pointless network and file I/O kicked off, and left running, every time an editor spins the
     /// server up.
     /// </remarks>
-    private static bool IsEligible(string[] args)
-    {
-        if (Console.IsErrorRedirected)
-        {
+    private static bool IsEligible(string[] args) {
+        if (Console.IsErrorRedirected) {
             return false;
         }
 
-        if (Environment.GetEnvironmentVariable("CI") is { Length: > 0 })
-        {
+        if (Environment.GetEnvironmentVariable("CI") is { Length: > 0 }) {
             return false;
         }
 
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             if (arg.Equals("--json", StringComparison.Ordinal)
                 || arg.Equals("self", StringComparison.Ordinal)
                 || arg.Equals("credential", StringComparison.Ordinal)
-                || arg.Equals("mcp", StringComparison.Ordinal))
-            {
+                || arg.Equals("mcp", StringComparison.Ordinal)) {
                 return false;
             }
         }

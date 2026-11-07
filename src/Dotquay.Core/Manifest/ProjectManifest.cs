@@ -2,8 +2,7 @@ namespace Dotquay.Core.Manifest;
 
 /// <summary>The parsed contents of a project's <c>dotquay.toml</c> (SPEC.md §7.1) — "what you
 /// want", the input to the resolver.</summary>
-public sealed record ProjectManifest
-{
+public sealed record ProjectManifest {
     // There is deliberately no `godot` property. [project] carried a `godot` key through v0.5 that
     // nothing ever read — it was parsed, stored, and written back out, and the scaffold hardcoded
     // "4.3" regardless of the project it was initialising, so it mostly served to state the wrong

@@ -19,8 +19,7 @@ namespace Dotquay.Mcp.Tools;
 /// exception naming the addon and feed. <see cref="Guards.ForceConfirmationPolicy"/> is pre-checked,
 /// same as <see cref="DotquayInstallTool"/>.
 /// </remarks>
-public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_update";
 
     public override string Description =>
@@ -61,15 +60,13 @@ public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : M
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
         var force = McpArgs.GetBool(arguments, "force");
         var confirmDiscard = McpArgs.GetStringArray(arguments, "confirm_discard");
         var approvedSourceUrls = McpArgs.GetStringArray(arguments, "approved_source_urls");
 
-        var guardContext = new WriteGuardContext
-        {
+        var guardContext = new WriteGuardContext {
             ProjectDirectory = projectDirectory,
             InspectionWorkflow = McpInfrastructure.CreateWorkflow(),
             Force = force,
@@ -78,8 +75,7 @@ public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : M
 
         var verdict = await WriteGuard.Default.EvaluateAsync(guardContext, cancellationToken);
 
-        if (verdict is WriteGuardRefusal refusal)
-        {
+        if (verdict is WriteGuardRefusal refusal) {
             return McpToolResults.FromRefusal(Name, refusal);
         }
 

@@ -16,31 +16,24 @@ namespace Dotquay.Mcp.Tools;
 /// an uncaught exception — the parts every one of the read and write tools would otherwise duplicate
 /// live here exactly once.
 /// </remarks>
-public abstract class McpToolBase(IProjectScope scope, ProjectGate gate) : IMcpTool
-{
+public abstract class McpToolBase(IProjectScope scope, ProjectGate gate) : IMcpTool {
     public abstract string Name { get; }
 
     public abstract string Description { get; }
 
     public abstract JsonElement InputSchema { get; }
 
-    public async ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> context, CancellationToken cancellationToken)
-    {
+    public async ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> context, CancellationToken cancellationToken) {
         var arguments = context.Params?.Arguments;
 
-        try
-        {
+        try {
             var projectDirectory = scope.Resolve(McpArgs.GetString(arguments, "project"));
             var progress = new McpProgressReporter(context.Server, context.Params?.ProgressToken);
 
             return await gate.RunAsync(projectDirectory, () => ExecuteAsync(projectDirectory, arguments, progress, cancellationToken));
-        }
-        catch (ScopeException ex)
-        {
+        } catch (ScopeException ex) {
             return McpToolResults.Failure(Name, McpJsonErrorKind.Scope, ex.Message);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
             var (kind, message) = JsonErrorClassifier.Classify(ex);
             return McpToolResults.Failure(Name, kind, message);
         }

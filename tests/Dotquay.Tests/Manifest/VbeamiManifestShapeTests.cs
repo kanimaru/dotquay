@@ -13,8 +13,7 @@ namespace Dotquay.Tests.Manifest;
 /// silently fails to declare a feed surfaces much later as an unexplained NU1101 during restore,
 /// which is exactly the failure this file exists to catch early.
 /// </remarks>
-public class VbeamiManifestShapeTests
-{
+public class VbeamiManifestShapeTests {
     private const string FeedUrl = "https://gitlab.kemomi.de/api/v4/projects/124/packages/nuget/index.json";
 
     private const string ProjectManifest = """
@@ -63,8 +62,7 @@ public class VbeamiManifestShapeTests
         """;
 
     [Fact]
-    public void Project_DeclaresTheFeedWithItsPackageMapping()
-    {
+    public void Project_DeclaresTheFeedWithItsPackageMapping() {
         var manifest = ManifestReader.ReadProject(ProjectManifest);
 
         var source = Assert.Single(manifest.NuGetSources);
@@ -76,8 +74,7 @@ public class VbeamiManifestShapeTests
     }
 
     [Fact]
-    public void Project_PinsTheDotnetPackageToThatFeed()
-    {
+    public void Project_PinsTheDotnetPackageToThatFeed() {
         var manifest = ManifestReader.ReadProject(ProjectManifest);
 
         var package = manifest.Dotnet["VBeami.Core"];
@@ -86,8 +83,7 @@ public class VbeamiManifestShapeTests
     }
 
     [Fact]
-    public void Project_SourcePinIsValidatedAgainstDeclaredSources()
-    {
+    public void Project_SourcePinIsValidatedAgainstDeclaredSources() {
         // The pin only means anything if a typo is caught. A `source` naming a feed that was never
         // declared would otherwise resolve to nothing and fall back to searching everything.
         var typo = ProjectManifest.Replace("source = \"vbeami\"", "source = \"vbeamii\"");
@@ -97,8 +93,7 @@ public class VbeamiManifestShapeTests
     }
 
     [Fact]
-    public void Project_KeepsInstallAsAndTheAddonGraph()
-    {
+    public void Project_KeepsInstallAsAndTheAddonGraph() {
         var manifest = ManifestReader.ReadProject(ProjectManifest);
 
         Assert.Equal(2, manifest.Addons.Count);
@@ -107,8 +102,7 @@ public class VbeamiManifestShapeTests
     }
 
     [Fact]
-    public void Package_PropagatesTheFeedAttributedToTheAddon()
-    {
+    public void Package_PropagatesTheFeedAttributedToTheAddon() {
         var manifest = ManifestReader.ReadPackage(PackageManifest);
 
         var source = Assert.Single(manifest.NuGetSources);
@@ -119,8 +113,7 @@ public class VbeamiManifestShapeTests
     }
 
     [Fact]
-    public void Package_StillDeclaresItsAddonsAndPackage()
-    {
+    public void Package_StillDeclaresItsAddonsAndPackage() {
         var manifest = ManifestReader.ReadPackage(PackageManifest);
 
         Assert.Equal("vbeami", manifest.Name);
@@ -129,8 +122,7 @@ public class VbeamiManifestShapeTests
     }
 
     [Fact]
-    public void Project_RoundTripsThroughTheWriter()
-    {
+    public void Project_RoundTripsThroughTheWriter() {
         // dotquay rewrites dotquay.toml wholesale on every mutating command, so anything the writer
         // drops is deleted from a hand-written file the next time an unrelated `add` runs.
         var original = ManifestReader.ReadProject(ProjectManifest);

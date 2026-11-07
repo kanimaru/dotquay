@@ -8,15 +8,12 @@ namespace Dotquay.Core.Local;
 /// a broken file as <c>invalid_project_file</c>, like a broken <c>dotquay.toml</c> or
 /// <c>dotquay.lock</c>, rather than as the link target problems the base type also covers.
 /// </remarks>
-public sealed class LocalLinksParseException : LocalLinkException
-{
+public sealed class LocalLinksParseException : LocalLinkException {
     public LocalLinksParseException(string message)
-        : base(message)
-    {
+        : base(message) {
     }
 
     public LocalLinksParseException(string message, Exception innerException)
-        : base(message, innerException)
-    {
+        : base(message, innerException) {
     }
 }

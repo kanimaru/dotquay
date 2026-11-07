@@ -14,8 +14,7 @@ namespace Dotquay.Tests.Workflows;
 /// it happened on restored fine anyway because a local link stood in for the feed. Nothing was wrong
 /// with the lockfile, the manifest, or addons/ - only with a generated file nothing was looking at.
 /// </remarks>
-public class DoctorNuGetSourceMappingTests
-{
+public class DoctorNuGetSourceMappingTests {
     private const string ProjectDirectory = "project";
     private const string FeedUrl = "https://gitlab.example.com/api/v4/projects/130/packages/nuget/index.json";
 
@@ -52,14 +51,12 @@ public class DoctorNuGetSourceMappingTests
         """;
 
     private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(
-        string manifest = ManifestWithPrivateFeed, string lockfile = LockedToPrivateFeed, string? config = null)
-    {
+        string manifest = ManifestWithPrivateFeed, string lockfile = LockedToPrivateFeed, string? config = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
 
-        if (config is not null)
-        {
+        if (config is not null) {
             fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "NuGet.Config"), config);
         }
 
@@ -70,8 +67,7 @@ public class DoctorNuGetSourceMappingTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AMappingThatDoesNotNameThePackage_IsReported()
-    {
+    public async Task DoctorAsync_AMappingThatDoesNotNameThePackage_IsReported() {
         var issues = await RunAsync(config: Config("""
                 <packageSource key="dotquay-lazy_o">
                   <package pattern="Something.Else" />
@@ -87,15 +83,13 @@ public class DoctorNuGetSourceMappingTests
     }
 
     [Fact]
-    public async Task DoctorAsync_NoNuGetConfigAtAll_IsReported()
-    {
+    public async Task DoctorAsync_NoNuGetConfigAtAll_IsReported() {
         // Worse than a partial mapping, not better: restore does not know the feed exists either.
         Assert.Single(await RunAsync());
     }
 
     [Fact]
-    public async Task DoctorAsync_AMappingThatBindsThePackage_IsNotReported()
-    {
+    public async Task DoctorAsync_AMappingThatBindsThePackage_IsNotReported() {
         var issues = await RunAsync(config: Config("""
                 <packageSource key="dotquay-lazy_o">
                   <package pattern="VBeami.Core" />
@@ -106,8 +100,7 @@ public class DoctorNuGetSourceMappingTests
     }
 
     [Fact]
-    public async Task DoctorAsync_APrefixPatternCoveringThePackage_IsNotReported()
-    {
+    public async Task DoctorAsync_APrefixPatternCoveringThePackage_IsNotReported() {
         var issues = await RunAsync(config: Config("""
                 <packageSource key="dotquay-lazy_o">
                   <package pattern="VBeami.*" />
@@ -120,8 +113,7 @@ public class DoctorNuGetSourceMappingTests
     }
 
     [Fact]
-    public async Task DoctorAsync_APackageResolvedFromNuGetOrg_IsNotReported()
-    {
+    public async Task DoctorAsync_APackageResolvedFromNuGetOrg_IsNotReported() {
         var issues = await RunAsync(lockfile: """
             [[dotnet]]
             name = "Newtonsoft.Json"
@@ -134,8 +126,7 @@ public class DoctorNuGetSourceMappingTests
     }
 
     [Fact]
-    public async Task DoctorAsync_SourceMappingTurnedOff_IsNotReported()
-    {
+    public async Task DoctorAsync_SourceMappingTurnedOff_IsNotReported() {
         var issues = await RunAsync(manifest: $"""
             [project]
 
@@ -152,8 +143,7 @@ public class DoctorNuGetSourceMappingTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AManifestPin_DecidesTheExpectedFeed()
-    {
+    public async Task DoctorAsync_AManifestPin_DecidesTheExpectedFeed() {
         var issues = await RunAsync(
             manifest: $"""
                 [project]

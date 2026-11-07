@@ -9,8 +9,7 @@ namespace Dotquay.Core.Resolve;
 /// it — recomputing it from the manifest later would fail for a transitive addon, which appears in no
 /// manifest the project owns.</param>
 public sealed record ResolvedAddon(
-    string Name, string Git, string ResolvedSha, string? DisplayVersion, string Path, string? InstallAs = null)
-{
+    string Name, string Git, string ResolvedSha, string? DisplayVersion, string Path, string? InstallAs = null) {
     /// <summary>Where this addon installs to under <c>addons/</c>.</summary>
     public string EffectiveFolder => InstallAs ?? Name;
 }

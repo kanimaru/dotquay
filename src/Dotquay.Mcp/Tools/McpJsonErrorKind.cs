@@ -9,8 +9,7 @@ namespace Dotquay.Mcp.Tools;
 /// <see cref="NeedsConfirmation"/> describe failure modes the CLI has no equivalent of and the plugin
 /// will never see.
 /// </remarks>
-public static class McpJsonErrorKind
-{
+public static class McpJsonErrorKind {
     /// <summary>The requested project path is outside every <c>--project</c> root this MCP server was
     /// started with. See <see cref="Dotquay.Mcp.Scope.ScopeException"/>.</summary>
     public const string Scope = "scope";

@@ -17,15 +17,12 @@ namespace Dotquay.Core.Workflows;
 /// plugin queues its CLI calls), so nothing in staging can belong to a run still in flight.
 /// </para>
 /// </remarks>
-public static class StagingSweeper
-{
+public static class StagingSweeper {
     private const string ConflictSuffix = ".conflict";
 
-    public static void Sweep(IFileSystem fileSystem, ProjectLayout layout)
-    {
+    public static void Sweep(IFileSystem fileSystem, ProjectLayout layout) {
         var root = layout.StagingRoot(fileSystem);
-        if (!fileSystem.DirectoryExists(root))
-        {
+        if (!fileSystem.DirectoryExists(root)) {
             return;
         }
 
@@ -35,25 +32,20 @@ public static class StagingSweeper
             .Select(name => name[..^ConflictSuffix.Length])
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var directory in fileSystem.EnumerateDirectories(root).ToList())
-        {
-            if (!pendingConflicts.Contains(Name(directory)))
-            {
+        foreach (var directory in fileSystem.EnumerateDirectories(root).ToList()) {
+            if (!pendingConflicts.Contains(Name(directory))) {
                 fileSystem.DeleteDirectory(directory);
             }
         }
 
-        foreach (var file in fileSystem.EnumerateFiles(root, recursive: false).ToList())
-        {
-            if (!Name(file).EndsWith(ConflictSuffix, StringComparison.Ordinal))
-            {
+        foreach (var file in fileSystem.EnumerateFiles(root, recursive: false).ToList()) {
+            if (!Name(file).EndsWith(ConflictSuffix, StringComparison.Ordinal)) {
                 fileSystem.DeleteFile(file);
             }
         }
     }
 
-    private static string Name(string path)
-    {
+    private static string Name(string path) {
         var trimmed = path.TrimEnd('/', '\\');
         return trimmed[(trimmed.LastIndexOfAny(['/', '\\']) + 1)..];
     }

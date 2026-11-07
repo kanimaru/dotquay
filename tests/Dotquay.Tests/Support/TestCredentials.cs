@@ -5,8 +5,7 @@ namespace Dotquay.Tests.Support;
 /// <summary>Ready-made <see cref="CredentialResolver"/>s for tests whose subject isn't
 /// authentication — so a workflow test says "no credentials configured" in one word instead of
 /// assembling an environment reader and a store it doesn't care about.</summary>
-public static class TestCredentials
-{
+public static class TestCredentials {
     /// <summary>Nothing configured anywhere: every lookup comes back anonymous.</summary>
     public static CredentialResolver None() =>
         new(new FakeEnvironmentReader(), new InMemoryCredentialStore());

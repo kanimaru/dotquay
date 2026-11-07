@@ -19,16 +19,13 @@ namespace Dotquay.Tests.Sync;
 /// §7.1, OQ-2) without anyone deciding to.
 /// </para>
 /// </remarks>
-public class SubtreeCandidatesTests
-{
+public class SubtreeCandidatesTests {
     private const string Repo = "cache/repo";
 
-    private static InMemoryFileSystem RepoWith(params string[] addonFolders)
-    {
+    private static InMemoryFileSystem RepoWith(params string[] addonFolders) {
         var fileSystem = new InMemoryFileSystem();
 
-        foreach (var folder in addonFolders)
-        {
+        foreach (var folder in addonFolders) {
             fileSystem.WriteAllText($"{Repo}/{folder}/plugin.cfg", "cfg");
         }
 
@@ -38,16 +35,14 @@ public class SubtreeCandidatesTests
     // -- nothing to guess -------------------------------------------------------------------------
 
     [Fact]
-    public void Find_GuessIsCorrect_ReturnsNothing()
-    {
+    public void Find_GuessIsCorrect_ReturnsNothing() {
         var fileSystem = RepoWith("addons/dialogue_manager");
 
         Assert.Null(SubtreeCandidates.Find(fileSystem, Repo, "addons/dialogue_manager"));
     }
 
     [Fact]
-    public void Find_GuessOnlyDiffersByCase_ReturnsNothing()
-    {
+    public void Find_GuessOnlyDiffersByCase_ReturnsNothing() {
         // Already handled, silently and correctly, by the casing fix. Re-reporting it here would ask
         // the user to confirm a correction dotquay is entitled to make on its own.
         var fileSystem = RepoWith("addons/gut");
@@ -66,8 +61,7 @@ public class SubtreeCandidatesTests
     [InlineData("SproutyDialogs", "sprouty-dialogs")]
     [InlineData("phantom_camera", "PhantomCamera")]
     [InlineData("gd_ai_3", "GdAi3")]
-    public void Find_SameWordsDifferentConvention_IsSuggested(string guessed, string actual)
-    {
+    public void Find_SameWordsDifferentConvention_IsSuggested(string guessed, string actual) {
         var fileSystem = RepoWith($"addons/{actual}");
 
         var finding = SubtreeCandidates.Find(fileSystem, Repo, $"addons/{guessed}");
@@ -80,8 +74,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_NameShapeMatch_WinsOverOtherPlugins()
-    {
+    public void Find_NameShapeMatch_WinsOverOtherPlugins() {
         var fileSystem = RepoWith("addons/sprouty_dialogs", "addons/sprouty_debug");
 
         var finding = SubtreeCandidates.Find(fileSystem, Repo, "addons/SproutyDialogs");
@@ -90,8 +83,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_NameShapeMatch_DoesNotNeedAPluginCfg()
-    {
+    public void Find_NameShapeMatch_DoesNotNeedAPluginCfg() {
         // An asset-only addon — shaders, fonts, a sprite pack — ships no plugin.cfg and is still an
         // addon. The name is the evidence here, so the structural marker isn't required.
         var fileSystem = new InMemoryFileSystem();
@@ -101,8 +93,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_DroppedWord_IsNotAMatch()
-    {
+    public void Find_DroppedWord_IsNotAMatch() {
         // godot_dialogue_manager -> addons/dialogue_manager is real and common, and deliberately not
         // matched by name: the same rule would match 'core' against 'vbeami_core', which is a
         // different addon rather than the same one spelled differently. Rule 2 catches this
@@ -119,8 +110,7 @@ public class SubtreeCandidatesTests
     // -- rule 2: the only addon in the repository -------------------------------------------------
 
     [Fact]
-    public void Find_SingleUnrelatedlyNamedAddon_IsSuggested()
-    {
+    public void Find_SingleUnrelatedlyNamedAddon_IsSuggested() {
         var fileSystem = RepoWith("addons/dialogue_manager");
 
         var finding = SubtreeCandidates.Find(fileSystem, Repo, "addons/godot_dialogue_manager");
@@ -131,8 +121,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_SeveralAddons_SuggestsNothingAndListsThem()
-    {
+    public void Find_SeveralAddons_SuggestsNothingAndListsThem() {
         var fileSystem = RepoWith("addons/one", "addons/two", "addons/three");
 
         var finding = SubtreeCandidates.Find(fileSystem, Repo, "addons/something");
@@ -146,8 +135,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_FolderWithoutAPluginCfg_IsNotOfferedOnNameAlone()
-    {
+    public void Find_FolderWithoutAPluginCfg_IsNotOfferedOnNameAlone() {
         // 'examples' is not this addon under another name and has no plugin.cfg, so there is nothing
         // to say about it. Suggesting it would be a guess with no evidence behind it at all.
         var fileSystem = new InMemoryFileSystem();
@@ -164,8 +152,7 @@ public class SubtreeCandidatesTests
     // -- the two other shapes a repository comes in -----------------------------------------------
 
     [Fact]
-    public void Find_AddonAtTheRepositoryRoot_SuggestsDot()
-    {
+    public void Find_AddonAtTheRepositoryRoot_SuggestsDot() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Repo}/plugin.cfg", "cfg");
         fileSystem.WriteAllText($"{Repo}/thing.gd", "code");
@@ -182,8 +169,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_GodotProjectInASubfolder_LooksOneLevelDown()
-    {
+    public void Find_GodotProjectInASubfolder_LooksOneLevelDown() {
         var fileSystem = RepoWith("godot/addons/vbeami");
 
         Assert.Equal(
@@ -192,8 +178,7 @@ public class SubtreeCandidatesTests
     }
 
     [Fact]
-    public void Find_RootAddonsFolderWins_OverANestedOne()
-    {
+    public void Find_RootAddonsFolderWins_OverANestedOne() {
         // Both exist. Considering both would turn one clear answer into an ambiguous list, and the
         // root is the layout the guess was written against.
         var fileSystem = RepoWith("addons/sprouty_dialogs", "demo/addons/sprouty_dialogs");

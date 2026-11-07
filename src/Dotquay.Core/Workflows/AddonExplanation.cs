@@ -3,8 +3,7 @@ using Dotquay.Core.Sync;
 namespace Dotquay.Core.Workflows;
 
 /// <summary>What <c>dotquay status --explain</c> concluded about one modified addon.</summary>
-public enum ExplainVerdict
-{
+public enum ExplainVerdict {
     /// <summary>Every difference is benign — a force-update would discard nothing of value.</summary>
     SafeToForce,
 
@@ -24,8 +23,7 @@ public enum ExplainVerdict
 /// Attached to <see cref="AddonStatusInfo"/> only when <c>--explain</c> asked for it. It reports on a
 /// verdict <see cref="AddonStatusEvaluator"/> already reached and never influences one.
 /// </remarks>
-public sealed record AddonExplanation
-{
+public sealed record AddonExplanation {
     /// <summary>
     /// How many changes are reported in <see cref="Changes"/> at most.
     /// </summary>
@@ -76,8 +74,7 @@ public sealed record AddonExplanation
 }
 
 /// <summary>Exact per-class totals, unaffected by <see cref="AddonExplanation.MaxReportedChanges"/>.</summary>
-public sealed record ChangeCounts
-{
+public sealed record ChangeCounts {
     public int Content { get; init; }
 
     public int UidOnly { get; init; }
@@ -90,17 +87,14 @@ public sealed record ChangeCounts
 
     public int Total => Content + UidOnly + WhitespaceOnly + LineEndingsOnly + EditorArtifact;
 
-    public static ChangeCounts From(IEnumerable<TreeChange> changes)
-    {
+    public static ChangeCounts From(IEnumerable<TreeChange> changes) {
         var counts = new Dictionary<ChangeClass, int>();
 
-        foreach (var change in changes)
-        {
+        foreach (var change in changes) {
             counts[change.Class] = counts.GetValueOrDefault(change.Class) + 1;
         }
 
-        return new ChangeCounts
-        {
+        return new ChangeCounts {
             Content = counts.GetValueOrDefault(ChangeClass.Content),
             UidOnly = counts.GetValueOrDefault(ChangeClass.UidOnly),
             WhitespaceOnly = counts.GetValueOrDefault(ChangeClass.WhitespaceOnly),

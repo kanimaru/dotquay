@@ -27,15 +27,13 @@ namespace Dotquay.Core.Git;
 /// override is the project speaking about a dependency, in the project's own voice.
 /// </para>
 /// </remarks>
-public sealed class GitTransportPreference
-{
+public sealed class GitTransportPreference {
     private readonly IReadOnlyDictionary<string, GitUrl> _templatesByHost;
     private readonly IReadOnlySet<string> _ambiguousHosts;
 
     private GitTransportPreference(
         IReadOnlyDictionary<string, GitUrl> templatesByHost,
-        IReadOnlySet<string> ambiguousHosts)
-    {
+        IReadOnlySet<string> ambiguousHosts) {
         _templatesByHost = templatesByHost;
         _ambiguousHosts = ambiguousHosts;
     }
@@ -61,39 +59,32 @@ public sealed class GitTransportPreference
     /// declarations agree on transport but differ in spelling -- <c>.git</c> suffix, scp-like
     /// versus <c>ssh://</c> -- the first wins, so the result is stable for a given manifest.
     /// </remarks>
-    public static GitTransportPreference FromProjectUrls(IEnumerable<string?> projectDeclaredUrls)
-    {
+    public static GitTransportPreference FromProjectUrls(IEnumerable<string?> projectDeclaredUrls) {
         var templates = new Dictionary<string, GitUrl>(StringComparer.Ordinal);
         var ambiguous = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var raw in projectDeclaredUrls)
-        {
-            if (!GitUrl.TryParse(raw, out var url) || url is null)
-            {
+        foreach (var raw in projectDeclaredUrls) {
+            if (!GitUrl.TryParse(raw, out var url) || url is null) {
                 continue;
             }
 
             // A local path says nothing about how to reach a remote host, and there is no host to
             // key it under.
-            if (url.Transport == GitTransport.Local)
-            {
+            if (url.Transport == GitTransport.Local) {
                 continue;
             }
 
-            if (!templates.TryGetValue(url.Host, out var existing))
-            {
+            if (!templates.TryGetValue(url.Host, out var existing)) {
                 templates[url.Host] = url;
                 continue;
             }
 
-            if (existing.Transport != url.Transport || existing.Port != url.Port)
-            {
+            if (existing.Transport != url.Transport || existing.Port != url.Port) {
                 ambiguous.Add(url.Host);
             }
         }
 
-        foreach (var host in ambiguous)
-        {
+        foreach (var host in ambiguous) {
             templates.Remove(host);
         }
 
@@ -110,23 +101,19 @@ public sealed class GitTransportPreference
     /// True only when the result differs from the input. A caller can therefore treat true as "worth
     /// telling the user about" without re-comparing strings.
     /// </returns>
-    public bool TryRewrite(string? declaredUrl, out string rewritten)
-    {
+    public bool TryRewrite(string? declaredUrl, out string rewritten) {
         rewritten = declaredUrl ?? string.Empty;
 
-        if (!GitUrl.TryParse(declaredUrl, out var url) || url is null)
-        {
+        if (!GitUrl.TryParse(declaredUrl, out var url) || url is null) {
             return false;
         }
 
-        if (!_templatesByHost.TryGetValue(url.Host, out var template))
-        {
+        if (!_templatesByHost.TryGetValue(url.Host, out var template)) {
             return false;
         }
 
         var result = url.WithTransportOf(template);
-        if (string.Equals(result.Original, url.Original, StringComparison.Ordinal))
-        {
+        if (string.Equals(result.Original, url.Original, StringComparison.Ordinal)) {
             return false;
         }
 

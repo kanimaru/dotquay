@@ -10,8 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay outdated</c>: checks for newer versions without cloning anything.
 /// See <c>Dotquay.Cli.Commands.OutdatedCommand</c>.</summary>
-public sealed class DotquayOutdatedTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayOutdatedTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_outdated";
 
     public override string Description =>
@@ -32,8 +31,7 @@ public sealed class DotquayOutdatedTool(IProjectScope scope, ProjectGate gate) :
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var workflow = McpInfrastructure.CreateWorkflow(progress);
         var result = await workflow.OutdatedAsync(projectDirectory, cancellationToken);
         var payload = JsonMapper.ToJson(result);

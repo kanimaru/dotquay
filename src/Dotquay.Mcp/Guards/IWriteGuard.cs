@@ -6,7 +6,6 @@ namespace Dotquay.Mcp.Guards;
 /// refusal, so a caller always sees the single most relevant thing to fix rather than every policy's
 /// opinion at once.
 /// </summary>
-public interface IWriteGuard
-{
+public interface IWriteGuard {
     ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken);
 }

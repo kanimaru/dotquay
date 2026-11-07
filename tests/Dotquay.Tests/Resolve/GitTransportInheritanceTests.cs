@@ -23,8 +23,7 @@ namespace Dotquay.Tests.Resolve;
 /// than quietly passing.
 /// </para>
 /// </remarks>
-public class GitTransportInheritanceTests
-{
+public class GitTransportInheritanceTests {
     private const string VbeamiHttps = "https://gitlab.kemomi.de/wild-alliance/vbeami";
     private const string VbeamiSsh = "git@gitlab.kemomi.de:wild-alliance/vbeami.git";
     private const string MtoonHttps = "https://gitlab.kemomi.de/wild-alliance/mtoon-shader";
@@ -32,8 +31,7 @@ public class GitTransportInheritanceTests
     private const string GutSsh = "git@github.com:bitwes/gut.git";
     private const string VbeamiGithubSsh = "git@github.com:wild-alliance/vbeami.git";
 
-    private static (DependencyGraphResolver Resolver, FakeGitClient GitClient) Build()
-    {
+    private static (DependencyGraphResolver Resolver, FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var cache = new RepoCache(fileSystem, gitClient, "cache");
@@ -46,22 +44,18 @@ public class GitTransportInheritanceTests
             .ToList();
 
     /// <summary>A leaf addon: resolvable, with a subtree to extract and no manifest of its own.</summary>
-    private static void SetUpLeaf(FakeGitClient gitClient, string url, string addonName)
-    {
+    private static void SetUpLeaf(FakeGitClient gitClient, string url, string addonName) {
         SetTags(gitClient, url, "v1.0.0");
-        gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string> {
             [$"addons/{addonName}/plugin.cfg"] = "cfg",
         };
     }
 
     /// <summary>An addon that declares one dependency, at whatever URL the test wants to inject.</summary>
     private static void SetUpParentDeclaring(
-        FakeGitClient gitClient, string parentUrl, string parentName, string childName, string childUrl)
-    {
+        FakeGitClient gitClient, string parentUrl, string parentName, string childName, string childUrl) {
         SetTags(gitClient, parentUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[parentUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[parentUrl] = new Dictionary<string, string> {
             [$"addons/{parentName}/plugin.cfg"] = "cfg",
             [$"addons/{parentName}/dotquay.toml"] = $"""
                 [package]
@@ -76,8 +70,7 @@ public class GitTransportInheritanceTests
         };
     }
 
-    private static Dictionary<string, AddonSpec> Root(string name, string url) => new()
-    {
+    private static Dictionary<string, AddonSpec> Root(string name, string url) => new() {
         [name] = new AddonSpec { Name = name, Git = url, Version = "~1.0", Path = $"addons/{name}" },
     };
 
@@ -86,8 +79,7 @@ public class GitTransportInheritanceTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task HttpsProject_FetchesAnSshDeclaredTransitiveOverHttps()
-    {
+    public async Task HttpsProject_FetchesAnSshDeclaredTransitiveOverHttps() {
         var (resolver, gitClient) = Build();
         SetUpParentDeclaring(gitClient, VbeamiHttps, "vbeami", "mtoon-shader", MtoonSsh);
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
@@ -100,8 +92,7 @@ public class GitTransportInheritanceTests
     }
 
     [Fact]
-    public async Task SshProject_FetchesAnHttpsDeclaredTransitiveOverSsh()
-    {
+    public async Task SshProject_FetchesAnHttpsDeclaredTransitiveOverSsh() {
         // The mirror matters as much as the original: an SSH-only shop inheriting HTTPS URLs gets
         // credential prompts on every fetch where their agent would have answered silently.
         var (resolver, gitClient) = Build();
@@ -115,8 +106,7 @@ public class GitTransportInheritanceTests
     }
 
     [Fact]
-    public async Task ARewriteIsWarnedAbout_NotDoneQuietly()
-    {
+    public async Task ARewriteIsWarnedAbout_NotDoneQuietly() {
         // The lockfile ends up naming a URL that appears in no manifest anywhere. Finding that out by
         // diffing the lockfile against somebody else's dotquay.toml is not a reasonable ask.
         var (resolver, gitClient) = Build();
@@ -133,8 +123,7 @@ public class GitTransportInheritanceTests
     }
 
     [Fact]
-    public async Task NoRewrite_ProducesNoWarning()
-    {
+    public async Task NoRewrite_ProducesNoWarning() {
         var (resolver, gitClient) = Build();
         SetUpParentDeclaring(gitClient, VbeamiHttps, "vbeami", "mtoon-shader", MtoonHttps);
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
@@ -149,8 +138,7 @@ public class GitTransportInheritanceTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task AHostTheProjectNeverDescribed_IsLeftAlone()
-    {
+    public async Task AHostTheProjectNeverDescribed_IsLeftAlone() {
         // The project speaks HTTPS to gitlab.kemomi.de. That is not evidence about github.com, where
         // an SSH URL may be the only one that works for this user.
         var (resolver, gitClient) = Build();
@@ -165,8 +153,7 @@ public class GitTransportInheritanceTests
     }
 
     [Fact]
-    public async Task AnOverride_CountsAsTheProjectSpeaking()
-    {
+    public async Task AnOverride_CountsAsTheProjectSpeaking() {
         // An override is the project's own statement about a dependency, in the project's own voice,
         // so it is evidence about a host exactly like an [addons.*] entry is.
         //
@@ -179,10 +166,8 @@ public class GitTransportInheritanceTests
         SetUpParentDeclaring(gitClient, VbeamiGithubSsh, "vbeami", "mtoon-shader", MtoonSsh);
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
 
-        var overrides = new Dictionary<string, AddonSpec>
-        {
-            ["core"] = new AddonSpec
-            {
+        var overrides = new Dictionary<string, AddonSpec> {
+            ["core"] = new AddonSpec {
                 Name = "core",
                 Git = "https://gitlab.kemomi.de/wild-alliance/core",
                 Version = "~1.0",
@@ -197,16 +182,14 @@ public class GitTransportInheritanceTests
     }
 
     [Fact]
-    public async Task TheProjectsOwnRootUrls_AreNeverRewritten()
-    {
+    public async Task TheProjectsOwnRootUrls_AreNeverRewritten() {
         // The roots are the evidence. Rewriting them would be circular, and would mean dotquay
         // fetching from a URL the user did not write while their manifest says otherwise.
         var (resolver, gitClient) = Build();
         SetUpLeaf(gitClient, VbeamiSsh, "vbeami");
         SetUpLeaf(gitClient, MtoonHttps, "mtoon-shader");
 
-        var rootAddons = new Dictionary<string, AddonSpec>
-        {
+        var rootAddons = new Dictionary<string, AddonSpec> {
             ["vbeami"] = new AddonSpec { Name = "vbeami", Git = VbeamiSsh, Version = "~1.0", Path = "addons/vbeami" },
             ["mtoon-shader"] = new AddonSpec { Name = "mtoon-shader", Git = MtoonHttps, Version = "~1.0", Path = "addons/mtoon-shader" },
         };

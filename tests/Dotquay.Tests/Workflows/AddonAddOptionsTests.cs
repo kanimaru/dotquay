@@ -8,11 +8,9 @@ namespace Dotquay.Tests.Workflows;
 /// Covers <see cref="AddonAddOptions"/> — how <c>dotquay add</c> states which source it wants
 /// (SPEC.md §6, §7.1).
 /// </summary>
-public class AddonAddOptionsTests
-{
+public class AddonAddOptionsTests {
     [Fact]
-    public void Validate_NothingNamed_IsFine()
-    {
+    public void Validate_NothingNamed_IsFine() {
         // The default path: no source stated, so `add` falls back to picking the newest release tag.
         new AddonAddOptions().Validate();
         Assert.False(new AddonAddOptions().HasExplicitSource);
@@ -22,8 +20,7 @@ public class AddonAddOptionsTests
     [InlineData("~2.5", null, null)]
     [InlineData(null, "main", null)]
     [InlineData(null, null, "9f2c1ab")]
-    public void Validate_ExactlyOneNamed_IsFine(string? version, string? branch, string? rev)
-    {
+    public void Validate_ExactlyOneNamed_IsFine(string? version, string? branch, string? rev) {
         var options = new AddonAddOptions { Version = version, Branch = branch, Rev = rev };
 
         options.Validate();
@@ -31,8 +28,7 @@ public class AddonAddOptionsTests
     }
 
     [Fact]
-    public void Validate_TwoNamed_Throws()
-    {
+    public void Validate_TwoNamed_Throws() {
         var options = new AddonAddOptions { Branch = "main", Rev = "9f2c1ab" };
 
         // The manifest allows exactly one of version/branch/rev (SPEC.md §7.1). Catching it here means
@@ -42,8 +38,7 @@ public class AddonAddOptionsTests
     }
 
     [Fact]
-    public void WithSource_MapsEachKindToItsField()
-    {
+    public void WithSource_MapsEachKindToItsField() {
         var branch = new AddonAddOptions().WithSource(AddonSourceKind.Branch, "main");
         var rev = new AddonAddOptions().WithSource(AddonSourceKind.Rev, "9f2c1ab");
         var version = new AddonAddOptions().WithSource(AddonSourceKind.Version, "v1.0.0");
@@ -54,8 +49,7 @@ public class AddonAddOptionsTests
     }
 
     [Fact]
-    public void WithSource_KeepsTheOtherOptions()
-    {
+    public void WithSource_KeepsTheOtherOptions() {
         var options = new AddonAddOptions { Path = ".", InstallAs = "Godot-MToon-Shader" }
             .WithSource(AddonSourceKind.Branch, "main");
 

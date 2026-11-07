@@ -18,14 +18,11 @@ namespace Dotquay.Mcp.Guards;
 /// <see cref="ExplainVerdict.SafeToForce"/> (uid-only rewrites, line endings, editor artifacts) needs
 /// no confirmation at all — the same "--force is safe" case the console already prints without asking.
 /// </remarks>
-public sealed class ForceConfirmationPolicy : IWritePolicy
-{
+public sealed class ForceConfirmationPolicy : IWritePolicy {
     public string Name => "force_confirmation";
 
-    public async ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken)
-    {
-        if (!context.Force)
-        {
+    public async ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken) {
+        if (!context.Force) {
             // Nothing would be discarded, because nothing is being forced.
             return WriteGuardVerdict.Allow();
         }
@@ -36,16 +33,14 @@ public sealed class ForceConfirmationPolicy : IWritePolicy
             .Where(a => a.Kind == AddonStatusKind.Modified && !IsSafeToForce(a.Explanation))
             .ToList();
 
-        if (atRisk.Count == 0)
-        {
+        if (atRisk.Count == 0) {
             return WriteGuardVerdict.Allow();
         }
 
         var confirmed = new HashSet<string>(context.ConfirmDiscard, StringComparer.Ordinal);
         var missing = atRisk.Where(a => !confirmed.Contains(a.Name)).ToList();
 
-        if (missing.Count == 0)
-        {
+        if (missing.Count == 0) {
             return WriteGuardVerdict.Allow();
         }
 
@@ -55,8 +50,7 @@ public sealed class ForceConfirmationPolicy : IWritePolicy
             $"force would discard local modifications in {missing.Count} addon(s) not named in "
             + $"confirm_discard: {names}. Show the user what dotquay_status --explain reports for each "
             + "one, then retry with confirm_discard naming every one of them.",
-            new ForceConfirmationDetailJson
-            {
+            new ForceConfirmationDetailJson {
                 Policy = Name,
                 UnconfirmedAddons = missing
                     .Select(a => new StatusEntryJson(a.Name, JsonMapper.ToWire(a.Kind), JsonMapper.ToJson(a.Explanation)))

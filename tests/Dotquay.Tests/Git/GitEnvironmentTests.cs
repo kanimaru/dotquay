@@ -9,11 +9,9 @@ namespace Dotquay.Tests.Git;
 /// specifically so the two subtlest decisions here — append-don't-reset, and the shell quoting — are
 /// asserted rather than verified once by hand and left to regress.
 /// </summary>
-public class GitEnvironmentTests
-{
+public class GitEnvironmentTests {
     [Fact]
-    public void Build_AlwaysDisablesTerminalPrompts()
-    {
+    public void Build_AlwaysDisablesTerminalPrompts() {
         var environment = GitEnvironment.Build("/usr/local/bin/dotquay", new FakeEnvironmentReader());
 
         // The bug fix that stands on its own: ProcessGitClient redirects stdout and stderr but not
@@ -23,8 +21,7 @@ public class GitEnvironmentTests
     }
 
     [Fact]
-    public void Build_RegistersDotquayAsACredentialHelper()
-    {
+    public void Build_RegistersDotquayAsACredentialHelper() {
         var environment = GitEnvironment.Build("/usr/local/bin/dotquay", new FakeEnvironmentReader());
 
         Assert.Equal("1", environment["GIT_CONFIG_COUNT"]);
@@ -33,8 +30,7 @@ public class GitEnvironmentTests
     }
 
     [Fact]
-    public void Build_AppendsAfterExistingConfigEntries_RatherThanOverwritingThem()
-    {
+    public void Build_AppendsAfterExistingConfigEntries_RatherThanOverwritingThem() {
         // GIT_CONFIG_COUNT may already be set by whatever launched dotquay. Writing KEY_0 regardless
         // would silently discard the caller's own config entry.
         var reader = new FakeEnvironmentReader().Set("GIT_CONFIG_COUNT", "2");
@@ -47,8 +43,7 @@ public class GitEnvironmentTests
     }
 
     [Fact]
-    public void Build_NeverEmptiesCredentialHelper()
-    {
+    public void Build_NeverEmptiesCredentialHelper() {
         var environment = GitEnvironment.Build("/usr/local/bin/dotquay", new FakeEnvironmentReader());
 
         // Setting credential.helper to "" resets the list, which would disable the machine's own SSH
@@ -58,8 +53,7 @@ public class GitEnvironmentTests
     }
 
     [Fact]
-    public void Build_WindowsPathWithSpaces_IsQuotedAndForwardSlashed()
-    {
+    public void Build_WindowsPathWithSpaces_IsQuotedAndForwardSlashed() {
         var environment = GitEnvironment.Build(@"C:\Program Files\dotquay\dotquay.exe", new FakeEnvironmentReader());
 
         // git splits an unquoted helper value on whitespace, and git-for-windows runs the command
@@ -71,8 +65,7 @@ public class GitEnvironmentTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Build_NoExecutablePath_SkipsTheHelperButStillDisablesPrompts(string? path)
-    {
+    public void Build_NoExecutablePath_SkipsTheHelperButStillDisablesPrompts(string? path) {
         // Environment.ProcessPath can be null. A config line pointing at nothing is worse than no
         // config line: git would report a helper failure instead of a missing credential.
         var environment = GitEnvironment.Build(path, new FakeEnvironmentReader());
@@ -82,8 +75,7 @@ public class GitEnvironmentTests
     }
 
     [Fact]
-    public void Build_PathContainingADoubleQuote_IsRefusedRatherThanEscaped()
-    {
+    public void Build_PathContainingADoubleQuote_IsRefusedRatherThanEscaped() {
         // Impossible on Windows and pathological elsewhere. Degrading to "no stored git credentials"
         // beats handing a subtly mis-escaped command to a shell.
         var environment = GitEnvironment.Build("/opt/we\"ird/dotquay", new FakeEnvironmentReader());
@@ -92,8 +84,7 @@ public class GitEnvironmentTests
     }
 
     [Fact]
-    public void Build_GarbageExistingCount_FallsBackToZeroInsteadOfThrowing()
-    {
+    public void Build_GarbageExistingCount_FallsBackToZeroInsteadOfThrowing() {
         var reader = new FakeEnvironmentReader().Set("GIT_CONFIG_COUNT", "not-a-number");
 
         var environment = GitEnvironment.Build("/usr/local/bin/dotquay", reader);

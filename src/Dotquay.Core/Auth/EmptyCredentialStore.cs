@@ -13,8 +13,7 @@ namespace Dotquay.Core.Auth;
 /// through <c>DOTQUAY_NUGET_*</c> environment variables, which sit above the file in precedence
 /// anyway (SPEC.md §11.2).
 /// </remarks>
-public sealed class EmptyCredentialStore : ICredentialStore
-{
+public sealed class EmptyCredentialStore : ICredentialStore {
     public Credential? Find(CredentialScope scope) => null;
 
     public IReadOnlyList<StoredCredential> List() => [];

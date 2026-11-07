@@ -11,8 +11,7 @@ namespace Dotquay.Core.Workflows;
 /// resolve — it just writes nothing. Nothing here is inferred by the caller; a UI that renders this
 /// record is showing what the resolver actually said.
 /// </remarks>
-public sealed record AddPreview
-{
+public sealed record AddPreview {
     /// <summary>The key <c>add</c> would write into <c>[addons.*]</c>, as <see cref="AddonNaming"/> chooses it:
     /// the URL's name, or — for a second addon of the same repository — its install_as or path leaf.</summary>
     public required string Name { get; init; }

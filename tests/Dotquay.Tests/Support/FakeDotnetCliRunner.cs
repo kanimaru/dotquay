@@ -6,8 +6,7 @@ namespace Dotquay.Tests.Support;
 /// <summary>Configurable <see cref="IDotnetCliRunner"/> test double — records restore calls (path plus
 /// whatever environment variables were passed for private-feed credentials) instead of actually
 /// invoking the .NET SDK.</summary>
-public sealed class FakeDotnetCliRunner : IDotnetCliRunner
-{
+public sealed class FakeDotnetCliRunner : IDotnetCliRunner {
     public List<RestoreCall> RestoreCalls { get; } = [];
 
     /// <summary>Convenience view for the common assertion of "which csproj paths were restored" —
@@ -17,10 +16,8 @@ public sealed class FakeDotnetCliRunner : IDotnetCliRunner
     public bool ThrowOnRestore { get; set; }
 
     public Task RestoreAsync(
-        string csprojPath, IReadOnlyDictionary<string, string>? environmentVariables = null, CancellationToken cancellationToken = default)
-    {
-        if (ThrowOnRestore)
-        {
+        string csprojPath, IReadOnlyDictionary<string, string>? environmentVariables = null, CancellationToken cancellationToken = default) {
+        if (ThrowOnRestore) {
             throw new DotnetSyncException($"simulated restore failure for {csprojPath}");
         }
 

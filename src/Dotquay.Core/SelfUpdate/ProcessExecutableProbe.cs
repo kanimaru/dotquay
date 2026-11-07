@@ -11,23 +11,18 @@ namespace Dotquay.Core.SelfUpdate;
 /// hangs, or is not executable is the same no in each case. A timeout is part of that: a hung
 /// candidate must not hang the update that is trying to reject it.
 /// </remarks>
-public sealed class ProcessExecutableProbe : IExecutableProbe
-{
+public sealed class ProcessExecutableProbe : IExecutableProbe {
     private readonly TimeSpan _timeout;
 
-    public ProcessExecutableProbe(TimeSpan? timeout = null)
-    {
+    public ProcessExecutableProbe(TimeSpan? timeout = null) {
         _timeout = timeout ?? TimeSpan.FromSeconds(20);
     }
 
-    public async Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default)
-    {
+    public async Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default) {
         var trace = ProcessTrace.Start(path, ["--version"], workingDirectory: null, category: "probe");
 
-        try
-        {
-            using var process = Process.Start(new ProcessStartInfo
-            {
+        try {
+            using var process = Process.Start(new ProcessStartInfo {
                 FileName = path,
                 ArgumentList = { "--version" },
                 RedirectStandardOutput = true,
@@ -36,8 +31,7 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
                 CreateNoWindow = true,
             });
 
-            if (process is null)
-            {
+            if (process is null) {
                 trace.Failed(new InvalidOperationException("Process.Start returned no process."));
                 return null;
             }
@@ -49,8 +43,7 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
             await process.WaitForExitAsync(timeout.Token);
             trace.Completed(process.ExitCode, output);
 
-            if (process.ExitCode != 0)
-            {
+            if (process.ExitCode != 0) {
                 return null;
             }
 
@@ -60,14 +53,10 @@ public sealed class ProcessExecutableProbe : IExecutableProbe
                 .FirstOrDefault(line => line.Length > 0);
 
             return string.IsNullOrEmpty(first) ? null : first;
-        }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
+        } catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested) {
             trace.Failed(new TimeoutException($"No answer within {_timeout.TotalSeconds:0} s.", ex));
             return null;
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
-        {
+        } catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException) {
             // Not executable, wrong architecture, or gone between the check and the start. All of
             // them mean the same thing to the caller.
             trace.Failed(ex);

@@ -6,14 +6,11 @@ using Xunit;
 
 namespace Dotquay.Tests.Diagnostics;
 
-public sealed class DiagnosticHttpHandlerTests
-{
+public sealed class DiagnosticHttpHandlerTests {
     [Fact]
-    public async Task Logs_method_redacted_url_status_and_auth_scheme_but_never_the_credential()
-    {
+    public async Task Logs_method_redacted_url_status_and_auth_scheme_but_never_the_credential() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
-        using (scope)
-        {
+        using (scope) {
             using var client = new HttpClient(new DiagnosticHttpHandler(new StubHandler(HttpStatusCode.NotFound)));
             using var request = new HttpRequestMessage(HttpMethod.Get, "https://feed.example/v3/index.json?private_token=abc");
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", "dXNlcjpzZWNyZXQ=");
@@ -31,11 +28,9 @@ public sealed class DiagnosticHttpHandlerTests
     }
 
     [Fact]
-    public async Task Says_anonymous_or_token_header_when_there_is_no_Authorization()
-    {
+    public async Task Says_anonymous_or_token_header_when_there_is_no_Authorization() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
-        using (scope)
-        {
+        using (scope) {
             using var client = new HttpClient(new DiagnosticHttpHandler(new StubHandler(HttpStatusCode.OK)));
             using var anonymous = new HttpRequestMessage(HttpMethod.Get, "https://h/a");
             using var tokened = new HttpRequestMessage(HttpMethod.Get, "https://h/b");
@@ -52,13 +47,11 @@ public sealed class DiagnosticHttpHandlerTests
     }
 
     [Fact]
-    public async Task A_failed_request_is_logged_and_rethrown_unchanged()
-    {
+    public async Task A_failed_request_is_logged_and_rethrown_unchanged() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
         var failure = new HttpRequestException("No such host is known. (h:443)");
 
-        using (scope)
-        {
+        using (scope) {
             using var client = new HttpClient(new DiagnosticHttpHandler(new StubHandler(failure)));
             var thrown = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("https://h/x"));
             Assert.Same(failure, thrown);
@@ -68,8 +61,7 @@ public sealed class DiagnosticHttpHandlerTests
     }
 
     [Fact]
-    public async Task Is_a_pure_pass_through_when_off()
-    {
+    public async Task Is_a_pure_pass_through_when_off() {
         var inner = new StubHandler(HttpStatusCode.Accepted);
         using var client = new HttpClient(new DiagnosticHttpHandler(inner));
 
@@ -79,8 +71,7 @@ public sealed class DiagnosticHttpHandlerTests
         Assert.Equal(1, inner.Calls);
     }
 
-    private sealed class StubHandler : HttpMessageHandler
-    {
+    private sealed class StubHandler : HttpMessageHandler {
         private readonly HttpStatusCode _status;
         private readonly Exception? _failure;
 
@@ -90,8 +81,7 @@ public sealed class DiagnosticHttpHandlerTests
 
         public int Calls { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             Calls++;
             return _failure is null
                 ? Task.FromResult(new HttpResponseMessage(_status) { RequestMessage = request })

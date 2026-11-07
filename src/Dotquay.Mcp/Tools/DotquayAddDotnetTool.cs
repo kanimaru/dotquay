@@ -18,8 +18,7 @@ namespace Dotquay.Mcp.Tools;
 /// feed question to preview). <see cref="GeneratorPrivacyPolicy"/> still applies: the package itself
 /// might be the generator.
 /// </remarks>
-public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_add_dotnet";
 
     public override string Description =>
@@ -52,12 +51,10 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) 
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var packageId = McpArgs.GetString(arguments, "package_id");
 
-        if (string.IsNullOrWhiteSpace(packageId))
-        {
+        if (string.IsNullOrWhiteSpace(packageId)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'package_id' is required: the NuGet package to add.");
         }
 
@@ -72,8 +69,7 @@ public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) 
         // (DESIGN-v0.19 §7a.1) — the same entry point `add` uses on the CLI.
         var declaration = await workflow.DeclareDotnetAsync(projectDirectory, packageId, version, nuGetSource, cancellationToken);
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes = [JsonMapper.ToChange(declaration)],
             Messages = declaration.Messages(nuGetSource),
         };

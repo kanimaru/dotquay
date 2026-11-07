@@ -7,8 +7,7 @@ namespace Dotquay.Mcp.Guards;
 /// a fake project with no manifest would make <see cref="SourceApprovalPolicy"/>'s preview throw
 /// before <see cref="ForceConfirmationPolicy"/> ever got a chance to matter).
 /// </summary>
-public sealed class WriteGuard(IReadOnlyList<IWritePolicy> policies) : IWriteGuard
-{
+public sealed class WriteGuard(IReadOnlyList<IWritePolicy> policies) : IWriteGuard {
     public static WriteGuard Default { get; } = new(
     [
         new SourceApprovalPolicy(),
@@ -16,14 +15,11 @@ public sealed class WriteGuard(IReadOnlyList<IWritePolicy> policies) : IWriteGua
         new ForceConfirmationPolicy(),
     ]);
 
-    public async ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken)
-    {
-        foreach (var policy in policies)
-        {
+    public async ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken) {
+        foreach (var policy in policies) {
             var verdict = await policy.EvaluateAsync(context, cancellationToken);
 
-            if (verdict is WriteGuardRefusal)
-            {
+            if (verdict is WriteGuardRefusal) {
                 return verdict;
             }
         }

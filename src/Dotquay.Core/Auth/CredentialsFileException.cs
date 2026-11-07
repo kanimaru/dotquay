@@ -9,15 +9,12 @@ namespace Dotquay.Core.Auth;
 /// <c>invalid_config_file</c> rather than <c>auth</c>. An <c>auth</c> failure suggests
 /// <c>dotquay login</c>, which reads the same file and fails the same way.
 /// </remarks>
-public sealed class CredentialsFileException : CredentialException
-{
+public sealed class CredentialsFileException : CredentialException {
     public CredentialsFileException(string message)
-        : base(message)
-    {
+        : base(message) {
     }
 
     public CredentialsFileException(string message, Exception innerException)
-        : base(message, innerException)
-    {
+        : base(message, innerException) {
     }
 }

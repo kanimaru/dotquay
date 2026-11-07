@@ -8,8 +8,7 @@ namespace Dotquay.Core.SelfUpdate;
 // registered nowhere fails only in the published binary.
 
 /// <summary>The subset of GitLab's release payload this channel reads.</summary>
-internal sealed class GitLabRelease
-{
+internal sealed class GitLabRelease {
     [JsonPropertyName("tag_name")]
     public string TagName { get; set; } = "";
 
@@ -20,14 +19,12 @@ internal sealed class GitLabRelease
     public GitLabReleaseAssets? Assets { get; set; }
 }
 
-internal sealed class GitLabReleaseAssets
-{
+internal sealed class GitLabReleaseAssets {
     [JsonPropertyName("links")]
     public List<GitLabReleaseLink> Links { get; set; } = [];
 }
 
-internal sealed class GitLabReleaseLink
-{
+internal sealed class GitLabReleaseLink {
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
 
@@ -44,8 +41,7 @@ internal sealed class GitLabReleaseLink
 /// describes and never overwritten, so there is no mutable "latest" document for a publish to race.
 /// "What is newest" is answered by the releases API, which is already the authority on what shipped.
 /// </remarks>
-internal sealed class ReleaseManifestDocument
-{
+internal sealed class ReleaseManifestDocument {
     [JsonPropertyName("schema")]
     public int Schema { get; set; } = 1;
 
@@ -59,8 +55,7 @@ internal sealed class ReleaseManifestDocument
     public List<ReleaseAssetDocument> Assets { get; set; } = [];
 }
 
-internal sealed class ReleaseAssetDocument
-{
+internal sealed class ReleaseAssetDocument {
     [JsonPropertyName("rid")]
     public string Rid { get; set; } = "";
 
@@ -86,8 +81,7 @@ internal sealed class ReleaseAssetDocument
 /// it, every 403 looks the same and the advice can only be a guess - which is how an afternoon goes
 /// into "the token has no api scope" when the token is fine and one checkbox is not ticked.
 /// </remarks>
-internal sealed class GitLabApiError
-{
+internal sealed class GitLabApiError {
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
@@ -102,8 +96,7 @@ internal sealed class GitLabApiError
 
 /// <summary>What the last update check found, cached at <c>~/.dotquay/update-check.json</c> so the
 /// notice costs a file read rather than a request (docs/DESIGN-v0.17-SELF-UPDATE.md).</summary>
-public sealed class UpdateCheckState
-{
+public sealed class UpdateCheckState {
     [JsonPropertyName("checked_at")]
     public DateTimeOffset CheckedAt { get; set; }
 
@@ -123,6 +116,5 @@ public sealed class UpdateCheckState
 [JsonSerializable(typeof(ReleaseManifestDocument))]
 [JsonSerializable(typeof(UpdateCheckState))]
 [JsonSerializable(typeof(GitLabApiError))]
-internal sealed partial class SelfUpdateJsonContext : JsonSerializerContext
-{
+internal sealed partial class SelfUpdateJsonContext : JsonSerializerContext {
 }

@@ -16,14 +16,12 @@ namespace Dotquay.Tests.SelfUpdate;
 /// whether Windows really does let a running image be renamed. Both are verified by running the
 /// published binary (docs/DESIGN-v0.17-SELF-UPDATE.md), not here.
 /// </remarks>
-public class SelfUpdateWorkflowTests
-{
+public class SelfUpdateWorkflowTests {
     private const string Executable = "/home/kani/.local/bin/dotquay";
     private const string Rid = "linux-x64";
 
     [Fact]
-    public async Task Check_reports_a_newer_release()
-    {
+    public async Task Check_reports_a_newer_release() {
         var (workflow, _, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
 
@@ -37,8 +35,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Check_on_the_newest_release_reports_nothing_to_do()
-    {
+    public async Task Check_on_the_newest_release_reports_nothing_to_do() {
         var (workflow, _, channel) = Build("0.18.0");
         channel.Publish("0.18.0", Rid);
 
@@ -46,8 +43,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Check_on_a_channel_with_no_releases_says_so_rather_than_up_to_date()
-    {
+    public async Task Check_on_a_channel_with_no_releases_says_so_rather_than_up_to_date() {
         var (workflow, _, _) = Build("0.17.0");
 
         var result = await workflow.CheckAsync();
@@ -57,8 +53,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Update_replaces_the_executable_and_keeps_the_old_one()
-    {
+    public async Task Update_replaces_the_executable_and_keeps_the_old_one() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
 
@@ -80,8 +75,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Update_when_already_current_does_nothing_and_downloads_nothing()
-    {
+    public async Task Update_when_already_current_does_nothing_and_downloads_nothing() {
         var (workflow, fileSystem, channel) = Build("0.18.0");
         channel.Publish("0.18.0", Rid);
 
@@ -93,8 +87,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Update_ahead_of_the_channel_says_so_rather_than_downgrading_silently()
-    {
+    public async Task Update_ahead_of_the_channel_says_so_rather_than_downgrading_silently() {
         var (workflow, _, channel) = Build("0.19.0");
         channel.Publish("0.18.0", Rid);
 
@@ -105,8 +98,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Update_to_an_older_version_is_allowed_and_says_it_is_a_downgrade()
-    {
+    public async Task Update_to_an_older_version_is_allowed_and_says_it_is_a_downgrade() {
         var (workflow, fileSystem, channel) = Build("0.18.0");
         channel.Publish("0.17.5", Rid);
         channel.Publish("0.18.0", Rid);
@@ -119,8 +111,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Update_to_a_version_that_does_not_exist_names_it()
-    {
+    public async Task Update_to_a_version_that_does_not_exist_names_it() {
         var (workflow, _, channel) = Build("0.18.0");
         channel.Publish("0.18.0", Rid);
 
@@ -131,8 +122,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Dry_run_writes_nothing_and_downloads_nothing()
-    {
+    public async Task Dry_run_writes_nothing_and_downloads_nothing() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
 
@@ -145,8 +135,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_checksum_mismatch_installs_nothing()
-    {
+    public async Task A_checksum_mismatch_installs_nothing() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid).Corrupt("0.18.0");
 
@@ -158,8 +147,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_release_without_a_checksum_is_refused_rather_than_trusted()
-    {
+    public async Task A_release_without_a_checksum_is_refused_rather_than_trusted() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.PublishWithoutChecksum("0.18.0", Rid);
 
@@ -171,8 +159,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_binary_that_does_not_start_is_never_installed()
-    {
+    public async Task A_binary_that_does_not_start_is_never_installed() {
         var (workflow, fileSystem, channel, probe) = BuildWithProbe("0.17.0");
         channel.Publish("0.18.0", Rid);
         probe.Reports("/home/kani/.local/bin/dotquay.new-0.18.0", null);
@@ -185,8 +172,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_binary_reporting_the_wrong_version_is_never_installed()
-    {
+    public async Task A_binary_reporting_the_wrong_version_is_never_installed() {
         var (workflow, fileSystem, channel, probe) = BuildWithProbe("0.17.0");
         channel.Publish("0.18.0", Rid);
         probe.Reports("/home/kani/.local/bin/dotquay.new-0.18.0", "0.4.4");
@@ -198,8 +184,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_release_with_no_build_for_this_platform_names_what_it_does_publish()
-    {
+    public async Task A_release_with_no_build_for_this_platform_names_what_it_does_publish() {
         var (workflow, _, channel) = Build("0.17.0");
         channel.Publish("0.18.0", "win-x64");
 
@@ -210,15 +195,13 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_build_output_is_refused_unless_forced()
-    {
+    public async Task A_build_output_is_refused_unless_forced() {
         var fileSystem = new InMemoryFileSystem();
         var path = "/repo/src/Dotquay.Cli/bin/Debug/net10.0/dotquay";
         fileSystem.WriteAllBytes(path, "dotquay 0.9.0 installed"u8.ToArray());
 
         var channel = new FakeReleaseChannel().Publish("0.18.0", Rid);
-        var workflow = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), path, "0.9.0")
-        {
+        var workflow = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), path, "0.9.0") {
             RuntimeIdentifier = Rid,
         };
 
@@ -231,8 +214,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task An_install_directory_called_bin_is_not_mistaken_for_a_build_output()
-    {
+    public async Task An_install_directory_called_bin_is_not_mistaken_for_a_build_output() {
         // ~/.local/bin is where the install scripts put dotquay. A guard that fired here would fire
         // on the most common correct installation there is.
         var (workflow, _, channel) = Build("0.17.0");
@@ -242,8 +224,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task A_directory_this_process_cannot_write_to_is_explained_not_attempted()
-    {
+    public async Task A_directory_this_process_cannot_write_to_is_explained_not_attempted() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
         fileSystem.ReadOnlyDirectories.Add("/home/kani/.local/bin");
@@ -255,15 +236,13 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Rollback_restores_the_previous_binary_and_keeps_the_one_it_replaced()
-    {
+    public async Task Rollback_restores_the_previous_binary_and_keeps_the_one_it_replaced() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
         // A new workflow, because the binary now running is the one that was just installed.
-        var updated = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), Executable, "0.18.0")
-        {
+        var updated = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), Executable, "0.18.0") {
             RuntimeIdentifier = Rid,
         };
 
@@ -279,8 +258,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Rollback_with_nothing_to_roll_back_to_says_so()
-    {
+    public async Task Rollback_with_nothing_to_roll_back_to_says_so() {
         var (workflow, _, _) = Build("0.17.0");
 
         var error = await Assert.ThrowsAsync<WorkflowException>(() => workflow.RollbackAsync());
@@ -289,15 +267,13 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Rollback_to_a_binary_that_no_longer_starts_is_refused()
-    {
+    public async Task Rollback_to_a_binary_that_no_longer_starts_is_refused() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
         var probe = new FakeExecutableProbe().Reports("/home/kani/.local/bin/dotquay.old-0.17.0", null);
-        var updated = new SelfUpdateWorkflow(fileSystem, channel, probe, Executable, "0.18.0")
-        {
+        var updated = new SelfUpdateWorkflow(fileSystem, channel, probe, Executable, "0.18.0") {
             RuntimeIdentifier = Rid,
         };
 
@@ -308,8 +284,7 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task An_update_sweeps_what_an_earlier_failed_attempt_left_behind()
-    {
+    public async Task An_update_sweeps_what_an_earlier_failed_attempt_left_behind() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
         fileSystem.WriteAllText("/home/kani/.local/bin/dotquay.new-0.17.9", "a download rejected last week");
@@ -320,15 +295,13 @@ public class SelfUpdateWorkflowTests
     }
 
     [Fact]
-    public async Task Only_one_retired_binary_is_kept()
-    {
+    public async Task Only_one_retired_binary_is_kept() {
         var (workflow, fileSystem, channel) = Build("0.17.0");
         channel.Publish("0.18.0", Rid);
         await workflow.UpdateAsync(new SelfUpdateOptions());
 
         channel.Publish("0.19.0", Rid);
-        var second = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), Executable, "0.18.0")
-        {
+        var second = new SelfUpdateWorkflow(fileSystem, channel, new FakeExecutableProbe(), Executable, "0.18.0") {
             RuntimeIdentifier = Rid,
         };
         await second.UpdateAsync(new SelfUpdateOptions());
@@ -340,15 +313,13 @@ public class SelfUpdateWorkflowTests
     }
 
     private static (SelfUpdateWorkflow Workflow, InMemoryFileSystem FileSystem, FakeReleaseChannel Channel) Build(
-        string currentVersion)
-    {
+        string currentVersion) {
         var (workflow, fileSystem, channel, _) = BuildWithProbe(currentVersion);
         return (workflow, fileSystem, channel);
     }
 
     private static (SelfUpdateWorkflow Workflow, InMemoryFileSystem FileSystem, FakeReleaseChannel Channel, FakeExecutableProbe Probe)
-        BuildWithProbe(string currentVersion)
-    {
+        BuildWithProbe(string currentVersion) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(Executable, $"dotquay {currentVersion} installed");
 

@@ -30,8 +30,7 @@ namespace Dotquay.Core.Diagnostics;
 /// someone asked.
 /// </para>
 /// </remarks>
-public static class DiagnosticLog
-{
+public static class DiagnosticLog {
     private static readonly AsyncLocal<IDiagnosticSink?> Ambient = new();
 
     /// <summary>The sink for the current logical call. Never null.</summary>
@@ -50,8 +49,7 @@ public static class DiagnosticLog
     /// does not flow back out to its caller, so a <c>UseAsync</c> would appear to work and do
     /// nothing.
     /// </remarks>
-    public static IDisposable Use(IDiagnosticSink sink)
-    {
+    public static IDisposable Use(IDiagnosticSink sink) {
         ArgumentNullException.ThrowIfNull(sink);
 
         var previous = Ambient.Value;
@@ -60,10 +58,8 @@ public static class DiagnosticLog
     }
 
     /// <summary>Writes a pre-built message. Prefer the interpolated overload for anything that formats.</summary>
-    public static void Write(DiagnosticLevel level, string category, string message)
-    {
-        if (IsEnabled(level))
-        {
+    public static void Write(DiagnosticLevel level, string category, string message) {
+        if (IsEnabled(level)) {
             Current.Write(new DiagnosticEvent(level, category, message));
         }
     }
@@ -72,10 +68,8 @@ public static class DiagnosticLog
     public static void Write(
         DiagnosticLevel level,
         string category,
-        [InterpolatedStringHandlerArgument("level")] ref DiagnosticMessageHandler message)
-    {
-        if (message.Enabled)
-        {
+        [InterpolatedStringHandlerArgument("level")] ref DiagnosticMessageHandler message) {
+        if (message.Enabled) {
             Current.Write(new DiagnosticEvent(level, category, message.ToStringAndClear()));
         }
     }
@@ -101,14 +95,11 @@ public static class DiagnosticLog
     public static string FormatDuration(TimeSpan elapsed) =>
         string.Create(CultureInfo.InvariantCulture, $"{Math.Round(elapsed.TotalMilliseconds):0} ms");
 
-    private sealed class Restoration(IDiagnosticSink? previous) : IDisposable
-    {
+    private sealed class Restoration(IDiagnosticSink? previous) : IDisposable {
         private bool _disposed;
 
-        public void Dispose()
-        {
-            if (_disposed)
-            {
+        public void Dispose() {
+            if (_disposed) {
                 return;
             }
 
@@ -117,15 +108,12 @@ public static class DiagnosticLog
         }
     }
 
-    private sealed class Measurement(DiagnosticLevel level, string category, string label) : IDisposable
-    {
+    private sealed class Measurement(DiagnosticLevel level, string category, string label) : IDisposable {
         private readonly long _started = Stopwatch.GetTimestamp();
         private bool _disposed;
 
-        public void Dispose()
-        {
-            if (_disposed)
-            {
+        public void Dispose() {
+            if (_disposed) {
                 return;
             }
 
@@ -134,12 +122,10 @@ public static class DiagnosticLog
         }
     }
 
-    private sealed class NoOpScope : IDisposable
-    {
+    private sealed class NoOpScope : IDisposable {
         public static readonly NoOpScope Instance = new();
 
-        public void Dispose()
-        {
+        public void Dispose() {
         }
     }
 }
@@ -149,12 +135,10 @@ public static class DiagnosticLog
 /// the compiler asks it whether to format at all before evaluating a single hole.
 /// </summary>
 [InterpolatedStringHandler]
-public ref struct DiagnosticMessageHandler
-{
+public ref struct DiagnosticMessageHandler {
     private DefaultInterpolatedStringHandler _inner;
 
-    public DiagnosticMessageHandler(int literalLength, int formattedCount, DiagnosticLevel level, out bool shouldAppend)
-    {
+    public DiagnosticMessageHandler(int literalLength, int formattedCount, DiagnosticLevel level, out bool shouldAppend) {
         Enabled = DiagnosticLog.IsEnabled(level);
         shouldAppend = Enabled;
         // Invariant, not the current culture: a log is pasted into issues and diffed between machines,

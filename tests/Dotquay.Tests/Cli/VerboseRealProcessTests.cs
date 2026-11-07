@@ -16,13 +16,10 @@ namespace Dotquay.Tests.Cli;
 /// touching the network. Set <c>DOTQUAY_TEST_CLI_EXE</c> to run the same assertions against a
 /// NativeAOT publish instead of the framework-dependent apphost.
 /// </remarks>
-public sealed class VerboseRealProcessTests
-{
+public sealed class VerboseRealProcessTests {
     [Fact]
-    public async Task Verbose_json_keeps_stdout_one_document_and_logs_git_to_stderr()
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Verbose_json_keeps_stdout_one_document_and_logs_git_to_stderr() {
+        await WithProjectAsync(async (cli, project) => {
             var (exitCode, stdout, stderr) = await RunAsync(cli, ["doctor", "--json", "--verbose", "--project", project]);
 
             AssertSingleJsonDocument(stdout);
@@ -35,10 +32,8 @@ public sealed class VerboseRealProcessTests
     }
 
     [Fact]
-    public async Task Environment_variable_turns_it_on_and_trace_adds_captured_output()
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Environment_variable_turns_it_on_and_trace_adds_captured_output() {
+        await WithProjectAsync(async (cli, project) => {
             var (_, stdout, stderr) = await RunAsync(
                 cli, ["doctor", "--json", "--project", project], ("DOTQUAY_VERBOSE", "trace"));
 
@@ -49,10 +44,8 @@ public sealed class VerboseRealProcessTests
     }
 
     [Fact]
-    public async Task Without_it_stderr_carries_no_diagnostics()
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Without_it_stderr_carries_no_diagnostics() {
+        await WithProjectAsync(async (cli, project) => {
             var (_, stdout, stderr) = await RunAsync(cli, ["doctor", "--json", "--project", project], ("DOTQUAY_VERBOSE", ""));
 
             AssertSingleJsonDocument(stdout);
@@ -62,10 +55,8 @@ public sealed class VerboseRealProcessTests
     }
 
     [Fact]
-    public async Task Verbose_is_accepted_before_the_subcommand_and_as_short_v()
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Verbose_is_accepted_before_the_subcommand_and_as_short_v() {
+        await WithProjectAsync(async (cli, project) => {
             var (exitCode, stdout, stderr) = await RunAsync(cli, ["-v", "list", "--json", "--project", project]);
 
             Assert.Equal(0, exitCode);
@@ -74,8 +65,7 @@ public sealed class VerboseRealProcessTests
         });
     }
 
-    private static void AssertSingleJsonDocument(string stdout)
-    {
+    private static void AssertSingleJsonDocument(string stdout) {
         using var document = JsonDocument.Parse(stdout); // throws on trailing content
         Assert.Equal(JsonValueKind.Object, document.RootElement.ValueKind);
     }
@@ -84,8 +74,7 @@ public sealed class VerboseRealProcessTests
     /// <c>.dotquay</c> (cache, credentials, config) is never the developer's real one.</summary>
     private sealed record CliUnderTest(string Exe, string Home);
 
-    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body)
-    {
+    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body) {
         var exe = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
             ? overridden
             : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe" : "dotquay");
@@ -95,36 +84,27 @@ public sealed class VerboseRealProcessTests
         var project = Directory.CreateTempSubdirectory("dotquay-verbose-test-").FullName;
         var home = Directory.CreateTempSubdirectory("dotquay-verbose-home-").FullName;
         var cli = new CliUnderTest(exe, home);
-        try
-        {
+        try {
             var (initExit, _, initErr) = await RunAsync(cli, ["init", "--json", "--project", project]);
             Assert.True(initExit == 0, initErr);
             await body(cli, project);
-        }
-        finally
-        {
+        } finally {
             TryDelete(project);
             TryDelete(home);
         }
     }
 
-    private static void TryDelete(string directory)
-    {
-        try
-        {
+    private static void TryDelete(string directory) {
+        try {
             Directory.Delete(directory, recursive: true);
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // Best-effort cleanup.
         }
     }
 
     private static async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(
-        CliUnderTest cli, string[] args, params (string Name, string Value)[] environment)
-    {
-        var startInfo = new ProcessStartInfo(cli.Exe)
-        {
+        CliUnderTest cli, string[] args, params (string Name, string Value)[] environment) {
+        var startInfo = new ProcessStartInfo(cli.Exe) {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -132,8 +112,7 @@ public sealed class VerboseRealProcessTests
             CreateNoWindow = true,
         };
 
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 
@@ -142,8 +121,7 @@ public sealed class VerboseRealProcessTests
         startInfo.Environment.Remove("DOTQUAY_VERBOSE");
         startInfo.Environment["DOTQUAY_NO_UPDATE_CHECK"] = "1";
         startInfo.Environment[SystemEnvironmentReader.HomeOverrideVariable] = cli.Home;
-        foreach (var (name, value) in environment)
-        {
+        foreach (var (name, value) in environment) {
             startInfo.Environment[name] = value;
         }
 

@@ -4,8 +4,7 @@ namespace Dotquay.Core.Resolve;
 
 /// <summary>Why a set of requirements on one addon name could not be unified down to a single
 /// commit (SPEC.md §8: "constraints that cannot be unified ... are a hard error").</summary>
-public enum GraphConflictKind
-{
+public enum GraphConflictKind {
     /// <summary>Two requirers named the same addon but different repositories — there is no version
     /// to pick, because they aren't the same package.</summary>
     DifferentGitUrls,
@@ -64,8 +63,7 @@ public sealed record GraphConflict(
     GraphConflictKind Kind,
     string Message,
     IReadOnlyList<GraphRequirement> Requirements,
-    IReadOnlyList<GraphCandidate> Candidates)
-{
+    IReadOnlyList<GraphCandidate> Candidates) {
     /// <summary>The synthetic requirer name used for the project's own top-level
     /// <c>[addons.*]</c> entries, as opposed to a dependency declared by another addon.</summary>
     public const string ProjectRequirerName = "<project>";

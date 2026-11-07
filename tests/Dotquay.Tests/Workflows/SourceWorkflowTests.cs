@@ -16,20 +16,17 @@ namespace Dotquay.Tests.Workflows;
 /// because dropping the declaration hands those packages back to a first-match search across whatever
 /// feeds remain — both of them dependency confusion produced by a helper.
 /// </remarks>
-public class SourceWorkflowTests
-{
+public class SourceWorkflowTests {
     private const string ProjectDirectory = "project";
     private const string CoreUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
     private const string ToolsUrl = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
 
     private static (SourceWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient Client) Build(
-        string manifest, string? lockfile = null)
-    {
+        string manifest, string? lockfile = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
 
-        if (lockfile is not null)
-        {
+        if (lockfile is not null) {
             fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
         }
 
@@ -53,8 +50,7 @@ public class SourceWorkflowTests
         """;
 
     [Fact]
-    public async Task Add_DeclaresTheFeed()
-    {
+    public async Task Add_DeclaresTheFeed() {
         var (workflow, fileSystem, _) = Build(EmptyManifest);
 
         var result = await workflow.AddAsync(ProjectDirectory, "core", CoreUrl);
@@ -67,8 +63,7 @@ public class SourceWorkflowTests
     /// <summary>The load-bearing one. First-match search order means position decides which feed a
     /// package comes from, so a second feed must never end up ahead of the first.</summary>
     [Fact]
-    public async Task Add_AppendsAfterExistingFeeds()
-    {
+    public async Task Add_AppendsAfterExistingFeeds() {
         var (workflow, fileSystem, _) = Build(ManifestWithCore);
 
         await workflow.AddAsync(ProjectDirectory, "tools", ToolsUrl);
@@ -81,8 +76,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public async Task Add_IsIdempotentForTheSameNameAndUrl()
-    {
+    public async Task Add_IsIdempotentForTheSameNameAndUrl() {
         var (workflow, fileSystem, _) = Build(ManifestWithCore);
 
         var result = await workflow.AddAsync(ProjectDirectory, "core", CoreUrl);
@@ -92,8 +86,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public async Task Add_RefusesTheSameNameForADifferentUrl()
-    {
+    public async Task Add_RefusesTheSameNameForADifferentUrl() {
         var (workflow, _, _) = Build(ManifestWithCore);
 
         var ex = await Assert.ThrowsAsync<WorkflowException>(
@@ -104,8 +97,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public async Task Add_RefusesTheSameUrlUnderADifferentName()
-    {
+    public async Task Add_RefusesTheSameUrlUnderADifferentName() {
         var (workflow, _, _) = Build(ManifestWithCore);
 
         var ex = await Assert.ThrowsAsync<WorkflowException>(
@@ -118,8 +110,7 @@ public class SourceWorkflowTests
     [InlineData("has space")]
     [InlineData("-leading-dash")]
     [InlineData("")]
-    public async Task Add_RejectsAnUnusableName(string name)
-    {
+    public async Task Add_RejectsAnUnusableName(string name) {
         var (workflow, fileSystem, _) = Build(EmptyManifest);
 
         await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDirectory, name, CoreUrl));
@@ -130,8 +121,7 @@ public class SourceWorkflowTests
     [InlineData("not-a-url")]
     [InlineData("file:///tmp/feed/index.json")]
     [InlineData("")]
-    public async Task Add_RejectsAnythingThatIsNotAnHttpUrl(string url)
-    {
+    public async Task Add_RejectsAnythingThatIsNotAnHttpUrl(string url) {
         var (workflow, fileSystem, _) = Build(EmptyManifest);
 
         await Assert.ThrowsAsync<WorkflowException>(() => workflow.AddAsync(ProjectDirectory, "core", url));
@@ -141,8 +131,7 @@ public class SourceWorkflowTests
     /// <summary>A failed verification must leave nothing behind: a `source add` that could not reach
     /// the feed should never be something the user has to undo.</summary>
     [Fact]
-    public async Task Add_VerificationFailureAbortsBeforeWriting()
-    {
+    public async Task Add_VerificationFailureAbortsBeforeWriting() {
         var (workflow, fileSystem, client) = Build(EmptyManifest);
         client.VerifyFailure = new NuGetSourceException("core", CoreUrl, "404 while fetching the service index.");
 
@@ -152,8 +141,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public async Task Add_WithoutVerifyMakesNoNetworkCall()
-    {
+    public async Task Add_WithoutVerifyMakesNoNetworkCall() {
         var (workflow, fileSystem, client) = Build(EmptyManifest);
         client.VerifyFailure = new NuGetSourceException("core", CoreUrl, "the feed is offline right now.");
 
@@ -165,8 +153,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public async Task Add_VerifiesOnlyTheFeedBeingDeclared()
-    {
+    public async Task Add_VerifiesOnlyTheFeedBeingDeclared() {
         var (workflow, _, client) = Build(ManifestWithCore);
 
         await workflow.AddAsync(ProjectDirectory, "tools", ToolsUrl);
@@ -178,8 +165,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public void List_ReturnsDeclaredFeedsInDeclarationOrder()
-    {
+    public void List_ReturnsDeclaredFeedsInDeclarationOrder() {
         var (workflow, _, _) = Build($"""
             [nuget.sources.tools]
             url = "{ToolsUrl}"
@@ -192,8 +178,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public void Remove_DropsTheFeed()
-    {
+    public void Remove_DropsTheFeed() {
         var (workflow, fileSystem, _) = Build(ManifestWithCore);
 
         var result = workflow.Remove(ProjectDirectory, "core");
@@ -203,8 +188,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public void Remove_OfAnUndeclaredFeedChangesNothing()
-    {
+    public void Remove_OfAnUndeclaredFeedChangesNothing() {
         var (workflow, fileSystem, _) = Build(ManifestWithCore);
 
         var result = workflow.Remove(ProjectDirectory, "tools");
@@ -214,8 +198,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public void Remove_RefusesWhileAManifestPinNamesIt()
-    {
+    public void Remove_RefusesWhileAManifestPinNamesIt() {
         var (workflow, fileSystem, _) = Build($"""
             {ManifestWithCore}
 
@@ -235,8 +218,7 @@ public class SourceWorkflowTests
     /// that it resolved from this feed — and leaving a lockfile entry pointing at a feed the project no
     /// longer declares aims packageSourceMapping at nothing.</summary>
     [Fact]
-    public void Remove_RefusesWhileOnlyTheLockfileNamesIt()
-    {
+    public void Remove_RefusesWhileOnlyTheLockfileNamesIt() {
         var (workflow, _, _) = Build(ManifestWithCore, LockfileWithPinnedPackage);
 
         var ex = Assert.Throws<WorkflowException>(() => workflow.Remove(ProjectDirectory, "core"));
@@ -245,8 +227,7 @@ public class SourceWorkflowTests
     }
 
     [Fact]
-    public void Remove_WithForceClearsThePinsAndReportsEachOne()
-    {
+    public void Remove_WithForceClearsThePinsAndReportsEachOne() {
         var (workflow, fileSystem, _) = Build(
             $"""
             {ManifestWithCore}
@@ -283,13 +264,11 @@ public class SourceWorkflowTests
         source = "core"
         """;
 
-    private static int CountOccurrences(string haystack, string needle)
-    {
+    private static int CountOccurrences(string haystack, string needle) {
         var count = 0;
         var index = haystack.IndexOf(needle, StringComparison.Ordinal);
 
-        while (index >= 0)
-        {
+        while (index >= 0) {
             count++;
             index = haystack.IndexOf(needle, index + needle.Length, StringComparison.Ordinal);
         }

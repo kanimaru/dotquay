@@ -23,8 +23,7 @@ namespace Dotquay.Tests.Cli;
 /// </remarks>
 [Collection(nameof(ConsoleSubtreeChoiceTests))]
 [CollectionDefinition(nameof(ConsoleSubtreeChoiceTests), DisableParallelization = true)]
-public class ConsoleSubtreeChoiceTests
-{
+public class ConsoleSubtreeChoiceTests {
     private static readonly SubtreeCandidate Suggestion =
         new("addons/sprouty_dialogs", "sprouty_dialogs", SubtreeMatchKind.NameShape);
 
@@ -34,23 +33,19 @@ public class ConsoleSubtreeChoiceTests
         new SubtreeFinding("addons/SproutyDialogs", [Suggestion], Suggestion),
         Suggestion);
 
-    private static (bool Accepted, string Output) Answer(string? typed)
-    {
+    private static (bool Accepted, string Output) Answer(string? typed) {
         var originalIn = Console.In;
         var originalOut = Console.Out;
         var captured = new StringWriter();
 
-        try
-        {
+        try {
             // A null reader stands in for end-of-input: nothing was typed because there was nobody
             // and nothing left to type.
             Console.SetIn(new StringReader(typed ?? string.Empty));
             Console.SetOut(captured);
 
             return (new ConsoleSubtreeChoice().Accept(Request), captured.ToString());
-        }
-        finally
-        {
+        } finally {
             Console.SetIn(originalIn);
             Console.SetOut(originalOut);
         }
@@ -65,8 +60,7 @@ public class ConsoleSubtreeChoiceTests
     public void Accept_Yes(string typed) => Assert.True(Answer(typed).Accepted);
 
     [Fact]
-    public void Accept_BareEnter_IsYes()
-    {
+    public void Accept_BareEnter_IsYes() {
         // Default yes, unlike the NuGet feed prompt's default no. That question grants a third party
         // the right to serve code into the project; this one only picks which folder of a repository
         // the user just named is the addon, and getting it wrong costs a `dotquay remove`.
@@ -81,8 +75,7 @@ public class ConsoleSubtreeChoiceTests
     public void Accept_AnythingElse_IsNo(string typed) => Assert.False(Answer(typed).Accepted);
 
     [Fact]
-    public void Accept_EndOfInput_IsNo()
-    {
+    public void Accept_EndOfInput_IsNo() {
         // Not the same as a bare Enter, and the distinction matters: a console whose input has closed
         // answered nothing, and reading silence as a yes would lose the "nowhere that cannot ask
         // adopts on the user's behalf" rule on the one path that is allowed to ask.
@@ -90,8 +83,7 @@ public class ConsoleSubtreeChoiceTests
     }
 
     [Fact]
-    public void Accept_AsksWithTheEvidenceAndTheDestination()
-    {
+    public void Accept_AsksWithTheEvidenceAndTheDestination() {
         // A prompt that says only "use it?" is a prompt people answer without reading. Both halves of
         // the answer have to be on screen: the subtree, and the folder it lands in — the second is
         // what Godot's res:// paths are written against, and the one nobody thinks to check.

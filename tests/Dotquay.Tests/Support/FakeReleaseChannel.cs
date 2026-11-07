@@ -12,8 +12,7 @@ namespace Dotquay.Tests.Support;
 /// with no build for this platform, a release published without checksums at all — are each one
 /// line here and are unreachable from a test that needs a real GitLab project to reproduce them.
 /// </remarks>
-public sealed class FakeReleaseChannel : IReleaseChannel
-{
+public sealed class FakeReleaseChannel : IReleaseChannel {
     private readonly Dictionary<string, ReleaseManifest> _releases = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, byte[]> _payloads = new(StringComparer.Ordinal);
 
@@ -29,8 +28,7 @@ public sealed class FakeReleaseChannel : IReleaseChannel
     /// <summary>Publishes a release whose asset really does hash to the checksum it advertises —
     /// the honest case, so a test that wants a mismatch has to ask for one
     /// (<see cref="Corrupt"/>).</summary>
-    public FakeReleaseChannel Publish(string version, string rid = "linux-x64", string? contents = null)
-    {
+    public FakeReleaseChannel Publish(string version, string rid = "linux-x64", string? contents = null) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(contents ?? $"dotquay {version} for {rid}");
         var url = $"https://releases.example/{version}/{rid}";
 
@@ -40,8 +38,7 @@ public sealed class FakeReleaseChannel : IReleaseChannel
             DateTimeOffset.UnixEpoch,
             [new ReleaseAsset(rid, $"dotquay-{rid}", url, Sha256(bytes), bytes.LongLength)]);
 
-        if (LatestVersion is null || string.CompareOrdinal(version, LatestVersion) > 0)
-        {
+        if (LatestVersion is null || string.CompareOrdinal(version, LatestVersion) > 0) {
             LatestVersion = version;
         }
 
@@ -50,12 +47,10 @@ public sealed class FakeReleaseChannel : IReleaseChannel
 
     /// <summary>Publishes a release the way a pipeline older than v0.17 did: binaries, no
     /// checksums.</summary>
-    public FakeReleaseChannel PublishWithoutChecksum(string version, string rid = "linux-x64")
-    {
+    public FakeReleaseChannel PublishWithoutChecksum(string version, string rid = "linux-x64") {
         Publish(version, rid);
         var release = _releases[version];
-        _releases[version] = release with
-        {
+        _releases[version] = release with {
             Assets = release.Assets.Select(asset => asset with { Sha256 = null }).ToList(),
         };
 
@@ -65,10 +60,8 @@ public sealed class FakeReleaseChannel : IReleaseChannel
     /// <summary>Makes the bytes served for a release disagree with the checksum it advertises,
     /// without touching the manifest — which is exactly the shape of a corrupted transfer or a
     /// tampered mirror.</summary>
-    public FakeReleaseChannel Corrupt(string version)
-    {
-        foreach (var asset in _releases[version].Assets)
-        {
+    public FakeReleaseChannel Corrupt(string version) {
+        foreach (var asset in _releases[version].Assets) {
             // Same length, different content. A shorter payload would trip the size check first and
             // the checksum would never be reached - which is correct behaviour, and not the
             // behaviour a checksum test is trying to assert.
@@ -80,8 +73,7 @@ public sealed class FakeReleaseChannel : IReleaseChannel
         return this;
     }
 
-    public Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default)
-    {
+    public Task<ReleaseManifest?> GetLatestAsync(CancellationToken cancellationToken = default) {
         LatestQueries++;
         return Task.FromResult(LatestVersion is null ? null : _releases.GetValueOrDefault(LatestVersion));
     }
@@ -89,8 +81,7 @@ public sealed class FakeReleaseChannel : IReleaseChannel
     public Task<ReleaseManifest?> GetVersionAsync(string version, CancellationToken cancellationToken = default) =>
         Task.FromResult(_releases.GetValueOrDefault(version.TrimStart('v')));
 
-    public Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default)
-    {
+    public Task<byte[]> DownloadAsync(ReleaseAsset asset, CancellationToken cancellationToken = default) {
         Downloads++;
         return Task.FromResult(_payloads[asset.Url]);
     }
@@ -108,26 +99,22 @@ public sealed class FakeReleaseChannel : IReleaseChannel
 /// setup and the two dishonest ones — a binary that will not start, and one that reports a version
 /// other than the release it came from — are each a single explicit registration.
 /// </remarks>
-public sealed class FakeExecutableProbe : IExecutableProbe
-{
+public sealed class FakeExecutableProbe : IExecutableProbe {
     private readonly Dictionary<string, string?> _answers = new(StringComparer.Ordinal);
 
     public List<string> Probed { get; } = [];
 
     /// <summary>Null means "this binary does not start".</summary>
-    public FakeExecutableProbe Reports(string path, string? version)
-    {
+    public FakeExecutableProbe Reports(string path, string? version) {
         _answers[path.Replace('\\', '/').TrimStart('/')] = version;
         return this;
     }
 
-    public Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default)
-    {
+    public Task<string?> ReadVersionAsync(string path, CancellationToken cancellationToken = default) {
         var key = path.Replace('\\', '/').TrimStart('/');
         Probed.Add(key);
 
-        if (_answers.TryGetValue(key, out var answer))
-        {
+        if (_answers.TryGetValue(key, out var answer)) {
             return Task.FromResult(answer);
         }
 
@@ -138,8 +125,7 @@ public sealed class FakeExecutableProbe : IExecutableProbe
             : name.Contains(".old-", StringComparison.Ordinal) ? ".old-"
             : null;
 
-        if (infix is null)
-        {
+        if (infix is null) {
             return Task.FromResult<string?>(null);
         }
 

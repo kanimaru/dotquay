@@ -8,8 +8,7 @@ namespace Dotquay.Core.Abstractions;
 /// <c>add</c>/<c>outdated</c>/<c>list</c> need; writing <c>PackageReference</c> entries and running
 /// <c>dotnet restore</c> stay separate, explicit steps in the sync engine.
 /// </summary>
-public interface INuGetClient
-{
+public interface INuGetClient {
     /// <summary>Lists known versions for a package ID, and names the feed they came from.</summary>
     Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default);
 
@@ -60,8 +59,7 @@ public interface INuGetClient
 /// </remarks>
 /// <param name="Versions">Whatever order the feed returned — callers that care sort explicitly.</param>
 /// <param name="SourceName">The declared source name, or null for the public default.</param>
-public sealed record NuGetVersionQuery(IReadOnlyList<string> Versions, string? SourceName)
-{
+public sealed record NuGetVersionQuery(IReadOnlyList<string> Versions, string? SourceName) {
     public static readonly NuGetVersionQuery Empty = new([], null);
 
     public bool Found => Versions.Count > 0;

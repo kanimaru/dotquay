@@ -18,29 +18,24 @@ public readonly record struct ProgressUpdate(string Message, int? Completed = nu
 /// exactly one document (SPEC.md §17). Keeping the decision at the edge means Core physically cannot
 /// break that guarantee.
 /// </remarks>
-public interface IProgressReporter
-{
+public interface IProgressReporter {
     void Report(ProgressUpdate update);
 }
 
 /// <summary>Discards everything. The default, so no caller has to pass a reporter it doesn't want and
 /// no code path has to null-check one.</summary>
-public sealed class NullProgressReporter : IProgressReporter
-{
+public sealed class NullProgressReporter : IProgressReporter {
     public static readonly NullProgressReporter Instance = new();
 
-    private NullProgressReporter()
-    {
+    private NullProgressReporter() {
     }
 
-    public void Report(ProgressUpdate update)
-    {
+    public void Report(ProgressUpdate update) {
     }
 }
 
 /// <summary>Convenience wrappers so call sites read as one short line.</summary>
-public static class ProgressReporterExtensions
-{
+public static class ProgressReporterExtensions {
     public static void Report(this IProgressReporter reporter, string message) =>
         reporter.Report(new ProgressUpdate(message));
 

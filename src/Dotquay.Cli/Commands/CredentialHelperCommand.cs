@@ -15,12 +15,9 @@ namespace Dotquay.Cli.Commands;
 /// <para>dotquay is registered *after* whatever helpers the machine already has, so this only ever
 /// runs when the user's own credential manager or SSH agent had no answer.</para>
 /// </remarks>
-internal static class CredentialHelperCommand
-{
-    public static Command Build()
-    {
-        var operationArgument = new Argument<string>("operation")
-        {
+internal static class CredentialHelperCommand {
+    public static Command Build() {
+        var operationArgument = new Argument<string>("operation") {
             Description = "get, store, or erase — git's credential helper protocol.",
         };
 
@@ -35,31 +32,26 @@ internal static class CredentialHelperCommand
 
         command.Hidden = true;
 
-        command.SetAction(parseResult =>
-        {
+        command.SetAction(parseResult => {
             var operation = parseResult.GetValue(operationArgument);
 
             // 'store' and 'erase' succeed and do nothing. dotquay's store is written by
             // 'dotquay login', deliberately: a helper that quietly persisted whatever a prompt
             // produced would put secrets on disk without anyone asking for it. Exiting 0 rather than
             // erroring keeps git from treating a clone as failed over a helper that simply declines.
-            if (!string.Equals(operation, "get", StringComparison.Ordinal))
-            {
+            if (!string.Equals(operation, "get", StringComparison.Ordinal)) {
                 return 0;
             }
 
-            try
-            {
+            try {
                 var request = GitCredentialProtocol.ParseRequest(Console.In.ReadToEnd());
                 var url = GitCredentialProtocol.BuildUrl(request);
-                if (url is null)
-                {
+                if (url is null) {
                     return 0;
                 }
 
                 var lookup = CredentialFactory.CreateResolver().ForGitRepository(url);
-                if (lookup.Credential is not null)
-                {
+                if (lookup.Credential is not null) {
                     Console.Out.Write(GitCredentialProtocol.FormatResponse(lookup.Credential));
                 }
 
@@ -67,9 +59,7 @@ internal static class CredentialHelperCommand
                 // next helper, or reports a real authentication failure. Anything written to stderr
                 // here would surface as noise in the middle of an otherwise clean clone.
                 return 0;
-            }
-            catch (CredentialException)
-            {
+            } catch (CredentialException) {
                 // A malformed credentials file must not take a clone down with it. The user finds
                 // out about it from 'dotquay login' or 'dotquay doctor', where there's room to
                 // explain; here, the honest answer is "no credential".

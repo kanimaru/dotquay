@@ -5,8 +5,7 @@ namespace Dotquay.Mcp.Prompts;
 
 /// <summary>Upgrade every outdated addon one at a time, stopping at the first conflict marker
 /// (design doc §7). Takes no arguments — it always operates on the whole project.</summary>
-public sealed class DotquayUpgradeSafelyPrompt : IMcpPrompt
-{
+public sealed class DotquayUpgradeSafelyPrompt : IMcpPrompt {
     public string Name => "dotquay_upgrade_safely";
 
     public string Description =>
@@ -15,12 +14,10 @@ public sealed class DotquayUpgradeSafelyPrompt : IMcpPrompt
 
     public IReadOnlyList<PromptArgument> Arguments { get; } = [];
 
-    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken)
-    {
+    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken) {
         var text = McpPromptText.Render("dotquay_upgrade_safely.md");
 
-        return ValueTask.FromResult(new GetPromptResult
-        {
+        return ValueTask.FromResult(new GetPromptResult {
             Description = Description,
             Messages = [new PromptMessage { Role = Role.User, Content = new TextContentBlock { Text = text } }],
         });

@@ -20,8 +20,7 @@ namespace Dotquay.Tests.Dotnet;
 /// <see cref="FakeDotnetCliRunner"/> does not read <c>NuGet.Config</c> — nothing in the suite was
 /// looking at the file. These tests look at the file.</para>
 /// </remarks>
-public class AddSourceMappingTests
-{
+public class AddSourceMappingTests {
     private const string ProjectDir = "project";
     private const string PrivateUrl = "https://gitlab.example.com/api/v4/projects/130/packages/nuget/index.json";
 
@@ -34,14 +33,12 @@ public class AddSourceMappingTests
         """;
 
     private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(
-        string manifest, string? feedName, string? lockfile = null)
-    {
+        string manifest, string? feedName, string? lockfile = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", manifest);
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", Csproj);
 
-        if (lockfile is not null)
-        {
+        if (lockfile is not null) {
             fileSystem.WriteAllText($"{ProjectDir}/dotquay.lock", lockfile);
         }
 
@@ -74,8 +71,7 @@ public class AddSourceMappingTests
     /// <summary>The regression. Before the fix this produced a config whose only pattern was
     /// <c>*</c> -> nuget.org, and a real restore refused the package.</summary>
     [Fact]
-    public async Task AnAddBindsRestoreToTheFeedThePackageResolvedFrom()
-    {
+    public async Task AnAddBindsRestoreToTheFeedThePackageResolvedFrom() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: "lazy_o");
 
         await workflow.AddDotnetAsync(ProjectDir, "Kani.Core");
@@ -86,8 +82,7 @@ public class AddSourceMappingTests
     }
 
     [Fact]
-    public async Task AnExplicitSourcePinIsMappedToo()
-    {
+    public async Task AnExplicitSourcePinIsMappedToo() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: "lazy_o");
 
         await workflow.AddDotnetAsync(ProjectDir, "Kani.Core", versionOverride: "1.2.0", pinnedSourceName: "lazy_o");
@@ -100,8 +95,7 @@ public class AddSourceMappingTests
     /// <summary>An exact version is the case that first failed in the wild, so it gets its own test:
     /// resolution still has to report which feed answered, or the mapping has nothing to write.</summary>
     [Fact]
-    public async Task AnExactVersionStillBindsTheFeed()
-    {
+    public async Task AnExactVersionStillBindsTheFeed() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: "lazy_o");
 
         await workflow.AddDotnetAsync(ProjectDir, "Kani.Core", versionOverride: "1.2.0");
@@ -112,8 +106,7 @@ public class AddSourceMappingTests
     /// <summary>A package from the public feed needs no mapping of its own — the <c>*</c> catch-all
     /// already points there, and an entry per public package would be noise in a committed file.</summary>
     [Fact]
-    public async Task APublicPackageIsLeftToTheCatchAll()
-    {
+    public async Task APublicPackageIsLeftToTheCatchAll() {
         var (workflow, fileSystem) = Build(ManifestWithPrivateFeed, feedName: null);
 
         await workflow.AddDotnetAsync(ProjectDir, "Kani.Core");
@@ -140,8 +133,7 @@ public class AddSourceMappingTests
     /// machine without a local link to hide it.
     /// </remarks>
     [Fact]
-    public async Task AnAddKeepsTheMappingOfEveryPackageAlreadyLocked()
-    {
+    public async Task AnAddKeepsTheMappingOfEveryPackageAlreadyLocked() {
         var (workflow, fileSystem) = Build(
             ManifestWithPrivateFeed, feedName: "lazy_o", lockfile: LockfileWithPrivatePackage);
 
@@ -155,8 +147,7 @@ public class AddSourceMappingTests
     /// <summary>The same for a package left on nuget.org: it needs no pattern of its own, and the
     /// catch-all it relies on has to survive the add.</summary>
     [Fact]
-    public async Task AnAddLeavesAnAlreadyLockedPublicPackageOnTheCatchAll()
-    {
+    public async Task AnAddLeavesAnAlreadyLockedPublicPackageOnTheCatchAll() {
         var (workflow, fileSystem) = Build(
             ManifestWithPrivateFeed,
             feedName: "lazy_o",

@@ -17,8 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// manifest on its own (reported as <c>unchanged</c>, not an error — the same "the state you asked for
 /// already exists" reasoning <c>InitCommand</c> uses).
 /// </remarks>
-public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_init";
 
     public override string Description =>
@@ -52,8 +51,7 @@ public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : Mcp
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var isPackage = McpArgs.GetBool(arguments, "package");
         var initService = new InitService(new SystemFileSystem());
 
@@ -67,8 +65,7 @@ public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : Mcp
             ? $"Wrote {kind} manifest to {result.ManifestPath}"
             : $"{result.ManifestPath} already exists — not overwriting.";
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson

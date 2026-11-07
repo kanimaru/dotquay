@@ -16,8 +16,7 @@ namespace Dotquay.Core.Sync;
 /// happens to know about — a list is how <c>.dotquay/</c> got missed when <c>.godot/</c> was not.
 /// </para>
 /// </remarks>
-public sealed class GodotVisibility
-{
+public sealed class GodotVisibility {
     private readonly IFileSystem _fileSystem;
     private readonly string _root;
 
@@ -27,8 +26,7 @@ public sealed class GodotVisibility
 
     /// <param name="root">The folder <c>relativePath</c> arguments are relative to; usually the
     /// project directory.</param>
-    public GodotVisibility(IFileSystem fileSystem, string root)
-    {
+    public GodotVisibility(IFileSystem fileSystem, string root) {
         _fileSystem = fileSystem;
         _root = root;
     }
@@ -42,11 +40,9 @@ public sealed class GodotVisibility
     /// </summary>
     /// <param name="isDirectory">True when the path names a folder, which is then itself checked for a
     /// <c>.gdignore</c>; a file is only checked against the folders above it.</param>
-    public bool IsVisible(string relativePath, bool isDirectory = false)
-    {
+    public bool IsVisible(string relativePath, bool isDirectory = false) {
         var normalized = relativePath.Replace('\\', '/').Trim('/');
-        if (IsHidden(normalized))
-        {
+        if (IsHidden(normalized)) {
             return false;
         }
 
@@ -54,18 +50,15 @@ public sealed class GodotVisibility
         var folders = isDirectory ? segments.Length : segments.Length - 1;
         var folder = "";
 
-        for (var i = 0; i < folders; i++)
-        {
+        for (var i = 0; i < folders; i++) {
             folder = folder.Length == 0 ? segments[i] : $"{folder}/{segments[i]}";
 
-            if (!_gdignored.TryGetValue(folder, out var ignored))
-            {
+            if (!_gdignored.TryGetValue(folder, out var ignored)) {
                 ignored = _fileSystem.FileExists(_fileSystem.CombinePath([_root, .. folder.Split('/'), ".gdignore"]));
                 _gdignored[folder] = ignored;
             }
 
-            if (ignored)
-            {
+            if (ignored) {
                 return false;
             }
         }

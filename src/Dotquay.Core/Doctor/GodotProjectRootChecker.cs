@@ -28,8 +28,7 @@ namespace Dotquay.Core.Doctor;
 /// content folder (assets, shaders) and is also left alone, since nothing here says it is a project.
 /// </para>
 /// </remarks>
-public static class GodotProjectRootChecker
-{
+public static class GodotProjectRootChecker {
     /// <summary>The file Godot writes at, and only at, a project's root.</summary>
     public const string ProjectMarker = "project.godot";
 
@@ -47,8 +46,7 @@ public static class GodotProjectRootChecker
     /// <param name="SuggestedPath">The candidate whose folder matches the addon's name (ignoring
     /// case, as the folder-case correction does), or the only candidate when there is exactly one;
     /// null when the tree gives no clear answer and the message has to fall back to listing.</param>
-    public sealed record Finding(IReadOnlyList<string> Candidates, string? SuggestedPath)
-    {
+    public sealed record Finding(IReadOnlyList<string> Candidates, string? SuggestedPath) {
         /// <summary>Whether the tree offered any plugin at all to point at.</summary>
         public bool HasCandidates => Candidates.Count > 0;
     }
@@ -66,12 +64,10 @@ public static class GodotProjectRootChecker
     /// are expressed as the value <c>path</c> should be set to rather than relative to a subtree the
     /// reader would then have to prepend by hand. <c>"."</c>, empty, or null all mean the repository
     /// root.</param>
-    public static Finding? Check(IFileSystem fileSystem, string treePath, string addonName, string? configuredPath = null)
-    {
+    public static Finding? Check(IFileSystem fileSystem, string treePath, string addonName, string? configuredPath = null) {
         if (!fileSystem.DirectoryExists(treePath)
             || !fileSystem.FileExists(fileSystem.CombinePath(treePath, ProjectMarker))
-            || fileSystem.FileExists(fileSystem.CombinePath(treePath, PluginMarker)))
-        {
+            || fileSystem.FileExists(fileSystem.CombinePath(treePath, PluginMarker))) {
             return null;
         }
 
@@ -79,12 +75,9 @@ public static class GodotProjectRootChecker
         var candidates = new List<string>();
 
         var addonsPath = fileSystem.CombinePath(treePath, AddonsFolder);
-        if (fileSystem.DirectoryExists(addonsPath))
-        {
-            foreach (var directory in fileSystem.EnumerateDirectories(addonsPath))
-            {
-                if (fileSystem.FileExists(fileSystem.CombinePath(directory, PluginMarker)))
-                {
+        if (fileSystem.DirectoryExists(addonsPath)) {
+            foreach (var directory in fileSystem.EnumerateDirectories(addonsPath)) {
+                if (fileSystem.FileExists(fileSystem.CombinePath(directory, PluginMarker))) {
                     var relative = AddonsFolder + "/" + LastSegment(directory);
                     candidates.Add(prefix.Length == 0 ? relative : prefix + "/" + relative);
                 }
@@ -117,10 +110,8 @@ public static class GodotProjectRootChecker
     /// <summary>The clause that tells the reader where the real addon is, or that there is no
     /// obvious place — shared by the resolver's warning and <c>doctor</c>'s issue so both describe
     /// the same tree the same way.</summary>
-    public static string DescribeWhereTheAddonIs(Finding finding)
-    {
-        if (finding.SuggestedPath is not null)
-        {
+    public static string DescribeWhereTheAddonIs(Finding finding) {
+        if (finding.SuggestedPath is not null) {
             return $"the addon itself sits at '{finding.SuggestedPath}' inside its repository";
         }
 
@@ -134,14 +125,12 @@ public static class GodotProjectRootChecker
     private static string Quote(string value) =>
         value.All(c => char.IsLetterOrDigit(c) || c is '.' or '/' or '-' or '_') ? value : $"\"{value}\"";
 
-    private static string NormalizeRelative(string? path)
-    {
+    private static string NormalizeRelative(string? path) {
         var normalized = (path ?? string.Empty).Replace('\\', '/').Trim('/');
         return normalized == "." ? string.Empty : normalized;
     }
 
-    private static string LastSegment(string path)
-    {
+    private static string LastSegment(string path) {
         var trimmed = path.Replace('\\', '/').TrimEnd('/');
         var slash = trimmed.LastIndexOf('/');
         return slash < 0 ? trimmed : trimmed[(slash + 1)..];

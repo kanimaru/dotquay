@@ -14,10 +14,8 @@ namespace Dotquay.Core.Versioning;
 /// <see cref="VersionConstraint"/> reads the same against a git tag and a feed's version list.
 /// Build metadata (<c>+sha</c>) is ignored, as SemVer 2.0 requires.
 /// </remarks>
-public sealed class AddonVersion : IComparable<AddonVersion>
-{
-    private AddonVersion(string originalTag, IReadOnlyList<long> components, string? prereleaseLabel)
-    {
+public sealed class AddonVersion : IComparable<AddonVersion> {
+    private AddonVersion(string originalTag, IReadOnlyList<long> components, string? prereleaseLabel) {
         OriginalTag = originalTag;
         Components = components;
         PrereleaseLabel = prereleaseLabel;
@@ -34,47 +32,39 @@ public sealed class AddonVersion : IComparable<AddonVersion>
 
     public bool IsPrerelease => PrereleaseLabel is not null;
 
-    public static bool TryParse(string tag, out AddonVersion? version)
-    {
+    public static bool TryParse(string tag, out AddonVersion? version) {
         version = null;
 
-        if (string.IsNullOrWhiteSpace(tag))
-        {
+        if (string.IsNullOrWhiteSpace(tag)) {
             return false;
         }
 
         var text = tag.Trim();
-        if (text.Length > 0 && (text[0] == 'v' || text[0] == 'V'))
-        {
+        if (text.Length > 0 && (text[0] == 'v' || text[0] == 'V')) {
             text = text[1..];
         }
 
         var plusIndex = text.IndexOf('+');
-        if (plusIndex >= 0)
-        {
+        if (plusIndex >= 0) {
             text = text[..plusIndex];
         }
 
         var numericPart = text;
         string? suffix = null;
         var dashIndex = text.IndexOf('-');
-        if (dashIndex >= 0)
-        {
+        if (dashIndex >= 0) {
             numericPart = text[..dashIndex];
             suffix = text[(dashIndex + 1)..];
         }
 
         var pieces = numericPart.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (pieces.Length is < 2 or > 4)
-        {
+        if (pieces.Length is < 2 or > 4) {
             return false;
         }
 
         var components = new List<long>(pieces.Length);
-        foreach (var piece in pieces)
-        {
-            if (!long.TryParse(piece, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
-            {
+        foreach (var piece in pieces) {
+            if (!long.TryParse(piece, NumberStyles.None, CultureInfo.InvariantCulture, out var value)) {
                 return false;
             }
 
@@ -89,16 +79,13 @@ public sealed class AddonVersion : IComparable<AddonVersion>
         return true;
     }
 
-    public int CompareTo(AddonVersion? other)
-    {
-        if (other is null)
-        {
+    public int CompareTo(AddonVersion? other) {
+        if (other is null) {
             return 1;
         }
 
         var cmp = CompareComponents(Components, other.Components);
-        if (cmp != 0)
-        {
+        if (cmp != 0) {
             return cmp;
         }
 
@@ -115,30 +102,25 @@ public sealed class AddonVersion : IComparable<AddonVersion>
     /// every shared identifier is equal. An ordinal compare of the whole label got <c>rc.10</c> below
     /// <c>rc.2</c>.
     /// </remarks>
-    internal static int ComparePrerelease(string? a, string? b)
-    {
-        if (a is null || b is null)
-        {
+    internal static int ComparePrerelease(string? a, string? b) {
+        if (a is null || b is null) {
             return a is null ? (b is null ? 0 : 1) : -1;
         }
 
         var left = a.Split('.');
         var right = b.Split('.');
-        for (var i = 0; i < Math.Min(left.Length, right.Length); i++)
-        {
+        for (var i = 0; i < Math.Min(left.Length, right.Length); i++) {
             var leftNumeric = long.TryParse(left[i], NumberStyles.None, CultureInfo.InvariantCulture, out var l);
             var rightNumeric = long.TryParse(right[i], NumberStyles.None, CultureInfo.InvariantCulture, out var r);
 
-            var cmp = (leftNumeric, rightNumeric) switch
-            {
+            var cmp = (leftNumeric, rightNumeric) switch {
                 (true, true) => l.CompareTo(r),
                 (true, false) => -1,
                 (false, true) => 1,
                 _ => string.CompareOrdinal(left[i], right[i]),
             };
 
-            if (cmp != 0)
-            {
+            if (cmp != 0) {
                 return Math.Sign(cmp);
             }
         }
@@ -146,16 +128,13 @@ public sealed class AddonVersion : IComparable<AddonVersion>
         return left.Length.CompareTo(right.Length);
     }
 
-    internal static int CompareComponents(IReadOnlyList<long> a, IReadOnlyList<long> b)
-    {
+    internal static int CompareComponents(IReadOnlyList<long> a, IReadOnlyList<long> b) {
         var length = Math.Max(a.Count, b.Count);
-        for (var i = 0; i < length; i++)
-        {
+        for (var i = 0; i < length; i++) {
             var x = i < a.Count ? a[i] : 0;
             var y = i < b.Count ? b[i] : 0;
             var cmp = x.CompareTo(y);
-            if (cmp != 0)
-            {
+            if (cmp != 0) {
                 return cmp;
             }
         }

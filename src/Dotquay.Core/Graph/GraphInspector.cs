@@ -13,8 +13,7 @@ namespace Dotquay.Core.Graph;
 /// lockfile, or <c>addons/</c>. Mutations stay with <see cref="DependencyWorkflow"/> and
 /// <see cref="OverrideWorkflow"/>, so a panel that only looks at a project can never change it.
 /// </summary>
-public sealed class GraphInspector
-{
+public sealed class GraphInspector {
     private readonly IFileSystem _fileSystem;
     private readonly IGitClient _gitClient;
     private readonly RepoCache _repoCache;
@@ -22,12 +21,10 @@ public sealed class GraphInspector
     private readonly InstalledPackageManifests _installedManifests;
 
     public GraphInspector(IFileSystem fileSystem, IGitClient gitClient, string cacheRoot)
-        : this(fileSystem, gitClient, new RepoCache(fileSystem, gitClient, cacheRoot))
-    {
+        : this(fileSystem, gitClient, new RepoCache(fileSystem, gitClient, cacheRoot)) {
     }
 
-    public GraphInspector(IFileSystem fileSystem, IGitClient gitClient, RepoCache repoCache)
-    {
+    public GraphInspector(IFileSystem fileSystem, IGitClient gitClient, RepoCache repoCache) {
         _fileSystem = fileSystem;
         _gitClient = gitClient;
         _repoCache = repoCache;
@@ -42,16 +39,14 @@ public sealed class GraphInspector
     /// without network access to manifests"), applied to drawing it. The editor plugin opens with
     /// this so the panel is never waiting on git.
     /// </summary>
-    public GraphReport Inspect(string projectDirectory)
-    {
+    public GraphReport Inspect(string projectDirectory) {
         var (manifest, _) = _projectFiles.ReadManifestOrThrow(projectDirectory);
         var (lockfile, _) = _projectFiles.ReadOrCreateLockfile(projectDirectory);
 
         var reachable = ReachableNames(lockfile, manifest.Addons.Keys);
 
         var nodes = lockfile.Addons
-            .Select(locked => new GraphNode
-            {
+            .Select(locked => new GraphNode {
                 Name = locked.Name,
                 Git = locked.Git,
                 Version = locked.Version,
@@ -72,10 +67,8 @@ public sealed class GraphInspector
         // on the graph — as a node with no SHA. Silently omitting it would make the panel disagree
         // with the file the user is looking at.
         var lockedNames = lockfile.Addons.Select(a => a.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (var (name, spec) in manifest.Addons.Where(kv => !lockedNames.Contains(kv.Key)))
-        {
-            nodes.Add(new GraphNode
-            {
+        foreach (var (name, spec) in manifest.Addons.Where(kv => !lockedNames.Contains(kv.Key))) {
+            nodes.Add(new GraphNode {
                 Name = name,
                 Git = spec.Git,
                 Version = null,
@@ -92,8 +85,7 @@ public sealed class GraphInspector
             });
         }
 
-        return new GraphReport
-        {
+        return new GraphReport {
             Source = GraphSource.Lockfile,
             ProjectDirectory = projectDirectory,
             RootNames = manifest.Addons.Keys.ToList(),
@@ -111,8 +103,7 @@ public sealed class GraphInspector
     /// a commitment; nothing is installed and no lockfile is written, so a user can inspect a conflict
     /// without the project changing underneath them.
     /// </summary>
-    public async Task<GraphReport> InspectResolvedAsync(string projectDirectory, CancellationToken cancellationToken = default)
-    {
+    public async Task<GraphReport> InspectResolvedAsync(string projectDirectory, CancellationToken cancellationToken = default) {
         var (manifest, _) = _projectFiles.ReadManifestOrThrow(projectDirectory);
         var (lockfile, _) = _projectFiles.ReadOrCreateLockfile(projectDirectory);
         var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
@@ -122,11 +113,9 @@ public sealed class GraphInspector
         var analysis = await resolver.AnalyzeGraphAsync(manifest.Addons, manifest.Overrides, cancellationToken);
 
         var nodes = new List<GraphNode>();
-        foreach (var entry in analysis.Addons)
-        {
+        foreach (var entry in analysis.Addons) {
             lockedByName.TryGetValue(entry.Resolved.Name, out var locked);
-            nodes.Add(new GraphNode
-            {
+            nodes.Add(new GraphNode {
                 Name = entry.Resolved.Name,
                 Git = entry.Resolved.Git,
                 Version = entry.Resolved.DisplayVersion,
@@ -148,11 +137,9 @@ public sealed class GraphInspector
 
         // A conflicted name has no commit to show, but it must still appear as a node: it is the one
         // the user needs to click on.
-        foreach (var conflict in analysis.Conflicts)
-        {
+        foreach (var conflict in analysis.Conflicts) {
             lockedByName.TryGetValue(conflict.AddonName, out var locked);
-            nodes.Add(new GraphNode
-            {
+            nodes.Add(new GraphNode {
                 Name = conflict.AddonName,
                 Git = conflict.Requirements.Count > 0 ? conflict.Requirements[0].Git : locked?.Git ?? "",
                 Version = null,
@@ -172,8 +159,7 @@ public sealed class GraphInspector
             });
         }
 
-        return new GraphReport
-        {
+        return new GraphReport {
             Source = GraphSource.Resolved,
             ProjectDirectory = projectDirectory,
             RootNames = manifest.Addons.Keys.ToList(),
@@ -194,8 +180,7 @@ public sealed class GraphInspector
         : manifest.Addons.TryGetValue(name, out var spec) ? spec
         : null;
 
-    private static string? ConstraintFor(string name, ProjectManifest manifest)
-    {
+    private static string? ConstraintFor(string name, ProjectManifest manifest) {
         var spec = SpecFor(name, manifest);
         return spec is null ? null : AddonRequirement.ConstraintText(spec);
     }
@@ -208,29 +193,23 @@ public sealed class GraphInspector
     /// <summary>Project→root edges plus every recorded parent→child edge, deduplicated. Edges to
     /// names with no node are dropped: drawing a dangling arrow into nothing is worse than admitting
     /// the child isn't in this picture.</summary>
-    private static IReadOnlyList<GraphEdge> BuildEdges(IEnumerable<string> rootNames, IReadOnlyList<GraphNode> nodes)
-    {
+    private static IReadOnlyList<GraphEdge> BuildEdges(IEnumerable<string> rootNames, IReadOnlyList<GraphNode> nodes) {
         var known = nodes.Select(n => n.Name).ToHashSet(StringComparer.Ordinal);
         var edges = new List<GraphEdge>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        void Add(string from, string to)
-        {
-            if (known.Contains(to) && seen.Add(from + " " + to))
-            {
+        void Add(string from, string to) {
+            if (known.Contains(to) && seen.Add(from + " " + to)) {
                 edges.Add(new GraphEdge(from, to));
             }
         }
 
-        foreach (var root in rootNames)
-        {
+        foreach (var root in rootNames) {
             Add(GraphConflict.ProjectRequirerName, root);
         }
 
-        foreach (var node in nodes)
-        {
-            foreach (var child in node.Dependencies)
-            {
+        foreach (var node in nodes) {
+            foreach (var child in node.Dependencies) {
                 Add(node.Name, child);
             }
         }
@@ -245,8 +224,7 @@ public sealed class GraphInspector
     /// for anything.
     /// </summary>
     private IReadOnlyList<GraphDotnetNode> BuildDotnetFromInstalledManifests(
-        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, IReadOnlySet<string> reachable)
-    {
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, IReadOnlySet<string> reachable) {
         var declarations = _installedManifests.DotnetDeclarationsByAddon(
             projectDirectory, lockfile.Addons.Where(a => reachable.Contains(a.Name)));
         var (winners, packagesByAddon) = DotnetGraphBuilder.Flatten(declarations);
@@ -257,26 +235,20 @@ public sealed class GraphInspector
     /// <summary>BFS over the lockfile's own <see cref="LockedAddon.Dependencies"/> edges — the same
     /// reachability rule <see cref="DependencyWorkflow.RemoveAsync"/> prunes with, used here to tell
     /// a legitimately transitive addon apart from a leftover orphan.</summary>
-    private static HashSet<string> ReachableNames(DotquayLockfile lockfile, IEnumerable<string> rootNames)
-    {
+    private static HashSet<string> ReachableNames(DotquayLockfile lockfile, IEnumerable<string> rootNames) {
         var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
         var reachable = new HashSet<string>(StringComparer.Ordinal);
         var queue = new Queue<string>();
 
-        foreach (var root in rootNames)
-        {
-            if (lockedByName.ContainsKey(root) && reachable.Add(root))
-            {
+        foreach (var root in rootNames) {
+            if (lockedByName.ContainsKey(root) && reachable.Add(root)) {
                 queue.Enqueue(root);
             }
         }
 
-        while (queue.Count > 0)
-        {
-            foreach (var child in lockedByName[queue.Dequeue()].Dependencies)
-            {
-                if (lockedByName.ContainsKey(child) && reachable.Add(child))
-                {
+        while (queue.Count > 0) {
+            foreach (var child in lockedByName[queue.Dequeue()].Dependencies) {
+                if (lockedByName.ContainsKey(child) && reachable.Add(child)) {
                     queue.Enqueue(child);
                 }
             }

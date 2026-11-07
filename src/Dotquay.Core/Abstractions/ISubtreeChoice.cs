@@ -23,8 +23,7 @@ namespace Dotquay.Core.Abstractions;
 /// either way.
 /// </para>
 /// </remarks>
-public interface ISubtreeChoice
-{
+public interface ISubtreeChoice {
     /// <summary>True to install from <see cref="SubtreeChoiceRequest.Suggestion"/> and write it into
     /// the manifest. Never called when the caller passed <c>--path</c>, when the guessed subtree
     /// exists, or for a transitive addon — whose path is someone else's manifest to fix.</summary>
@@ -53,8 +52,7 @@ public sealed record SubtreeChoiceRequest(
 /// say which flags to pass. Refusal is not an error in itself: the caller decides what an unanswered
 /// guess means, and <c>add --preview</c> reports it rather than failing.
 /// </remarks>
-public sealed class DeclineSubtreeChoice : ISubtreeChoice
-{
+public sealed class DeclineSubtreeChoice : ISubtreeChoice {
     public static readonly DeclineSubtreeChoice Instance = new();
 
     public bool Accept(SubtreeChoiceRequest request) => false;

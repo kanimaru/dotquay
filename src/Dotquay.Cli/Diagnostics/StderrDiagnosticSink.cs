@@ -26,8 +26,7 @@ namespace Dotquay.Cli.Diagnostics;
 /// exception chain) sit under the first one instead of starting at column zero.
 /// </para>
 /// </remarks>
-internal sealed class StderrDiagnosticSink : IDiagnosticSink
-{
+internal sealed class StderrDiagnosticSink : IDiagnosticSink {
     private const int CategoryWidth = 8;
 
     private readonly TextWriter _writer;
@@ -41,15 +40,13 @@ internal sealed class StderrDiagnosticSink : IDiagnosticSink
         TextWriter writer,
         bool color,
         Func<IDisposable> pauseProgress,
-        Func<TimeSpan>? clock = null)
-    {
+        Func<TimeSpan>? clock = null) {
         Level = level;
         _writer = writer;
         _color = color;
         _pauseProgress = pauseProgress;
 
-        if (clock is null)
-        {
+        if (clock is null) {
             var started = Stopwatch.GetTimestamp();
             clock = () => Stopwatch.GetElapsedTime(started);
         }
@@ -65,23 +62,18 @@ internal sealed class StderrDiagnosticSink : IDiagnosticSink
             ? NullDiagnosticSink.Instance
             : new StderrDiagnosticSink(level, Console.Error, ShouldColor(), ConsoleProgressReporter.Pause);
 
-    public void Write(DiagnosticEvent diagnostic)
-    {
+    public void Write(DiagnosticEvent diagnostic) {
         var text = Format(diagnostic, _clock());
 
-        lock (_gate)
-        {
+        lock (_gate) {
             using var _ = _pauseProgress();
 
-            if (_color)
-            {
+            if (_color) {
                 var previous = Console.ForegroundColor;
                 Console.ForegroundColor = ConsoleColor.DarkGray;
                 _writer.WriteLine(text);
                 Console.ForegroundColor = previous;
-            }
-            else
-            {
+            } else {
                 _writer.WriteLine(text);
             }
 
@@ -89,18 +81,15 @@ internal sealed class StderrDiagnosticSink : IDiagnosticSink
         }
     }
 
-    internal static string Format(DiagnosticEvent diagnostic, TimeSpan elapsed)
-    {
+    internal static string Format(DiagnosticEvent diagnostic, TimeSpan elapsed) {
         var prefix = string.Create(CultureInfo.InvariantCulture, $"[{elapsed.TotalSeconds,8:0.000}s] {Fit(diagnostic.Category)} | ");
         var continuation = new string(' ', prefix.Length - 2) + "| ";
 
         var builder = new StringBuilder();
         var first = true;
 
-        foreach (var line in diagnostic.Message.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n'))
-        {
-            if (!first)
-            {
+        foreach (var line in diagnostic.Message.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n')) {
+            if (!first) {
                 builder.Append(Environment.NewLine);
             }
 
@@ -116,10 +105,8 @@ internal sealed class StderrDiagnosticSink : IDiagnosticSink
 
     /// <summary>Same opt-outs as the spinner: redirected stderr (a log file), <c>NO_COLOR</c>,
     /// <c>TERM=dumb</c>. A log file full of ANSI escapes is worse than an uncoloured terminal.</summary>
-    private static bool ShouldColor()
-    {
-        if (Console.IsErrorRedirected || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")))
-        {
+    private static bool ShouldColor() {
+        if (Console.IsErrorRedirected || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"))) {
             return false;
         }
 

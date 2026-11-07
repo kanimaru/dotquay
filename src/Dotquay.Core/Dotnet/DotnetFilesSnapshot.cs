@@ -14,19 +14,16 @@ namespace Dotquay.Core.Dotnet;
 /// <para>Bytes, not text, so encoding and line endings come back exactly. A file that did not exist
 /// is deleted again.</para>
 /// </remarks>
-public sealed class DotnetFilesSnapshot
-{
+public sealed class DotnetFilesSnapshot {
     private readonly IFileSystem _fileSystem;
     private readonly IReadOnlyList<(string Path, byte[]? Contents)> _files;
 
-    private DotnetFilesSnapshot(IFileSystem fileSystem, IReadOnlyList<(string Path, byte[]? Contents)> files)
-    {
+    private DotnetFilesSnapshot(IFileSystem fileSystem, IReadOnlyList<(string Path, byte[]? Contents)> files) {
         _fileSystem = fileSystem;
         _files = files;
     }
 
-    public static DotnetFilesSnapshot Capture(IFileSystem fileSystem, string projectDirectory)
-    {
+    public static DotnetFilesSnapshot Capture(IFileSystem fileSystem, string projectDirectory) {
         var paths = new List<string>
         {
             fileSystem.CombinePath(projectDirectory, "NuGet.Config"),
@@ -35,12 +32,9 @@ public sealed class DotnetFilesSnapshot
 
         // No .csproj (or several) is the installer's error to report, with its own message; there is
         // nothing of it to snapshot here.
-        try
-        {
+        try {
             paths.Add(CsprojLocator.Locate(fileSystem, projectDirectory));
-        }
-        catch (DotnetSyncException)
-        {
+        } catch (DotnetSyncException) {
         }
 
         var files = paths
@@ -52,16 +46,11 @@ public sealed class DotnetFilesSnapshot
     }
 
     /// <summary>Puts every captured file back as it was.</summary>
-    public void Restore()
-    {
-        foreach (var (path, contents) in _files)
-        {
-            if (contents is not null)
-            {
+    public void Restore() {
+        foreach (var (path, contents) in _files) {
+            if (contents is not null) {
                 _fileSystem.WriteAllBytes(path, contents);
-            }
-            else if (_fileSystem.FileExists(path))
-            {
+            } else if (_fileSystem.FileExists(path)) {
                 _fileSystem.DeleteFile(path);
             }
         }

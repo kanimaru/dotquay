@@ -16,8 +16,7 @@ namespace Dotquay.Core.Sync;
 /// dirty check to disagree about which directory they're talking about — and a disagreement there
 /// means either refusing to install a clean addon or overwriting a modified one.
 /// </remarks>
-public static class InstallPaths
-{
+public static class InstallPaths {
     /// <summary>The directory every addon is installed beneath. Godot's own convention, not
     /// configurable — the editor only scans <c>res://addons/</c>.</summary>
     public const string AddonsDirectory = "addons";

@@ -17,12 +17,9 @@ namespace Dotquay.Cli.Commands;
 /// its own <c>project</c> argument against this one root, matching every other command's implicit
 /// "current directory unless told otherwise" default (<see cref="GlobalOptions.Resolve"/>).
 /// </remarks>
-internal static class McpCommand
-{
-    public static Command Build()
-    {
-        var logOption = new Option<string?>("--log")
-        {
+internal static class McpCommand {
+    public static Command Build() {
+        var logOption = new Option<string?>("--log") {
             Description = "Append a plain-text request trace (id, method, duration, and the first line "
                 + "of any exception) to this file. Without it, the same lines go to stderr instead.",
         };
@@ -35,13 +32,11 @@ internal static class McpCommand
             logOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             // TTY guard (design doc §12, OQ-2): refuse before anything else runs when stdin is a real
             // console, not the pipe an MCP client spawns this with — otherwise a human who ran this by
             // accident just sees a process that never prints anything, indistinguishable from a hang.
-            if (TtyGuard.ShouldRefuse(Console.IsInputRedirected))
-            {
+            if (TtyGuard.ShouldRefuse(Console.IsInputRedirected)) {
                 Console.Error.WriteLine(TtyGuard.Message);
                 return TtyGuard.ExitCode;
             }

@@ -8,17 +8,14 @@ namespace Dotquay.Core.Dotnet;
 /// support is enabled) — v0.1 doesn't support solutions with multiple candidate projects, matching
 /// how <c>add</c>/<c>install</c> already assume a single project root throughout.
 /// </summary>
-public static class CsprojLocator
-{
-    public static string Locate(IFileSystem fileSystem, string projectDirectory)
-    {
+public static class CsprojLocator {
+    public static string Locate(IFileSystem fileSystem, string projectDirectory) {
         var candidates = fileSystem.EnumerateFiles(projectDirectory, recursive: false)
             .Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
 
-        return candidates.Count switch
-        {
+        return candidates.Count switch {
             0 => throw new DotnetSyncException(
                 $"No .csproj found in {projectDirectory}. Enable C# support in Godot (Project > Tools > "
                 + "C#) to generate one before adding NuGet dependencies."),

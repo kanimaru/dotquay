@@ -15,8 +15,7 @@ namespace Dotquay.Tests.Mcp.Guards;
 /// since the policy's whole job is to read <c>StatusAsync(explain: true)</c> and decide, not to
 /// reimplement anything about what "modified" or "safe to force" mean.
 /// </summary>
-public sealed class ForceConfirmationPolicyTests
-{
+public sealed class ForceConfirmationPolicyTests {
     private const string RepoUrl = "https://example.com/dialogue_manager.git";
     private const string ProjectDir = "project";
     private const string AddonDir = $"{ProjectDir}/addons/dialogue_manager";
@@ -24,14 +23,12 @@ public sealed class ForceConfirmationPolicyTests
     private const string SceneWithUid =
         """[ext_resource type="Script" uid="uid://bxwpwbdv4fm02" path="res://addons/dialogue_manager/x.gd"]""";
 
-    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem)> InstalledAsync()
-    {
+    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem)> InstalledAsync() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/main.tscn"] = SceneWithUid,
         };
@@ -44,17 +41,15 @@ public sealed class ForceConfirmationPolicyTests
     }
 
     private static WriteGuardContext ContextFor(
-        DependencyWorkflow workflow, bool force = false, IReadOnlyList<string>? confirmDiscard = null) => new()
-    {
-        ProjectDirectory = ProjectDir,
-        InspectionWorkflow = workflow,
-        Force = force,
-        ConfirmDiscard = confirmDiscard ?? [],
-    };
+        DependencyWorkflow workflow, bool force = false, IReadOnlyList<string>? confirmDiscard = null) => new() {
+            ProjectDirectory = ProjectDir,
+            InspectionWorkflow = workflow,
+            Force = force,
+            ConfirmDiscard = confirmDiscard ?? [],
+        };
 
     [Fact]
-    public async Task Force_false_allows_regardless_of_addon_state()
-    {
+    public async Task Force_false_allows_regardless_of_addon_state() {
         var (workflow, fileSystem) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -64,8 +59,7 @@ public sealed class ForceConfirmationPolicyTests
     }
 
     [Fact]
-    public async Task Force_true_with_nothing_modified_allows()
-    {
+    public async Task Force_true_with_nothing_modified_allows() {
         var (workflow, _) = await InstalledAsync();
 
         var verdict = await new ForceConfirmationPolicy().EvaluateAsync(ContextFor(workflow, force: true), CancellationToken.None);
@@ -74,8 +68,7 @@ public sealed class ForceConfirmationPolicyTests
     }
 
     [Fact]
-    public async Task Force_true_with_a_safe_to_force_change_needs_no_confirmation()
-    {
+    public async Task Force_true_with_a_safe_to_force_change_needs_no_confirmation() {
         // A Godot-rewritten uid: SafeToForce per ExplainModifiedTests.StatusAsync_GodotRewroteAUid_SaysForcingIsSafe.
         var (workflow, fileSystem) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
@@ -86,8 +79,7 @@ public sealed class ForceConfirmationPolicyTests
     }
 
     [Fact]
-    public async Task Force_true_with_a_real_change_and_no_confirm_discard_is_refused()
-    {
+    public async Task Force_true_with_a_real_change_and_no_confirm_discard_is_refused() {
         var (workflow, fileSystem) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -102,8 +94,7 @@ public sealed class ForceConfirmationPolicyTests
     }
 
     [Fact]
-    public async Task Force_true_with_confirm_discard_naming_the_addon_allows()
-    {
+    public async Task Force_true_with_confirm_discard_naming_the_addon_allows() {
         var (workflow, fileSystem) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -114,8 +105,7 @@ public sealed class ForceConfirmationPolicyTests
     }
 
     [Fact]
-    public async Task Force_true_with_confirm_discard_naming_an_unrelated_addon_is_still_refused()
-    {
+    public async Task Force_true_with_confirm_discard_naming_an_unrelated_addon_is_still_refused() {
         var (workflow, fileSystem) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 

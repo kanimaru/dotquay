@@ -6,8 +6,7 @@ namespace Dotquay.Core.Workflows;
 /// <summary>What <see cref="DependencyWorkflow.InstallAsync"/> actually installed, split by kind
 /// since addons and NuGet packages sync through entirely different pipelines (git subtree swap vs.
 /// <c>.csproj</c> + <c>dotnet restore</c> — SPEC.md §5 vs §11).</summary>
-public sealed record InstallResult(IReadOnlyList<LockedAddon> Addons, IReadOnlyList<LockedDotnet> Dotnet)
-{
+public sealed record InstallResult(IReadOnlyList<LockedAddon> Addons, IReadOnlyList<LockedDotnet> Dotnet) {
     /// <summary>Packages left without a <c>PackageReference</c> because the project builds them from
     /// source (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md). Still listed in <see cref="Dotnet"/>: they
     /// are locked like any other package.</summary>

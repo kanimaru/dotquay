@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Dotnet;
 
-public class CsprojLocatorTests
-{
+public class CsprojLocatorTests {
     [Fact]
-    public void Locate_ExactlyOneCsproj_ReturnsIt()
-    {
+    public void Locate_ExactlyOneCsproj_ReturnsIt() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/MyGame.csproj", "<Project Sdk=\"Godot.NET.Sdk/4.3.0\"></Project>");
 
@@ -18,8 +16,7 @@ public class CsprojLocatorTests
     }
 
     [Fact]
-    public void Locate_NoCsproj_Throws()
-    {
+    public void Locate_NoCsproj_Throws() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.CreateDirectory("project");
 
@@ -28,8 +25,7 @@ public class CsprojLocatorTests
     }
 
     [Fact]
-    public void Locate_MultipleCsproj_Throws()
-    {
+    public void Locate_MultipleCsproj_Throws() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/A.csproj", "<Project></Project>");
         fileSystem.WriteAllText("project/B.csproj", "<Project></Project>");
@@ -39,8 +35,7 @@ public class CsprojLocatorTests
     }
 
     [Fact]
-    public void Locate_IgnoresCsprojInSubdirectories()
-    {
+    public void Locate_IgnoresCsprojInSubdirectories() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/MyGame.csproj", "<Project></Project>");
         fileSystem.WriteAllText("project/addons/some_addon/Nested.csproj", "<Project></Project>");

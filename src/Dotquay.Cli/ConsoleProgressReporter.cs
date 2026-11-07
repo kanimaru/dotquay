@@ -19,8 +19,7 @@ namespace Dotquay.Cli;
 /// junk lines in a log file, which is worse than no progress at all.
 /// </para>
 /// </remarks>
-internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
-{
+internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable {
     // Plain ASCII. Braille spinners look better but render as boxes in the Windows console host that
     // still ships as the default for .bat launches and a lot of CI images.
     private static readonly char[] Frames = ['|', '/', '-', '\\'];
@@ -51,19 +50,16 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     private bool _disposed;
     private bool _suspended;
 
-    private ConsoleProgressReporter(TimeSpan interval)
-    {
+    private ConsoleProgressReporter(TimeSpan interval) {
         _timer = new Timer(_ => Tick(), null, interval, interval);
 
-        lock (ActiveGate)
-        {
+        lock (ActiveGate) {
             _active = this;
         }
     }
 
     /// <summary>Returns a live reporter, or the null one when nothing should be drawn.</summary>
-    public static IProgressReporter Create(bool json)
-    {
+    public static IProgressReporter Create(bool json) {
         return ShouldDraw(json) ? new ConsoleProgressReporter(RedrawInterval) : NullProgressReporter.Instance;
     }
 
@@ -88,30 +84,25 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     /// lets every prompt open one unconditionally.
     /// </para>
     /// </remarks>
-    public static IDisposable Pause()
-    {
+    public static IDisposable Pause() {
         ConsoleProgressReporter? active;
 
-        lock (ActiveGate)
-        {
+        lock (ActiveGate) {
             active = _active;
         }
 
         return active?.Suspend() ?? NullScope.Instance;
     }
 
-    private static bool ShouldDraw(bool json)
-    {
-        if (json || Console.IsErrorRedirected)
-        {
+    private static bool ShouldDraw(bool json) {
+        if (json || Console.IsErrorRedirected) {
             return false;
         }
 
         // CI is set by GitHub Actions, GitLab CI, and most others. A build log doesn't need a spinner
         // and is actively harmed by one.
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"))
-            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR")))
-        {
+            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"))) {
             return false;
         }
 
@@ -119,12 +110,9 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
         return !string.Equals(term, "dumb", StringComparison.OrdinalIgnoreCase);
     }
 
-    public void Report(ProgressUpdate update)
-    {
-        lock (_gate)
-        {
-            if (_disposed)
-            {
+    public void Report(ProgressUpdate update) {
+        lock (_gate) {
+            if (_disposed) {
                 return;
             }
 
@@ -141,12 +129,9 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
         Tick();
     }
 
-    private void Tick()
-    {
-        lock (_gate)
-        {
-            if (_disposed || _suspended || _message.Length == 0)
-            {
+    private void Tick() {
+        lock (_gate) {
+            if (_disposed || _suspended || _message.Length == 0) {
                 return;
             }
 
@@ -156,8 +141,7 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
             // Trim to the window so a long addon name can't wrap — a wrapped line makes the next
             // carriage return overwrite only the tail, leaving debris on screen.
             var width = SafeWindowWidth();
-            if (text.Length > width - 1)
-            {
+            if (text.Length > width - 1) {
                 text = text[..Math.Max(0, width - 2)] + "…";
             }
 
@@ -166,14 +150,11 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
         }
     }
 
-    private IDisposable Suspend()
-    {
-        lock (_gate)
-        {
+    private IDisposable Suspend() {
+        lock (_gate) {
             // Already quiet, for either reason. Handing back a real scope would let the inner `using`
             // resume drawing while the outer one still needs the terminal.
-            if (_disposed || _suspended)
-            {
+            if (_disposed || _suspended) {
                 return NullScope.Instance;
             }
 
@@ -184,12 +165,9 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
         return new Resumption(this);
     }
 
-    private void Resume()
-    {
-        lock (_gate)
-        {
-            if (_disposed)
-            {
+    private void Resume() {
+        lock (_gate) {
+            if (_disposed) {
                 return;
             }
 
@@ -203,24 +181,18 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
 
     /// <summary>Wipes the spinner's line and forgets it was ever there.</summary>
     /// <remarks>Callers hold <see cref="_gate"/>.</remarks>
-    private void ClearLine()
-    {
-        if (_lastRenderedWidth > 0)
-        {
+    private void ClearLine() {
+        if (_lastRenderedWidth > 0) {
             Console.Error.Write("\r" + new string(' ', _lastRenderedWidth) + "\r");
             _lastRenderedWidth = 0;
         }
     }
 
-    private static int SafeWindowWidth()
-    {
-        try
-        {
+    private static int SafeWindowWidth() {
+        try {
             var width = Console.WindowWidth;
             return width > 10 ? width : 80;
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // No real console attached (some launchers, some test hosts). 80 is a safe assumption and
             // the alternative is crashing over cosmetics.
             return 80;
@@ -230,12 +202,9 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     private static void Write(string text) => Console.Error.Write("\r" + text);
 
     /// <summary>Clears the line so the command's actual output starts on a clean row.</summary>
-    public void Dispose()
-    {
-        lock (_gate)
-        {
-            if (_disposed)
-            {
+    public void Dispose() {
+        lock (_gate) {
+            if (_disposed) {
                 return;
             }
 
@@ -244,26 +213,21 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
             ClearLine();
         }
 
-        lock (ActiveGate)
-        {
+        lock (ActiveGate) {
             // Only if it is still this one: a second command in the same process has already taken
             // over, and clearing unconditionally would leave its prompts unable to find it.
-            if (ReferenceEquals(_active, this))
-            {
+            if (ReferenceEquals(_active, this)) {
                 _active = null;
             }
         }
     }
 
     /// <summary>The open half of a <see cref="Pause"/>.</summary>
-    private sealed class Resumption(ConsoleProgressReporter reporter) : IDisposable
-    {
+    private sealed class Resumption(ConsoleProgressReporter reporter) : IDisposable {
         private bool _resumed;
 
-        public void Dispose()
-        {
-            if (_resumed)
-            {
+        public void Dispose() {
+            if (_resumed) {
                 return;
             }
 
@@ -273,12 +237,10 @@ internal sealed class ConsoleProgressReporter : IProgressReporter, IDisposable
     }
 
     /// <summary>What <see cref="Pause"/> hands back when there is nothing to pause.</summary>
-    private sealed class NullScope : IDisposable
-    {
+    private sealed class NullScope : IDisposable {
         public static readonly NullScope Instance = new();
 
-        public void Dispose()
-        {
+        public void Dispose() {
         }
     }
 }

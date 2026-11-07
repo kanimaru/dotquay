@@ -18,8 +18,7 @@ namespace Dotquay.Core.Doctor;
 /// evidence is sitting in the addon's own files the whole time.
 /// </para>
 /// </remarks>
-public static class AddonFolderCaseChecker
-{
+public static class AddonFolderCaseChecker {
     /// <param name="Folder">The folder the addon is installed in.</param>
     /// <param name="Expected">The casing its own files refer to.</param>
     /// <param name="ReferenceCount">How many of its files disagree — the scale of the repair Godot
@@ -40,34 +39,27 @@ public static class AddonFolderCaseChecker
     /// referring to a genuinely different addon it depends on, which is not a fault — reporting those
     /// would bury the one finding that is.
     /// </remarks>
-    public static Mismatch? Check(IFileSystem fileSystem, string addonPath, string installedFolder)
-    {
-        if (!fileSystem.DirectoryExists(addonPath))
-        {
+    public static Mismatch? Check(IFileSystem fileSystem, string addonPath, string installedFolder) {
+        if (!fileSystem.DirectoryExists(addonPath)) {
             return null;
         }
 
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
 
-        foreach (var file in fileSystem.EnumerateFiles(addonPath, recursive: true))
-        {
-            if (!IsText(file))
-            {
+        foreach (var file in fileSystem.EnumerateFiles(addonPath, recursive: true)) {
+            if (!IsText(file)) {
                 continue;
             }
 
-            foreach (var referenced in ReferencedFolders(fileSystem.ReadAllText(file)))
-            {
+            foreach (var referenced in ReferencedFolders(fileSystem.ReadAllText(file))) {
                 if (string.Equals(referenced, installedFolder, StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(referenced, installedFolder, StringComparison.Ordinal))
-                {
+                    && !string.Equals(referenced, installedFolder, StringComparison.Ordinal)) {
                     counts[referenced] = counts.GetValueOrDefault(referenced) + 1;
                 }
             }
         }
 
-        if (counts.Count == 0)
-        {
+        if (counts.Count == 0) {
             return null;
         }
 
@@ -79,17 +71,14 @@ public static class AddonFolderCaseChecker
 
     /// <summary>Pulls the folder segment out of every <c>res://addons/&lt;folder&gt;/</c> in the
     /// text.</summary>
-    private static IEnumerable<string> ReferencedFolders(string content)
-    {
+    private static IEnumerable<string> ReferencedFolders(string content) {
         var index = content.IndexOf(Marker, StringComparison.Ordinal);
 
-        while (index >= 0)
-        {
+        while (index >= 0) {
             var start = index + Marker.Length;
             var end = content.IndexOf('/', start);
 
-            if (end > start)
-            {
+            if (end > start) {
                 yield return content[start..end];
             }
 

@@ -20,8 +20,7 @@ namespace Dotquay.Tests.Mcp;
 /// writes to <see cref="Console.Out"/> (see <see cref="CapturedStdout"/>), separately from the pipe the
 /// transport itself uses, so a stdout-purity test can assert nothing ever landed there.
 /// </remarks>
-internal sealed class McpTestHarness : IAsyncDisposable
-{
+internal sealed class McpTestHarness : IAsyncDisposable {
     private readonly IHost _host;
     private readonly Task _hostTask;
     private readonly CancellationTokenSource _cancellation;
@@ -34,8 +33,7 @@ internal sealed class McpTestHarness : IAsyncDisposable
         CancellationTokenSource cancellation,
         McpClient client,
         StringWriter capturedStdout,
-        TextWriter originalStdout)
-    {
+        TextWriter originalStdout) {
         _host = host;
         _hostTask = hostTask;
         _cancellation = cancellation;
@@ -58,8 +56,7 @@ internal sealed class McpTestHarness : IAsyncDisposable
     /// <param name="logFile">Forwarded to <see cref="McpServerBuilder.BuildForStreams"/> so a test can
     /// exercise <c>--log</c> (design doc §6) against the same in-process server.</param>
     public static async Task<McpTestHarness> StartAsync(
-        IReadOnlyList<string> projectRoots, McpClientOptions? clientOptions = null, string? logFile = null)
-    {
+        IReadOnlyList<string> projectRoots, McpClientOptions? clientOptions = null, string? logFile = null) {
         var originalStdout = Console.Out;
         var capturedStdout = new StringWriter();
         Console.SetOut(capturedStdout);
@@ -68,8 +65,7 @@ internal sealed class McpTestHarness : IAsyncDisposable
         var clientToServer = new Pipe();
         var cancellation = new CancellationTokenSource();
 
-        try
-        {
+        try {
             var host = McpServerBuilder.BuildForStreams(
                 projectRoots,
                 input: clientToServer.Reader.AsStream(),
@@ -88,32 +84,23 @@ internal sealed class McpTestHarness : IAsyncDisposable
                 cancellation.Token);
 
             return new McpTestHarness(host, hostTask, cancellation, client, capturedStdout, originalStdout);
-        }
-        catch
-        {
+        } catch {
             Console.SetOut(originalStdout);
             throw;
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        try
-        {
+    public async ValueTask DisposeAsync() {
+        try {
             await Client.DisposeAsync();
             await _cancellation.CancelAsync();
 
-            try
-            {
+            try {
                 await _hostTask;
-            }
-            catch (OperationCanceledException)
-            {
+            } catch (OperationCanceledException) {
                 // Expected: cancelling _cancellation is how a stream-transport host is asked to stop.
             }
-        }
-        finally
-        {
+        } finally {
             Console.SetOut(_originalStdout);
             _host.Dispose();
             _cancellation.Dispose();

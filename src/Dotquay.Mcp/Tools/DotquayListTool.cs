@@ -10,8 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay list</c>: installed addons and NuGet packages, straight from the
 /// lockfile — instant, offline. See <c>Dotquay.Cli.Commands.ListCommand</c>.</summary>
-public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_list";
 
     public override string Description =>
@@ -31,8 +30,7 @@ public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate) : Mcp
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var workflow = McpInfrastructure.CreateWorkflow();
         var addons = workflow.ListInstalled(projectDirectory);
         var dotnet = workflow.ListInstalledDotnet(projectDirectory);

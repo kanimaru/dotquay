@@ -14,16 +14,14 @@ namespace Dotquay.Tests.Sync;
 /// <c>content_hash</c> for each person who installed it, and every install on a machine that disagreed with the
 /// last one rewrote the lockfile. See <see cref="ContentHasher"/>.
 /// </remarks>
-public class LineEndingHashTests
-{
+public class LineEndingHashTests {
     private const string Script = "extends Node\nfunc _ready():\n\tprint(\"hi\")\n";
     private static byte[] Binary => [0x7f, 0x45, 0x4c, 0x46, 0x00, 0x0d, 0x0a, 0x00, 0x01, 0x0d, 0x0a];
 
     private static string Crlf(string s) => s.Replace("\n", "\r\n");
 
     /// <summary>The same addon as two machines would have written it.</summary>
-    private static (InMemoryFileSystem Unix, InMemoryFileSystem Windows) TwoMachines()
-    {
+    private static (InMemoryFileSystem Unix, InMemoryFileSystem Windows) TwoMachines() {
         var unix = new InMemoryFileSystem();
         unix.WriteAllText("a/plugin.cfg", "[plugin]\nname=\"x\"\n");
         unix.WriteAllText("a/x.gd", Script);
@@ -39,16 +37,14 @@ public class LineEndingHashTests
     // ---- the number --------------------------------------------------------------------------
 
     [Fact]
-    public void TheSameCommit_HashesTheSame_WhateverTheMachinesLineEndings()
-    {
+    public void TheSameCommit_HashesTheSame_WhateverTheMachinesLineEndings() {
         var (unix, windows) = TwoMachines();
 
         Assert.Equal(ContentHasher.HashDirectory(unix, "a"), ContentHasher.HashDirectory(windows, "a"));
     }
 
     [Fact]
-    public void ARealEdit_StillChangesTheHash()
-    {
+    public void ARealEdit_StillChangesTheHash() {
         var (unix, windows) = TwoMachines();
         windows.WriteAllText("a/x.gd", Crlf(Script.Replace("hi", "bye")));
 
@@ -56,8 +52,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void ABinaryFile_IsNeverNormalised()
-    {
+    public void ABinaryFile_IsNeverNormalised() {
         // Same bytes except a CRLF inside the binary. Normalising it would hide a real change.
         var (unix, _) = TwoMachines();
         var changed = new InMemoryFileSystem();
@@ -71,8 +66,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void ALoneCarriageReturn_IsContent_NotALineEnding()
-    {
+    public void ALoneCarriageReturn_IsContent_NotALineEnding() {
         var a = new InMemoryFileSystem();
         a.WriteAllText("a/x.txt", "one\rtwo\n");
         var b = new InMemoryFileSystem();
@@ -82,8 +76,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void AFileWithMixedEndings_HashesLikeItsAllLfForm()
-    {
+    public void AFileWithMixedEndings_HashesLikeItsAllLfForm() {
         var mixed = new InMemoryFileSystem();
         mixed.WriteAllText("a/x.gd", "one\r\ntwo\nthree\r\n");
         var lf = new InMemoryFileSystem();
@@ -93,8 +86,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void TheCanonicalHash_OnALineFeedMachine_IsTheHashEveryOlderDotquayRecordedThere()
-    {
+    public void TheCanonicalHash_OnALineFeedMachine_IsTheHashEveryOlderDotquayRecordedThere() {
         // The reason nothing needs migrating on Linux and macOS: their old hashes ARE the canonical ones.
         var (unix, _) = TwoMachines();
         var tree = ContentHasher.HashTree(unix, "a");
@@ -105,8 +97,7 @@ public class LineEndingHashTests
     // ---- the lockfile's old values still count as unedited ------------------------------------
 
     [Fact]
-    public void ALockfileWrittenOnWindows_IsCleanOnALinuxCheckout_AndTheOtherWayRound()
-    {
+    public void ALockfileWrittenOnWindows_IsCleanOnALinuxCheckout_AndTheOtherWayRound() {
         var (unix, windows) = TwoMachines();
         // What the OLD dotquay recorded on each: the files exactly as that machine's git wrote them.
         var recordedOnWindows = ContentHasher.HashDirectoryIncludingArtifacts(windows, "a");
@@ -120,8 +111,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void TheNewCanonicalValue_IsCleanOnBothMachines()
-    {
+    public void TheNewCanonicalValue_IsCleanOnBothMachines() {
         var (unix, windows) = TwoMachines();
         var canonical = ContentHasher.HashDirectory(unix, "a");
 
@@ -130,8 +120,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void ARealEdit_IsStillDirty_AgainstEveryKindOfRecordedHash()
-    {
+    public void ARealEdit_IsStillDirty_AgainstEveryKindOfRecordedHash() {
         var (unix, windows) = TwoMachines();
         var kinds = new[]
         {
@@ -141,15 +130,13 @@ public class LineEndingHashTests
         };
         windows.WriteAllText("a/x.gd", Crlf(Script.Replace("hi", "tampered")));
 
-        foreach (var recorded in kinds)
-        {
+        foreach (var recorded in kinds) {
             Assert.True(DirtyChecker.Check(windows, "a", recorded).IsDirty, $"edit must show against {recorded[..16]}");
         }
     }
 
     [Fact]
-    public void ALegacyHashThatIncludedEditorFiles_StillCountsAsClean()
-    {
+    public void ALegacyHashThatIncludedEditorFiles_StillCountsAsClean() {
         // The v0.9 compatibility the new hashes must not lose.
         var fs = new InMemoryFileSystem();
         fs.WriteAllText("a/x.gd", Script);
@@ -161,8 +148,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void AnEditorFileThatGodotRewrote_StillDoesNotCount()
-    {
+    public void AnEditorFileThatGodotRewrote_StillDoesNotCount() {
         var (unix, windows) = TwoMachines();
         var recorded = ContentHasher.HashDirectory(unix, "a");
         windows.WriteAllText("a/x.gd.uid", "uid://something-godot-made");
@@ -173,8 +159,7 @@ public class LineEndingHashTests
     // ---- the install does not churn the lockfile ----------------------------------------------
 
     [Fact]
-    public void AReinstallThatChangesNothing_KeepsTheRecordedHash_WhateverFormItIsIn()
-    {
+    public void AReinstallThatChangesNothing_KeepsTheRecordedHash_WhateverFormItIsIn() {
         var (unix, windows) = TwoMachines();
         var recordedOnWindows = ContentHasher.HashDirectoryIncludingArtifacts(windows, "a");
         Assert.NotEqual(recordedOnWindows, ContentHasher.HashDirectory(unix, "a"));
@@ -190,8 +175,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void AnInstallThatChangesTheContent_RecordsTheNewCanonicalHash()
-    {
+    public void AnInstallThatChangesTheContent_RecordsTheNewCanonicalHash() {
         var (unix, _) = TwoMachines();
         var before = ContentHasher.HashDirectory(unix, "a");
         unix.WriteAllText("staging/plugin.cfg", "[plugin]\nname=\"x\"\nversion=\"2\"\n");
@@ -205,8 +189,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void AFreshInstall_RecordsTheCanonicalHash_SoItIsTheSameOnEveryMachine()
-    {
+    public void AFreshInstall_RecordsTheCanonicalHash_SoItIsTheSameOnEveryMachine() {
         var (unix, windows) = TwoMachines();
         windows.DeleteDirectory("a");
         windows.WriteAllText("staging/plugin.cfg", Crlf("[plugin]\nname=\"x\"\n"));
@@ -219,8 +202,7 @@ public class LineEndingHashTests
     }
 
     [Fact]
-    public void Hashing_AnEmptyOrTextOnlyOrBinaryOnlyTree_DoesNotThrow()
-    {
+    public void Hashing_AnEmptyOrTextOnlyOrBinaryOnlyTree_DoesNotThrow() {
         var empty = new InMemoryFileSystem();
         empty.CreateDirectory("a");
         Assert.StartsWith("sha256:", ContentHasher.HashDirectory(empty, "a"));

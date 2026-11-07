@@ -11,13 +11,11 @@ namespace Dotquay.Cli.Commands;
 /// and semantics can't drift between commands — a consumer that has to remember which commands spell
 /// it differently is a consumer that will get it wrong.
 /// </summary>
-internal static class JsonOutput
-{
+internal static class JsonOutput {
     /// <summary>When set, the command writes exactly one JSON document to stdout and nothing else:
     /// no colored status lines, no hints, no progress. Anything a human would have been told goes
     /// into the envelope's <c>warnings</c> or <c>data.messages</c> instead of being lost.</summary>
-    public static Option<bool> CreateOption() => new("--json")
-    {
+    public static Option<bool> CreateOption() => new("--json") {
         Description = "Emit a single machine-readable JSON document on stdout instead of human output. "
             + "Used by the Godot editor plugin (SPEC.md §17).",
     };
@@ -58,14 +56,10 @@ internal static class JsonOutput
     /// closed generic for (see <see cref="DotquayJsonContext"/>). The exit code stays meaningful
     /// either way, so a caller that ignores JSON entirely still behaves correctly.
     /// </remarks>
-    public static int Fail(bool json, string command, string kind, string message)
-    {
-        if (json)
-        {
+    public static int Fail(bool json, string command, string kind, string message) {
+        if (json) {
             Console.WriteLine(DotquayJson.Write(JsonEnvelope<OperationJson>.Failure(command, new JsonError(kind, message))));
-        }
-        else
-        {
+        } else {
             ConsoleOutput.WriteRedacted(ConsoleColor.Red, message);
         }
 
@@ -76,8 +70,7 @@ internal static class JsonOutput
     /// a thin wrapper here — rather than inlining the switch — because the MCP server (Phase 1) needs
     /// the identical classification without depending on <c>Dotquay.Cli</c>; <see cref="JsonErrorClassifier"/>
     /// lives in <c>Dotquay.Core</c> so both callers get the same category for the same failure.</summary>
-    public static int Fail(bool json, string command, Exception exception)
-    {
+    public static int Fail(bool json, string command, Exception exception) {
         var (kind, message) = JsonErrorClassifier.Classify(exception);
 
         // The user-facing line is one sentence by design; the log gets the whole chain - type,

@@ -12,10 +12,8 @@ namespace Dotquay.Core.Auth;
 /// prefix exists for the case that motivates an exception: a narrower, differently-scoped token for
 /// one project, which must be able to win without displacing the host-wide one.
 /// </remarks>
-public sealed record CredentialScope
-{
-    private CredentialScope(string host, string path, bool isSecure)
-    {
+public sealed record CredentialScope {
+    private CredentialScope(string host, string path, bool isSecure) {
         Host = host;
         Path = path;
         IsSecure = isSecure;
@@ -50,10 +48,8 @@ public sealed record CredentialScope
     /// A bare host is assumed to be HTTPS. That's the safe direction to guess: it can only cause a
     /// refusal to send a token somewhere, never a token sent somewhere it shouldn't be.
     /// </remarks>
-    public static CredentialScope Parse(string hostOrUrl)
-    {
-        if (!TryParse(hostOrUrl, out var scope, out var error))
-        {
+    public static CredentialScope Parse(string hostOrUrl) {
+        if (!TryParse(hostOrUrl, out var scope, out var error)) {
             throw new CredentialException(error);
         }
 
@@ -63,14 +59,12 @@ public sealed record CredentialScope
     public static bool TryParse(
         string hostOrUrl,
         [NotNullWhen(true)] out CredentialScope? scope,
-        [NotNullWhen(false)] out string? error)
-    {
+        [NotNullWhen(false)] out string? error) {
         scope = null;
         error = null;
 
         var text = hostOrUrl?.Trim() ?? string.Empty;
-        if (text.Length == 0)
-        {
+        if (text.Length == 0) {
             error = "A host or URL is required (for example 'gitlab.example.com').";
             return false;
         }
@@ -78,22 +72,19 @@ public sealed record CredentialScope
         // A bare host has no scheme. Adding one is what makes Uri parse it as an authority rather
         // than as a relative path — "gitlab.example.com/kani" is otherwise just a path segment.
         var hasScheme = text.Contains("://", StringComparison.Ordinal);
-        if (!Uri.TryCreate(hasScheme ? text : $"https://{text}", UriKind.Absolute, out var uri))
-        {
+        if (!Uri.TryCreate(hasScheme ? text : $"https://{text}", UriKind.Absolute, out var uri)) {
             error = $"'{hostOrUrl}' is not a valid host or URL.";
             return false;
         }
 
-        if (uri.HostNameType == UriHostNameType.Unknown || uri.Host.Length == 0)
-        {
+        if (uri.HostNameType == UriHostNameType.Unknown || uri.Host.Length == 0) {
             error = $"'{hostOrUrl}' has no host.";
             return false;
         }
 
         var isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
         var isHttp = string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
-        if (!isHttps && !isHttp)
-        {
+        if (!isHttps && !isHttp) {
             // ssh:// and git:// carry no token — they authenticate with keys, which is git's job and
             // works today. Storing a password against them would be storing something unusable.
             error = $"'{hostOrUrl}' uses the '{uri.Scheme}' scheme. Only http and https credentials are stored; "
@@ -112,10 +103,8 @@ public sealed record CredentialScope
     /// <summary>Whether this scope covers <paramref name="other"/> — same host, and this path is a
     /// segment-boundary prefix of the other's. <c>a/b</c> covers <c>a/b/c</c> but never
     /// <c>a/bc</c>.</summary>
-    public bool Covers(CredentialScope other)
-    {
-        if (!string.Equals(Host, other.Host, StringComparison.Ordinal))
-        {
+    public bool Covers(CredentialScope other) {
+        if (!string.Equals(Host, other.Host, StringComparison.Ordinal)) {
             return false;
         }
 

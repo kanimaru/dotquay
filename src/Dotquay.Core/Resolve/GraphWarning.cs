@@ -1,8 +1,7 @@
 namespace Dotquay.Core.Resolve;
 
 /// <summary>Why an addon that looks dotquay-aware was still treated as a leaf.</summary>
-public enum GraphWarningKind
-{
+public enum GraphWarningKind {
     /// <summary>The extracted subtree contains a <c>dotquay.toml</c>, but it isn't a valid package
     /// manifest — most often because it has no <c>[package]</c> header (SPEC.md §7.2).</summary>
     PackageManifestNotReadable,

@@ -16,15 +16,13 @@ namespace Dotquay.Tests.Graph;
 /// question v0.19 exists to answer. A wrong origin offers Remove on something that has no manifest
 /// entry to remove.
 /// </remarks>
-public class DotnetGraphBuilderTests
-{
+public class DotnetGraphBuilderTests {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> NoAddons =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
 
     private static DotnetSpec Spec(string name, string version = "1.*") => new() { Name = name, Version = version };
 
-    private static ProjectManifest Manifest(params DotnetSpec[] dotnet) => new()
-    {
+    private static ProjectManifest Manifest(params DotnetSpec[] dotnet) => new() {
         Dotnet = dotnet.ToDictionary(d => d.Name, StringComparer.Ordinal),
     };
 
@@ -34,8 +32,7 @@ public class DotnetGraphBuilderTests
         new() { Name = name, Resolved = resolved, Source = source };
 
     [Fact]
-    public void Build_ProjectDeclaredPackage_IsARootRequiredByTheProject()
-    {
+    public void Build_ProjectDeclaredPackage_IsARootRequiredByTheProject() {
         var nodes = DotnetGraphBuilder.Build(
             Manifest(Spec("Newtonsoft.Json", "13.0.*")), Lockfile(Locked("Newtonsoft.Json", "13.0.3")), [], NoAddons);
 
@@ -48,8 +45,7 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Build_AddonDeclaredPackage_IsTransitiveAndNamesTheAddon()
-    {
+    public void Build_AddonDeclaredPackage_IsTransitiveAndNamesTheAddon() {
         var nodes = DotnetGraphBuilder.Build(
             Manifest(),
             Lockfile(Locked("VBeami.Core")),
@@ -64,8 +60,7 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Build_PackageDeclaredByProjectAndAddons_StaysRootAndListsEveryone()
-    {
+    public void Build_PackageDeclaredByProjectAndAddons_StaysRootAndListsEveryone() {
         // The project's entry wins (requirement P1-5), so it's a root with the project's constraint. The
         // addons still get an edge each: "who else needs this" is exactly what someone about to remove
         // or re-pin it wants to see.
@@ -82,8 +77,7 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Build_LockfileOnlyPackage_IsAnOrphanWithNoRequirers()
-    {
+    public void Build_LockfileOnlyPackage_IsAnOrphanWithNoRequirers() {
         var nodes = DotnetGraphBuilder.Build(Manifest(), Lockfile(Locked("Ghost.Package", "2.0.0")), [], NoAddons);
 
         var node = Assert.Single(nodes);
@@ -94,8 +88,7 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Build_CarriesTheLockedFeedName()
-    {
+    public void Build_CarriesTheLockedFeedName() {
         var nodes = DotnetGraphBuilder.Build(
             Manifest(Spec("A"), Spec("B")), Lockfile(Locked("A", source: "kemomi"), Locked("B")), [], NoAddons);
 
@@ -105,8 +98,7 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Build_AddonDeclaredButNotYetLocked_IsStillShown()
-    {
+    public void Build_AddonDeclaredButNotYetLocked_IsStillShown() {
         // An addon updated its manifest and nothing has re-synced yet. Hiding the package would make
         // the graph disagree with the addon's own file; a node with no resolved version is honest.
         var nodes = DotnetGraphBuilder.Build(
@@ -119,8 +111,7 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Build_EachPackageAppearsOnce()
-    {
+    public void Build_EachPackageAppearsOnce() {
         var nodes = DotnetGraphBuilder.Build(
             Manifest(Spec("A")),
             Lockfile(Locked("A"), Locked("B")),
@@ -132,12 +123,10 @@ public class DotnetGraphBuilderTests
     }
 
     [Fact]
-    public void Flatten_PicksTheWinnerInOrdinalAddonOrder()
-    {
+    public void Flatten_PicksTheWinnerInOrdinalAddonOrder() {
         // Lockfile mode can't replay the walk's discovery order, so it picks a stable one instead.
         // The same project must show the same constraint on every refresh.
-        var declarations = new Dictionary<string, IReadOnlyList<DotnetSpec>>(StringComparer.Ordinal)
-        {
+        var declarations = new Dictionary<string, IReadOnlyList<DotnetSpec>>(StringComparer.Ordinal) {
             ["zeta"] = [Spec("Shared", "2.*")],
             ["alpha"] = [Spec("Shared", "1.*"), Spec("OnlyAlpha")],
         };

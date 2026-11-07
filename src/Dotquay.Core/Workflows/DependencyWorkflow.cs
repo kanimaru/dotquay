@@ -27,8 +27,7 @@ namespace Dotquay.Core.Workflows;
 /// translation of parsed args into calls here plus console output — no orchestration logic in
 /// Dotquay.Cli itself (SPEC.md §12).
 /// </summary>
-public sealed partial class DependencyWorkflow
-{
+public sealed partial class DependencyWorkflow {
     private const string ManifestFileName = ProjectFileStore.ManifestFileName;
     private const string LockfileFileName = ProjectFileStore.LockfileFileName;
 
@@ -100,16 +99,14 @@ public sealed partial class DependencyWorkflow
     public IEnvironmentReader EnvironmentReader { get; init; } = new SystemEnvironmentReader();
 
     public DependencyWorkflow(IFileSystem fileSystem, IGitClient gitClient, string cacheRoot)
-        : this(fileSystem, gitClient, new NuGetV3ClientFactory(DefaultCredentialResolver(fileSystem)), cacheRoot)
-    {
+        : this(fileSystem, gitClient, new NuGetV3ClientFactory(DefaultCredentialResolver(fileSystem)), cacheRoot) {
     }
 
     /// <summary>The real credential stack: <c>dotquay login</c>'s store plus the environment
     /// (SPEC.md §11.2). Falls back to environment-only when there is no home directory to put a
     /// credential file in — a container with no <c>$HOME</c> is a normal CI shape, and it should use
     /// <c>DOTQUAY_NUGET_*</c> rather than fail at construction.</summary>
-    private static CredentialResolver DefaultCredentialResolver(IFileSystem fileSystem)
-    {
+    private static CredentialResolver DefaultCredentialResolver(IFileSystem fileSystem) {
         var environment = new SystemEnvironmentReader();
 
         ICredentialStore store = environment.HomeDirectory is null
@@ -120,8 +117,7 @@ public sealed partial class DependencyWorkflow
     }
 
     public DependencyWorkflow(IFileSystem fileSystem, IGitClient gitClient, INuGetClientFactory nuGetClientFactory, string cacheRoot)
-        : this(fileSystem, gitClient, nuGetClientFactory, new RepoCache(fileSystem, gitClient, cacheRoot))
-    {
+        : this(fileSystem, gitClient, nuGetClientFactory, new RepoCache(fileSystem, gitClient, cacheRoot)) {
     }
 
     /// <summary>Shares one <see cref="RepoCache"/> between <see cref="AddonInstaller"/> (fetch for
@@ -129,8 +125,7 @@ public sealed partial class DependencyWorkflow
     /// the exact same content-addressed cache, not two independently-behaving instances pointed at
     /// the same directory.</summary>
     private DependencyWorkflow(IFileSystem fileSystem, IGitClient gitClient, INuGetClientFactory nuGetClientFactory, RepoCache repoCache)
-        : this(fileSystem, gitClient, nuGetClientFactory, repoCache, new ProcessPatchTool())
-    {
+        : this(fileSystem, gitClient, nuGetClientFactory, repoCache, new ProcessPatchTool()) {
     }
 
     /// <summary>Shares one <see cref="IPatchTool"/> between <see cref="AddonInstaller"/> (patch
@@ -146,8 +141,7 @@ public sealed partial class DependencyWorkflow
             new AddonInstaller(fileSystem, repoCache, new SyncEngine(fileSystem), patchTool),
             repoCache,
             patchTool,
-            new DotnetInstaller(fileSystem, new ProcessDotnetCliRunner(), DefaultCredentialResolver(fileSystem)))
-    {
+            new DotnetInstaller(fileSystem, new ProcessDotnetCliRunner(), DefaultCredentialResolver(fileSystem))) {
     }
 
     /// <summary>Test seam — lets tests substitute the addon install pipeline with a controlled
@@ -165,8 +159,7 @@ public sealed partial class DependencyWorkflow
             addonInstaller,
             new RepoCache(fileSystem, gitClient, cacheRoot: "unused-by-this-seam"),
             new ProcessPatchTool(),
-            new DotnetInstaller(fileSystem, new ProcessDotnetCliRunner(), DefaultCredentialResolver(fileSystem)))
-    {
+            new DotnetInstaller(fileSystem, new ProcessDotnetCliRunner(), DefaultCredentialResolver(fileSystem))) {
     }
 
     /// <summary>Same test seam as below, minus <see cref="RepoCache"/>/<see cref="IPatchTool"/> — for
@@ -187,8 +180,7 @@ public sealed partial class DependencyWorkflow
             addonInstaller,
             new RepoCache(fileSystem, gitClient, cacheRoot: "unused-by-this-seam"),
             new ProcessPatchTool(),
-            dotnetInstaller)
-    {
+            dotnetInstaller) {
     }
 
     /// <summary>Full test seam — every network/process-touching dependency is a fake.</summary>
@@ -199,8 +191,7 @@ public sealed partial class DependencyWorkflow
         AddonInstaller addonInstaller,
         RepoCache repoCache,
         IPatchTool patchTool,
-        DotnetInstaller dotnetInstaller)
-    {
+        DotnetInstaller dotnetInstaller) {
         _fileSystem = fileSystem;
         _projectFiles = new ProjectFileStore(fileSystem);
         _installedManifests = new InstalledPackageManifests(fileSystem);
@@ -224,34 +215,26 @@ public sealed partial class DependencyWorkflow
     /// to read a ref.
     /// </remarks>
     public async Task<AddonAddOptions> ResolveShorthandAsync(
-        string gitUrl, string reference, AddonAddOptions options, CancellationToken cancellationToken = default)
-    {
-        if (options.HasExplicitSource)
-        {
+        string gitUrl, string reference, AddonAddOptions options, CancellationToken cancellationToken = default) {
+        if (options.HasExplicitSource) {
             throw new WorkflowException(
                 $"'{gitUrl}#{reference}' already names a ref, so --version/--branch/--rev would contradict it. "
                 + "Use one or the other.");
         }
 
-        try
-        {
+        try {
             var classified = await new RefClassifier(_gitClient).ClassifyAsync(gitUrl, reference, cancellationToken);
             return options.WithSource(classified.Kind, classified.Value);
-        }
-        catch (AddonResolutionException ex)
-        {
+        } catch (AddonResolutionException ex) {
             throw new WorkflowException(ex.Message, ex);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException($"{gitUrl}: {ex.Message}", ex);
         }
     }
 
     /// <summary>Attaches a progress reporter for the lifetime of this workflow instance. Fluent so a
     /// CLI command can write <c>WorkflowFactory.Create().WithProgress(reporter)</c> in one line.</summary>
-    public DependencyWorkflow WithProgress(IProgressReporter progress)
-    {
+    public DependencyWorkflow WithProgress(IProgressReporter progress) {
         _progress = progress;
         return this;
     }
@@ -273,8 +256,7 @@ public sealed partial class DependencyWorkflow
         string projectDirectory,
         string gitUrl,
         AddonAddOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         options ??= new AddonAddOptions();
         options.Validate();
 
@@ -286,8 +268,7 @@ public sealed partial class DependencyWorkflow
         var (name, spec, _) = await PrepareAddSpecAsync(
             manifest, manifestPath, gitUrl, options, previewing: false, cancellationToken);
 
-        var updatedManifest = manifest with
-        {
+        var updatedManifest = manifest with {
             Addons = new Dictionary<string, AddonSpec>(manifest.Addons) { [name] = spec },
         };
 
@@ -365,12 +346,10 @@ public sealed partial class DependencyWorkflow
         string? versionOverride,
         string? pinnedSourceName,
         ICollection<SourceBuiltPackage>? sourceBuilt,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
-        if (manifest.Dotnet.ContainsKey(packageId))
-        {
+        if (manifest.Dotnet.ContainsKey(packageId)) {
             throw new WorkflowException(
                 $"'{packageId}' is already declared in {manifestPath}. Use 'dotquay update {packageId}' instead.");
         }
@@ -401,16 +380,13 @@ public sealed partial class DependencyWorkflow
                 projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
                 cancellationToken, assets, sourceBuilt: sourceBuilt));
 
-        WriteManifest(manifestPath, manifest with
-        {
-            Dotnet = new Dictionary<string, DotnetSpec>(manifest.Dotnet)
-            {
+        WriteManifest(manifestPath, manifest with {
+            Dotnet = new Dictionary<string, DotnetSpec>(manifest.Dotnet) {
                 // The resolved feed is recorded in the lockfile, not pinned in the manifest. A pin is
                 // a statement of intent the user makes; writing one automatically would silently
                 // freeze whichever feed happened to answer first today. An explicit --source is
                 // exactly that statement, so it is the one thing written here.
-                [packageId] = new DotnetSpec
-                {
+                [packageId] = new DotnetSpec {
                     Name = packageId,
                     Version = versionOverride ?? CompatibleRange(version),
                     Source = pinnedSourceName,
@@ -419,8 +395,7 @@ public sealed partial class DependencyWorkflow
             },
         });
 
-        WriteLockfile(lockfilePath, lockfile with
-        {
+        WriteLockfile(lockfilePath, lockfile with {
             Dotnet = lockfile.Dotnet.Where(d => d.Name != packageId).Append(locked).ToList(),
         });
 
@@ -451,12 +426,10 @@ public sealed partial class DependencyWorkflow
         INuGetClient nuGetClient,
         string packageId,
         string version,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var shape = await nuGetClient.GetPackageShapeAsync(packageId, version, cancellationToken);
 
-        if (!shape.IsGenerator)
-        {
+        if (!shape.IsGenerator) {
             return PackageAssets.None;
         }
 
@@ -464,8 +437,7 @@ public sealed partial class DependencyWorkflow
         // publishable" — the quiet answer, which leaves behaviour as it was.
         var evidence = CsprojPackable.Evidence(_fileSystem, CsprojLocator.Locate(_fileSystem, projectDirectory));
 
-        if (evidence is null)
-        {
+        if (evidence is null) {
             return PackageAssets.None;
         }
 
@@ -479,16 +451,14 @@ public sealed partial class DependencyWorkflow
     /// re-resolves (that's what makes <c>install</c> reproducible, SPEC.md §5). Refuses if the
     /// manifest declares something the lockfile doesn't know about yet (requirement P0-3).
     /// </summary>
-    public async Task<InstallResult> InstallAsync(string projectDirectory, bool force, CancellationToken cancellationToken = default)
-    {
+    public async Task<InstallResult> InstallAsync(string projectDirectory, bool force, CancellationToken cancellationToken = default) {
         var (manifest, _) = ReadManifestOrThrow(projectDirectory);
         var (lockfile, lockfilePath) = ReadLockfileOrThrow(projectDirectory);
 
         var missingAddons = manifest.Addons.Keys.Where(name => lockfile.Addons.All(a => a.Name != name)).ToList();
         var missingDotnet = manifest.Dotnet.Keys.Where(name => lockfile.Dotnet.All(d => d.Name != name)).ToList();
         var missing = missingAddons.Concat(missingDotnet).ToList();
-        if (missing.Count > 0)
-        {
+        if (missing.Count > 0) {
             throw new WorkflowException(
                 $"{lockfilePath} is missing {string.Join(", ", missing)} (declared in the manifest but not "
                 + $"locked) — run 'dotquay add' or 'dotquay update' first (requirement P0-3).");
@@ -498,8 +468,7 @@ public sealed partial class DependencyWorkflow
 
         var installedAddons = new List<LockedAddon>();
         var installedCount = 0;
-        foreach (var addon in lockfile.Addons)
-        {
+        foreach (var addon in lockfile.Addons) {
             _progress.Report($"installing {addon.Name}", ++installedCount, lockfile.Addons.Count);
 
             // addon.Folder is part of what was locked: install replays the lockfile exactly (SPEC.md
@@ -512,8 +481,7 @@ public sealed partial class DependencyWorkflow
 
         var installedDotnet = new List<LockedDotnet>();
         var sourceBuilt = new List<SourceBuiltPackage>();
-        foreach (var dependency in lockfile.Dotnet)
-        {
+        foreach (var dependency in lockfile.Dotnet) {
             // dependency.Source is replayed, not re-resolved: install reproduces the lockfile
             // exactly (SPEC.md §5), and a package that resolved from a private feed must not come
             // from a public one here just because the search order would allow it.
@@ -530,8 +498,7 @@ public sealed partial class DependencyWorkflow
         // decides whether a linked package resolves from NuGet or from the local project.
         SyncLocalTargets(projectDirectory);
 
-        if (installedDotnet.Count > 0)
-        {
+        if (installedDotnet.Count > 0) {
             await RestoreDotnetOrThrowAsync(projectDirectory, manifest, cancellationToken, installedDotnet);
         }
 
@@ -564,13 +531,11 @@ public sealed partial class DependencyWorkflow
         UpdateCoreAsync(projectDirectory, name: null, resync: true, force, cancellationToken);
 
     private async Task<UpdateResult> UpdateCoreAsync(
-        string projectDirectory, string? name, bool resync, bool force, CancellationToken cancellationToken)
-    {
+        string projectDirectory, string? name, bool resync, bool force, CancellationToken cancellationToken) {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
 
-        if (name is not null && !manifest.Addons.ContainsKey(name) && !manifest.Dotnet.ContainsKey(name))
-        {
+        if (name is not null && !manifest.Addons.ContainsKey(name) && !manifest.Dotnet.ContainsKey(name)) {
             throw new WorkflowException($"'{name}' is not declared in {manifestPath}.");
         }
 
@@ -586,8 +551,7 @@ public sealed partial class DependencyWorkflow
         IReadOnlyDictionary<string, string> refusalHints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var addonResults = new List<AddonUpdateResult>();
 
-        if (walksAddonGraph)
-        {
+        if (walksAddonGraph) {
             // A full update (name is null) re-resolves every top-level addon fresh -- SyncAddonGraphAsync
             // then treats the walk as exhaustive and prunes anything no longer reachable. A single
             // named addon update only re-resolves that one addon; every other top-level addon (and,
@@ -611,8 +575,7 @@ public sealed partial class DependencyWorkflow
             // Persisted immediately, not after resolution succeeds. Adoption is a decision the user
             // has already made — by trusting the host, or by answering a prompt — and losing it
             // because a later step failed would mean re-asking on every retry of a failing update.
-            if (graphSync.Adoption.Adopted.Count > 0)
-            {
+            if (graphSync.Adoption.Adopted.Count > 0) {
                 WriteManifest(manifestPath, manifest);
             }
 
@@ -625,45 +588,36 @@ public sealed partial class DependencyWorkflow
             WriteLockfile(lockfilePath, lockfile with { Addons = addons });
 
             var currentByName = addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
-            foreach (var addonName in freshNames.Union(previousAddonsByName.Keys).Union(currentByName.Keys))
-            {
+            foreach (var addonName in freshNames.Union(previousAddonsByName.Keys).Union(currentByName.Keys)) {
                 previousAddonsByName.TryGetValue(addonName, out var previous);
-                if (!currentByName.TryGetValue(addonName, out var current))
-                {
+                if (!currentByName.TryGetValue(addonName, out var current)) {
                     continue; // pruned as an orphan -- nothing to report as an "update" result for it
                 }
 
                 // Report anything explicitly targeted (even if unchanged, so the CLI can say so) plus
                 // anything that moved for any other reason (e.g. a transitive dependency newly
                 // discovered, or advanced because its own package manifest changed).
-                if (freshNames.Contains(addonName) || previous is null || previous.Resolved != current.Resolved)
-                {
+                if (freshNames.Contains(addonName) || previous is null || previous.Resolved != current.Resolved) {
                     addonResults.Add(new AddonUpdateResult(addonName, previous?.Resolved, current));
                 }
             }
         }
 
         var dotnetTargetNames = new HashSet<string>(StringComparer.Ordinal);
-        if (!resync)
-        {
-            if (name is null)
-            {
+        if (!resync) {
+            if (name is null) {
                 dotnetTargetNames.UnionWith(manifest.Dotnet.Keys);
-            }
-            else if (manifest.Dotnet.ContainsKey(name))
-            {
+            } else if (manifest.Dotnet.ContainsKey(name)) {
                 dotnetTargetNames.Add(name);
             }
         }
 
-        foreach (var spec in addonDeclaredDotnet)
-        {
+        foreach (var spec in addonDeclaredDotnet) {
             // On a resync, only *genuinely new* addon-declared packages are resolved — one already
             // locked stays exactly where it is, the same "don't move what wasn't asked to move" rule
             // AddAsync applies (requirement P1-5).
             if (!manifest.Dotnet.ContainsKey(spec.Name)
-                && (!resync || lockfile.Dotnet.All(d => d.Name != spec.Name)))
-            {
+                && (!resync || lockfile.Dotnet.All(d => d.Name != spec.Name))) {
                 dotnetTargetNames.Add(spec.Name);
             }
         }
@@ -677,18 +631,15 @@ public sealed partial class DependencyWorkflow
 
         var syncedDotnetByName = syncedDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var dotnetResults = new List<DotnetUpdateResult>();
-        foreach (var targetName in dotnetTargetNames)
-        {
+        foreach (var targetName in dotnetTargetNames) {
             previousDotnetByName.TryGetValue(targetName, out var previous);
-            if (syncedDotnetByName.TryGetValue(targetName, out var current))
-            {
+            if (syncedDotnetByName.TryGetValue(targetName, out var current)) {
                 dotnetResults.Add(new DotnetUpdateResult(targetName, previous?.Resolved, current));
             }
         }
 
         WriteLockfile(lockfilePath, lockfile with { Addons = addons, Dotnet = syncedDotnet });
-        return new UpdateResult(addonResults, dotnetResults, graphWarnings.Select(w => w.Message).ToList())
-        {
+        return new UpdateResult(addonResults, dotnetResults, graphWarnings.Select(w => w.Message).ToList()) {
             SourceBuilt = sourceBuilt,
         };
     }
@@ -710,14 +661,11 @@ public sealed partial class DependencyWorkflow
     /// <returns>Which kind of dependency <paramref name="name"/> turned out to be, so a caller can report
     /// the removal as what it was rather than guessing from the name, and which addons still need a
     /// NuGet package whose project declaration was removed.</returns>
-    public Task<DependencyRemoval> RemoveAsync(string projectDirectory, string name, CancellationToken cancellationToken = default)
-    {
+    public Task<DependencyRemoval> RemoveAsync(string projectDirectory, string name, CancellationToken cancellationToken = default) {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
 
-        if (manifest.Addons.ContainsKey(name))
-        {
-            var updatedManifest = manifest with
-            {
+        if (manifest.Addons.ContainsKey(name)) {
+            var updatedManifest = manifest with {
                 Addons = manifest.Addons.Where(kv => kv.Key != name).ToDictionary(kv => kv.Key, kv => kv.Value),
             };
             WriteManifest(manifestPath, updatedManifest);
@@ -726,8 +674,7 @@ public sealed partial class DependencyWorkflow
             var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
             var reachable = ComputeReachableAddonNames(lockedByName, updatedManifest.Addons.Keys);
 
-            foreach (var orphan in lockfile.Addons.Where(a => !reachable.Contains(a.Name)))
-            {
+            foreach (var orphan in lockfile.Addons.Where(a => !reachable.Contains(a.Name))) {
                 _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, orphan));
             }
 
@@ -735,10 +682,8 @@ public sealed partial class DependencyWorkflow
             return Task.FromResult(DependencyRemoval.Complete(DependencyKind.Addon));
         }
 
-        if (manifest.Dotnet.ContainsKey(name))
-        {
-            WriteManifest(manifestPath, manifest with
-            {
+        if (manifest.Dotnet.ContainsKey(name)) {
+            WriteManifest(manifestPath, manifest with {
                 Dotnet = manifest.Dotnet.Where(kv => kv.Key != name).ToDictionary(kv => kv.Key, kv => kv.Value),
             });
 
@@ -749,27 +694,22 @@ public sealed partial class DependencyWorkflow
             // until the next update puts it back (DESIGN-v0.19 §7a.2), so only the declaration goes.
             var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
             var reachable = ComputeReachableAddonNames(lockedByName, manifest.Addons.Keys);
-            if (AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).TryGetValue(name, out var declarers))
-            {
+            if (AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).TryGetValue(name, out var declarers)) {
                 return Task.FromResult(new DependencyRemoval(DependencyKind.Dotnet, declarers));
             }
 
             WriteLockfile(lockfilePath, lockfile with { Dotnet = lockfile.Dotnet.Where(d => d.Name != name).ToList() });
 
-            try
-            {
+            try {
                 _dotnetInstaller.Remove(projectDirectory, name);
-            }
-            catch (DotnetSyncException ex)
-            {
+            } catch (DotnetSyncException ex) {
                 throw new WorkflowException(ex.Message, ex);
             }
 
             return Task.FromResult(DependencyRemoval.Complete(DependencyKind.Dotnet));
         }
 
-        if (TryRemoveOrphanedDotnet(projectDirectory, name))
-        {
+        if (TryRemoveOrphanedDotnet(projectDirectory, name)) {
             return Task.FromResult(DependencyRemoval.Complete(DependencyKind.Dotnet));
         }
 
@@ -788,11 +728,9 @@ public sealed partial class DependencyWorkflow
     /// would work for exactly one command; the next <c>update</c> would union it straight back in
     /// (requirement P1-5), which would look like dotquay ignoring the removal.
     /// </remarks>
-    private bool TryRemoveOrphanedDotnet(string projectDirectory, string name)
-    {
+    private bool TryRemoveOrphanedDotnet(string projectDirectory, string name) {
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
-        if (lockfile.Dotnet.All(d => d.Name != name))
-        {
+        if (lockfile.Dotnet.All(d => d.Name != name)) {
             return false;
         }
 
@@ -800,8 +738,7 @@ public sealed partial class DependencyWorkflow
         var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
         var reachable = ComputeReachableAddonNames(lockedByName, manifest.Addons.Keys);
 
-        if (AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).TryGetValue(name, out var declarers))
-        {
+        if (AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).TryGetValue(name, out var declarers)) {
             var addons = string.Join(", ", declarers.Select(a => $"'{a}'"));
             throw new WorkflowException(
                 $"'{name}' is declared by {addons}, not by your {ManifestFileName}, so there is nothing of "
@@ -811,12 +748,9 @@ public sealed partial class DependencyWorkflow
 
         WriteLockfile(lockfilePath, lockfile with { Dotnet = lockfile.Dotnet.Where(d => d.Name != name).ToList() });
 
-        try
-        {
+        try {
             _dotnetInstaller.Remove(projectDirectory, name);
-        }
-        catch (DotnetSyncException ex)
-        {
+        } catch (DotnetSyncException ex) {
             throw new WorkflowException(ex.Message, ex);
         }
 
@@ -844,15 +778,13 @@ public sealed partial class DependencyWorkflow
     /// otherwise fires on literally every install/update of a patched addon, since the lockfile's
     /// <c>content_hash</c> would still point at the pre-patch tree forever).
     /// </remarks>
-    public async Task<PatchCaptureResult> PatchAsync(string projectDirectory, string name, CancellationToken cancellationToken = default)
-    {
+    public async Task<PatchCaptureResult> PatchAsync(string projectDirectory, string name, CancellationToken cancellationToken = default) {
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Addons.FirstOrDefault(a => a.Name == name)
             ?? throw new WorkflowException($"'{name}' is not a locked addon. Run 'dotquay add' or 'dotquay install' first.");
 
         var installedPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
-        if (!_fileSystem.DirectoryExists(installedPath))
-        {
+        if (!_fileSystem.DirectoryExists(installedPath)) {
             throw new WorkflowException(
                 $"'addons/{locked.EffectiveFolder}' does not exist on disk — nothing to diff. Run 'dotquay install' first.");
         }
@@ -862,8 +794,7 @@ public sealed partial class DependencyWorkflow
         // install pipeline's stage-then-swap target.
         var baseStagingPath = _fileSystem.CombinePath(projectDirectory, ".dotquay", "staging", $"{name}-patch-base");
 
-        try
-        {
+        try {
             var cachedRepoPath = await _repoCache.GetOrFetchAsync(locked.Git, locked.Resolved, cancellationToken);
             SubtreeExtractor.Extract(_fileSystem, cachedRepoPath, locked.Path, baseStagingPath);
 
@@ -880,33 +811,26 @@ public sealed partial class DependencyWorkflow
             LockedAddon updated;
             bool captured;
 
-            if (string.IsNullOrEmpty(patchText))
-            {
-                if (_fileSystem.FileExists(patchFilePath))
-                {
+            if (string.IsNullOrEmpty(patchText)) {
+                if (_fileSystem.FileExists(patchFilePath)) {
                     _fileSystem.DeleteFile(patchFilePath);
                 }
 
                 updated = WithPatch(locked, contentHash, patchHash: null, patchBaseSha: null);
                 captured = false;
-            }
-            else
-            {
+            } else {
                 _fileSystem.WriteAllText(patchFilePath, patchText);
                 EnsurePatchesStayTracked(layout);
                 updated = WithPatch(locked, contentHash, patchHash: ComputePatchHash(patchText), patchBaseSha: locked.Resolved);
                 captured = true;
             }
 
-            WriteLockfile(lockfilePath, lockfile with
-            {
+            WriteLockfile(lockfilePath, lockfile with {
                 Addons = lockfile.Addons.Select(a => a.Name == name ? updated : a).ToList(),
             });
 
             return new PatchCaptureResult(name, captured, patchFilePath);
-        }
-        finally
-        {
+        } finally {
             _fileSystem.DeleteDirectory(baseStagingPath);
         }
     }
@@ -923,16 +847,14 @@ public sealed partial class DependencyWorkflow
     /// in it produces a Godot script that won't parse, reported far from its cause.
     /// </remarks>
     public async Task<PatchCaptureResult> ResolvePatchAsync(
-        string projectDirectory, string name, CancellationToken cancellationToken = default)
-    {
+        string projectDirectory, string name, CancellationToken cancellationToken = default) {
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Addons.FirstOrDefault(a => a.Name == name)
             ?? throw new WorkflowException($"'{name}' is not a locked addon.");
 
         var layout = ReadLayout(projectDirectory);
         var stagingPath = layout.StagingPath(_fileSystem, name);
-        if (!_fileSystem.DirectoryExists(stagingPath))
-        {
+        if (!_fileSystem.DirectoryExists(stagingPath)) {
             throw new WorkflowException(
                 $"There is no conflicted update waiting for '{name}' ({stagingPath} doesn't exist). "
                 + $"Run 'dotquay update {name}' first — this command only finishes an update that stopped on a "
@@ -940,8 +862,7 @@ public sealed partial class DependencyWorkflow
         }
 
         var unresolved = FindConflictMarkers(stagingPath).ToList();
-        if (unresolved.Count > 0)
-        {
+        if (unresolved.Count > 0) {
             throw new WorkflowException(
                 $"'{name}': {unresolved.Count} file(s) in {stagingPath} still contain conflict markers: "
                 + $"{string.Join(", ", unresolved.Take(5))}. Edit them first — installing them as-is would give "
@@ -955,18 +876,15 @@ public sealed partial class DependencyWorkflow
         // never got to record, so advance it here — otherwise the recapture below would diff against
         // the *old* pristine base and produce a patch that conflicts against upstream forever.
         var markerPath = layout.ConflictMarkerPath(_fileSystem, name);
-        if (_fileSystem.FileExists(markerPath))
-        {
+        if (_fileSystem.FileExists(markerPath)) {
             var lines = _fileSystem.ReadAllText(markerPath)
                 .Split('\n')
                 .Select(l => l.Trim('\r', ' '))
                 .ToArray();
 
-            if (lines.Length > 0 && lines[0].Length > 0)
-            {
+            if (lines.Length > 0 && lines[0].Length > 0) {
                 var version = lines.Length > 1 && lines[1].Length > 0 ? lines[1] : locked.Version;
-                WriteLockfile(lockfilePath, lockfile with
-                {
+                WriteLockfile(lockfilePath, lockfile with {
                     Addons = lockfile.Addons
                         .Select(a => a.Name == name ? a with { Resolved = lines[0], Version = version } : a)
                         .ToList(),
@@ -986,8 +904,7 @@ public sealed partial class DependencyWorkflow
     /// conflict, for when the local change has been upstreamed or is no longer wanted.
     /// </summary>
     public async Task<PatchCaptureResult> AbandonPatchAsync(
-        string projectDirectory, string name, bool force, CancellationToken cancellationToken = default)
-    {
+        string projectDirectory, string name, bool force, CancellationToken cancellationToken = default) {
         var (lockfile, lockfilePath) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Addons.FirstOrDefault(a => a.Name == name)
             ?? throw new WorkflowException($"'{name}' is not a locked addon.");
@@ -995,15 +912,13 @@ public sealed partial class DependencyWorkflow
         var layout = ReadLayout(projectDirectory);
         var patchFilePath = layout.PatchFilePath(_fileSystem, name);
 
-        if (_fileSystem.FileExists(patchFilePath))
-        {
+        if (_fileSystem.FileExists(patchFilePath)) {
             _fileSystem.DeleteFile(patchFilePath);
         }
 
         // Clear the patch bookkeeping before reinstalling, or the installer would dutifully re-apply
         // the patch this call exists to discard.
-        WriteLockfile(lockfilePath, lockfile with
-        {
+        WriteLockfile(lockfilePath, lockfile with {
             Addons = lockfile.Addons
                 .Select(a => a.Name == name ? a with { PatchHash = null, PatchBaseSha = null } : a)
                 .ToList(),
@@ -1017,25 +932,19 @@ public sealed partial class DependencyWorkflow
     }
 
     /// <summary>Files under <paramref name="root"/> that still carry a git conflict marker.</summary>
-    private IEnumerable<string> FindConflictMarkers(string root)
-    {
-        foreach (var file in _fileSystem.EnumerateFiles(root))
-        {
+    private IEnumerable<string> FindConflictMarkers(string root) {
+        foreach (var file in _fileSystem.EnumerateFiles(root)) {
             string contents;
-            try
-            {
+            try {
                 contents = _fileSystem.ReadAllText(file);
-            }
-            catch (Exception)
-            {
+            } catch (Exception) {
                 // Binary files (.png, .ttf) routinely fail to decode as text and can't carry markers
                 // anyway — an addon is full of them, and a crash here would block every resolve.
                 continue;
             }
 
             if (contents.Contains("<<<<<<<", StringComparison.Ordinal)
-                && contents.Contains(">>>>>>>", StringComparison.Ordinal))
-            {
+                && contents.Contains(">>>>>>>", StringComparison.Ordinal)) {
                 yield return file;
             }
         }
@@ -1045,8 +954,7 @@ public sealed partial class DependencyWorkflow
     /// read. A missing manifest isn't fatal here — <c>patch</c> works off the lockfile and disk, and
     /// refusing to capture a patch because <c>dotquay.toml</c> is absent would be a rule with no
     /// purpose.</summary>
-    private ProjectLayout ReadLayout(string projectDirectory)
-    {
+    private ProjectLayout ReadLayout(string projectDirectory) {
         var manifestPath = _projectFiles.ManifestPath(projectDirectory);
         var manifest = _fileSystem.FileExists(manifestPath)
             ? ManifestReader.ReadProject(_fileSystem.ReadAllText(manifestPath), manifestPath)
@@ -1065,16 +973,13 @@ public sealed partial class DependencyWorkflow
     /// getting the distinction right. Written when a patch is captured rather than at <c>init</c>, so
     /// projects that predate this get it the moment it starts mattering.
     /// </remarks>
-    private void EnsurePatchesStayTracked(ProjectLayout layout)
-    {
-        if (!layout.PatchesAreInsideDotquay)
-        {
+    private void EnsurePatchesStayTracked(ProjectLayout layout) {
+        if (!layout.PatchesAreInsideDotquay) {
             return;
         }
 
         var gitignorePath = _fileSystem.CombinePath(layout.ProjectDirectory, ProjectLayout.DotquayDirectory, ".gitignore");
-        if (_fileSystem.FileExists(gitignorePath))
-        {
+        if (_fileSystem.FileExists(gitignorePath)) {
             return;
         }
 
@@ -1092,14 +997,10 @@ public sealed partial class DependencyWorkflow
     }
 
     private async Task<string> DiffForPatchOrThrowAsync(
-        string baseDirectory, string oursDirectory, string name, CancellationToken cancellationToken)
-    {
-        try
-        {
+        string baseDirectory, string oursDirectory, string name, CancellationToken cancellationToken) {
+        try {
             return await _patchTool.DiffDirectoriesAsync(baseDirectory, oursDirectory, cancellationToken);
-        }
-        catch (PatchException ex)
-        {
+        } catch (PatchException ex) {
             throw new WorkflowException($"'{name}': {ex.Message}", ex);
         }
     }
@@ -1124,8 +1025,7 @@ public sealed partial class DependencyWorkflow
     /// install/update already trust before ever touching an installed addon (requirement P0-6) — this
     /// command exists to surface that same check on demand, not to reimplement it.
     /// </summary>
-    public StatusResult Status(string projectDirectory)
-    {
+    public StatusResult Status(string projectDirectory) {
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
 
         var results = lockfile.Addons
@@ -1149,17 +1049,14 @@ public sealed partial class DependencyWorkflow
     /// </remarks>
     private void CheckAddonLinks(
         string projectDirectory, DotquayLockfile lockfile, IReadOnlyDictionary<string, LocalLink> declared,
-        List<DoctorIssue> issues)
-    {
-        foreach (var locked in lockfile.Addons)
-        {
+        List<DoctorIssue> issues) {
+        foreach (var locked in lockfile.Addons) {
             declared.TryGetValue(locked.Name, out var link);
 
             var verdict = AddonLinkGuard.Inspect(
                 _fileSystem, InstallPaths.For(_fileSystem, projectDirectory, locked), link);
 
-            if (!verdict.ForbidsWriting)
-            {
+            if (!verdict.ForbidsWriting) {
                 continue;
             }
 
@@ -1187,26 +1084,22 @@ public sealed partial class DependencyWorkflow
         string name,
         string linkPath,
         bool force,
-        CancellationToken cancellationToken = default)
-    {
-        if (force)
-        {
+        CancellationToken cancellationToken = default) {
+        if (force) {
             return;
         }
 
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Addons.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.Ordinal));
 
-        if (locked is null)
-        {
+        if (locked is null) {
             return;
         }
 
         var installPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
 
         if (_fileSystem.IsDirectoryLink(installPath)
-            || !DirtyChecker.Check(_fileSystem, installPath, locked.ContentHash).IsDirty)
-        {
+            || !DirtyChecker.Check(_fileSystem, installPath, locked.ContentHash).IsDirty) {
             return;
         }
 
@@ -1231,20 +1124,17 @@ public sealed partial class DependencyWorkflow
     /// here by the same invariant that protects it everywhere else.
     /// </para>
     /// </remarks>
-    public bool RemoveAddonLink(string projectDirectory, string name)
-    {
+    public bool RemoveAddonLink(string projectDirectory, string name) {
         var declarationRemoved = _localLinks.Remove(projectDirectory, name);
         var linkRemoved = false;
 
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Addons.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.Ordinal));
 
-        if (locked is not null)
-        {
+        if (locked is not null) {
             var installPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
 
-            if (_fileSystem.IsDirectoryLink(installPath))
-            {
+            if (_fileSystem.IsDirectoryLink(installPath)) {
                 _fileSystem.DeleteDirectory(installPath);
                 linkRemoved = true;
             }
@@ -1266,12 +1156,9 @@ public sealed partial class DependencyWorkflow
     /// published package, which is the exact silence the overlay design was chosen to avoid.
     /// </remarks>
     private void CheckDotnetLinks(
-        string projectDirectory, IReadOnlyDictionary<string, DotnetLink> links, List<DoctorIssue> issues)
-    {
-        foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal))
-        {
-            if (!_fileSystem.FileExists(link.ProjectPath))
-            {
+        string projectDirectory, IReadOnlyDictionary<string, DotnetLink> links, List<DoctorIssue> issues) {
+        foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal)) {
+            if (!_fileSystem.FileExists(link.ProjectPath)) {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.LinkedProjectMissing,
                     $"'{link.PackageId}' is linked to {link.ProjectPath}, which no longer exists. Run "
@@ -1279,25 +1166,20 @@ public sealed partial class DependencyWorkflow
             }
         }
 
-        if (links.Count == 0)
-        {
+        if (links.Count == 0) {
             return;
         }
 
         // The overlay only does anything if the .csproj imports it, and the import lives in a
         // committed file where a merge can lose it.
         string csprojPath;
-        try
-        {
+        try {
             csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
-        }
-        catch (DotnetSyncException)
-        {
+        } catch (DotnetSyncException) {
             return;
         }
 
-        if (!LocalTargetsWriter.HasHook(_fileSystem, csprojPath))
-        {
+        if (!LocalTargetsWriter.HasHook(_fileSystem, csprojPath)) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.LocalOverlayNotImported,
                 $"{csprojPath} does not import {LocalTargetsWriter.FileName}, so this machine's .NET "
@@ -1321,61 +1203,46 @@ public sealed partial class DependencyWorkflow
     /// </summary>
     /// <remarks>Needs only the lockfile, not the manifest: an addon-declared package is built from source
     /// just the same.</remarks>
-    private void CheckSourceBuilds(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
-        if (lockfile.Dotnet.Count == 0)
-        {
+    private void CheckSourceBuilds(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues) {
+        if (lockfile.Dotnet.Count == 0) {
             return;
         }
 
-        try
-        {
+        try {
             issues.AddRange(SourceBuildChecker.Check(_fileSystem, CsprojLocator.Locate(_fileSystem, projectDirectory), lockfile));
-        }
-        catch (DotnetSyncException)
-        {
+        } catch (DotnetSyncException) {
             // No .csproj, several, or one that isn't valid XML: the same reasons CheckPackageAssetDrift
             // stays quiet, and anything that actually writes the file reports them.
         }
     }
 
     private void CheckPackageAssetDrift(
-        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues) {
         string csprojPath;
-        try
-        {
+        try {
             csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
-        }
-        catch (DotnetSyncException)
-        {
+        } catch (DotnetSyncException) {
             // No .csproj, or more than one. A GDScript-only project is perfectly healthy, and the
             // ambiguous case is already reported by anything that actually tries to write.
             return;
         }
 
-        foreach (var locked in lockfile.Dotnet)
-        {
+        foreach (var locked in lockfile.Dotnet) {
             // The project's own declaration wins, exactly as it does at install time. For an
             // addon-declared package the lockfile is the only record of what was asked for.
             var expected = manifest.Dotnet.TryGetValue(locked.Name, out var spec) ? spec.Assets : locked.Assets;
-            if (expected.IsEmpty)
-            {
+            if (expected.IsEmpty) {
                 continue;
             }
 
             PackageAssets? actual;
-            try
-            {
+            try {
                 actual = CsprojPackageReferenceWriter.ReadAssets(_fileSystem, csprojPath, locked.Name);
-            }
-            catch (DotnetSyncException)
-            {
+            } catch (DotnetSyncException) {
                 return;
             }
 
-            if (actual is null)
-            {
+            if (actual is null) {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.PackageAssetMetadataDrift,
                     $"'{locked.Name}' is locked with asset metadata but has no PackageReference in "
@@ -1383,8 +1250,7 @@ public sealed partial class DependencyWorkflow
                 continue;
             }
 
-            if (!DeclaredSlotsMatch(expected, actual))
-            {
+            if (!DeclaredSlotsMatch(expected, actual)) {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.PackageAssetMetadataDrift,
                     $"'{locked.Name}': the asset metadata in {csprojPath} differs from what is declared "
@@ -1410,25 +1276,21 @@ public sealed partial class DependencyWorkflow
     /// job on the next install.</para>
     /// </remarks>
     private void CheckNuGetSourceMappingDrift(
-        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues) {
         // Both gates are the writer's own conditions: with mapping switched off, or with no private
         // feed declared, dotquay writes no mapping at all and there is nothing to have drifted from.
-        if (!manifest.NuGetSourceMapping)
-        {
+        if (!manifest.NuGetSourceMapping) {
             return;
         }
 
         var sources = manifest.SourceSet();
-        if (!sources.HasCustomSources)
-        {
+        if (!sources.HasCustomSources) {
             return;
         }
 
         var mapping = NuGetConfigWriter.ReadSourceMapping(_fileSystem, projectDirectory);
 
-        foreach (var locked in lockfile.Dotnet.Where(dependency => dependency.Source is not null))
-        {
+        foreach (var locked in lockfile.Dotnet.Where(dependency => dependency.Source is not null)) {
             // A manifest pin outranks the lockfile's record here for the same reason it does when the
             // mapping is written: the pin is what the next write will honour.
             var expected = manifest.Dotnet.TryGetValue(locked.Name, out var spec) && spec.Source is not null
@@ -1439,14 +1301,12 @@ public sealed partial class DependencyWorkflow
 
             // A feed the manifest no longer declares is the dangling-entry check's business, and
             // nuget.org needs no pattern of its own - the catch-all already points there.
-            if (source is null || source.IsPublicDefault)
-            {
+            if (source is null || source.IsPublicDefault) {
                 continue;
             }
 
             if (mapping.TryGetValue(source.ConfigKey, out var patterns)
-                && patterns.Any(pattern => PatternCovers(pattern, locked.Name)))
-            {
+                && patterns.Any(pattern => PatternCovers(pattern, locked.Name))) {
                 continue;
             }
 
@@ -1480,12 +1340,10 @@ public sealed partial class DependencyWorkflow
     /// skipped; the other three checks only need the lockfile and disk, so "no dotquay.toml" still
     /// gets a useful answer instead of an unhelpful hard failure.
     /// </summary>
-    public async Task<DoctorResult> DoctorAsync(string projectDirectory, CancellationToken cancellationToken = default)
-    {
+    public async Task<DoctorResult> DoctorAsync(string projectDirectory, CancellationToken cancellationToken = default) {
         var issues = new List<DoctorIssue>();
 
-        if (!await _gitClient.IsAvailableAsync(cancellationToken))
-        {
+        if (!await _gitClient.IsAvailableAsync(cancellationToken)) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.GitNotOnPath,
                 "'git' was not found on PATH. Git-sourced addons cannot be added, updated, or installed."));
@@ -1504,8 +1362,7 @@ public sealed partial class DependencyWorkflow
         // read the file for real refused with the parser's message.
         var localLinks = _localLinks.ReadAll(projectDirectory);
 
-        if (manifest is not null)
-        {
+        if (manifest is not null) {
             CheckDanglingLockfileEntries(projectDirectory, manifest, lockfile, issues);
             CheckManifestForSecrets(manifestPath, issues);
             CheckTrustedHosts(manifest, manifestPath, issues);
@@ -1515,8 +1372,7 @@ public sealed partial class DependencyWorkflow
 
         CheckSourceBuilds(projectDirectory, lockfile, issues);
 
-        foreach (var locked in lockfile.Addons)
-        {
+        foreach (var locked in lockfile.Addons) {
             var folderIsGodotProject = CheckAddonFolderIsGodotProject(projectDirectory, manifest, lockfile, locked, issues);
             CheckPluginCfgDrift(projectDirectory, locked, issues);
             CheckPackageManifestReadable(projectDirectory, locked, folderIsGodotProject, issues);
@@ -1538,12 +1394,10 @@ public sealed partial class DependencyWorkflow
     /// <summary>
     /// Reports an installed addon whose real files are Git LFS placeholders. See <see cref="LfsPointerScanner"/>.
     /// </summary>
-    private void CheckLfsPointers(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
-    {
+    private void CheckLfsPointers(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues) {
         var addonPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
         var pointers = LfsPointerScanner.Scan(_fileSystem, addonPath);
-        if (pointers.Count == 0)
-        {
+        if (pointers.Count == 0) {
             return;
         }
 
@@ -1571,13 +1425,11 @@ public sealed partial class DependencyWorkflow
     /// commit — while the evidence sat in the addon's own files the whole time. The fix is
     /// <c>install_as</c>, which the message names.
     /// </remarks>
-    private void CheckAddonFolderCase(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
-    {
+    private void CheckAddonFolderCase(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues) {
         var addonPath = InstallPaths.For(_fileSystem, projectDirectory, locked);
         var mismatch = AddonFolderCaseChecker.Check(_fileSystem, addonPath, locked.EffectiveFolder);
 
-        if (mismatch is null)
-        {
+        if (mismatch is null) {
             return;
         }
 
@@ -1603,12 +1455,10 @@ public sealed partial class DependencyWorkflow
     /// contract is that it writes the manifest, the lockfile, and <c>addons/</c> — nothing else.
     /// </para>
     /// </remarks>
-    private void CheckFragileUidReferences(string projectDirectory, List<DoctorIssue> issues)
-    {
+    private void CheckFragileUidReferences(string projectDirectory, List<DoctorIssue> issues) {
         var addonsDirectory = _fileSystem.CombinePath(projectDirectory, "addons");
 
-        foreach (var finding in UidReferenceScanner.Scan(_fileSystem, projectDirectory, addonsDirectory))
-        {
+        foreach (var finding in UidReferenceScanner.Scan(_fileSystem, projectDirectory, addonsDirectory)) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.FragileUidReference,
                 $"{finding.File} loads addons/{finding.Target} by {finding.Uid}. A uid:// literal has no "
@@ -1638,8 +1488,7 @@ public sealed partial class DependencyWorkflow
     /// the JSON with it -- costs more than the message saying so plainly.
     /// </para>
     /// </remarks>
-    private void CheckSshHostTrust(DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
+    private void CheckSshHostTrust(DotquayLockfile lockfile, List<DoctorIssue> issues) {
         var paths = KnownHostsReader.DefaultPaths(EnvironmentReader, _fileSystem);
 
         var sshHosts = lockfile.Addons
@@ -1647,11 +1496,9 @@ public sealed partial class DependencyWorkflow
             .Where(entry => entry.Url is { Transport: GitTransport.Ssh })
             .GroupBy(entry => (entry.Url!.Host, entry.Url!.Port));
 
-        foreach (var host in sshHosts)
-        {
+        foreach (var host in sshHosts) {
             var status = KnownHostsReader.Lookup(_fileSystem, paths, host.Key.Host, host.Key.Port);
-            if (status == KnownHostStatus.Trusted)
-            {
+            if (status == KnownHostStatus.Trusted) {
                 continue;
             }
 
@@ -1676,13 +1523,10 @@ public sealed partial class DependencyWorkflow
     /// <summary>Reports <c>trusted_hosts</c> entries that can't do what they read as (SPEC.md §11.3).
     /// The presence of trust is not a fault and is reported through
     /// <see cref="DoctorResult.Trust"/> instead.</summary>
-    private static void CheckTrustedHosts(ProjectManifest manifest, string manifestPath, List<DoctorIssue> issues)
-    {
-        foreach (var entry in manifest.TrustedHosts)
-        {
+    private static void CheckTrustedHosts(ProjectManifest manifest, string manifestPath, List<DoctorIssue> issues) {
+        foreach (var entry in manifest.TrustedHosts) {
             var problem = SourceAdopter.DescribeTrustedHostProblem(entry);
-            if (problem is not null)
-            {
+            if (problem is not null) {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.TrustedHostUnusable,
                     $"{manifestPath}: [nuget] trusted_hosts entry '{entry}' {problem}"));
@@ -1692,10 +1536,8 @@ public sealed partial class DependencyWorkflow
 
     /// <summary>Gathers what the project trusts and which feeds arrived through that trust — so an
     /// over-broad entry, or a feed nobody remembers agreeing to, is visible rather than forgotten.</summary>
-    private static DoctorTrust SummarizeTrust(ProjectManifest? manifest)
-    {
-        if (manifest is null)
-        {
+    private static DoctorTrust SummarizeTrust(ProjectManifest? manifest) {
+        if (manifest is null) {
             return DoctorTrust.Empty;
         }
 
@@ -1710,11 +1552,9 @@ public sealed partial class DependencyWorkflow
     /// <summary>Flags a token pasted into the committed manifest — the one mistake dotquay's own
     /// layout invites, since the feed URL lives there and the credential looks like it belongs beside
     /// it (SPEC.md §11.2).</summary>
-    private void CheckManifestForSecrets(string manifestPath, List<DoctorIssue> issues)
-    {
+    private void CheckManifestForSecrets(string manifestPath, List<DoctorIssue> issues) {
         var found = Doctor.SecretScanner.Describe(_fileSystem.ReadAllText(manifestPath));
-        if (found is null)
-        {
+        if (found is null) {
             return;
         }
 
@@ -1736,17 +1576,14 @@ public sealed partial class DependencyWorkflow
     /// owner-only — rewriting a DACL from here would need Windows-only APIs for a check that is
     /// already satisfied by location.
     /// </remarks>
-    private void CheckCredentialFilePermissions(List<DoctorIssue> issues)
-    {
+    private void CheckCredentialFilePermissions(List<DoctorIssue> issues) {
         var environment = new SystemEnvironmentReader();
-        if (environment.HomeDirectory is null)
-        {
+        if (environment.HomeDirectory is null) {
             return;
         }
 
         var path = TomlCredentialStore.DefaultPath(environment, _fileSystem);
-        if (!_fileSystem.FileExists(path) || OperatingSystem.IsWindows())
-        {
+        if (!_fileSystem.FileExists(path) || OperatingSystem.IsWindows()) {
             return;
         }
 
@@ -1754,8 +1591,7 @@ public sealed partial class DependencyWorkflow
         var openToOthers = mode & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite
             | UnixFileMode.OtherRead | UnixFileMode.OtherWrite);
 
-        if (openToOthers != UnixFileMode.None)
-        {
+        if (openToOthers != UnixFileMode.None) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.CredentialFilePermissions,
                 $"{path} is readable by more than its owner. It holds plaintext tokens — "
@@ -1781,13 +1617,11 @@ public sealed partial class DependencyWorkflow
     /// </para>
     /// </remarks>
     private void CheckDanglingLockfileEntries(
-        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
+        string projectDirectory, ProjectManifest manifest, DotquayLockfile lockfile, List<DoctorIssue> issues) {
         var lockedByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
         var reachable = ComputeReachableAddonNames(lockedByName, manifest.Addons.Keys);
 
-        foreach (var locked in lockfile.Addons.Where(a => !reachable.Contains(a.Name)))
-        {
+        foreach (var locked in lockfile.Addons.Where(a => !reachable.Contains(a.Name))) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.DanglingLockfileEntry,
                 $"'{locked.Name}' is locked but nothing requires it any more — run "
@@ -1798,8 +1632,7 @@ public sealed partial class DependencyWorkflow
         var declaredDotnet = new HashSet<string>(manifest.Dotnet.Keys, StringComparer.Ordinal);
         declaredDotnet.UnionWith(AddonDeclaredDotnetNames(projectDirectory, lockfile, reachable).Keys);
 
-        foreach (var locked in lockfile.Dotnet.Where(d => !declaredDotnet.Contains(d.Name)))
-        {
+        foreach (var locked in lockfile.Dotnet.Where(d => !declaredDotnet.Contains(d.Name))) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.DanglingLockfileEntry,
                 $"'{locked.Name}' (NuGet) is locked but nothing requires it any more — run "
@@ -1820,18 +1653,14 @@ public sealed partial class DependencyWorkflow
     /// worse than reporting it once.
     /// </remarks>
     private Dictionary<string, List<string>> AddonDeclaredDotnetNames(
-        string projectDirectory, DotquayLockfile lockfile, IReadOnlySet<string> reachable)
-    {
+        string projectDirectory, DotquayLockfile lockfile, IReadOnlySet<string> reachable) {
         var declarations = _installedManifests.DotnetDeclarationsByAddon(
             projectDirectory, lockfile.Addons.Where(a => reachable.Contains(a.Name)));
         var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
-        foreach (var (addon, specs) in declarations.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-        {
-            foreach (var spec in specs)
-            {
-                if (!result.TryGetValue(spec.Name, out var addons))
-                {
+        foreach (var (addon, specs) in declarations.OrderBy(kv => kv.Key, StringComparer.Ordinal)) {
+            foreach (var spec in specs) {
+                if (!result.TryGetValue(spec.Name, out var addons)) {
                     addons = [];
                     result[spec.Name] = addons;
                 }
@@ -1857,20 +1686,16 @@ public sealed partial class DependencyWorkflow
     /// re-resolves — and until then the manifest and disk quietly describe two different projects.
     /// </remarks>
     private void CheckInstallFolderDrift(
-        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
+        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile, List<DoctorIssue> issues) {
         var declarations = CollectFolderDeclarations(projectDirectory, manifest, lockfile);
 
-        foreach (var locked in lockfile.Addons)
-        {
-            if (!declarations.TryGetValue(locked.Name, out var declaration))
-            {
+        foreach (var locked in lockfile.Addons) {
+            if (!declarations.TryGetValue(locked.Name, out var declaration)) {
                 continue;
             }
 
             var drift = InstallFolderDriftChecker.Check(locked, declaration);
-            if (drift is null)
-            {
+            if (drift is null) {
                 continue;
             }
 
@@ -1904,26 +1729,21 @@ public sealed partial class DependencyWorkflow
     /// </para>
     /// </remarks>
     private Dictionary<string, InstallFolderDriftChecker.FolderDeclaration> CollectFolderDeclarations(
-        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile)
-    {
+        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile) {
         var declarations = new Dictionary<string, InstallFolderDriftChecker.FolderDeclaration>(StringComparer.Ordinal);
         var disputed = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var locked in lockfile.Addons)
-        {
+        foreach (var locked in lockfile.Addons) {
             var package = TryReadInstalledPackageManifest(projectDirectory, locked.EffectiveFolder);
-            if (package is null)
-            {
+            if (package is null) {
                 continue;
             }
 
-            foreach (var (name, spec) in package.Addons)
-            {
+            foreach (var (name, spec) in package.Addons) {
                 var declaration = Declare(spec, $"addons/{locked.EffectiveFolder}/{ManifestFileName}");
 
                 if (declarations.TryGetValue(name, out var existing)
-                    && !string.Equals(existing.Folder, declaration.Folder, StringComparison.Ordinal))
-                {
+                    && !string.Equals(existing.Folder, declaration.Folder, StringComparison.Ordinal)) {
                     disputed.Add(name);
                     continue;
                 }
@@ -1932,23 +1752,19 @@ public sealed partial class DependencyWorkflow
             }
         }
 
-        foreach (var name in disputed)
-        {
+        foreach (var name in disputed) {
             declarations.Remove(name);
         }
 
-        if (manifest is null)
-        {
+        if (manifest is null) {
             return declarations;
         }
 
-        foreach (var (name, spec) in manifest.Addons)
-        {
+        foreach (var (name, spec) in manifest.Addons) {
             declarations[name] = Declare(spec, $"[addons.{name}] in {ManifestFileName}");
         }
 
-        foreach (var (name, spec) in manifest.Overrides)
-        {
+        foreach (var (name, spec) in manifest.Overrides) {
             declarations[name] = Declare(spec, $"[overrides.{name}] in {ManifestFileName}");
         }
 
@@ -1958,10 +1774,8 @@ public sealed partial class DependencyWorkflow
             new(spec.EffectiveFolder, spec.InstallAs is not null, source);
     }
 
-    private void CheckPluginCfgDrift(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues)
-    {
-        if (locked.Version is null || locked.Version.StartsWith("0.0.0-", StringComparison.Ordinal))
-        {
+    private void CheckPluginCfgDrift(string projectDirectory, LockedAddon locked, List<DoctorIssue> issues) {
+        if (locked.Version is null || locked.Version.StartsWith("0.0.0-", StringComparison.Ordinal)) {
             // A pseudo-version (untagged repo, rev-pinned) has no real upstream release version to
             // compare plugin.cfg against — comparing would just flag every such addon, always.
             return;
@@ -1974,26 +1788,22 @@ public sealed partial class DependencyWorkflow
         // LocalLinks), so comparing it against whatever version the developer has written locally
         // would flag ordinary in-progress work as drift, every time. Same reasoning as
         // AddonStatusEvaluator.Evaluate skipping the content hash for a link.
-        if (_fileSystem.IsDirectoryLink(installedPath))
-        {
+        if (_fileSystem.IsDirectoryLink(installedPath)) {
             return;
         }
 
         var pluginCfgPath = _fileSystem.CombinePath(installedPath, "plugin.cfg");
         var cfgVersion = PluginCfgReader.TryReadVersion(_fileSystem, pluginCfgPath);
-        if (cfgVersion is null)
-        {
+        if (cfgVersion is null) {
             return;
         }
 
         if (!AddonVersion.TryParse(locked.Version, out var lockedVersion) || lockedVersion is null
-            || !AddonVersion.TryParse(cfgVersion, out var cfgParsedVersion) || cfgParsedVersion is null)
-        {
+            || !AddonVersion.TryParse(cfgVersion, out var cfgParsedVersion) || cfgParsedVersion is null) {
             return;
         }
 
-        if (lockedVersion.CompareTo(cfgParsedVersion) != 0)
-        {
+        if (lockedVersion.CompareTo(cfgParsedVersion) != 0) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.PluginCfgVersionDrift,
                 $"'{locked.Name}': its plugin.cfg reports version '{cfgVersion}', but the lockfile has "
@@ -2014,28 +1824,22 @@ public sealed partial class DependencyWorkflow
     /// its missing <c>[package]</c> header on top would send the reader off to "fix" a file that
     /// should not be in <c>addons/</c> at all.</param>
     private void CheckPackageManifestReadable(
-        string projectDirectory, LockedAddon locked, bool folderIsGodotProject, List<DoctorIssue> issues)
-    {
-        if (folderIsGodotProject)
-        {
+        string projectDirectory, LockedAddon locked, bool folderIsGodotProject, List<DoctorIssue> issues) {
+        if (folderIsGodotProject) {
             return;
         }
 
         var manifestPath = _fileSystem.CombinePath(
             InstallPaths.For(_fileSystem, projectDirectory, locked), ManifestFileName);
-        if (!_fileSystem.FileExists(manifestPath))
-        {
+        if (!_fileSystem.FileExists(manifestPath)) {
             // No manifest is the normal case for a third-party addon and costs it nothing
             // (SPEC.md §7.2). Only a manifest that exists but can't be read is worth reporting.
             return;
         }
 
-        try
-        {
+        try {
             ManifestReader.ReadPackage(_fileSystem.ReadAllText(manifestPath), manifestPath);
-        }
-        catch (ManifestParseException ex)
-        {
+        } catch (ManifestParseException ex) {
             issues.Add(new DoctorIssue(
                 DoctorIssueKind.UnreadablePackageManifest,
                 $"'{locked.Name}' ships a dotquay.toml that isn't a valid package manifest, so any dependencies "
@@ -2066,12 +1870,10 @@ public sealed partial class DependencyWorkflow
     /// </para>
     /// </remarks>
     private bool CheckAddonFolderIsGodotProject(
-        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile, LockedAddon locked, List<DoctorIssue> issues)
-    {
+        string projectDirectory, ProjectManifest? manifest, DotquayLockfile lockfile, LockedAddon locked, List<DoctorIssue> issues) {
         var finding = GodotProjectRootChecker.Check(
             _fileSystem, InstallPaths.For(_fileSystem, projectDirectory, locked), locked.Name, locked.Path);
-        if (finding is null)
-        {
+        if (finding is null) {
             return false;
         }
 
@@ -2096,15 +1898,12 @@ public sealed partial class DependencyWorkflow
     /// <summary>Names the manifest whose <c>path</c> for <paramref name="name"/> is the one to edit,
     /// in the same precedence resolution uses (SPEC.md §8): an override, then the project's own
     /// declaration, then whichever locked addon lists it as a dependency.</summary>
-    private static string DescribeDeclaringManifest(ProjectManifest? manifest, DotquayLockfile lockfile, string name)
-    {
-        if (manifest?.Overrides.ContainsKey(name) == true)
-        {
+    private static string DescribeDeclaringManifest(ProjectManifest? manifest, DotquayLockfile lockfile, string name) {
+        if (manifest?.Overrides.ContainsKey(name) == true) {
             return $"this project's dotquay.toml ([overrides.{name}])";
         }
 
-        if (manifest?.Addons.ContainsKey(name) == true)
-        {
+        if (manifest?.Addons.ContainsKey(name) == true) {
             return $"this project's dotquay.toml ([addons.{name}])";
         }
 
@@ -2115,11 +1914,9 @@ public sealed partial class DependencyWorkflow
             : $"'{parent.Name}''s package manifest (addons/{parent.EffectiveFolder}/dotquay.toml)";
     }
 
-    private void CheckOrphanedAddonFolders(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues)
-    {
+    private void CheckOrphanedAddonFolders(string projectDirectory, DotquayLockfile lockfile, List<DoctorIssue> issues) {
         var addonsPath = InstallPaths.AddonsRoot(_fileSystem, projectDirectory);
-        if (!_fileSystem.DirectoryExists(addonsPath))
-        {
+        if (!_fileSystem.DirectoryExists(addonsPath)) {
             return;
         }
 
@@ -2131,11 +1928,9 @@ public sealed partial class DependencyWorkflow
         // addon, so there is nothing for it to be an orphan of.
         var visibility = new GodotVisibility(_fileSystem, addonsPath);
 
-        foreach (var dir in _fileSystem.EnumerateDirectories(addonsPath))
-        {
+        foreach (var dir in _fileSystem.EnumerateDirectories(addonsPath)) {
             var name = dir.Replace('\\', '/').TrimEnd('/').Split('/').Last();
-            if (!lockedFolders.Contains(name) && visibility.IsVisible(name, isDirectory: true))
-            {
+            if (!lockedFolders.Contains(name) && visibility.IsVisible(name, isDirectory: true)) {
                 issues.Add(new DoctorIssue(
                     DoctorIssueKind.OrphanedAddonFolder,
                     $"'addons/{name}' is on disk but isn't tracked by any locked addon — a leftover from a "
@@ -2159,18 +1954,15 @@ public sealed partial class DependencyWorkflow
     /// actually resolves against, which can surface an unrelated, older-looking tag as if it were
     /// "newer" simply because it satisfies a different range.
     /// </summary>
-    public async Task<OutdatedResult> OutdatedAsync(string projectDirectory, CancellationToken cancellationToken = default)
-    {
+    public async Task<OutdatedResult> OutdatedAsync(string projectDirectory, CancellationToken cancellationToken = default) {
         var (manifest, _) = ReadManifestOrThrow(projectDirectory);
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
 
         var addonResults = new List<AddonOutdatedInfo>();
         var checkedCount = 0;
-        foreach (var locked in lockfile.Addons)
-        {
+        foreach (var locked in lockfile.Addons) {
             if (!manifest.Overrides.TryGetValue(locked.Name, out var spec) &&
-                !manifest.Addons.TryGetValue(locked.Name, out spec))
-            {
+                !manifest.Addons.TryGetValue(locked.Name, out spec)) {
                 continue;
             }
 
@@ -2179,17 +1971,14 @@ public sealed partial class DependencyWorkflow
             _progress.Report($"checking {locked.Name}", ++checkedCount, lockfile.Addons.Count);
 
             var info = await CheckAddonOutdatedOrThrowAsync(spec, locked, cancellationToken);
-            if (info is not null)
-            {
+            if (info is not null) {
                 addonResults.Add(info);
             }
         }
 
         var dotnetResults = new List<DotnetOutdatedInfo>();
-        foreach (var locked in lockfile.Dotnet)
-        {
-            if (!manifest.Dotnet.TryGetValue(locked.Name, out var spec))
-            {
+        foreach (var locked in lockfile.Dotnet) {
+            if (!manifest.Dotnet.TryGetValue(locked.Name, out var spec)) {
                 continue;
             }
 
@@ -2200,15 +1989,12 @@ public sealed partial class DependencyWorkflow
             var nuGetClient = _nuGetClientFactory.Create(manifest.SourceSet(), spec.Source ?? locked.Source);
 
             string? latest;
-            try
-            {
+            try {
                 // The manifest's own range, the same one `update` resolves with (DESIGN-v0.21 §3.5): an
                 // upgrade `update` would not make is not reported as outdated.
                 latest = await NuGetVersionSelector.CheckForNewerWithinAsync(
                     nuGetClient, locked.Name, locked.Resolved, ParseDotnetConstraintOrThrow(locked.Name, spec.Version), cancellationToken);
-            }
-            catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException)
-            {
+            } catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException) {
                 // Translated here rather than left to escape: the CLI commands catch
                 // WorkflowException, so an untranslated feed error reaches the user as an unhandled
                 // exception with a stack trace — and, under --json, with no envelope at all.
@@ -2221,56 +2007,46 @@ public sealed partial class DependencyWorkflow
         return new OutdatedResult(addonResults, dotnetResults);
     }
 
-    private async Task<AddonOutdatedInfo?> CheckAddonOutdatedOrThrowAsync(AddonSpec spec, LockedAddon locked, CancellationToken cancellationToken)
-    {
-        try
-        {
+    private async Task<AddonOutdatedInfo?> CheckAddonOutdatedOrThrowAsync(AddonSpec spec, LockedAddon locked, CancellationToken cancellationToken) {
+        try {
             return await CheckAddonOutdatedAsync(spec, locked, cancellationToken);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException($"'{spec.Name}': {ex.Message}", ex);
         }
     }
 
-    private async Task<AddonOutdatedInfo?> CheckAddonOutdatedAsync(AddonSpec spec, LockedAddon locked, CancellationToken cancellationToken)
-    {
-        switch (spec.SourceKind)
-        {
+    private async Task<AddonOutdatedInfo?> CheckAddonOutdatedAsync(AddonSpec spec, LockedAddon locked, CancellationToken cancellationToken) {
+        switch (spec.SourceKind) {
             case AddonSourceKind.Rev:
                 // A hard pin names the exact commit already — nothing upstream to compare it to.
                 return null;
 
-            case AddonSourceKind.Branch:
-            {
-                var tip = await _gitClient.ResolveBranchTipAsync(spec.Git, spec.Branch!, cancellationToken);
-                var isOutdated = !string.Equals(tip, locked.Resolved, StringComparison.OrdinalIgnoreCase);
-                return new AddonOutdatedInfo(
-                    locked.Name, ShortSha(locked.Resolved), isOutdated ? ShortSha(tip) : null, isOutdated);
-            }
-
-            case AddonSourceKind.Version:
-            {
-                if (!VersionConstraint.TryParse(spec.Version!, out var constraint) || constraint is null)
-                {
-                    // The manifest wouldn't have resolved successfully in the first place with an
-                    // invalid constraint — nothing meaningful to report if this somehow happens.
-                    return null;
+            case AddonSourceKind.Branch: {
+                    var tip = await _gitClient.ResolveBranchTipAsync(spec.Git, spec.Branch!, cancellationToken);
+                    var isOutdated = !string.Equals(tip, locked.Resolved, StringComparison.OrdinalIgnoreCase);
+                    return new AddonOutdatedInfo(
+                        locked.Name, ShortSha(locked.Resolved), isOutdated ? ShortSha(tip) : null, isOutdated);
                 }
 
-                var refs = await _gitClient.ListRemoteRefsAsync(spec.Git, cancellationToken);
-                var match = TagSelector.SelectHighestMatching(refs, constraint);
-                if (match is null)
-                {
-                    // Nothing currently satisfies the constraint (e.g. the matching tag was
-                    // deleted upstream since locking) — outdated has nothing newer to offer.
-                    return null;
-                }
+            case AddonSourceKind.Version: {
+                    if (!VersionConstraint.TryParse(spec.Version!, out var constraint) || constraint is null) {
+                        // The manifest wouldn't have resolved successfully in the first place with an
+                        // invalid constraint — nothing meaningful to report if this somehow happens.
+                        return null;
+                    }
 
-                var isOutdated = !string.Equals(match.Ref.CommitSha, locked.Resolved, StringComparison.OrdinalIgnoreCase);
-                var current = locked.Version ?? ShortSha(locked.Resolved);
-                return new AddonOutdatedInfo(locked.Name, current, isOutdated ? match.Version.OriginalTag : null, isOutdated);
-            }
+                    var refs = await _gitClient.ListRemoteRefsAsync(spec.Git, cancellationToken);
+                    var match = TagSelector.SelectHighestMatching(refs, constraint);
+                    if (match is null) {
+                        // Nothing currently satisfies the constraint (e.g. the matching tag was
+                        // deleted upstream since locking) — outdated has nothing newer to offer.
+                        return null;
+                    }
+
+                    var isOutdated = !string.Equals(match.Ref.CommitSha, locked.Resolved, StringComparison.OrdinalIgnoreCase);
+                    var current = locked.Version ?? ShortSha(locked.Resolved);
+                    return new AddonOutdatedInfo(locked.Name, current, isOutdated ? match.Version.OriginalTag : null, isOutdated);
+                }
 
             default:
                 throw new UnreachableException($"Unknown {nameof(AddonSourceKind)}: {spec.SourceKind}");
@@ -2288,17 +2064,13 @@ public sealed partial class DependencyWorkflow
     /// means none was declared, which selects the newest stable release.
     /// </remarks>
     private async Task<(string Version, string? SourceName)> ResolveDotnetVersionOrThrowAsync(
-        INuGetClient nuGetClient, string packageId, VersionConstraint? constraint, CancellationToken cancellationToken)
-    {
-        try
-        {
+        INuGetClient nuGetClient, string packageId, VersionConstraint? constraint, CancellationToken cancellationToken) {
+        try {
             var query = await nuGetClient.GetVersionsAsync(packageId, cancellationToken);
 
-            if (constraint is not null)
-            {
+            if (constraint is not null) {
                 var match = NuGetVersionSelector.SelectHighestMatching(query.Versions, constraint);
-                if (match is null)
-                {
+                if (match is null) {
                     var newest = NuGetVersionSelector.SelectLatestStable(query.Versions);
                     throw new WorkflowException(
                         $"'{packageId}' has no version matching '{constraint}' on NuGet"
@@ -2312,15 +2084,12 @@ public sealed partial class DependencyWorkflow
             }
 
             var latest = NuGetVersionSelector.SelectLatestStable(query.Versions);
-            if (latest is null)
-            {
+            if (latest is null) {
                 throw new WorkflowException(DescribeNoStableRelease(packageId, query));
             }
 
             return (latest, query.SourceName);
-        }
-        catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException)
-        {
+        } catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException) {
             throw new WorkflowException($"'{packageId}': {ex.Message}", ex);
         }
     }
@@ -2336,15 +2105,11 @@ public sealed partial class DependencyWorkflow
     /// if it fails, so a refused restore leaves the project as it was (DESIGN-v0.21 §4).
     /// </summary>
     private async Task<LockedDotnet> InstallDotnetRestoringOnFailureAsync(
-        string projectDirectory, Func<Task<LockedDotnet>> install)
-    {
+        string projectDirectory, Func<Task<LockedDotnet>> install) {
         var snapshot = DotnetFilesSnapshot.Capture(_fileSystem, projectDirectory);
-        try
-        {
+        try {
             return await install();
-        }
-        catch
-        {
+        } catch {
             snapshot.Restore();
             throw;
         }
@@ -2366,10 +2131,8 @@ public sealed partial class DependencyWorkflow
         DotnetSpec? projectSpec,
         IReadOnlyDictionary<string, DotnetSpec>? addonDeclaredByName,
         IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements,
-        CancellationToken cancellationToken)
-    {
-        if (projectSpec is not null)
-        {
+        CancellationToken cancellationToken) {
+        if (projectSpec is not null) {
             return await ResolveDotnetVersionOrThrowAsync(
                 nuGetClient, packageId, ParseDotnetConstraintOrThrow(packageId, projectSpec.Version), cancellationToken);
         }
@@ -2382,10 +2145,8 @@ public sealed partial class DependencyWorkflow
                     : [];
 
         VersionConstraint? combined = null;
-        foreach (var range in ranges)
-        {
-            if (!VersionConstraint.TryParse(range.Version, out var constraint) || constraint is null)
-            {
+        foreach (var range in ranges) {
+            if (!VersionConstraint.TryParse(range.Version, out var constraint) || constraint is null) {
                 throw new WorkflowException(
                     $"'{packageId}': '{range.Version}' (from {range.AddonName}) is not a valid version constraint.");
             }
@@ -2393,12 +2154,9 @@ public sealed partial class DependencyWorkflow
             combined = combined is null ? constraint : combined.Intersect(constraint);
         }
 
-        try
-        {
+        try {
             return await ResolveDotnetVersionOrThrowAsync(nuGetClient, packageId, combined, cancellationToken);
-        }
-        catch (WorkflowException ex) when (ranges.Count > 1)
-        {
+        } catch (WorkflowException ex) when (ranges.Count > 1) {
             throw new WorkflowException(
                 $"'{packageId}': no version satisfies every addon that declares it — "
                 + string.Join("; ", ranges.Select(r => $"{r.AddonName} wants {r.Version}"))
@@ -2416,16 +2174,13 @@ public sealed partial class DependencyWorkflow
     /// range from, and the <c>.csproj</c> needs a real one. A range with no single version in it
     /// (<c>1.2.*</c>, <c>&gt;=1 &lt;2</c>) is refused rather than guessed at.
     /// </remarks>
-    private static string? LinkedFirstVersion(string packageId, DotnetSpec? spec)
-    {
-        if (spec is null)
-        {
+    private static string? LinkedFirstVersion(string packageId, DotnetSpec? spec) {
+        if (spec is null) {
             return null;
         }
 
         var text = spec.Version.Trim().TrimStart('^', '~', '=');
-        if (AddonVersion.TryParse(text, out var version) && version is not null)
-        {
+        if (AddonVersion.TryParse(text, out var version) && version is not null) {
             return text;
         }
 
@@ -2438,15 +2193,12 @@ public sealed partial class DependencyWorkflow
     /// Parses a <c>[dotnet.*]</c> <c>version</c> (or an <c>add --version</c>), naming the package when
     /// it isn't in the constraint language. Null in, null out: nothing was declared.
     /// </summary>
-    private static VersionConstraint? ParseDotnetConstraintOrThrow(string packageId, string? text)
-    {
-        if (text is null)
-        {
+    private static VersionConstraint? ParseDotnetConstraintOrThrow(string packageId, string? text) {
+        if (text is null) {
             return null;
         }
 
-        if (!VersionConstraint.TryParse(text, out var constraint) || constraint is null)
-        {
+        if (!VersionConstraint.TryParse(text, out var constraint) || constraint is null) {
             throw new WorkflowException(
                 $"'{packageId}': '{text}' is not a valid version constraint. Use an exact version (1.2.3), a "
                 + "range (^1.2, ~1.2, 1.2.*, >=1.2 <2), or a prerelease (5.1.0-rc1). NuGet's interval "
@@ -2468,8 +2220,7 @@ public sealed partial class DependencyWorkflow
     /// things to go check (was it actually published? does the token have read_package_registry?)
     /// instead of a dead end that looks like a typo in the package ID.
     /// </remarks>
-    private static string DescribeNoStableRelease(string packageId, NuGetVersionQuery query)
-    {
+    private static string DescribeNoStableRelease(string packageId, NuGetVersionQuery query) {
         return $"'{packageId}' has no stable release on NuGet — pass an explicit version (including "
             + "prerelease) if you want to add it anyway."
             + DescribeCheckedSources(query);
@@ -2483,11 +2234,9 @@ public sealed partial class DependencyWorkflow
     /// Shared by "no stable release" and "no version in the range" (DESIGN-v0.21): both can mean the
     /// package, or the versions the range wants, sit on a private feed the token can't see.
     /// </remarks>
-    private static string DescribeCheckedSources(NuGetVersionQuery query)
-    {
+    private static string DescribeCheckedSources(NuGetVersionQuery query) {
         var privateSourcesChecked = query.CheckedSources.Where(s => s != NuGetSourceSpec.PublicName).ToList();
-        if (privateSourcesChecked.Count == 0)
-        {
+        if (privateSourcesChecked.Count == 0) {
             return "";
         }
 
@@ -2502,14 +2251,10 @@ public sealed partial class DependencyWorkflow
     /// it is rebuilt from the link file rather than edited — and a no-op, with no file left behind,
     /// for the overwhelmingly common case of a project with no dotnet links.
     /// </summary>
-    private void SyncLocalTargets(string projectDirectory)
-    {
-        try
-        {
+    private void SyncLocalTargets(string projectDirectory) {
+        try {
             LocalTargetsWriter.Sync(_fileSystem, projectDirectory, _localLinks.ReadDotnet(projectDirectory));
-        }
-        catch (LocalLinkException ex)
-        {
+        } catch (LocalLinkException ex) {
             throw new WorkflowException(ex.Message, ex);
         }
     }
@@ -2525,10 +2270,8 @@ public sealed partial class DependencyWorkflow
         CancellationToken cancellationToken,
         PackageAssets? assets = null,
         PackageAssets? previouslyWritten = null,
-        ICollection<SourceBuiltPackage>? sourceBuilt = null)
-    {
-        try
-        {
+        ICollection<SourceBuiltPackage>? sourceBuilt = null) {
+        try {
             var outcome = await _dotnetInstaller.InstallWithOutcomeAsync(
                 projectDirectory,
                 packageId,
@@ -2542,19 +2285,14 @@ public sealed partial class DependencyWorkflow
                 previouslyWritten,
                 cancellationToken);
 
-            if (outcome.SourceBuilt is not null)
-            {
+            if (outcome.SourceBuilt is not null) {
                 sourceBuilt?.Add(outcome.SourceBuilt);
             }
 
             return outcome.Locked;
-        }
-        catch (DotnetSyncException ex)
-        {
+        } catch (DotnetSyncException ex) {
             throw new WorkflowException($"'{packageId}': {ex.Message}", ex);
-        }
-        catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException)
-        {
+        } catch (Exception ex) when (ex is NuGetAuthenticationException or NuGetSourceException) {
             throw new WorkflowException($"'{packageId}': {ex.Message}", ex);
         }
     }
@@ -2596,8 +2334,7 @@ public sealed partial class DependencyWorkflow
         IReadOnlyList<LockedDotnet> known,
         string packageId,
         string version,
-        string? resolvedSourceName)
-    {
+        string? resolvedSourceName) {
         // What is being written now wins over whatever the lockfile still says about the same
         // package, including when it resolves from nuget.org this time: dropping the stale entry is
         // what keeps the old feed's pattern from outliving the change.
@@ -2620,12 +2357,10 @@ public sealed partial class DependencyWorkflow
     /// </remarks>
     private static IReadOnlyList<LockedDotnet> KnownDotnet(
         IReadOnlyDictionary<string, LockedDotnet> previous,
-        IReadOnlyDictionary<string, LockedDotnet> installed)
-    {
+        IReadOnlyDictionary<string, LockedDotnet> installed) {
         var known = new Dictionary<string, LockedDotnet>(previous, StringComparer.Ordinal);
 
-        foreach (var (name, locked) in installed)
-        {
+        foreach (var (name, locked) in installed) {
             known[name] = locked;
         }
 
@@ -2636,10 +2371,8 @@ public sealed partial class DependencyWorkflow
         string projectDirectory,
         ProjectManifest manifest,
         CancellationToken cancellationToken,
-        IReadOnlyList<LockedDotnet>? resolvedDotnet = null)
-    {
-        try
-        {
+        IReadOnlyList<LockedDotnet>? resolvedDotnet = null) {
+        try {
             // The final restore is where NuGet.Config's mapping is written from the complete set:
             // per-package installs only ever know part of it (SPEC.md §11.1).
             await _dotnetInstaller.RestoreAsync(
@@ -2648,9 +2381,7 @@ public sealed partial class DependencyWorkflow
                 cancellationToken,
                 resolvedDotnet is null ? null : manifest.MappedPackages(resolvedDotnet),
                 manifest.NuGetSourceMapping);
-        }
-        catch (DotnetSyncException ex)
-        {
+        } catch (DotnetSyncException ex) {
             throw new WorkflowException(ex.Message, ex);
         }
     }
@@ -2662,21 +2393,16 @@ public sealed partial class DependencyWorkflow
     /// and a refused ssh key escaped the CLI as an unhandled exception with a stack trace.
     /// </remarks>
     private async Task<AddonSpec> BuildDefaultSpecAsync(
-        string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken)
-    {
-        try
-        {
+        string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken) {
+        try {
             return await BuildDefaultSpecCoreAsync(name, gitUrl, pathOverride, installAs, cancellationToken);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException($"'{name}': {ex.Message}", ex);
         }
     }
 
     private async Task<AddonSpec> BuildDefaultSpecCoreAsync(
-        string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken)
-    {
+        string name, string gitUrl, string? pathOverride, string? installAs, CancellationToken cancellationToken) {
         var refs = await _gitClient.ListRemoteRefsAsync(gitUrl, cancellationToken);
 
         var highestTag = refs
@@ -2686,11 +2412,9 @@ public sealed partial class DependencyWorkflow
             .OrderByDescending(t => t.Version)
             .FirstOrDefault();
 
-        if (highestTag.Version is not null)
-        {
+        if (highestTag.Version is not null) {
             var minorComponents = highestTag.Version.Components.Take(Math.Min(2, highestTag.Version.Components.Count));
-            return new AddonSpec
-            {
+            return new AddonSpec {
                 Name = name,
                 Git = gitUrl,
                 Version = "~" + string.Join('.', minorComponents),
@@ -2706,18 +2430,12 @@ public sealed partial class DependencyWorkflow
         return new AddonSpec { Name = name, Git = gitUrl, Rev = sha, Path = pathOverride, InstallAs = installAs };
     }
 
-    private async Task<ResolvedAddon> ResolveOrThrowAsync(AddonSpec spec, CancellationToken cancellationToken)
-    {
-        try
-        {
+    private async Task<ResolvedAddon> ResolveOrThrowAsync(AddonSpec spec, CancellationToken cancellationToken) {
+        try {
             return await _resolver.ResolveAsync(spec, cancellationToken);
-        }
-        catch (AddonResolutionException ex)
-        {
+        } catch (AddonResolutionException ex) {
             throw new WorkflowException(ex.Message, ex);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException($"'{spec.Name}': {ex.Message}", ex);
         }
     }
@@ -2727,30 +2445,20 @@ public sealed partial class DependencyWorkflow
     /// <see cref="AddonInstaller"/> so the installer stays a pure "put this commit at this path"
     /// step and every caller gets link behaviour without asking for it.</summary>
     private async Task<LockedAddon> InstallAddonOrThrowAsync(
-        ResolvedAddon resolved, string projectDirectory, LockedAddon? previous, bool force, CancellationToken cancellationToken)
-    {
-        try
-        {
+        ResolvedAddon resolved, string projectDirectory, LockedAddon? previous, bool force, CancellationToken cancellationToken) {
+        try {
             _localLinks.Read(projectDirectory).TryGetValue(resolved.Name, out var link);
             return await _addonInstaller.InstallAsync(
                 resolved, ReadLayout(projectDirectory), previous, force, link, cancellationToken);
-        }
-        catch (LocalLinkException ex)
-        {
+        } catch (LocalLinkException ex) {
             throw new WorkflowException(ex.Message, ex);
-        }
-        catch (ModifiedAddonException ex)
-        {
+        } catch (ModifiedAddonException ex) {
             var changes = await DescribeLocalChangesAsync(
                 projectDirectory, previous, ex.ModifiedPath, cancellationToken);
             throw new WorkflowException(ex.Message + changes, ex);
-        }
-        catch (SyncException ex)
-        {
+        } catch (SyncException ex) {
             throw new WorkflowException(ex.Message, ex);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException($"'{resolved.Name}': {ex.Message}", ex);
         }
     }
@@ -2784,8 +2492,7 @@ public sealed partial class DependencyWorkflow
         DotquayLockfile lockfile,
         IReadOnlySet<string> freshNames,
         bool force,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var previousAddonsByName = lockfile.Addons.ToDictionary(a => a.Name, StringComparer.Ordinal);
         var rootSpecs = BuildRootSpecs(manifest, previousAddonsByName, freshNames);
 
@@ -2798,16 +2505,11 @@ public sealed partial class DependencyWorkflow
         var graphResolver = new DependencyGraphResolver(_fileSystem, _gitClient, _repoCache, discoveryRoot);
 
         GraphResolutionResult graph;
-        try
-        {
+        try {
             graph = await graphResolver.ResolveGraphAsync(rootSpecs, manifest.Overrides, cancellationToken);
-        }
-        catch (AddonResolutionException ex)
-        {
+        } catch (AddonResolutionException ex) {
             throw new WorkflowException(ex.Message, ex);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException(ex.Message, ex);
         }
 
@@ -2820,8 +2522,7 @@ public sealed partial class DependencyWorkflow
         var declaredLinks = ReadAddonLinksOrThrow(projectDirectory);
 
         var syncedCount = 0;
-        foreach (var entry in graph.Addons)
-        {
+        foreach (var entry in graph.Addons) {
             var addonName = entry.Resolved.Name;
             _progress.Report($"installing {addonName}", ++syncedCount, graph.Addons.Count);
             previousAddonsByName.TryGetValue(addonName, out var previous);
@@ -2857,8 +2558,7 @@ public sealed partial class DependencyWorkflow
             ReportIfHeldBackByALink(declaredLinks, addonName, previous, entry.Resolved.ResolvedSha, warnings);
         }
 
-        foreach (var orphan in previousAddonsByName.Values.Where(a => !resultByName.ContainsKey(a.Name)))
-        {
+        foreach (var orphan in previousAddonsByName.Values.Where(a => !resultByName.ContainsKey(a.Name))) {
             // InstallPaths, not addons/<name>: with install_as those differ, and deleting by name
             // would miss the real folder and leave the orphan on disk — where Godot keeps loading it.
             _fileSystem.DeleteDirectory(InstallPaths.For(_fileSystem, projectDirectory, orphan));
@@ -2869,8 +2569,7 @@ public sealed partial class DependencyWorkflow
         var adoption = new SourceAdopter(SourceApproval).Evaluate(
             manifest, graph.AddonDeclaredSources.Select(s => (s.AddonName, s.Source)).ToList(), graph.DotnetPackagesByAddon);
 
-        return new GraphSyncResult(resultByName.Values.ToList(), graph.AddonDeclaredDotnet, warnings, adoption)
-        {
+        return new GraphSyncResult(resultByName.Values.ToList(), graph.AddonDeclaredDotnet, warnings, adoption) {
             AddonDotnetRequirements = graph.AddonDotnetRequirements,
         };
     }
@@ -2894,14 +2593,12 @@ public sealed partial class DependencyWorkflow
         string addonName,
         LockedAddon? previous,
         string resolvedSha,
-        List<GraphWarning> warnings)
-    {
+        List<GraphWarning> warnings) {
         // No previous entry means nothing was held back: the link path locked the commit it was
         // given, because there was no earlier one to keep.
         if (previous is null
             || !declaredLinks.TryGetValue(addonName, out var link)
-            || string.Equals(previous.Resolved, resolvedSha, StringComparison.Ordinal))
-        {
+            || string.Equals(previous.Resolved, resolvedSha, StringComparison.Ordinal)) {
             return;
         }
 
@@ -2922,14 +2619,10 @@ public sealed partial class DependencyWorkflow
     /// The same translation <see cref="InstallAddonOrThrowAsync"/> performs, in one place, so the
     /// two cannot end up disagreeing about whether a broken local file stops the run.
     /// </remarks>
-    private IReadOnlyDictionary<string, LocalLink> ReadAddonLinksOrThrow(string projectDirectory)
-    {
-        try
-        {
+    private IReadOnlyDictionary<string, LocalLink> ReadAddonLinksOrThrow(string projectDirectory) {
+        try {
             return _localLinks.Read(projectDirectory);
-        }
-        catch (LocalLinkException ex)
-        {
+        } catch (LocalLinkException ex) {
             throw new WorkflowException(ex.Message, ex);
         }
     }
@@ -2947,20 +2640,16 @@ public sealed partial class DependencyWorkflow
     private static Dictionary<string, AddonSpec> BuildRootSpecs(
         ProjectManifest manifest,
         IReadOnlyDictionary<string, LockedAddon> previousAddonsByName,
-        IReadOnlySet<string> freshNames)
-    {
+        IReadOnlySet<string> freshNames) {
         var rootSpecs = new Dictionary<string, AddonSpec>(StringComparer.Ordinal);
 
-        foreach (var (addonName, spec) in manifest.Addons)
-        {
-            if (freshNames.Contains(addonName) || !previousAddonsByName.TryGetValue(addonName, out var previousLocked))
-            {
+        foreach (var (addonName, spec) in manifest.Addons) {
+            if (freshNames.Contains(addonName) || !previousAddonsByName.TryGetValue(addonName, out var previousLocked)) {
                 rootSpecs[addonName] = spec;
                 continue;
             }
 
-            rootSpecs[addonName] = new AddonSpec
-            {
+            rootSpecs[addonName] = new AddonSpec {
                 Name = addonName,
                 Git = previousLocked.Git,
                 Rev = previousLocked.Resolved,
@@ -2981,8 +2670,7 @@ public sealed partial class DependencyWorkflow
         IReadOnlyList<LockedAddon> Addons,
         IReadOnlyList<DotnetSpec> AddonDeclaredDotnet,
         IReadOnlyList<GraphWarning> Warnings,
-        SourceAdopter.Result Adoption)
-    {
+        SourceAdopter.Result Adoption) {
         /// <summary>Every addon's range per NuGet package (DESIGN-v0.21 §3.5).</summary>
         public IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>> AddonDotnetRequirements { get; init; } =
             new Dictionary<string, IReadOnlyList<AddonDotnetRequirement>>(StringComparer.Ordinal);
@@ -3000,13 +2688,10 @@ public sealed partial class DependencyWorkflow
     /// "no stable release".
     /// </remarks>
     private static (ProjectManifest Manifest, IReadOnlyDictionary<string, string> RefusalHints) ApplyAdoption(
-        ProjectManifest manifest, SourceAdopter.Result adoption)
-    {
+        ProjectManifest manifest, SourceAdopter.Result adoption) {
         var hints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var refused in adoption.Refused)
-        {
-            foreach (var packageId in refused.PackageIds)
-            {
+        foreach (var refused in adoption.Refused) {
+            foreach (var packageId in refused.PackageIds) {
                 hints[packageId] =
                     $"Addon '{refused.AddonName}' declares the NuGet feed {refused.Source.Url}, which was not "
                     + $"adopted. Add its host to [nuget] trusted_hosts, or declare the feed yourself under "
@@ -3014,8 +2699,7 @@ public sealed partial class DependencyWorkflow
             }
         }
 
-        if (adoption.Adopted.Count == 0)
-        {
+        if (adoption.Adopted.Count == 0) {
             return (manifest, hints);
         }
 
@@ -3046,17 +2730,13 @@ public sealed partial class DependencyWorkflow
         IReadOnlyDictionary<string, string>? refusalHints = null,
         IReadOnlyList<DotnetSpec>? addonDeclared = null,
         IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements = null,
-        ICollection<SourceBuiltPackage>? sourceBuilt = null)
-    {
+        ICollection<SourceBuiltPackage>? sourceBuilt = null) {
         var snapshot = DotnetFilesSnapshot.Capture(_fileSystem, projectDirectory);
-        try
-        {
+        try {
             return await SyncDotnetUnguardedAsync(
                 projectDirectory, manifest, previousDotnet, targetNames, pruneUnreachable, cancellationToken,
                 refusalHints, addonDeclared, addonRequirements, sourceBuilt);
-        }
-        catch
-        {
+        } catch {
             snapshot.Restore();
             throw;
         }
@@ -3072,8 +2752,7 @@ public sealed partial class DependencyWorkflow
         IReadOnlyDictionary<string, string>? refusalHints,
         IReadOnlyList<DotnetSpec>? addonDeclared,
         IReadOnlyDictionary<string, IReadOnlyList<AddonDotnetRequirement>>? addonRequirements,
-        ICollection<SourceBuiltPackage>? sourceBuilt)
-    {
+        ICollection<SourceBuiltPackage>? sourceBuilt) {
         var sources = manifest.SourceSet();
         var addonDeclaredByName = addonDeclared?.ToDictionary(s => s.Name, StringComparer.Ordinal);
         var previousByName = previousDotnet.ToDictionary(d => d.Name, StringComparer.Ordinal);
@@ -3081,8 +2760,7 @@ public sealed partial class DependencyWorkflow
         var resultByName = new Dictionary<string, LockedDotnet>(StringComparer.Ordinal);
         var anyChanged = false;
 
-        foreach (var targetName in targetNames)
-        {
+        foreach (var targetName in targetNames) {
             previousByName.TryGetValue(targetName, out var previous);
 
             // Per package, because a pin narrows the search to one feed and the pins differ between
@@ -3101,15 +2779,12 @@ public sealed partial class DependencyWorkflow
 
             string version;
             string? resolvedSource;
-            try
-            {
+            try {
                 (version, resolvedSource) = linkedVersion is not null
                     ? (linkedVersion, previous?.Source)
                     : await ResolveDotnetForSyncAsync(
                         nuGetClient, targetName, spec, addonDeclaredByName, addonRequirements, cancellationToken);
-            }
-            catch (WorkflowException ex) when (refusalHints?.TryGetValue(targetName, out var hint) == true)
-            {
+            } catch (WorkflowException ex) when (refusalHints?.TryGetValue(targetName, out var hint) == true) {
                 // The package failed to resolve and a feed that might have had it was declined.
                 // Saying so here is the difference between "no stable release on NuGet" — which
                 // sounds like the package doesn't exist — and an answer the user can act on.
@@ -3141,28 +2816,19 @@ public sealed partial class DependencyWorkflow
             anyChanged |= changed;
         }
 
-        if (pruneUnreachable)
-        {
-            foreach (var orphanName in previousByName.Keys.Where(n => !targetNames.Contains(n)))
-            {
-                try
-                {
+        if (pruneUnreachable) {
+            foreach (var orphanName in previousByName.Keys.Where(n => !targetNames.Contains(n))) {
+                try {
                     _dotnetInstaller.Remove(projectDirectory, orphanName);
-                }
-                catch (DotnetSyncException ex)
-                {
+                } catch (DotnetSyncException ex) {
                     throw new WorkflowException(ex.Message, ex);
                 }
 
                 anyChanged = true;
             }
-        }
-        else
-        {
-            foreach (var (packageId, previous) in previousByName)
-            {
-                if (!targetNames.Contains(packageId))
-                {
+        } else {
+            foreach (var (packageId, previous) in previousByName) {
+                if (!targetNames.Contains(packageId)) {
                     resultByName[packageId] = previous;
                 }
             }
@@ -3172,8 +2838,7 @@ public sealed partial class DependencyWorkflow
         // linked package's assemblies come from, and restore is what acts on that.
         SyncLocalTargets(projectDirectory);
 
-        if (anyChanged)
-        {
+        if (anyChanged) {
             await RestoreDotnetOrThrowAsync(projectDirectory, manifest, cancellationToken, resultByName.Values.ToList());
         }
 
@@ -3186,26 +2851,20 @@ public sealed partial class DependencyWorkflow
     /// "the lockfile stores graph edges so install replays the graph without network access to
     /// manifests" — this is the same property applied to pruning).</summary>
     private static HashSet<string> ComputeReachableAddonNames(
-        IReadOnlyDictionary<string, LockedAddon> lockedByName, IEnumerable<string> rootNames)
-    {
+        IReadOnlyDictionary<string, LockedAddon> lockedByName, IEnumerable<string> rootNames) {
         var reachable = new HashSet<string>(StringComparer.Ordinal);
         var queue = new Queue<string>();
 
-        foreach (var rootName in rootNames)
-        {
-            if (lockedByName.ContainsKey(rootName) && reachable.Add(rootName))
-            {
+        foreach (var rootName in rootNames) {
+            if (lockedByName.ContainsKey(rootName) && reachable.Add(rootName)) {
                 queue.Enqueue(rootName);
             }
         }
 
-        while (queue.Count > 0)
-        {
+        while (queue.Count > 0) {
             var current = queue.Dequeue();
-            foreach (var child in lockedByName[current].Dependencies)
-            {
-                if (lockedByName.ContainsKey(child) && reachable.Add(child))
-                {
+            foreach (var child in lockedByName[current].Dependencies) {
+                if (lockedByName.ContainsKey(child) && reachable.Add(child)) {
                     queue.Enqueue(child);
                 }
             }

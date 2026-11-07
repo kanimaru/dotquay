@@ -15,8 +15,7 @@ namespace Dotquay.Tests.Sync;
 /// ignores these files, the dirty check therefore stops reporting untouched addons as modified, and
 /// the swap puts back the ones the incoming version doesn't ship so UIDs stay stable.
 /// </remarks>
-public class GodotArtifactTests
-{
+public class GodotArtifactTests {
     // -- the rule itself --------------------------------------------------------------------
 
     [Theory]
@@ -58,8 +57,7 @@ public class GodotArtifactTests
     // -- the editor's native-library copies -------------------------------------------------
 
     [Fact]
-    public void HashDirectory_IsUnchangedByTheEditorLoadingAGdExtension()
-    {
+    public void HashDirectory_IsUnchangedByTheEditorLoadingAGdExtension() {
         // The bug, reduced: the editor loads GDMP.windows.dll by copying it to ~GDMP.windows.dll and
         // loading the copy, so an untouched addon grew a 13 MB file and read as modified.
         var fileSystem = new InMemoryFileSystem();
@@ -73,8 +71,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_DoesNotCarryOverTheEditorsLibraryCopy()
-    {
+    public void SwapAndHash_DoesNotCarryOverTheEditorsLibraryCopy() {
         // Unlike a .uid it carries no identity, and after the swap it would be a stale copy of the
         // library that was just replaced.
         var fileSystem = new InMemoryFileSystem();
@@ -93,8 +90,7 @@ public class GodotArtifactTests
     // -- the hash ---------------------------------------------------------------------------
 
     [Fact]
-    public void HashDirectory_IsUnchangedByTheEditorImportingTheProject()
-    {
+    public void HashDirectory_IsUnchangedByTheEditorImportingTheProject() {
         // The bug, reduced: an addon installs clean, Godot opens the project, and every script grows
         // a .uid sidecar. Nothing the user did, but the folder used to hash differently afterwards.
         var fileSystem = new InMemoryFileSystem();
@@ -109,8 +105,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void HashDirectory_StillNoticesARealEdit()
-    {
+    public void HashDirectory_StillNoticesARealEdit() {
         // The guard has to keep working — ignoring artifacts must not become ignoring changes.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/r3/GodotFrameProvider.cs", "original");
@@ -122,8 +117,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void HashDirectoryIncludingArtifacts_StillSeesThem()
-    {
+    public void HashDirectoryIncludingArtifacts_StillSeesThem() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/r3/GodotFrameProvider.cs", "class GodotFrameProvider {}");
 
@@ -136,8 +130,7 @@ public class GodotArtifactTests
     // -- the migration ----------------------------------------------------------------------
 
     [Fact]
-    public void Check_LockfileHashFromBeforeTheChange_IsStillClean()
-    {
+    public void Check_LockfileHashFromBeforeTheChange_IsStillClean() {
         // An addon that ships its own .uid files had them folded into the hash recorded at install
         // time. Excluding them now changes that number — on content nobody touched — so the old form
         // has to keep counting as clean.
@@ -156,8 +149,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void Check_LegacyHashDoesNotExcuseARealEdit()
-    {
+    public void Check_LegacyHashDoesNotExcuseARealEdit() {
         // Accepting either form must not become accepting anything.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/gut/gut.gd", "extends Node");
@@ -169,8 +161,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_RecordedHashReconcilesWithNothing_ButTheTreeIsPristine_IsAllowed()
-    {
+    public void SwapAndHash_RecordedHashReconcilesWithNothing_ButTheTreeIsPristine_IsAllowed() {
         // The real case, from a real project. Gut ships its own .uid files, so they were folded into
         // the hash recorded at install; Godot then rewrote its .import files. Neither the current nor
         // the legacy hash can match any more, on content byte-identical to upstream. Comparing
@@ -194,8 +185,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_TreeDiffersFromIncoming_StillRefuses()
-    {
+    public void SwapAndHash_TreeDiffersFromIncoming_StillRefuses() {
         // The acquittal must stay narrow: it excuses only a destination identical to what would
         // replace it. A genuine hand-edit is exactly the case P0-6 exists for.
         var fileSystem = new InMemoryFileSystem();
@@ -211,8 +201,7 @@ public class GodotArtifactTests
     // -- the swap ---------------------------------------------------------------------------
 
     [Fact]
-    public void SwapAndHash_CarriesOverGeneratedArtifactsTheNewVersionDoesNotShip()
-    {
+    public void SwapAndHash_CarriesOverGeneratedArtifactsTheNewVersionDoesNotShip() {
         // Without this the update deletes the .uid, Godot generates a *new* one, and every uid://
         // reference into the addon points at something that no longer exists.
         var fileSystem = new InMemoryFileSystem();
@@ -229,8 +218,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_AnArtifactTheAddonShipsWins()
-    {
+    public void SwapAndHash_AnArtifactTheAddonShipsWins() {
         // The author versioned it, and the author's uid is what the addon's own scenes reference.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/gut/gut.gd", "v1");
@@ -246,8 +234,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_CarriesArtifactsFromNestedFolders()
-    {
+    public void SwapAndHash_CarriesArtifactsFromNestedFolders() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/gut/images/icon.png", "binary");
         fileSystem.WriteAllText("addons/gut/images/icon.png.import", "[remap]\nuid=\"uid://cabc\"");
@@ -261,8 +248,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_DoesNotCarryOverRealFiles()
-    {
+    public void SwapAndHash_DoesNotCarryOverRealFiles() {
         // A file the new version dropped must actually disappear; only artifacts are preserved.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/gut/gut.gd", "v1");
@@ -277,8 +263,7 @@ public class GodotArtifactTests
     }
 
     [Fact]
-    public void SwapAndHash_ReturnedHashIgnoresTheCarriedArtifacts()
-    {
+    public void SwapAndHash_ReturnedHashIgnoresTheCarriedArtifacts() {
         // The hash recorded in the lockfile must describe the addon, not this machine's uids —
         // otherwise a teammate installing the same commit records a different number.
         var fileSystem = new InMemoryFileSystem();

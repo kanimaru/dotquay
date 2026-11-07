@@ -18,8 +18,7 @@ namespace Dotquay.Core.Resolve;
 /// <c>version</c> ranges unifies to the highest published non-prerelease tag satisfying all of them
 /// simultaneously.
 /// </remarks>
-public sealed class AddonUnifier
-{
+public sealed class AddonUnifier {
     /// <summary>Cap on how many alternative tags a <see cref="GraphConflictKind.NoCommonVersion"/>
     /// conflict offers. A picker showing every tag a long-lived repo ever published is neither
     /// useful nor cheap to ship through JSON; the highest N are the ones anyone actually chooses
@@ -29,22 +28,18 @@ public sealed class AddonUnifier
     private readonly IGitClient _gitClient;
     private readonly AddonResolver _resolver;
 
-    public AddonUnifier(IGitClient gitClient)
-    {
+    public AddonUnifier(IGitClient gitClient) {
         _gitClient = gitClient;
         _resolver = new AddonResolver(gitClient);
     }
 
     public async Task<UnificationOutcome> UnifyAsync(
-        string name, IReadOnlyList<AddonRequirement> requirements, CancellationToken cancellationToken = default)
-    {
-        if (requirements.Count == 0)
-        {
+        string name, IReadOnlyList<AddonRequirement> requirements, CancellationToken cancellationToken = default) {
+        if (requirements.Count == 0) {
             throw new ArgumentException($"No requirements were collected for '{name}'.", nameof(requirements));
         }
 
-        if (requirements.Count == 1)
-        {
+        if (requirements.Count == 1) {
             return await ResolveSingleAsync(name, requirements[0], requirements, cancellationToken);
         }
 
@@ -57,8 +52,7 @@ public sealed class AddonUnifier
             .Select(r => Git.GitUrl.TryParse(r.Spec.Git, out var url) && url is not null ? url.Identity : r.Spec.Git)
             .Distinct(StringComparer.Ordinal)
             .ToList();
-        if (distinctRepositories.Count > 1)
-        {
+        if (distinctRepositories.Count > 1) {
             return UnificationOutcome.Failure(await BuildDifferentGitUrlsConflictAsync(name, requirements, cancellationToken));
         }
 
@@ -67,19 +61,16 @@ public sealed class AddonUnifier
         // only hold one. Unlike a version range there is nothing to narrow, so this is reported
         // rather than guessed.
         var folderConflict = TryBuildFolderConflict(name, requirements);
-        if (folderConflict is not null)
-        {
+        if (folderConflict is not null) {
             return UnificationOutcome.Failure(folderConflict);
         }
 
         var pins = requirements.Where(r => r.Spec.SourceKind != AddonSourceKind.Version).ToList();
         var versions = requirements.Where(r => r.Spec.SourceKind == AddonSourceKind.Version).ToList();
 
-        if (pins.Count > 0)
-        {
+        if (pins.Count > 0) {
             var distinctPins = pins.Select(r => PinKey(r.Spec)).Distinct(StringComparer.Ordinal).ToList();
-            if (distinctPins.Count > 1 || versions.Count > 0)
-            {
+            if (distinctPins.Count > 1 || versions.Count > 0) {
                 return UnificationOutcome.Failure(await BuildDisjointPinsConflictAsync(name, requirements, cancellationToken));
             }
 
@@ -95,13 +86,10 @@ public sealed class AddonUnifier
         string name,
         IReadOnlyList<AddonRequirement> versionRequirements,
         IReadOnlyList<AddonRequirement> allRequirements,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var parsed = new List<(AddonRequirement Requirement, VersionConstraint Constraint)>();
-        foreach (var requirement in versionRequirements)
-        {
-            if (!VersionConstraint.TryParse(requirement.Spec.Version!, out var constraint) || constraint is null)
-            {
+        foreach (var requirement in versionRequirements) {
+            if (!VersionConstraint.TryParse(requirement.Spec.Version!, out var constraint) || constraint is null) {
                 return UnificationOutcome.Failure(new GraphConflict(
                     name,
                     GraphConflictKind.InvalidConstraint,
@@ -127,22 +115,18 @@ public sealed class AddonUnifier
 
         AddonVersion? best = null;
         GitRef? bestRef = null;
-        foreach (var (version, gitRef) in tags)
-        {
-            if (!parsed.All(p => p.Constraint.IsSatisfiedBy(version)))
-            {
+        foreach (var (version, gitRef) in tags) {
+            if (!parsed.All(p => p.Constraint.IsSatisfiedBy(version))) {
                 continue;
             }
 
-            if (best is null || version.CompareTo(best) > 0)
-            {
+            if (best is null || version.CompareTo(best) > 0) {
                 best = version;
                 bestRef = gitRef;
             }
         }
 
-        if (best is not null && bestRef is not null)
-        {
+        if (best is not null && bestRef is not null) {
             return UnificationOutcome.Success(
                 new ResolvedAddon(name, gitUrl, bestRef.CommitSha, best.OriginalTag, effectivePath, installAs));
         }
@@ -180,14 +164,12 @@ public sealed class AddonUnifier
     /// whichever one some addon hardcodes in a <c>preload</c>. Candidates carry the requirer's own
     /// source spec too, so accepting one maps straight onto a complete <c>[overrides]</c> entry.
     /// </remarks>
-    private static GraphConflict? TryBuildFolderConflict(string name, IReadOnlyList<AddonRequirement> requirements)
-    {
+    private static GraphConflict? TryBuildFolderConflict(string name, IReadOnlyList<AddonRequirement> requirements) {
         var byFolder = requirements
             .GroupBy(r => r.Spec.EffectiveFolder, StringComparer.Ordinal)
             .ToList();
 
-        if (byFolder.Count < 2)
-        {
+        if (byFolder.Count < 2) {
             return null;
         }
 
@@ -244,16 +226,13 @@ public sealed class AddonUnifier
     /// hiding it.
     /// </summary>
     private async Task<IReadOnlyList<GraphCandidate>> BuildPerRequirementCandidatesAsync(
-        IReadOnlyList<AddonRequirement> requirements, CancellationToken cancellationToken)
-    {
+        IReadOnlyList<AddonRequirement> requirements, CancellationToken cancellationToken) {
         var candidates = new List<GraphCandidate>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var requirement in requirements)
-        {
+        foreach (var requirement in requirements) {
             var key = requirement.Spec.Git + " " + PinKey(requirement.Spec);
-            if (!seen.Add(key))
-            {
+            if (!seen.Add(key)) {
                 continue;
             }
 
@@ -275,18 +254,12 @@ public sealed class AddonUnifier
         return candidates;
     }
 
-    private async Task<string?> TryResolveShaAsync(AddonSpec spec, CancellationToken cancellationToken)
-    {
-        try
-        {
+    private async Task<string?> TryResolveShaAsync(AddonSpec spec, CancellationToken cancellationToken) {
+        try {
             return (await _resolver.ResolveAsync(spec, cancellationToken)).ResolvedSha;
-        }
-        catch (AddonResolutionException)
-        {
+        } catch (AddonResolutionException) {
             return null;
-        }
-        catch (Git.GitCommandException)
-        {
+        } catch (Git.GitCommandException) {
             return null;
         }
     }
@@ -298,14 +271,10 @@ public sealed class AddonUnifier
         string name,
         AddonRequirement chosen,
         IReadOnlyList<AddonRequirement> allRequirements,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
+        CancellationToken cancellationToken) {
+        try {
             return UnificationOutcome.Success(await _resolver.ResolveAsync(chosen.Spec, cancellationToken));
-        }
-        catch (AddonResolutionException ex)
-        {
+        } catch (AddonResolutionException ex) {
             var candidates = chosen.Spec.SourceKind == AddonSourceKind.Version
                 ? (await ListVersionTagsAsync(chosen.Spec.Git, includePrereleases: false, cancellationToken))
                     .OrderByDescending(t => t.Version)
@@ -325,18 +294,15 @@ public sealed class AddonUnifier
     }
 
     private async Task<IReadOnlyList<(AddonVersion Version, GitRef Ref)>> ListVersionTagsAsync(
-        string gitUrl, bool includePrereleases, CancellationToken cancellationToken)
-    {
+        string gitUrl, bool includePrereleases, CancellationToken cancellationToken) {
         var refs = await _gitClient.ListRemoteRefsAsync(gitUrl, cancellationToken);
 
         var tags = new List<(AddonVersion, GitRef)>();
-        foreach (var gitRef in refs)
-        {
+        foreach (var gitRef in refs) {
             if (gitRef.Kind == GitRefKind.Tag
                 && AddonVersion.TryParse(gitRef.Name, out var version)
                 && version is not null
-                && (includePrereleases || !version.IsPrerelease))
-            {
+                && (includePrereleases || !version.IsPrerelease)) {
                 tags.Add((version, gitRef));
             }
         }
@@ -344,15 +310,13 @@ public sealed class AddonUnifier
         return tags;
     }
 
-    private static string PinKey(AddonSpec spec) => spec.SourceKind switch
-    {
+    private static string PinKey(AddonSpec spec) => spec.SourceKind switch {
         AddonSourceKind.Rev => $"rev:{spec.Rev}",
         AddonSourceKind.Branch => $"branch:{spec.Branch}",
         _ => $"version:{spec.Version}",
     };
 
-    private static string PinDescription(AddonSpec spec) => spec.SourceKind switch
-    {
+    private static string PinDescription(AddonSpec spec) => spec.SourceKind switch {
         AddonSourceKind.Rev => $"rev {spec.Rev}",
         AddonSourceKind.Branch => $"branch {spec.Branch}",
         _ => $"version {spec.Version}",

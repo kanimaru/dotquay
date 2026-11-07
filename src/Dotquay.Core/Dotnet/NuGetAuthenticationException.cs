@@ -14,11 +14,9 @@ namespace Dotquay.Core.Dotnet;
 /// feed is a dependency-confusion substitution — precisely the outcome ordered resolution exists to
 /// prevent (SPEC.md §11.1).</para>
 /// </remarks>
-public sealed class NuGetAuthenticationException : Exception
-{
+public sealed class NuGetAuthenticationException : Exception {
     public NuGetAuthenticationException(string sourceName, string sourceUrl, string message)
-        : base(message)
-    {
+        : base(message) {
         SourceName = sourceName;
         SourceUrl = sourceUrl;
     }

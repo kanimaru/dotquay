@@ -11,15 +11,13 @@ namespace Dotquay.Cli.Commands;
 /// plugin, a piped script — uses <see cref="DeclineSubtreeChoice"/> and gets an error naming the
 /// flags instead, so a run that cannot ask a human never installs from a folder nobody named.
 /// </remarks>
-internal sealed class ConsoleSubtreeChoice : ISubtreeChoice
-{
+internal sealed class ConsoleSubtreeChoice : ISubtreeChoice {
     /// <summary>The prompt, or <see cref="DeclineSubtreeChoice"/> when there is no one to ask —
     /// <c>--json</c>, or redirected input, which covers CI and the plugin.</summary>
     public static ISubtreeChoice For(bool json) =>
         json || Console.IsInputRedirected ? DeclineSubtreeChoice.Instance : new ConsoleSubtreeChoice();
 
-    public bool Accept(SubtreeChoiceRequest request)
-    {
+    public bool Accept(SubtreeChoiceRequest request) {
         // This question is raised in the middle of a resolve, so the spinner is mid-line and still
         // repainting. Without this the first line lands on the spinner's own row and the frames keep
         // overwriting the question while the user reads it.

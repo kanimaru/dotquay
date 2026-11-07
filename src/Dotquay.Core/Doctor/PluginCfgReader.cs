@@ -22,27 +22,20 @@ namespace Dotquay.Core.Doctor;
 /// <c>version</c> key all report "nothing to say" (null) rather than throwing — one addon's
 /// unreadable metadata should never crash the whole <c>doctor</c> run.
 /// </remarks>
-public static class PluginCfgReader
-{
-    public static string? TryReadVersion(IFileSystem fileSystem, string pluginCfgPath)
-    {
-        if (!fileSystem.FileExists(pluginCfgPath))
-        {
+public static class PluginCfgReader {
+    public static string? TryReadVersion(IFileSystem fileSystem, string pluginCfgPath) {
+        if (!fileSystem.FileExists(pluginCfgPath)) {
             return null;
         }
 
         TomlTable table;
-        try
-        {
+        try {
             table = DotquayToml.Parse(fileSystem.ReadAllText(pluginCfgPath), pluginCfgPath);
-        }
-        catch (TomlException)
-        {
+        } catch (TomlException) {
             return null;
         }
 
-        if (!table.TryGetValue("plugin", out var pluginObj) || pluginObj is not TomlTable pluginTable)
-        {
+        if (!table.TryGetValue("plugin", out var pluginObj) || pluginObj is not TomlTable pluginTable) {
             return null;
         }
 

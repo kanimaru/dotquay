@@ -10,24 +10,20 @@ namespace Dotquay.Tests.Sync;
 /// made before dotquay checked for Git LFS pointers can hold placeholders where binaries belong, and would
 /// keep handing them out on every install, on every project, without ever touching the network again.
 /// </summary>
-public class RepoCacheLfsTests
-{
+public class RepoCacheLfsTests {
     private const string Url = "https://example.com/gdmp.git";
     private const string Sha = "5f977e7ac86903e970c556cc93d7d05e542b68f0";
 
-    private sealed class RecordingGit : IGitClient
-    {
+    private sealed class RecordingGit : IGitClient {
         public int Fetches, Verifications;
         public Exception? VerifyThrows;
 
-        public Task FetchCommitAsync(string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default)
-        {
+        public Task FetchCommitAsync(string repositoryUrl, string commitSha, string destinationPath, CancellationToken cancellationToken = default) {
             Fetches++;
             return Task.CompletedTask;
         }
 
-        public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
-        {
+        public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default) {
             Verifications++;
             return VerifyThrows is null ? Task.CompletedTask : Task.FromException(VerifyThrows);
         }
@@ -38,16 +34,14 @@ public class RepoCacheLfsTests
         public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
-    private static (RepoCache Cache, RecordingGit Git, InMemoryFileSystem Fs) Build()
-    {
+    private static (RepoCache Cache, RecordingGit Git, InMemoryFileSystem Fs) Build() {
         var fs = new InMemoryFileSystem();
         var git = new RecordingGit();
         return (new RepoCache(fs, git, "cache"), git, fs);
     }
 
     [Fact]
-    public async Task AFreshFetch_IsMarkedVerified_SoTheNextUseDoesNotCheckAgain()
-    {
+    public async Task AFreshFetch_IsMarkedVerified_SoTheNextUseDoesNotCheckAgain() {
         var (cache, git, _) = Build();
 
         await cache.GetOrFetchAsync(Url, Sha);
@@ -59,8 +53,7 @@ public class RepoCacheLfsTests
     }
 
     [Fact]
-    public async Task ALegacyEntry_WithTheShaAloneInItsMarker_IsVerifiedOnceThenMarked()
-    {
+    public async Task ALegacyEntry_WithTheShaAloneInItsMarker_IsVerifiedOnceThenMarked() {
         var (cache, git, fs) = Build();
         var path = cache.GetCachePath(Url, Sha);
         fs.WriteAllText(fs.CombinePath(path, ".dotquay-fetch-complete"), Sha); // what older dotquay wrote
@@ -73,8 +66,7 @@ public class RepoCacheLfsTests
     }
 
     [Fact]
-    public async Task ALegacyEntryThatCannotBeVerified_FailsLoudlyInsteadOfBeingReused()
-    {
+    public async Task ALegacyEntryThatCannotBeVerified_FailsLoudlyInsteadOfBeingReused() {
         var (cache, git, fs) = Build();
         git.VerifyThrows = new InvalidOperationException("git-lfs is not installed");
         fs.WriteAllText(fs.CombinePath(cache.GetCachePath(Url, Sha), ".dotquay-fetch-complete"), Sha);

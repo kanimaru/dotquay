@@ -21,8 +21,7 @@ namespace Dotquay.Core.Dotnet;
 /// it (which the lockfile records), in which case it is removed. Anything else on the element —
 /// <c>Condition</c>, <c>NoWarn</c>, unrelated children — is never touched.
 /// </remarks>
-public static class CsprojPackageReferenceWriter
-{
+public static class CsprojPackageReferenceWriter {
     /// <summary>The three MSBuild metadata names, paired with their slot on
     /// <see cref="PackageAssets"/>. One table so a new slot cannot be added to the model and
     /// forgotten here.</summary>
@@ -46,20 +45,15 @@ public static class CsprojPackageReferenceWriter
         string packageId,
         string version,
         PackageAssets? declared = null,
-        PackageAssets? previouslyWritten = null)
-    {
+        PackageAssets? previouslyWritten = null) {
         var (document, project) = Load(fileSystem, csprojPath);
 
         var existing = FindReference(project, packageId);
-        if (existing is not null)
-        {
+        if (existing is not null) {
             existing.SetAttributeValue("Version", version);
-        }
-        else
-        {
+        } else {
             var itemGroup = project.Elements("ItemGroup").FirstOrDefault(g => g.Elements("PackageReference").Any());
-            if (itemGroup is null)
-            {
+            if (itemGroup is null) {
                 itemGroup = new XElement("ItemGroup");
                 AddBeforeTrailingImports(project, itemGroup);
             }
@@ -75,13 +69,11 @@ public static class CsprojPackageReferenceWriter
 
     /// <summary>Removes a <c>PackageReference</c> if present. Returns whether one was found and
     /// removed, so callers can tell "already gone" from "just removed" without a second read.</summary>
-    public static bool Remove(IFileSystem fileSystem, string csprojPath, string packageId)
-    {
+    public static bool Remove(IFileSystem fileSystem, string csprojPath, string packageId) {
         var (document, project) = Load(fileSystem, csprojPath);
 
         var existing = FindReference(project, packageId);
-        if (existing is null)
-        {
+        if (existing is null) {
             return false;
         }
 
@@ -91,8 +83,7 @@ public static class CsprojPackageReferenceWriter
     }
 
     /// <summary>Whether the <c>.csproj</c> references <paramref name="packageId"/> as a package at all.</summary>
-    public static bool HasReference(IFileSystem fileSystem, string csprojPath, string packageId)
-    {
+    public static bool HasReference(IFileSystem fileSystem, string csprojPath, string packageId) {
         var (_, project) = Load(fileSystem, csprojPath);
         return FindReference(project, packageId) is not null;
     }
@@ -101,16 +92,14 @@ public static class CsprojPackageReferenceWriter
     /// The asset metadata currently on a package's reference, or null when the package has no
     /// reference at all. Used by <c>doctor</c> to compare the file against the manifest.
     /// </summary>
-    public static PackageAssets? ReadAssets(IFileSystem fileSystem, string csprojPath, string packageId)
-    {
+    public static PackageAssets? ReadAssets(IFileSystem fileSystem, string csprojPath, string packageId) {
         var (_, project) = Load(fileSystem, csprojPath);
         var existing = FindReference(project, packageId);
 
         return existing is null ? null : ReadAssets(existing);
     }
 
-    private static PackageAssets ReadAssets(XElement reference) => new()
-    {
+    private static PackageAssets ReadAssets(XElement reference) => new() {
         Include = ReadSlot(reference, "IncludeAssets"),
         Exclude = ReadSlot(reference, "ExcludeAssets"),
         Private = ReadSlot(reference, "PrivateAssets"),
@@ -126,11 +115,9 @@ public static class CsprojPackageReferenceWriter
     /// beside an existing attribute, so the same reference would carry the metadata twice with
     /// MSBuild's precedence, not dotquay, deciding the winner.
     /// </remarks>
-    private static IReadOnlyList<string>? ReadSlot(XElement reference, string name)
-    {
+    private static IReadOnlyList<string>? ReadSlot(XElement reference, string name) {
         var attribute = reference.Attribute(name);
-        if (attribute is not null)
-        {
+        if (attribute is not null) {
             return PackageAssets.Parse(attribute.Value);
         }
 
@@ -138,21 +125,17 @@ public static class CsprojPackageReferenceWriter
         return child is null ? null : PackageAssets.Parse(child.Value);
     }
 
-    private static void SyncAssets(XElement reference, PackageAssets declared, PackageAssets previouslyWritten)
-    {
-        foreach (var (element, get) in AssetSlots)
-        {
+    private static void SyncAssets(XElement reference, PackageAssets declared, PackageAssets previouslyWritten) {
+        foreach (var (element, get) in AssetSlots) {
             var wanted = get(declared);
 
-            if (wanted is not null)
-            {
+            if (wanted is not null) {
                 WriteSlot(reference, element, wanted);
                 continue;
             }
 
             // Not declared. Only ours to remove if we are the ones who put it there.
-            if (get(previouslyWritten) is not null)
-            {
+            if (get(previouslyWritten) is not null) {
                 ClearSlot(reference, element);
             }
         }
@@ -160,13 +143,11 @@ public static class CsprojPackageReferenceWriter
 
     /// <summary>Writes a slot, preserving whichever spelling the file already uses so dotquay does not
     /// rewrite a hand-authored file's style out from under its author.</summary>
-    private static void WriteSlot(XElement reference, string name, IReadOnlyList<string> tags)
-    {
+    private static void WriteSlot(XElement reference, string name, IReadOnlyList<string> tags) {
         var value = PackageAssets.Format(tags);
 
         var attribute = reference.Attribute(name);
-        if (attribute is not null)
-        {
+        if (attribute is not null) {
             attribute.Value = value;
 
             // A file carrying both spellings is already ambiguous; collapse it rather than leave two
@@ -176,8 +157,7 @@ public static class CsprojPackageReferenceWriter
         }
 
         var child = reference.Element(name);
-        if (child is not null)
-        {
+        if (child is not null) {
             child.Value = value;
             return;
         }
@@ -185,8 +165,7 @@ public static class CsprojPackageReferenceWriter
         reference.Add(new XElement(name, value));
     }
 
-    private static void ClearSlot(XElement reference, string name)
-    {
+    private static void ClearSlot(XElement reference, string name) {
         reference.Attribute(name)?.Remove();
         reference.Element(name)?.Remove();
     }
@@ -202,32 +181,26 @@ public static class CsprojPackageReferenceWriter
     /// (docs/DESIGN-v0.11-LOCAL-DOTNET-LINK.md, "How the overlay works"). The hook is looked for
     /// explicitly as well, so a hand-edit that puts something after it still can't push the group below.
     /// </remarks>
-    private static void AddBeforeTrailingImports(XElement project, XElement itemGroup)
-    {
+    private static void AddBeforeTrailingImports(XElement project, XElement itemGroup) {
         XNode? anchor = project.Elements().FirstOrDefault(LocalTargetsWriter.IsHook);
 
-        if (anchor is null)
-        {
+        if (anchor is null) {
             // Walk back over the trailing run of imports and comments; the earliest import is the anchor.
-            for (var node = project.LastNode; node is XElement { Name.LocalName: "Import" } or XComment; node = node.PreviousNode)
-            {
-                if (node is XElement)
-                {
+            for (var node = project.LastNode; node is XElement { Name.LocalName: "Import" } or XComment; node = node.PreviousNode) {
+                if (node is XElement) {
                     anchor = node;
                 }
             }
         }
 
-        if (anchor is null)
-        {
+        if (anchor is null) {
             project.Add(itemGroup);
             return;
         }
 
         // Keep a comment that annotates the import (the hook writes one) attached to it. Load parses
         // without preserving whitespace, so comments are direct siblings.
-        while (anchor.PreviousNode is XComment comment)
-        {
+        while (anchor.PreviousNode is XComment comment) {
             anchor = comment;
         }
 
@@ -238,21 +211,16 @@ public static class CsprojPackageReferenceWriter
         project.Descendants("PackageReference")
             .FirstOrDefault(e => string.Equals((string?)e.Attribute("Include"), packageId, StringComparison.OrdinalIgnoreCase));
 
-    private static (XDocument Document, XElement Project) Load(IFileSystem fileSystem, string csprojPath)
-    {
+    private static (XDocument Document, XElement Project) Load(IFileSystem fileSystem, string csprojPath) {
         XDocument document;
-        try
-        {
+        try {
             document = XDocument.Parse(fileSystem.ReadAllText(csprojPath));
-        }
-        catch (System.Xml.XmlException ex)
-        {
+        } catch (System.Xml.XmlException ex) {
             throw new DotnetSyncException($"{csprojPath}: not valid XML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         var project = document.Root;
-        if (project is null || project.Name.LocalName != "Project")
-        {
+        if (project is null || project.Name.LocalName != "Project") {
             throw new DotnetSyncException($"{csprojPath}: expected a <Project> root element.");
         }
 

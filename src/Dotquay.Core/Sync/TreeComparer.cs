@@ -15,23 +15,19 @@ namespace Dotquay.Core.Sync;
 /// <c>InMemoryFileSystem</c> alone and reusable by anything else that ends up needing a classified
 /// diff.
 /// </remarks>
-public static class TreeComparer
-{
+public static class TreeComparer {
     /// <summary>
     /// Every path that differs between <paramref name="expectedRoot"/> and
     /// <paramref name="actualRoot"/>, ordered so the differences that matter come first.
     /// </summary>
-    public static IReadOnlyList<TreeChange> Compare(IFileSystem fileSystem, string expectedRoot, string actualRoot)
-    {
+    public static IReadOnlyList<TreeChange> Compare(IFileSystem fileSystem, string expectedRoot, string actualRoot) {
         var expected = Index(fileSystem, expectedRoot);
         var actual = Index(fileSystem, actualRoot);
 
         var changes = new List<TreeChange>();
 
-        foreach (var (relative, actualPath) in actual)
-        {
-            if (!expected.TryGetValue(relative, out var expectedPath))
-            {
+        foreach (var (relative, actualPath) in actual) {
+            if (!expected.TryGetValue(relative, out var expectedPath)) {
                 changes.Add(new TreeChange(relative, ChangeKind.Added, ChangeClassifier.ClassifyByPath(relative)));
                 continue;
             }
@@ -39,15 +35,13 @@ public static class TreeComparer
             var expectedBytes = fileSystem.ReadAllBytes(expectedPath);
             var actualBytes = fileSystem.ReadAllBytes(actualPath);
 
-            if (!expectedBytes.AsSpan().SequenceEqual(actualBytes))
-            {
+            if (!expectedBytes.AsSpan().SequenceEqual(actualBytes)) {
                 changes.Add(new TreeChange(
                     relative, ChangeKind.Changed, ChangeClassifier.Classify(relative, expectedBytes, actualBytes)));
             }
         }
 
-        foreach (var relative in expected.Keys.Where(key => !actual.ContainsKey(key)))
-        {
+        foreach (var relative in expected.Keys.Where(key => !actual.ContainsKey(key))) {
             changes.Add(new TreeChange(relative, ChangeKind.Removed, ChangeClassifier.ClassifyByPath(relative)));
         }
 
@@ -60,8 +54,7 @@ public static class TreeComparer
             .ToList();
     }
 
-    private static int SortPriority(ChangeClass @class) => @class switch
-    {
+    private static int SortPriority(ChangeClass @class) => @class switch {
         ChangeClass.Content => 0,
         ChangeClass.UidOnly => 1,
         ChangeClass.WhitespaceOnly => 2,
@@ -70,17 +63,14 @@ public static class TreeComparer
         _ => 5,
     };
 
-    private static Dictionary<string, string> Index(IFileSystem fileSystem, string root)
-    {
-        if (!fileSystem.DirectoryExists(root))
-        {
+    private static Dictionary<string, string> Index(IFileSystem fileSystem, string root) {
+        if (!fileSystem.DirectoryExists(root)) {
             return [];
         }
 
         var index = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var file in fileSystem.EnumerateFiles(root, recursive: true))
-        {
+        foreach (var file in fileSystem.EnumerateFiles(root, recursive: true)) {
             index[NormalizeRelative(file, root)] = file;
         }
 
@@ -90,8 +80,7 @@ public static class TreeComparer
     /// <summary>Deliberately a copy of <see cref="ContentHasher"/>'s own normalisation rather than a
     /// shared helper: the hasher decides what "modified" means and is not to be edited for the
     /// convenience of the thing that merely explains it.</summary>
-    private static string NormalizeRelative(string filePath, string root)
-    {
+    private static string NormalizeRelative(string filePath, string root) {
         var relative = filePath[root.Length..].TrimStart('/', '\\');
         return relative.Replace('\\', '/');
     }

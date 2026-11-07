@@ -15,13 +15,11 @@ namespace Dotquay.Tests.Resolve;
 /// UI to offer a way out (SPEC.md §18). A conflict that reports no usable candidate is a conflict the
 /// editor's picker can only shrug at, so the candidate assertions matter as much as the kind ones.
 /// </remarks>
-public class AddonUnifierTests
-{
+public class AddonUnifierTests {
     private const string CoreUrl = "https://example.com/core.git";
     private const string ForkUrl = "https://example.com/core-fork.git";
 
-    private static (AddonUnifier Unifier, FakeGitClient GitClient) Build()
-    {
+    private static (AddonUnifier Unifier, FakeGitClient GitClient) Build() {
         var gitClient = new FakeGitClient();
         return (new AddonUnifier(gitClient), gitClient);
     }
@@ -41,8 +39,7 @@ public class AddonUnifierTests
         new(requirer, new AddonSpec { Name = "core", Git = git, Branch = branch });
 
     [Fact]
-    public async Task UnifyAsync_SingleVersionRequirement_ResolvesToHighestMatchingTag()
-    {
+    public async Task UnifyAsync_SingleVersionRequirement_ResolvesToHighestMatchingTag() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.2.0", "v1.4.0", "v1.4.2", "v2.0.0");
 
@@ -55,8 +52,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_RangeNamingAPrerelease_CanSelectOne()
-    {
+    public async Task UnifyAsync_RangeNamingAPrerelease_CanSelectOne() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.1", "v1.0.2-rc1", "v1.0.2-rc2", "v1.1.0-rc1");
 
@@ -69,8 +65,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_OverlappingVersionRanges_PicksTheHighestSatisfyingAll()
-    {
+    public async Task UnifyAsync_OverlappingVersionRanges_PicksTheHighestSatisfyingAll() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.2.0", "v1.2.5", "v1.4.0", "v2.0.0");
 
@@ -84,8 +79,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DisjointVersionRanges_ReportsNoCommonVersion()
-    {
+    public async Task UnifyAsync_DisjointVersionRanges_ReportsNoCommonVersion() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.4.0", "v2.0.0");
 
@@ -98,8 +92,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DisjointVersionRanges_OffersEveryStableTagAsACandidate()
-    {
+    public async Task UnifyAsync_DisjointVersionRanges_OffersEveryStableTagAsACandidate() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.4.0", "v2.0.0");
 
@@ -115,8 +108,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DisjointVersionRanges_RecordsWhichRequirerEachCandidateSatisfies()
-    {
+    public async Task UnifyAsync_DisjointVersionRanges_RecordsWhichRequirerEachCandidateSatisfies() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.4.0", "v2.0.0");
 
@@ -131,8 +123,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_CandidatesCarryTheirCommitSha()
-    {
+    public async Task UnifyAsync_CandidatesCarryTheirCommitSha() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.4.0", "v2.0.0");
 
@@ -142,8 +133,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_PrereleaseTags_AreNeverOfferedAsCandidates()
-    {
+    public async Task UnifyAsync_PrereleaseTags_AreNeverOfferedAsCandidates() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.4.0", "v2.0.0-rc1", "v2.0.0");
 
@@ -155,8 +145,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DifferentRepositories_ReportsDifferentGitUrls()
-    {
+    public async Task UnifyAsync_DifferentRepositories_ReportsDifferentGitUrls() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
         SetTags(gitClient, ForkUrl, "v1.0.0");
@@ -170,8 +159,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_TwoDifferentRevPins_ReportsDisjointPins()
-    {
+    public async Task UnifyAsync_TwoDifferentRevPins_ReportsDisjointPins() {
         var (unifier, _) = Build();
 
         var outcome = await unifier.UnifyAsync("core", [WantsRev("a", "aaa1111"), WantsRev("b", "bbb2222")]);
@@ -183,8 +171,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_IdenticalRevPins_Unify()
-    {
+    public async Task UnifyAsync_IdenticalRevPins_Unify() {
         var (unifier, _) = Build();
 
         // The same pin twice isn't a disagreement — refusing it would make a shared dependency
@@ -196,8 +183,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_PinAgainstVersionRange_ReportsDisjointPins()
-    {
+    public async Task UnifyAsync_PinAgainstVersionRange_ReportsDisjointPins() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
 
@@ -208,8 +194,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_BranchPinCandidate_ResolvesToTheBranchTip()
-    {
+    public async Task UnifyAsync_BranchPinCandidate_ResolvesToTheBranchTip() {
         var (unifier, gitClient) = Build();
         gitClient.BranchTips[(CoreUrl, "godot4")] = new string('c', 40);
 
@@ -220,8 +205,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_CandidateThatCannotResolve_IsStillOfferedWithoutASha()
-    {
+    public async Task UnifyAsync_CandidateThatCannotResolve_IsStillOfferedWithoutASha() {
         var (unifier, gitClient) = Build();
         // The fork has no tags at all, so 'b's constraint resolves to nothing — what a repo whose
         // release tags were deleted upstream looks like. Hiding that option would leave the user
@@ -239,8 +223,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_MalformedConstraint_ReportsInvalidConstraint()
-    {
+    public async Task UnifyAsync_MalformedConstraint_ReportsInvalidConstraint() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
 
@@ -252,8 +235,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_AlwaysReportsEveryRequirer()
-    {
+    public async Task UnifyAsync_AlwaysReportsEveryRequirer() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0", "v2.0.0", "v3.0.0");
 
@@ -264,8 +246,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task ResolvedOrThrow_OnAConflict_ThrowsWithTheConflictMessage()
-    {
+    public async Task ResolvedOrThrow_OnAConflict_ThrowsWithTheConflictMessage() {
         var (unifier, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0", "v2.0.0");
 
@@ -278,8 +259,7 @@ public class AddonUnifierTests
     }
 
     [Fact]
-    public async Task UnifyAsync_NoRequirements_IsAProgrammingError()
-    {
+    public async Task UnifyAsync_NoRequirements_IsAProgrammingError() {
         var (unifier, _) = Build();
 
         // Reaching unification with nothing to unify means the graph walk lost an edge — a bug in

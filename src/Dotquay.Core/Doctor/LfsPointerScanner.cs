@@ -21,26 +21,20 @@ namespace Dotquay.Core.Doctor;
 /// scanning an addon full of large binaries stays cheap.
 /// </para>
 /// </remarks>
-public static class LfsPointerScanner
-{
+public static class LfsPointerScanner {
     /// <summary>Paths of pointer files under <paramref name="addonPath"/>, relative to it, with forward slashes.</summary>
-    public static IReadOnlyList<string> Scan(IFileSystem fileSystem, string addonPath)
-    {
-        if (!fileSystem.DirectoryExists(addonPath))
-        {
+    public static IReadOnlyList<string> Scan(IFileSystem fileSystem, string addonPath) {
+        if (!fileSystem.DirectoryExists(addonPath)) {
             return [];
         }
 
         var found = new List<string>();
-        foreach (var file in fileSystem.EnumerateFiles(addonPath, recursive: true))
-        {
-            if (fileSystem.GetFileLength(file) > LfsPointer.MaxPointerBytes)
-            {
+        foreach (var file in fileSystem.EnumerateFiles(addonPath, recursive: true)) {
+            if (fileSystem.GetFileLength(file) > LfsPointer.MaxPointerBytes) {
                 continue;
             }
 
-            if (LfsPointer.Matches(fileSystem.ReadAllBytes(file)))
-            {
+            if (LfsPointer.Matches(fileSystem.ReadAllBytes(file))) {
                 found.Add(Relative(addonPath, file));
             }
         }
@@ -49,8 +43,7 @@ public static class LfsPointerScanner
         return found;
     }
 
-    private static string Relative(string root, string file)
-    {
+    private static string Relative(string root, string file) {
         var relative = Path.GetRelativePath(root, file);
         return relative.Replace('\\', '/');
     }

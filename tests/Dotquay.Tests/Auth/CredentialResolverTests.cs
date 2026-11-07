@@ -4,14 +4,12 @@ using Xunit;
 
 namespace Dotquay.Tests.Auth;
 
-public class CredentialResolverTests
-{
+public class CredentialResolverTests {
     private const string SourceName = "gitlab-core";
     private const string SourceUrl = "https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json";
 
     [Fact]
-    public void SourceVariableNames_NormalisesToAnExportableShellName()
-    {
+    public void SourceVariableNames_NormalisesToAnExportableShellName() {
         var (username, token) = CredentialResolver.SourceVariableNames("gitlab-core.v2");
 
         Assert.Equal("DOTQUAY_NUGET_USERNAME_GITLAB_CORE_V2", username);
@@ -19,8 +17,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForNuGetSource_NothingConfigured_IsAnonymous()
-    {
+    public void ForNuGetSource_NothingConfigured_IsAnonymous() {
         var resolver = new CredentialResolver(new FakeEnvironmentReader(), new InMemoryCredentialStore());
 
         var lookup = resolver.ForNuGetSource(SourceName, SourceUrl);
@@ -30,8 +27,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForNuGetSource_StoredCredential_IsUsedWhenNoEnvironmentIsSet()
-    {
+    public void ForNuGetSource_StoredCredential_IsUsedWhenNoEnvironmentIsSet() {
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
         var resolver = new CredentialResolver(new FakeEnvironmentReader(), store);
 
@@ -42,8 +38,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForNuGetSource_GlobalEnvironmentShadowsTheStoredCredential()
-    {
+    public void ForNuGetSource_GlobalEnvironmentShadowsTheStoredCredential() {
         var environment = new FakeEnvironmentReader()
             .Set(CredentialResolver.GlobalUsernameVariable, "ci")
             .Set(CredentialResolver.GlobalTokenVariable, "from-global-env");
@@ -56,8 +51,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForNuGetSource_PerSourceEnvironmentShadowsTheGlobalPair()
-    {
+    public void ForNuGetSource_PerSourceEnvironmentShadowsTheGlobalPair() {
         var (usernameVariable, tokenVariable) = CredentialResolver.SourceVariableNames(SourceName);
         var environment = new FakeEnvironmentReader()
             .Set(CredentialResolver.GlobalUsernameVariable, "ci")
@@ -75,16 +69,13 @@ public class CredentialResolverTests
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void ForNuGetSource_HalfConfiguredEnvironmentPair_FallsThroughToTheStore(bool setUsername, bool setToken)
-    {
+    public void ForNuGetSource_HalfConfiguredEnvironmentPair_FallsThroughToTheStore(bool setUsername, bool setToken) {
         var environment = new FakeEnvironmentReader();
-        if (setUsername)
-        {
+        if (setUsername) {
             environment.Set(CredentialResolver.GlobalUsernameVariable, "ci");
         }
 
-        if (setToken)
-        {
+        if (setToken) {
             environment.Set(CredentialResolver.GlobalTokenVariable, "from-global-env");
         }
 
@@ -97,8 +88,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForNuGetSource_PlainHttp_WithholdsTheCredentialAndSaysSo()
-    {
+    public void ForNuGetSource_PlainHttp_WithholdsTheCredentialAndSaysSo() {
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
         var resolver = new CredentialResolver(new FakeEnvironmentReader(), store);
 
@@ -109,8 +99,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForNuGetSource_PlainHttpLoopback_IsAllowed()
-    {
+    public void ForNuGetSource_PlainHttpLoopback_IsAllowed() {
         var store = new InMemoryCredentialStore().Add("http://localhost:5000", "kani", "local");
         var resolver = new CredentialResolver(new FakeEnvironmentReader(), store);
 
@@ -120,8 +109,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForGitRepository_UsesTheStore_AndIgnoresTheNuGetEnvironmentVariables()
-    {
+    public void ForGitRepository_UsesTheStore_AndIgnoresTheNuGetEnvironmentVariables() {
         var environment = new FakeEnvironmentReader()
             .Set(CredentialResolver.GlobalUsernameVariable, "ci")
             .Set(CredentialResolver.GlobalTokenVariable, "nuget-only");
@@ -135,8 +123,7 @@ public class CredentialResolverTests
     }
 
     [Fact]
-    public void ForGitRepository_SshRemote_IsAnonymousRatherThanAnError()
-    {
+    public void ForGitRepository_SshRemote_IsAnonymousRatherThanAnError() {
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", "from-file");
         var resolver = new CredentialResolver(new FakeEnvironmentReader(), store);
 

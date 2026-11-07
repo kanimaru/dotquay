@@ -17,8 +17,7 @@ namespace Dotquay.Tests.Workflows;
 /// shows up somewhere else — a <c>preload("res://addons/…")</c> that no longer resolves, an addon that
 /// looks installed twice, an orphan report naming the folder that is actually live.
 /// </remarks>
-public class DoctorInstallFolderDriftTests
-{
+public class DoctorInstallFolderDriftTests {
     private const string ProjectDirectory = "project";
     private const string AddonUrl = "https://example.com/mtoon-shader.git";
     private const string ParentUrl = "https://example.com/vrm.git";
@@ -28,8 +27,7 @@ public class DoctorInstallFolderDriftTests
     /// <param name="manifestInstallAs">The <c>install_as</c> line for <c>[addons.mtoon-shader]</c>,
     /// or null for none.</param>
     /// <param name="lockedFolder">The <c>folder</c> the lockfile records, or null for the default.</param>
-    private static InMemoryFileSystem BuildProject(string? manifestInstallAs, string? lockedFolder)
-    {
+    private static InMemoryFileSystem BuildProject(string? manifestInstallAs, string? lockedFolder) {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -57,8 +55,7 @@ public class DoctorInstallFolderDriftTests
         return fileSystem;
     }
 
-    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem)
-    {
+    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem) {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
@@ -70,8 +67,7 @@ public class DoctorInstallFolderDriftTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task DoctorAsync_InstallAsAddedSinceTheLockfile_IsReported()
-    {
+    public async Task DoctorAsync_InstallAsAddedSinceTheLockfile_IsReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: "Godot-MToon-Shader", lockedFolder: null));
 
         // The exact case that motivated this check: the fix is written down, committed, and doing
@@ -83,8 +79,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_InstallAsRemovedSinceTheLockfile_IsReported()
-    {
+    public async Task DoctorAsync_InstallAsRemovedSinceTheLockfile_IsReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: null, lockedFolder: "Godot-MToon-Shader"));
 
         // The mirror image, and the one that reads as an orphaned folder if nothing explains it.
@@ -93,24 +88,21 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_InstallAsChangedSinceTheLockfile_IsReported()
-    {
+    public async Task DoctorAsync_InstallAsChangedSinceTheLockfile_IsReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: "NewFolder", lockedFolder: "OldFolder"));
 
         Assert.Single(issues);
     }
 
     [Fact]
-    public async Task DoctorAsync_ManifestAndLockfileAgreeing_IsNotReported()
-    {
+    public async Task DoctorAsync_ManifestAndLockfileAgreeing_IsNotReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: "Godot-MToon-Shader", lockedFolder: "Godot-MToon-Shader"));
 
         Assert.Empty(issues);
     }
 
     [Fact]
-    public async Task DoctorAsync_NeitherDeclaringAFolder_IsNotReported()
-    {
+    public async Task DoctorAsync_NeitherDeclaringAFolder_IsNotReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: null, lockedFolder: null));
 
         // The default. This must stay silent or doctor reports every addon in every project.
@@ -118,8 +110,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_CaseCorrectedFolderWithNoInstallAs_IsNotReported()
-    {
+    public async Task DoctorAsync_CaseCorrectedFolderWithNoInstallAs_IsNotReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: null, lockedFolder: "MTOON-shader"));
 
         // AddonInstaller.CorrectFolderCase doing its job, not drift: the addon's own repository is the
@@ -130,8 +121,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_CaseDifferingFromAnExplicitInstallAs_IsReported()
-    {
+    public async Task DoctorAsync_CaseDifferingFromAnExplicitInstallAs_IsReported() {
         var issues = await RunAsync(BuildProject(manifestInstallAs: "Godot-MToon-Shader", lockedFolder: "godot-mtoon-shader"));
 
         // Where an install_as is stated, the casing is stated too — the correction never overrides a
@@ -140,8 +130,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AnOverride_WinsOverTheAddonEntry()
-    {
+    public async Task DoctorAsync_AnOverride_WinsOverTheAddonEntry() {
         var fileSystem = BuildProject(manifestInstallAs: "FromAddonsTable", lockedFolder: "FromOverride");
         var manifestPath = fileSystem.CombinePath(ProjectDirectory, "dotquay.toml");
         fileSystem.WriteAllText(manifestPath, fileSystem.ReadAllText(manifestPath) + $"""
@@ -162,8 +151,7 @@ public class DoctorInstallFolderDriftTests
     // -----------------------------------------------------------------------------------------
 
     /// <summary>A project with one declared parent that pulls in <c>mtoon-shader</c> transitively.</summary>
-    private static InMemoryFileSystem BuildTransitiveProject(string childInstallAs, string lockedChildFolder)
-    {
+    private static InMemoryFileSystem BuildTransitiveProject(string childInstallAs, string lockedChildFolder) {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -207,8 +195,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ParentDeclaringADifferentFolderThanTheLockfile_IsReported()
-    {
+    public async Task DoctorAsync_ParentDeclaringADifferentFolderThanTheLockfile_IsReported() {
         var issues = await RunAsync(BuildTransitiveProject(childInstallAs: "Godot-MToon-Shader", lockedChildFolder: "mtoon-shader"));
 
         // The quietest version of this bug: a parent that starts declaring install_as for a shared
@@ -219,16 +206,14 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ParentDeclarationTheLockfileHonours_IsNotReported()
-    {
+    public async Task DoctorAsync_ParentDeclarationTheLockfileHonours_IsNotReported() {
         var issues = await RunAsync(BuildTransitiveProject(childInstallAs: "Godot-MToon-Shader", lockedChildFolder: "Godot-MToon-Shader"));
 
         Assert.Empty(issues);
     }
 
     [Fact]
-    public async Task DoctorAsync_ParentsDisagreeingWithEachOther_IsNotReported()
-    {
+    public async Task DoctorAsync_ParentsDisagreeingWithEachOther_IsNotReported() {
         var fileSystem = BuildTransitiveProject(childInstallAs: "Godot-MToon-Shader", lockedChildFolder: "mtoon-shader");
 
         var lockPath = fileSystem.CombinePath(ProjectDirectory, "dotquay.lock");
@@ -259,8 +244,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ProjectManifest_WinsOverAParentDeclaration()
-    {
+    public async Task DoctorAsync_ProjectManifest_WinsOverAParentDeclaration() {
         var fileSystem = BuildTransitiveProject(childInstallAs: "Godot-MToon-Shader", lockedChildFolder: "ProjectChoice");
 
         var manifestPath = fileSystem.CombinePath(ProjectDirectory, "dotquay.toml");
@@ -277,8 +261,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ATransitiveAddonNobodyDeclaresAFolderFor_IsNotReported()
-    {
+    public async Task DoctorAsync_ATransitiveAddonNobodyDeclaresAFolderFor_IsNotReported() {
         var fileSystem = new InMemoryFileSystem();
 
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
@@ -314,14 +297,16 @@ public class DoctorInstallFolderDriftTests
     // The rule itself
     // -----------------------------------------------------------------------------------------
 
-    private static LockedAddon Locked(string? folder) => new()
-    {
-        Name = "mtoon-shader", Git = AddonUrl, Resolved = Sha, Path = ".", Folder = folder,
+    private static LockedAddon Locked(string? folder) => new() {
+        Name = "mtoon-shader",
+        Git = AddonUrl,
+        Resolved = Sha,
+        Path = ".",
+        Folder = folder,
     };
 
     [Fact]
-    public void Check_ReportsBothFoldersAndTheSource()
-    {
+    public void Check_ReportsBothFoldersAndTheSource() {
         var drift = InstallFolderDriftChecker.Check(
             Locked("here"), new InstallFolderDriftChecker.FolderDeclaration("there", IsExplicit: true, "somewhere"));
 
@@ -333,8 +318,7 @@ public class DoctorInstallFolderDriftTests
     }
 
     [Fact]
-    public void Check_ALockfileWithNoFolder_ComparesAgainstTheName()
-    {
+    public void Check_ALockfileWithNoFolder_ComparesAgainstTheName() {
         // Every lockfile written before install_as existed omits the field, and must still be
         // understood as "installed under its own name" rather than as unknown.
         Assert.Null(InstallFolderDriftChecker.Check(

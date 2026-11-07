@@ -16,13 +16,11 @@ namespace Dotquay.Tests.Sync;
 /// <c>res://addons/gut/</c>. Windows finds the files anyway, so the addon "worked" while Godot
 /// silently rewrote every reference on each open and the addon never once read as clean.
 /// </remarks>
-public class FolderCaseTests
-{
+public class FolderCaseTests {
     // -- resolving the subtree's real casing --------------------------------------------------
 
     [Fact]
-    public void ResolveSubtreePath_CorrectsCaseAgainstTheRepository()
-    {
+    public void ResolveSubtreePath_CorrectsCaseAgainstTheRepository() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("cache/repo/addons/gut/plugin.cfg", "cfg");
 
@@ -30,8 +28,7 @@ public class FolderCaseTests
     }
 
     [Fact]
-    public void ResolveSubtreePath_AlreadyCorrect_IsUnchanged()
-    {
+    public void ResolveSubtreePath_AlreadyCorrect_IsUnchanged() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("cache/repo/addons/dialogue_manager/plugin.cfg", "cfg");
 
@@ -41,8 +38,7 @@ public class FolderCaseTests
     }
 
     [Fact]
-    public void ResolveSubtreePath_NoCaseInsensitiveMatch_IsLeftAlone()
-    {
+    public void ResolveSubtreePath_NoCaseInsensitiveMatch_IsLeftAlone() {
         // A genuinely different name is a layout decision, not a typo. Leaving it untouched keeps the
         // existing "path does not exist in the fetched repository" error as the thing that fires.
         var fileSystem = new InMemoryFileSystem();
@@ -58,8 +54,7 @@ public class FolderCaseTests
         Assert.Equal(".", SubtreeExtractor.ResolveSubtreePath(new InMemoryFileSystem(), "cache/repo", "."));
 
     [Fact]
-    public void ResolveSubtreePath_CorrectsEverySegment()
-    {
+    public void ResolveSubtreePath_CorrectsEverySegment() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("cache/repo/src/R3.Godot/addons/R3.Godot/plugin.cfg", "cfg");
 
@@ -71,8 +66,7 @@ public class FolderCaseTests
     // -- what doctor reports ------------------------------------------------------------------
 
     [Fact]
-    public void Check_AddonReferencingADifferentlyCasedFolder_IsReported()
-    {
+    public void Check_AddonReferencingADifferentlyCasedFolder_IsReported() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/addons/Gut/gut.gd", "const X = preload(\"res://addons/gut/utils.gd\")");
         fileSystem.WriteAllText(
@@ -88,8 +82,7 @@ public class FolderCaseTests
     }
 
     [Fact]
-    public void Check_CasingAgrees_IsNotReported()
-    {
+    public void Check_CasingAgrees_IsNotReported() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/addons/gut/gut.gd", "preload(\"res://addons/gut/utils.gd\")");
 
@@ -97,8 +90,7 @@ public class FolderCaseTests
     }
 
     [Fact]
-    public void Check_ReferenceToAnotherAddon_IsNotReported()
-    {
+    public void Check_ReferenceToAnotherAddon_IsNotReported() {
         // An addon depending on a different addon is normal. Reporting those would bury the one
         // finding that matters under every legitimate cross-addon reference in the project.
         var fileSystem = new InMemoryFileSystem();
@@ -108,8 +100,7 @@ public class FolderCaseTests
     }
 
     [Fact]
-    public void Check_BinaryFiles_AreNotScanned()
-    {
+    public void Check_BinaryFiles_AreNotScanned() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/addons/Gut/icon.png", "res://addons/gut/ appearing in binary noise");
 
@@ -117,8 +108,7 @@ public class FolderCaseTests
     }
 
     [Fact]
-    public void Check_MostReferencedSpellingWins()
-    {
+    public void Check_MostReferencedSpellingWins() {
         // One stray typo upstream shouldn't outvote the name the addon actually uses.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/addons/GUT/a.gd", "preload(\"res://addons/gut/x.gd\")");

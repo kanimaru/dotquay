@@ -4,34 +4,28 @@ using Xunit;
 
 namespace Dotquay.Tests.Diagnostics;
 
-public sealed class DiagnosticLogTests
-{
+public sealed class DiagnosticLogTests {
     [Fact]
-    public void Off_by_default()
-    {
+    public void Off_by_default() {
         Assert.Same(NullDiagnosticSink.Instance, DiagnosticLog.Current);
         Assert.False(DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose));
         Assert.False(DiagnosticLog.IsEnabled(DiagnosticLevel.Trace));
     }
 
     [Fact]
-    public void Off_is_never_enabled_even_for_a_sink_that_wants_everything()
-    {
+    public void Off_is_never_enabled_even_for_a_sink_that_wants_everything() {
         using var scope = DiagnosticLog.Use(new RecordingDiagnosticSink(DiagnosticLevel.Trace));
 
         Assert.False(DiagnosticLog.IsEnabled(DiagnosticLevel.Off));
     }
 
     [Fact]
-    public void Use_routes_to_the_sink_and_disposing_restores_the_previous_one()
-    {
+    public void Use_routes_to_the_sink_and_disposing_restores_the_previous_one() {
         var outer = new RecordingDiagnosticSink();
         var inner = new RecordingDiagnosticSink();
 
-        using (DiagnosticLog.Use(outer))
-        {
-            using (DiagnosticLog.Use(inner))
-            {
+        using (DiagnosticLog.Use(outer)) {
+            using (DiagnosticLog.Use(inner)) {
                 DiagnosticLog.Verbose("t", "to inner");
             }
 
@@ -46,14 +40,12 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public void Disposing_a_scope_twice_does_not_clobber_a_later_scope()
-    {
+    public void Disposing_a_scope_twice_does_not_clobber_a_later_scope() {
         var first = DiagnosticLog.Use(new RecordingDiagnosticSink());
         first.Dispose();
 
         var second = new RecordingDiagnosticSink();
-        using (DiagnosticLog.Use(second))
-        {
+        using (DiagnosticLog.Use(second)) {
             first.Dispose();
             DiagnosticLog.Verbose("t", "still here");
         }
@@ -62,11 +54,9 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public void A_verbose_sink_drops_trace_lines()
-    {
+    public void A_verbose_sink_drops_trace_lines() {
         var sink = RecordingDiagnosticSink.Install(out var scope, DiagnosticLevel.Verbose);
-        using (scope)
-        {
+        using (scope) {
             DiagnosticLog.Verbose("t", "kept");
             DiagnosticLog.Trace("t", "dropped");
         }
@@ -76,19 +66,16 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public void Interpolated_holes_are_not_evaluated_when_the_level_is_off()
-    {
+    public void Interpolated_holes_are_not_evaluated_when_the_level_is_off() {
         var evaluations = 0;
-        string Expensive()
-        {
+        string Expensive() {
             evaluations++;
             return "x";
         }
 
         DiagnosticLog.Write(DiagnosticLevel.Verbose, "t", $"value {Expensive()}");
 
-        using (DiagnosticLog.Use(new RecordingDiagnosticSink(DiagnosticLevel.Verbose)))
-        {
+        using (DiagnosticLog.Use(new RecordingDiagnosticSink(DiagnosticLevel.Verbose))) {
             DiagnosticLog.Write(DiagnosticLevel.Trace, "t", $"value {Expensive()}");
         }
 
@@ -96,11 +83,9 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public void Interpolated_messages_are_formatted_when_enabled()
-    {
+    public void Interpolated_messages_are_formatted_when_enabled() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
-        using (scope)
-        {
+        using (scope) {
             var count = 3;
             DiagnosticLog.Write(DiagnosticLevel.Verbose, "t", $"{count} addon(s), {1.5:0.00} s, [{"x",3}]");
         }
@@ -109,11 +94,9 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public async Task The_sink_flows_into_awaited_and_spawned_work()
-    {
+    public async Task The_sink_flows_into_awaited_and_spawned_work() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
-        using (scope)
-        {
+        using (scope) {
             await Task.Yield();
             DiagnosticLog.Verbose("t", "after await");
             await Task.Run(() => DiagnosticLog.Verbose("t", "in Task.Run"));
@@ -123,15 +106,11 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public async Task Concurrent_flows_each_keep_their_own_sink()
-    {
-        async Task<RecordingDiagnosticSink> RunAsync(string name)
-        {
+    public async Task Concurrent_flows_each_keep_their_own_sink() {
+        async Task<RecordingDiagnosticSink> RunAsync(string name) {
             var sink = RecordingDiagnosticSink.Install(out var scope);
-            using (scope)
-            {
-                for (var i = 0; i < 20; i++)
-                {
+            using (scope) {
+                for (var i = 0; i < 20; i++) {
                     DiagnosticLog.Verbose("t", name);
                     await Task.Yield();
                 }
@@ -149,11 +128,9 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public void Measure_logs_the_label_with_a_duration_once()
-    {
+    public void Measure_logs_the_label_with_a_duration_once() {
         var sink = RecordingDiagnosticSink.Install(out var scope);
-        using (scope)
-        {
+        using (scope) {
             var measurement = DiagnosticLog.Measure(DiagnosticLevel.Verbose, "t", "resolved graph");
             measurement.Dispose();
             measurement.Dispose();
@@ -164,8 +141,7 @@ public sealed class DiagnosticLogTests
     }
 
     [Fact]
-    public void Measure_is_a_shared_no_op_when_off()
-    {
+    public void Measure_is_a_shared_no_op_when_off() {
         Assert.Same(
             DiagnosticLog.Measure(DiagnosticLevel.Verbose, "t", "a"),
             DiagnosticLog.Measure(DiagnosticLevel.Trace, "t", "b"));
@@ -175,8 +151,7 @@ public sealed class DiagnosticLogTests
     [InlineData(0.4, "0 ms")]
     [InlineData(12.6, "13 ms")]
     [InlineData(2500, "2500 ms")]
-    public void Durations_are_whole_milliseconds(double milliseconds, string expected)
-    {
+    public void Durations_are_whole_milliseconds(double milliseconds, string expected) {
         Assert.Equal(expected, DiagnosticLog.FormatDuration(TimeSpan.FromMilliseconds(milliseconds)));
     }
 }

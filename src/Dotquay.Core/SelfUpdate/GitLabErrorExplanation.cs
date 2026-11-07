@@ -20,8 +20,7 @@ namespace Dotquay.Core.SelfUpdate;
 /// endpoint is ambiguous between "does not exist" and "not allowed to see"; with a credential it
 /// is not.</para>
 /// </remarks>
-public static class GitLabErrorExplanation
-{
+public static class GitLabErrorExplanation {
     /// <summary>Whether this refusal is about credentials, and so should be reported as
     /// <c>error.kind = "auth"</c> rather than as a transport failure (SPEC.md §17) — which is what
     /// lets a UI offer a login instead of a retry.</summary>
@@ -40,14 +39,12 @@ public static class GitLabErrorExplanation
         string? detail,
         bool authenticated,
         string host,
-        string what)
-    {
+        string what) {
         var opening = $"The update channel ({host}) answered {(int)status} {status} while {what}.";
 
         // GitLab's own words first and verbatim when it gave any. Nothing this method could add
         // beats a server naming the permission it wants.
-        if (!string.IsNullOrWhiteSpace(detail) && !IsStatusEcho(status, detail))
-        {
+        if (!string.IsNullOrWhiteSpace(detail) && !IsStatusEcho(status, detail)) {
             var quoted = $"{opening} GitLab said: {detail.Trim()}";
 
             return status == HttpStatusCode.Forbidden && authenticated
@@ -57,16 +54,14 @@ public static class GitLabErrorExplanation
                 : quoted;
         }
 
-        if (!IsAuthFailure(status, authenticated))
-        {
+        if (!IsAuthFailure(status, authenticated)) {
             return status == HttpStatusCode.NotFound
                 ? opening + " A credential was accepted this far, so the channel URL is the likelier "
                     + "fault: it needs the project's numeric ID, as in /api/v4/projects/<id>."
                 : opening;
         }
 
-        if (authenticated && status == HttpStatusCode.Unauthorized)
-        {
+        if (authenticated && status == HttpStatusCode.Unauthorized) {
             // 401 with a credential means GitLab does not recognise the token at all - a 403 is
             // what a real token lacking a permission gets. So scope advice would be a wrong guess
             // here; what helps is saying the token itself is the problem, and that a bare-host
@@ -102,17 +97,14 @@ public static class GitLabErrorExplanation
     /// which is the one fact the reader needed. Only an exact restatement counts: a body that adds
     /// anything (<c>404 Project Not Found</c>, a fine-grained permission list) is still quoted.
     /// </remarks>
-    public static bool IsStatusEcho(HttpStatusCode status, string? detail)
-    {
-        if (string.IsNullOrWhiteSpace(detail))
-        {
+    public static bool IsStatusEcho(HttpStatusCode status, string? detail) {
+        if (string.IsNullOrWhiteSpace(detail)) {
             return false;
         }
 
         var code = ((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture);
         var trimmed = detail.Trim();
-        if (!trimmed.StartsWith(code, StringComparison.Ordinal))
-        {
+        if (!trimmed.StartsWith(code, StringComparison.Ordinal)) {
             return false;
         }
 

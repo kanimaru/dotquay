@@ -28,8 +28,7 @@ public sealed record JsonEnvelope<T>(
     T? Data,
     JsonError? Error,
     IReadOnlyList<string> Warnings)
-    where T : class
-{
+    where T : class {
     /// <summary>The current payload schema version. See <see cref="Schema"/>.</summary>
     public const int CurrentSchema = 1;
 
@@ -66,14 +65,12 @@ public sealed record JsonEnvelope<T>(
 /// (<c>https://oauth2:glpat-...@host</c>) that would otherwise be printed straight back to the
 /// terminal, the editor plugin, or an agent's context (docs/DESIGN-v0.24-VERBOSE.md).
 /// </remarks>
-public sealed record JsonError(string Kind, string Message)
-{
+public sealed record JsonError(string Kind, string Message) {
     private readonly string _message = SecretRedactor.Redact(Message);
 
     // An explicit init accessor, not an initializer alone: `with { Message = ... }` assigns through
     // init and would otherwise skip the redaction the constructor applies.
-    public string Message
-    {
+    public string Message {
         get => _message;
         init => _message = SecretRedactor.Redact(value);
     }
@@ -81,8 +78,7 @@ public sealed record JsonError(string Kind, string Message)
 
 /// <summary>Error categories carried by <see cref="JsonError.Kind"/>. Strings rather than an enum
 /// because this is a wire contract that outlives any one C# type.</summary>
-public static class JsonErrorKind
-{
+public static class JsonErrorKind {
     /// <summary>A <see cref="Workflows.WorkflowException"/> — an expected, explained failure.</summary>
     public const string Workflow = "workflow";
 

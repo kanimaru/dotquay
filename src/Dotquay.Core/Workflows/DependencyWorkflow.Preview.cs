@@ -17,8 +17,7 @@ namespace Dotquay.Core.Workflows;
 /// nothing here calls <c>WriteManifest</c>, <c>WriteLockfile</c>, or the installer, and a reviewer can
 /// confirm that by reading one file rather than tracing branches through a 1,800-line orchestrator.
 /// </remarks>
-public sealed partial class DependencyWorkflow
-{
+public sealed partial class DependencyWorkflow {
     /// <summary>
     /// Resolves what <c>dotquay add &lt;git-url&gt;</c> would do without doing any of it: the full
     /// transitive addon graph, the NuGet packages those addons declare, and the feeds they would ask
@@ -43,8 +42,7 @@ public sealed partial class DependencyWorkflow
         string gitUrl,
         AddonAddOptions? options = null,
         IReadOnlyList<string>? preApprovedSourceUrls = null,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         options ??= new AddonAddOptions();
         options.Validate();
 
@@ -52,8 +50,7 @@ public sealed partial class DependencyWorkflow
         var (name, spec, subtree) = await PrepareAddSpecAsync(
             manifest, manifestPath, gitUrl, options, previewing: true, cancellationToken);
 
-        var candidateManifest = manifest with
-        {
+        var candidateManifest = manifest with {
             Addons = new Dictionary<string, AddonSpec>(manifest.Addons) { [name] = spec },
         };
 
@@ -77,8 +74,7 @@ public sealed partial class DependencyWorkflow
             .GroupBy(s => s.Source.Url, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().AddonName, StringComparer.OrdinalIgnoreCase);
 
-        return new AddPreview
-        {
+        return new AddPreview {
             Name = name,
             Git = gitUrl,
             Addons = BuildPreviewAddons(graph, previousAddonsByName, name),
@@ -112,10 +108,8 @@ public sealed partial class DependencyWorkflow
     /// <see cref="SubtreeSuggestion.Folder"/> are also literally the <c>--path</c> and
     /// <c>--install-as</c> values to pass back, so a caller confirms by echoing what it showed.
     /// </remarks>
-    private static SubtreeSuggestion? ToSuggestion(SubtreeFinding? finding)
-    {
-        if (finding?.Suggestion is not { } suggestion)
-        {
+    private static SubtreeSuggestion? ToSuggestion(SubtreeFinding? finding) {
+        if (finding?.Suggestion is not { } suggestion) {
             return null;
         }
 
@@ -149,8 +143,7 @@ public sealed partial class DependencyWorkflow
         string gitUrl,
         AddonAddOptions options,
         bool previewing,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         // One authority for the manifest key. The URL's name as always -- but a second addon out of a
         // repository that ships several falls back to its --install-as / --path leaf instead of being
         // refused as though it were the first one again.
@@ -159,8 +152,7 @@ public sealed partial class DependencyWorkflow
         // An explicitly named source skips the newest-tag guess entirely — the whole point of saying
         // "--branch main" is that you do not want whatever the tag heuristic would have chosen.
         var spec = options.HasExplicitSource
-            ? new AddonSpec
-            {
+            ? new AddonSpec {
                 Name = name,
                 Git = gitUrl,
                 Version = options.Version,
@@ -203,22 +195,18 @@ public sealed partial class DependencyWorkflow
     /// </para>
     /// </remarks>
     private async Task<AddSpecPlan> PlanSubtreeAsync(
-        AddonSpec spec, bool previewing, CancellationToken cancellationToken)
-    {
-        if (spec.Path is not null)
-        {
+        AddonSpec spec, bool previewing, CancellationToken cancellationToken) {
+        if (spec.Path is not null) {
             return new AddSpecPlan(spec.Name, spec, Subtree: null);
         }
 
         var finding = await ProbeSubtreeAsync(spec, cancellationToken);
 
-        if (finding is null)
-        {
+        if (finding is null) {
             return new AddSpecPlan(spec.Name, spec, Subtree: null);
         }
 
-        if (finding.Suggestion is null)
-        {
+        if (finding.Suggestion is null) {
             throw new WorkflowException(DescribeUnguessableSubtree(spec, finding));
         }
 
@@ -226,8 +214,7 @@ public sealed partial class DependencyWorkflow
         // adoption — and applies the answer it is proposing, so the graph it shows is the graph the
         // confirmed add installs rather than one resolved from a path that isn't there.
         if (!previewing && !SubtreeChoice.Accept(
-            new SubtreeChoiceRequest(spec.Name, spec.Git, finding, finding.Suggestion)))
-        {
+            new SubtreeChoiceRequest(spec.Name, spec.Git, finding, finding.Suggestion))) {
             throw new WorkflowException(DescribeUnguessableSubtree(spec, finding));
         }
 
@@ -237,8 +224,7 @@ public sealed partial class DependencyWorkflow
     /// <summary>Writes an accepted candidate into the spec that is about to become an
     /// <c>[addons.&lt;name&gt;]</c> entry — so the question is answered once and then read from the
     /// manifest by everyone else, on every machine, forever.</summary>
-    private static AddonSpec Apply(AddonSpec spec, SubtreeCandidate suggestion) => spec with
-    {
+    private static AddonSpec Apply(AddonSpec spec, SubtreeCandidate suggestion) => spec with {
         Path = suggestion.Path,
 
         // Null rather than a redundant restatement when the folder already equals the addon's name:
@@ -259,27 +245,19 @@ public sealed partial class DependencyWorkflow
     /// a probe is not allowed to be the thing that reports them — badly, and in terms of a subtree
     /// nobody has asked about yet.
     /// </remarks>
-    private async Task<SubtreeFinding?> ProbeSubtreeAsync(AddonSpec spec, CancellationToken cancellationToken)
-    {
-        try
-        {
+    private async Task<SubtreeFinding?> ProbeSubtreeAsync(AddonSpec spec, CancellationToken cancellationToken) {
+        try {
             _progress.Report($"checking where '{spec.Name}' lives in its repository");
 
             var resolved = await _resolver.ResolveAsync(spec, cancellationToken);
             var cachedRepoPath = await _repoCache.GetOrFetchAsync(spec.Git, resolved.ResolvedSha, cancellationToken);
 
             return SubtreeCandidates.Find(_fileSystem, cachedRepoPath, spec.EffectivePath);
-        }
-        catch (AddonResolutionException)
-        {
+        } catch (AddonResolutionException) {
             return null;
-        }
-        catch (GitCommandException)
-        {
+        } catch (GitCommandException) {
             return null;
-        }
-        catch (SyncException)
-        {
+        } catch (SyncException) {
             return null;
         }
     }
@@ -293,16 +271,14 @@ public sealed partial class DependencyWorkflow
     /// flags — "no, not like that" and "no, never" are the same keypress, and whoever meant the first
     /// should not have to run the add again to find out what to type.
     /// </remarks>
-    private static string DescribeUnguessableSubtree(AddonSpec spec, SubtreeFinding finding)
-    {
+    private static string DescribeUnguessableSubtree(AddonSpec spec, SubtreeFinding finding) {
         var conjunction = finding.Suggestion is null ? "and" : "but";
         var message =
             $"'{spec.Name}' isn't at {finding.GuessedPath} in {spec.Git}, {conjunction} "
             + $"{finding.DescribeWhereTheAddonIs()}. dotquay never guesses an addon's layout on its own "
             + "(SPEC.md §7.1), so ";
 
-        if (finding.Suggestion is null)
-        {
+        if (finding.Suggestion is null) {
             return message
                 + "re-run with --path <subtree> (and --install-as <folder> when the folder under addons/ has to "
                 + "differ from the addon's name) to say which one it is.";
@@ -333,24 +309,18 @@ public sealed partial class DependencyWorkflow
         string projectDirectory,
         ProjectManifest manifest,
         IReadOnlyDictionary<string, AddonSpec> rootSpecs,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         _progress.Report("resolving the dependency graph");
 
         var discoveryRoot = _fileSystem.CombinePath(
             projectDirectory, ProjectLayout.DotquayDirectory, "staging", "preview-discovery");
         var resolver = new DependencyGraphResolver(_fileSystem, _gitClient, _repoCache, discoveryRoot);
 
-        try
-        {
+        try {
             return await resolver.ResolveGraphAsync(rootSpecs, manifest.Overrides, cancellationToken);
-        }
-        catch (AddonResolutionException ex)
-        {
+        } catch (AddonResolutionException ex) {
             throw new WorkflowException(ex.Message, ex);
-        }
-        catch (GitCommandException ex)
-        {
+        } catch (GitCommandException ex) {
             throw new WorkflowException(ex.Message, ex);
         }
     }
@@ -365,15 +335,11 @@ public sealed partial class DependencyWorkflow
     private static List<PreviewAddon> BuildPreviewAddons(
         GraphResolutionResult graph,
         IReadOnlyDictionary<string, LockedAddon> previousAddonsByName,
-        string requestedName)
-    {
+        string requestedName) {
         var requirersByName = new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
-        foreach (var entry in graph.Addons)
-        {
-            foreach (var dependency in entry.DependencyNames)
-            {
-                if (!requirersByName.TryGetValue(dependency, out var requirers))
-                {
+        foreach (var entry in graph.Addons) {
+            foreach (var dependency in entry.DependencyNames) {
+                if (!requirersByName.TryGetValue(dependency, out var requirers)) {
                     requirersByName[dependency] = requirers = new SortedSet<string>(StringComparer.Ordinal);
                 }
 
@@ -382,8 +348,7 @@ public sealed partial class DependencyWorkflow
         }
 
         return graph.Addons
-            .Select(entry =>
-            {
+            .Select(entry => {
                 var resolved = entry.Resolved;
                 previousAddonsByName.TryGetValue(resolved.Name, out var previous);
 
@@ -394,8 +359,7 @@ public sealed partial class DependencyWorkflow
                 // The addon the user actually typed is always attributed to the project, even when
                 // something else in the graph happens to require it too — "you asked for this" is the
                 // one label the confirmation dialog cannot get wrong.
-                if (resolved.Name == requestedName || requiredBy.Count == 0)
-                {
+                if (resolved.Name == requestedName || requiredBy.Count == 0) {
                     requiredBy.Insert(0, GraphConflictRequirer);
                 }
 
@@ -422,15 +386,12 @@ public sealed partial class DependencyWorkflow
     /// would union in (requirement P1-5).
     /// </summary>
     private static List<PreviewDotnet> BuildPreviewDotnet(
-        ProjectManifest manifest, DotquayLockfile lockfile, GraphResolutionResult graph)
-    {
+        ProjectManifest manifest, DotquayLockfile lockfile, GraphResolutionResult graph) {
         var lockedNames = lockfile.Dotnet.Select(d => d.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var declaringAddonByPackage = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (addonName, packageIds) in graph.DotnetPackagesByAddon)
-        {
-            foreach (var packageId in packageIds)
-            {
+        foreach (var (addonName, packageIds) in graph.DotnetPackagesByAddon) {
+            foreach (var packageId in packageIds) {
                 declaringAddonByPackage.TryAdd(packageId, addonName);
             }
         }
@@ -445,10 +406,8 @@ public sealed partial class DependencyWorkflow
 
         var seen = rows.Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var spec in graph.AddonDeclaredDotnet)
-        {
-            if (!seen.Add(spec.Name))
-            {
+        foreach (var spec in graph.AddonDeclaredDotnet) {
+            if (!seen.Add(spec.Name)) {
                 continue;
             }
 

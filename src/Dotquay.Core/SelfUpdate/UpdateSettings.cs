@@ -8,8 +8,7 @@ namespace Dotquay.Core.SelfUpdate;
 /// Never affects <c>self check</c> or <c>self update</c>, which are asked for explicitly — turning
 /// the notice off is not turning the feature off.</param>
 /// <param name="IntervalHours">How stale the cached answer may get before a refresh is started.</param>
-public sealed record UpdateSettings(string ChannelUrl, bool NoticeEnabled, int IntervalHours)
-{
+public sealed record UpdateSettings(string ChannelUrl, bool NoticeEnabled, int IntervalHours) {
     /// <summary>dotquay's own release channel. A constant rather than a required setting because a
     /// tool that cannot update itself out of the box has not solved the problem it set out to
     /// solve.</summary>

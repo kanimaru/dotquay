@@ -17,8 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// on principle: a command whose whole contract is "replay the lockfile" should never be one refactor
 /// away from acquiring a feed. Guarded by <see cref="ForceConfirmationPolicy"/> only.
 /// </remarks>
-public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_install";
 
     public override string Description =>
@@ -50,13 +49,11 @@ public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate) : 
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var force = McpArgs.GetBool(arguments, "force");
         var confirmDiscard = McpArgs.GetStringArray(arguments, "confirm_discard");
 
-        var guardContext = new WriteGuardContext
-        {
+        var guardContext = new WriteGuardContext {
             ProjectDirectory = projectDirectory,
             InspectionWorkflow = McpInfrastructure.CreateWorkflow(),
             Force = force,
@@ -65,8 +62,7 @@ public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate) : 
 
         var verdict = await WriteGuard.Default.EvaluateAsync(guardContext, cancellationToken);
 
-        if (verdict is WriteGuardRefusal refusal)
-        {
+        if (verdict is WriteGuardRefusal refusal) {
             return McpToolResults.FromRefusal(Name, refusal);
         }
 

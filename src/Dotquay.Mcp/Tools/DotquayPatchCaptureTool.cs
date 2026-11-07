@@ -14,8 +14,7 @@ namespace Dotquay.Mcp.Tools;
 /// <remarks>Not destructive and unguarded: it only ever writes a patch file describing what's already
 /// on disk, and re-applying it on the next install/update is automatic (see the project's own
 /// "Patches" notes on why that's easy to mistake for broken).</remarks>
-public sealed class DotquayPatchCaptureTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayPatchCaptureTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_patch_capture";
 
     public override string Description =>
@@ -37,12 +36,10 @@ public sealed class DotquayPatchCaptureTool(IProjectScope scope, ProjectGate gat
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the installed addon to capture a patch from.");
         }
 
@@ -52,8 +49,7 @@ public sealed class DotquayPatchCaptureTool(IProjectScope scope, ProjectGate gat
         return McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, ToJson(result))));
     }
 
-    internal static OperationJson ToJson(PatchCaptureResult result) => new()
-    {
+    internal static OperationJson ToJson(PatchCaptureResult result) => new() {
         Changes =
         [
             new ChangeJson

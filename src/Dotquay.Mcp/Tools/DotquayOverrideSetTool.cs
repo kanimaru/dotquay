@@ -23,8 +23,7 @@ namespace Dotquay.Mcp.Tools;
 /// <c>dotquay_update</c> (or <c>dotquay_install</c>) itself, which is also where the write guard's
 /// force/confirm_discard check belongs — a plain manifest edit never discards anything on its own.
 /// </remarks>
-public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_override_set";
 
     public override string Description =>
@@ -55,12 +54,10 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             return ValueTask.FromResult(McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the addon to override."));
         }
 
@@ -70,8 +67,7 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
 
         var named = new[] { version, branch, rev }.Count(v => v is not null);
 
-        if (named != 1)
-        {
+        if (named != 1) {
             return ValueTask.FromResult(McpToolResults.Failure(
                 Name, JsonErrorKind.Workflow,
                 $"'{name}': pass exactly one of version, branch, or rev."));
@@ -84,8 +80,7 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
         var overrides = McpInfrastructure.CreateOverrides();
         var result = overrides.Set(projectDirectory, name, kind, value, McpArgs.GetString(arguments, "git"), McpArgs.GetString(arguments, "path"));
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson
@@ -108,8 +103,7 @@ public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate
         return ValueTask.FromResult(McpToolResults.FromJson(DotquayMcpJson.Write(JsonEnvelope<OperationJson>.Success(Name, payload))));
     }
 
-    private static string Describe(OverrideResult result) => result.Change switch
-    {
+    private static string Describe(OverrideResult result) => result.Change switch {
         OverrideChange.Added => $"Added [overrides.{result.Name}] -> {AddonRequirement.ConstraintText(result.Spec!)}. Call dotquay_update to apply it.",
         OverrideChange.Replaced => $"Changed [overrides.{result.Name}] -> {AddonRequirement.ConstraintText(result.Spec!)}. Call dotquay_update to apply it.",
         _ => $"[overrides.{result.Name}] already says that — nothing to do.",

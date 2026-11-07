@@ -4,8 +4,7 @@ using Dotquay.Core.Manifest;
 namespace Dotquay.Core.Workflows;
 
 /// <summary>What an <see cref="OverrideWorkflow"/> call actually did to the manifest.</summary>
-public enum OverrideChange
-{
+public enum OverrideChange {
     Added,
     Replaced,
     Removed,
@@ -31,12 +30,10 @@ public sealed record OverrideResult(string Name, OverrideChange Change, AddonSpe
 /// in between. It also keeps this class free of git, NuGet, and the network entirely — it only ever
 /// reads and writes one TOML file.
 /// </remarks>
-public sealed class OverrideWorkflow
-{
+public sealed class OverrideWorkflow {
     private readonly ProjectFileStore _projectFiles;
 
-    public OverrideWorkflow(IFileSystem fileSystem)
-    {
+    public OverrideWorkflow(IFileSystem fileSystem) {
         _projectFiles = new ProjectFileStore(fileSystem);
     }
 
@@ -60,15 +57,12 @@ public sealed class OverrideWorkflow
         string value,
         string? git = null,
         string? path = null,
-        string? installAs = null)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        string? installAs = null) {
+        if (string.IsNullOrWhiteSpace(name)) {
             throw new WorkflowException("An override needs an addon name.");
         }
 
-        if (string.IsNullOrWhiteSpace(value))
-        {
+        if (string.IsNullOrWhiteSpace(value)) {
             throw new WorkflowException($"'{name}': an override needs a version, branch, or rev to pin to.");
         }
 
@@ -82,8 +76,7 @@ public sealed class OverrideWorkflow
         var resolvedPath = path ?? InferPath(manifest, name);
         var resolvedInstallAs = installAs ?? InferInstallAs(manifest, name);
 
-        var spec = new AddonSpec
-        {
+        var spec = new AddonSpec {
             Name = name,
             Git = resolvedGit,
             Version = kind == AddonSourceKind.Version ? value : null,
@@ -93,13 +86,11 @@ public sealed class OverrideWorkflow
             InstallAs = resolvedInstallAs,
         };
 
-        if (manifest.Overrides.TryGetValue(name, out var existing) && SameSource(existing, spec))
-        {
+        if (manifest.Overrides.TryGetValue(name, out var existing) && SameSource(existing, spec)) {
             return new OverrideResult(name, OverrideChange.Unchanged, existing, manifestPath);
         }
 
-        _projectFiles.WriteManifest(manifestPath, manifest with
-        {
+        _projectFiles.WriteManifest(manifestPath, manifest with {
             Overrides = new Dictionary<string, AddonSpec>(manifest.Overrides, StringComparer.Ordinal) { [name] = spec },
         });
 
@@ -109,17 +100,14 @@ public sealed class OverrideWorkflow
     /// <summary>Drops the override, handing the name back to normal unification (SPEC.md §8) — which
     /// may well resurface the conflict it was hiding. That's the point: an override is a decision the
     /// user can take back.</summary>
-    public OverrideResult Clear(string projectDirectory, string name)
-    {
+    public OverrideResult Clear(string projectDirectory, string name) {
         var (manifest, manifestPath) = _projectFiles.ReadManifestOrThrow(projectDirectory);
 
-        if (!manifest.Overrides.ContainsKey(name))
-        {
+        if (!manifest.Overrides.ContainsKey(name)) {
             return new OverrideResult(name, OverrideChange.Unchanged, null, manifestPath);
         }
 
-        _projectFiles.WriteManifest(manifestPath, manifest with
-        {
+        _projectFiles.WriteManifest(manifestPath, manifest with {
             Overrides = manifest.Overrides
                 .Where(kv => !string.Equals(kv.Key, name, StringComparison.Ordinal))
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
@@ -128,15 +116,12 @@ public sealed class OverrideWorkflow
         return new OverrideResult(name, OverrideChange.Removed, null, manifestPath);
     }
 
-    private string? InferGit(string projectDirectory, ProjectManifest manifest, string name)
-    {
-        if (manifest.Addons.TryGetValue(name, out var declared))
-        {
+    private string? InferGit(string projectDirectory, ProjectManifest manifest, string name) {
+        if (manifest.Addons.TryGetValue(name, out var declared)) {
             return declared.Git;
         }
 
-        if (manifest.Overrides.TryGetValue(name, out var existing))
-        {
+        if (manifest.Overrides.TryGetValue(name, out var existing)) {
             return existing.Git;
         }
 

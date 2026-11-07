@@ -6,21 +6,17 @@ using Tomlyn.Model;
 namespace Dotquay.Core.Lockfile;
 
 /// <summary>Parses <c>dotquay.lock</c> text into <see cref="DotquayLockfile"/>.</summary>
-public static partial class LockfileReader
-{
-    public static DotquayLockfile Read(string text, string sourcePath = "dotquay.lock")
-    {
+public static partial class LockfileReader {
+    public static DotquayLockfile Read(string text, string sourcePath = "dotquay.lock") {
         var table = Parse(text, sourcePath);
 
         var addons = new List<LockedAddon>();
-        if (table.TryGetValue("addon", out var addonRaw) && addonRaw is TomlTableArray addonArray)
-        {
+        if (table.TryGetValue("addon", out var addonRaw) && addonRaw is TomlTableArray addonArray) {
             addons.AddRange(addonArray.Select(entry => ReadAddon(entry, sourcePath)));
         }
 
         var dotnet = new List<LockedDotnet>();
-        if (table.TryGetValue("dotnet", out var dotnetRaw) && dotnetRaw is TomlTableArray dotnetArray)
-        {
+        if (table.TryGetValue("dotnet", out var dotnetRaw) && dotnetRaw is TomlTableArray dotnetArray) {
             dotnet.AddRange(dotnetArray.Select(entry => ReadDotnet(entry, sourcePath)));
         }
 
@@ -51,18 +47,15 @@ public static partial class LockfileReader
     /// — and the consequence of being wrong is a clear error rather than lost data.
     /// </para>
     /// </remarks>
-    private static void VerifyNothingWasDropped(string text, string sourcePath, int addonCount, int dotnetCount)
-    {
+    private static void VerifyNothingWasDropped(string text, string sourcePath, int addonCount, int dotnetCount) {
         var expectedAddons = ArrayHeaderPattern("addon").Count(text);
         var expectedDotnet = ArrayHeaderPattern("dotnet").Count(text);
 
-        if (expectedAddons != addonCount)
-        {
+        if (expectedAddons != addonCount) {
             throw new LockfileParseException(BuildMessage(sourcePath, "addon", expectedAddons, addonCount));
         }
 
-        if (expectedDotnet != dotnetCount)
-        {
+        if (expectedDotnet != dotnetCount) {
             throw new LockfileParseException(BuildMessage(sourcePath, "dotnet", expectedDotnet, dotnetCount));
         }
     }
@@ -81,34 +74,27 @@ public static partial class LockfileReader
     [GeneratedRegex(@"^\s*\[\[\s*dotnet\s*\]\]", RegexOptions.Multiline)]
     private static partial Regex DotnetHeader();
 
-    private static TomlTable Parse(string text, string sourcePath)
-    {
-        try
-        {
+    private static TomlTable Parse(string text, string sourcePath) {
+        try {
             return DotquayToml.Parse(text, sourcePath);
-        }
-        catch (TomlException ex)
-        {
+        } catch (TomlException ex) {
             throw new LockfileParseException($"{sourcePath}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
     }
 
-    private static LockedAddon ReadAddon(TomlTable entry, string sourcePath)
-    {
+    private static LockedAddon ReadAddon(TomlTable entry, string sourcePath) {
         var name = GetString(entry, "name") ?? throw Missing(sourcePath, "addon", "name");
         var git = GetString(entry, "git") ?? throw Missing(sourcePath, "addon", "git");
         var resolved = GetString(entry, "resolved") ?? throw Missing(sourcePath, "addon", "resolved");
         var path = GetString(entry, "path") ?? throw Missing(sourcePath, "addon", "path");
 
-        if (!LooksLikeFullSha(resolved))
-        {
+        if (!LooksLikeFullSha(resolved)) {
             throw new LockfileParseException(
                 $"{sourcePath}: [[addon]] '{name}' has resolved = \"{resolved}\", which is not a full "
                 + "40-character commit SHA (SPEC.md §7.3: \"resolved is always a full commit SHA\").");
         }
 
-        return new LockedAddon
-        {
+        return new LockedAddon {
             Name = name,
             Git = git,
             Resolved = resolved,
@@ -122,8 +108,7 @@ public static partial class LockfileReader
         };
     }
 
-    private static LockedDotnet ReadDotnet(TomlTable entry, string sourcePath)
-    {
+    private static LockedDotnet ReadDotnet(TomlTable entry, string sourcePath) {
         var name = GetString(entry, "name") ?? throw Missing(sourcePath, "dotnet", "name");
         var resolved = GetString(entry, "resolved") ?? throw Missing(sourcePath, "dotnet", "resolved");
 
@@ -131,13 +116,11 @@ public static partial class LockfileReader
         // so old lockfiles read correctly rather than needing a migration. The asset keys behave the
         // same way for pre-v0.10 lockfiles: absent means dotquay wrote no asset metadata, which is
         // what was true.
-        return new LockedDotnet
-        {
+        return new LockedDotnet {
             Name = name,
             Resolved = resolved,
             Source = GetString(entry, "source"),
-            Assets = new Manifest.PackageAssets
-            {
+            Assets = new Manifest.PackageAssets {
                 Include = ReadAssetTags(entry, "include_assets"),
                 Exclude = ReadAssetTags(entry, "exclude_assets"),
                 Private = ReadAssetTags(entry, "private_assets"),
@@ -147,10 +130,8 @@ public static partial class LockfileReader
 
     /// <summary>Null when the key is absent — "dotquay wrote nothing", which is different from
     /// "dotquay wrote an empty list" and is what drives removal on the next sync.</summary>
-    private static IReadOnlyList<string>? ReadAssetTags(TomlTable entry, string key)
-    {
-        if (!entry.TryGetValue(key, out var raw) || raw is not TomlArray array)
-        {
+    private static IReadOnlyList<string>? ReadAssetTags(TomlTable entry, string key) {
+        if (!entry.TryGetValue(key, out var raw) || raw is not TomlArray array) {
             return null;
         }
 
@@ -165,10 +146,8 @@ public static partial class LockfileReader
     private static string? GetString(TomlTable table, string key) =>
         table.TryGetValue(key, out var value) && value is string s ? s : null;
 
-    private static List<string> GetStringList(TomlTable table, string key)
-    {
-        if (!table.TryGetValue(key, out var raw) || raw is not TomlArray array)
-        {
+    private static List<string> GetStringList(TomlTable table, string key) {
+        if (!table.TryGetValue(key, out var raw) || raw is not TomlArray array) {
             return [];
         }
 

@@ -43,8 +43,7 @@ namespace Dotquay.Core.Local;
 /// nothing and is greppable.
 /// </para>
 /// </remarks>
-public static class LocalTargetsWriter
-{
+public static class LocalTargetsWriter {
     public const string FileName = "dotquay.local.targets";
 
     /// <summary>The build-time analyzer copy described in <see cref="RenderAnalyzerStaging"/>.</summary>
@@ -63,12 +62,10 @@ public static class LocalTargetsWriter
     /// needed here.
     /// </remarks>
     public static void Sync(
-        IFileSystem fileSystem, string projectDirectory, IReadOnlyDictionary<string, DotnetLink> links)
-    {
+        IFileSystem fileSystem, string projectDirectory, IReadOnlyDictionary<string, DotnetLink> links) {
         var path = fileSystem.CombinePath(projectDirectory, FileName);
 
-        if (links.Count == 0)
-        {
+        if (links.Count == 0) {
             fileSystem.DeleteFile(path);
 
             // The hook stays. It is inert without this file (Condition="Exists(…)"), and removing it
@@ -82,12 +79,10 @@ public static class LocalTargetsWriter
         EnsureHook(fileSystem, projectDirectory);
     }
 
-    private static string Render(IReadOnlyDictionary<string, DotnetLink> links)
-    {
+    private static string Render(IReadOnlyDictionary<string, DotnetLink> links) {
         var itemGroup = new XElement("ItemGroup");
 
-        foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal))
-        {
+        foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal)) {
             // Order matters for readability only — MSBuild applies both regardless — but keeping the
             // Remove beside its ProjectReference makes the swap obvious to anyone who opens the file.
             itemGroup.Add(new XElement("PackageReference", new XAttribute("Remove", link.PackageId)));
@@ -95,8 +90,7 @@ public static class LocalTargetsWriter
             var reference = new XElement(
                 "ProjectReference", new XAttribute("Include", link.ProjectPath));
 
-            if (link.Analyzer)
-            {
+            if (link.Analyzer) {
                 reference.Add(new XAttribute("OutputItemType", "Analyzer"));
                 reference.Add(new XAttribute("ReferenceOutputAssembly", "false"));
             }
@@ -106,8 +100,7 @@ public static class LocalTargetsWriter
 
         var project = new XElement("Project", itemGroup);
 
-        if (links.Values.Any(l => l.Analyzer))
-        {
+        if (links.Values.Any(l => l.Analyzer)) {
             project.Add(RenderAnalyzerStaging());
         }
 
@@ -165,8 +158,7 @@ public static class LocalTargetsWriter
     /// broken for no reason. <c>DisableDotquayAnalyzerStaging=true</c> opts out.
     /// </para>
     /// </remarks>
-    private static IEnumerable<XNode> RenderAnalyzerStaging()
-    {
+    private static IEnumerable<XNode> RenderAnalyzerStaging() {
         const string stageRoot = "$(_DotquayAnalyzerStageRoot)";
 
         yield return new XComment(
@@ -280,8 +272,7 @@ public static class LocalTargetsWriter
         {
             ("==", "rmdir /s /q \"%(_DotquayStaleStage.FullPath)\""),
             ("!=", "rm -rf '%(_DotquayStaleStage.FullPath)'"),
-        })
-        {
+        }) {
             target.Add(new XElement(
                 "Exec",
                 new XAttribute(
@@ -303,15 +294,11 @@ public static class LocalTargetsWriter
     /// The only permanent change this feature makes to a tracked file, which is why it is idempotent
     /// and why it is one line. Position is not cosmetic: see the class remarks.
     /// </remarks>
-    public static void EnsureHook(IFileSystem fileSystem, string projectDirectory)
-    {
+    public static void EnsureHook(IFileSystem fileSystem, string projectDirectory) {
         string csprojPath;
-        try
-        {
+        try {
             csprojPath = CsprojLocator.Locate(fileSystem, projectDirectory);
-        }
-        catch (DotnetSyncException ex)
-        {
+        } catch (DotnetSyncException ex) {
             // Linking a NuGet package in a project with no C# project file is a coherent thing to
             // ask for and an impossible thing to do; say which it is rather than surfacing a
             // PackageReference-flavoured message from a link command.
@@ -320,23 +307,18 @@ public static class LocalTargetsWriter
         }
 
         XDocument document;
-        try
-        {
+        try {
             document = XDocument.Parse(fileSystem.ReadAllText(csprojPath));
-        }
-        catch (System.Xml.XmlException ex)
-        {
+        } catch (System.Xml.XmlException ex) {
             throw new LocalLinkException($"{csprojPath}: not valid XML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         var project = document.Root;
-        if (project is null || project.Name.LocalName != "Project")
-        {
+        if (project is null || project.Name.LocalName != "Project") {
             throw new LocalLinkException($"{csprojPath}: expected a <Project> root element.");
         }
 
-        if (HasHook(project))
-        {
+        if (HasHook(project)) {
             return;
         }
 
@@ -360,15 +342,11 @@ public static class LocalTargetsWriter
     /// <summary>Whether the project at <paramref name="projectDirectory"/> imports the overlay. Used by
     /// <c>doctor</c> to catch the overlay-without-hook case, which is a link that silently does
     /// nothing.</summary>
-    public static bool HasHook(IFileSystem fileSystem, string csprojPath)
-    {
-        try
-        {
+    public static bool HasHook(IFileSystem fileSystem, string csprojPath) {
+        try {
             var root = XDocument.Parse(fileSystem.ReadAllText(csprojPath)).Root;
             return root is not null && HasHook(root);
-        }
-        catch (System.Xml.XmlException)
-        {
+        } catch (System.Xml.XmlException) {
             return false;
         }
     }

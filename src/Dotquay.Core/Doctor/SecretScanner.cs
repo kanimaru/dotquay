@@ -14,20 +14,16 @@ namespace Dotquay.Core.Doctor;
 /// <para>Prefix patterns are drawn from the providers dotquay actually targets. Missing a novel token
 /// format is acceptable; flagging a legitimate commit SHA is not.</para>
 /// </remarks>
-public static partial class SecretScanner
-{
+public static partial class SecretScanner {
     /// <summary>A short description of what was found, or null when nothing was. Never includes the
     /// matched text — a message quoting the secret would put it in terminal scrollback and bug
     /// reports, which is where it least belongs.</summary>
-    public static string? Describe(string text)
-    {
-        if (ProviderTokenPattern().IsMatch(text))
-        {
+    public static string? Describe(string text) {
+        if (ProviderTokenPattern().IsMatch(text)) {
             return "what looks like an access token";
         }
 
-        if (UrlCredentialPattern().IsMatch(text))
-        {
+        if (UrlCredentialPattern().IsMatch(text)) {
             return "a URL with an embedded username and password";
         }
 

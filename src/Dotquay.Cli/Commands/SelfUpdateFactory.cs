@@ -8,8 +8,7 @@ namespace Dotquay.Cli.Commands;
 /// <summary>The one place the CLI builds the self-update stack, so <c>self check</c>,
 /// <c>self update</c>, and the passive notice can never disagree about which channel they are
 /// talking to or which binary they are talking about.</summary>
-internal static class SelfUpdateFactory
-{
+internal static class SelfUpdateFactory {
     public static UpdateSettings Settings() => ConfigStore().Read();
 
     public static TomlUserConfigStore ConfigStore() =>

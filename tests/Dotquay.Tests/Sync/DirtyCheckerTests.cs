@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Sync;
 
-public class DirtyCheckerTests
-{
+public class DirtyCheckerTests {
     [Fact]
-    public void Check_AbsentDestination_IsNotDirty()
-    {
+    public void Check_AbsentDestination_IsNotDirty() {
         var fileSystem = new InMemoryFileSystem();
 
         var result = DirtyChecker.Check(fileSystem, "addons/foo", expectedContentHash: "sha256:whatever");
@@ -17,8 +15,7 @@ public class DirtyCheckerTests
     }
 
     [Fact]
-    public void Check_MatchingHash_IsNotDirty()
-    {
+    public void Check_MatchingHash_IsNotDirty() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "cfg");
         var actualHash = ContentHasher.HashDirectory(fileSystem, "addons/foo");
@@ -29,8 +26,7 @@ public class DirtyCheckerTests
     }
 
     [Fact]
-    public void Check_MismatchedHash_IsDirty()
-    {
+    public void Check_MismatchedHash_IsDirty() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "hand-edited by the user");
 
@@ -40,8 +36,7 @@ public class DirtyCheckerTests
     }
 
     [Fact]
-    public void Check_ExistingContentWithNoPriorRecord_IsDirty()
-    {
+    public void Check_ExistingContentWithNoPriorRecord_IsDirty() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("addons/foo/plugin.cfg", "something already here");
 

@@ -12,15 +12,13 @@ namespace Dotquay.Mcp.Guards;
 /// which policy it asked, so it can cast straight to the type it expects rather than the guard chain
 /// inventing a lowest-common-denominator shape nobody needs.
 /// </remarks>
-public abstract record WriteGuardVerdict
-{
+public abstract record WriteGuardVerdict {
     public static WriteGuardVerdict Allow() => WriteGuardAllow.Instance;
 
     public static WriteGuardVerdict Refuse(string message, object detail) => new WriteGuardRefusal(message, detail);
 }
 
-public sealed record WriteGuardAllow : WriteGuardVerdict
-{
+public sealed record WriteGuardAllow : WriteGuardVerdict {
     public static readonly WriteGuardAllow Instance = new();
 }
 

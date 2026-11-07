@@ -34,8 +34,7 @@ namespace Dotquay.Core.Git;
 /// with somebody else's cancellation.
 /// </para>
 /// </remarks>
-public sealed class MemoizingGitClient : IGitClient
-{
+public sealed class MemoizingGitClient : IGitClient {
     private readonly IGitClient _inner;
 
     private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyList<GitRef>>>> _remoteRefs =
@@ -46,8 +45,7 @@ public sealed class MemoizingGitClient : IGitClient
     private readonly ConcurrentDictionary<string, Lazy<Task<string>>> _defaultBranches =
         new(StringComparer.Ordinal);
 
-    public MemoizingGitClient(IGitClient inner)
-    {
+    public MemoizingGitClient(IGitClient inner) {
         ArgumentNullException.ThrowIfNull(inner);
         _inner = inner;
     }
@@ -106,25 +104,20 @@ public sealed class MemoizingGitClient : IGitClient
         Func<TKey, Task<T>> query,
         string description,
         CancellationToken cancellationToken)
-        where TKey : notnull
-    {
+        where TKey : notnull {
         var entry = memo.GetOrAdd(key, k => new Lazy<Task<T>>(() => query(k), LazyThreadSafetyMode.ExecutionAndPublication));
 
-        if (entry.IsValueCreated)
-        {
+        if (entry.IsValueCreated) {
             DiagnosticLog.Write(DiagnosticLevel.Verbose, "git", $"reusing {description} from earlier in this run");
         }
 
         var task = entry.Value;
 
-        try
-        {
+        try {
             // WaitAsync: a caller who cancels stops waiting without cancelling the shared query for
             // everyone else still waiting on it.
             return await task.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (task.IsCanceled)
-        {
+        } catch (OperationCanceledException) when (task.IsCanceled) {
             // Only the query's own cancellation is forgotten. Removing by (key, entry) leaves alone a
             // retry that has already replaced this entry.
             memo.TryRemove(new KeyValuePair<TKey, Lazy<Task<T>>>(key, entry));

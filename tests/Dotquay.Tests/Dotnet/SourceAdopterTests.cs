@@ -10,24 +10,20 @@ namespace Dotquay.Tests.Dotnet;
 /// (SPEC.md §11.3). This is a real security boundary, so every branch is asserted rather than
 /// reasoned about.
 /// </summary>
-public class SourceAdopterTests
-{
+public class SourceAdopterTests {
     private const string FeedUrl = "https://gitlab.kemomi.de/api/v4/groups/7/-/packages/nuget/index.json";
 
-    private sealed class ApproveAll : ISourceApproval
-    {
+    private sealed class ApproveAll : ISourceApproval {
         public List<SourceAdoptionRequest> Seen { get; } = [];
 
-        public bool Approve(SourceAdoptionRequest request)
-        {
+        public bool Approve(SourceAdoptionRequest request) {
             Seen.Add(request);
             return true;
         }
     }
 
     private static SourceAdopter.Result Evaluate(
-        ProjectManifest manifest, ISourceApproval? approval = null, NuGetSourceSpec? source = null, string addon = "vbeami")
-    {
+        ProjectManifest manifest, ISourceApproval? approval = null, NuGetSourceSpec? source = null, string addon = "vbeami") {
         var declared = source ?? new NuGetSourceSpec("vbeami", FeedUrl);
         return new SourceAdopter(approval).Evaluate(
             manifest,
@@ -36,8 +32,7 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_UntrustedHostWithNoApprover_IsRefused()
-    {
+    public void Evaluate_UntrustedHostWithNoApprover_IsRefused() {
         // The default everywhere that can't ask a human: CI, --json, the editor plugin.
         var result = Evaluate(new ProjectManifest());
 
@@ -48,8 +43,7 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_TrustedHost_IsAdoptedWithoutAsking()
-    {
+    public void Evaluate_TrustedHost_IsAdoptedWithoutAsking() {
         var approval = new ApproveAll();
 
         var result = Evaluate(
@@ -63,16 +57,14 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_AdoptedSource_RecordsWhichAddonAskedForIt()
-    {
+    public void Evaluate_AdoptedSource_RecordsWhichAddonAskedForIt() {
         var result = Evaluate(new ProjectManifest { TrustedHosts = ["gitlab.kemomi.de"] });
 
         Assert.Equal("vbeami", Assert.Single(result.Adopted).DeclaredByAddon);
     }
 
     [Fact]
-    public void Evaluate_UntrustedHostButApproved_IsAdopted()
-    {
+    public void Evaluate_UntrustedHostButApproved_IsAdopted() {
         var approval = new ApproveAll();
 
         var result = Evaluate(new ProjectManifest(), approval);
@@ -82,8 +74,7 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_TrustedHostMatchIsExact_NotBySuffix()
-    {
+    public void Evaluate_TrustedHostMatchIsExact_NotBySuffix() {
         // A trusted "kemomi.de" must not cover "evil-kemomi.de" or "gitlab.kemomi.de.attacker.com".
         Assert.False(SourceAdopter.IsTrusted(["kemomi.de"], "https://gitlab.kemomi.de/x"));
         Assert.False(SourceAdopter.IsTrusted(["gitlab.kemomi.de"], "https://gitlab.kemomi.de.attacker.com/x"));
@@ -92,8 +83,7 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_TrustedHostIgnoresCaseAndScheme_ButNotPort()
-    {
+    public void Evaluate_TrustedHostIgnoresCaseAndScheme_ButNotPort() {
         Assert.True(SourceAdopter.IsTrusted(["GitLab.Kemomi.DE"], "https://gitlab.kemomi.de/x"));
         Assert.True(SourceAdopter.IsTrusted(["https://gitlab.kemomi.de"], "https://gitlab.kemomi.de/x"));
 
@@ -102,14 +92,12 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_EmptyTrustedHosts_TrustsNothing()
-    {
+    public void Evaluate_EmptyTrustedHosts_TrustsNothing() {
         Assert.False(SourceAdopter.IsTrusted([], "https://gitlab.kemomi.de/x"));
     }
 
     [Fact]
-    public void Evaluate_SourceTheProjectAlreadyDeclares_IsNeitherAdoptedNorAsked()
-    {
+    public void Evaluate_SourceTheProjectAlreadyDeclares_IsNeitherAdoptedNorAsked() {
         var approval = new ApproveAll();
 
         // Matched on URL, not name: the project calls it "kemomi", the addon calls it "vbeami".
@@ -122,12 +110,10 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_AdoptedNameCollidesWithAnExistingSource_IsRenamed()
-    {
+    public void Evaluate_AdoptedNameCollidesWithAnExistingSource_IsRenamed() {
         // Two [nuget.sources.x] blocks is a parse error, and silently overwriting the project's own
         // source with an addon's would be worse than either.
-        var manifest = new ProjectManifest
-        {
+        var manifest = new ProjectManifest {
             TrustedHosts = ["gitlab.kemomi.de"],
             NuGetSources = [new NuGetSourceSpec("vbeami", "https://gitlab.kemomi.de/api/v4/projects/9/packages/nuget/index.json")],
         };
@@ -139,8 +125,7 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_SameFeedDeclaredByTwoAddons_IsAdoptedOnce()
-    {
+    public void Evaluate_SameFeedDeclaredByTwoAddons_IsAdoptedOnce() {
         var adopter = new SourceAdopter(new ApproveAll());
 
         var result = adopter.Evaluate(
@@ -152,8 +137,7 @@ public class SourceAdopterTests
     }
 
     [Fact]
-    public void Evaluate_OwnedPatternsSurviveAdoption()
-    {
+    public void Evaluate_OwnedPatternsSurviveAdoption() {
         var source = new NuGetSourceSpec("vbeami", FeedUrl) { Packages = ["VBeami.*"] };
 
         var adopted = Assert.Single(

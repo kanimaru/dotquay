@@ -13,8 +13,7 @@ public sealed record LocalLink(string Name, string Path);
 /// <summary>Everything <c>dotquay.local.toml</c> declares, split by what it redirects.</summary>
 public sealed record LocalLinkSet(
     IReadOnlyDictionary<string, LocalLink> Addons,
-    IReadOnlyDictionary<string, DotnetLink> Dotnet)
-{
+    IReadOnlyDictionary<string, DotnetLink> Dotnet) {
     public static readonly LocalLinkSet Empty = new(
         new Dictionary<string, LocalLink>(StringComparer.Ordinal),
         new Dictionary<string, DotnetLink>(StringComparer.Ordinal));
@@ -52,8 +51,7 @@ public sealed record LocalLinkSet(
 /// them staring at an addon that stopped being linked with nothing said about why.
 /// </para>
 /// </remarks>
-public sealed class LocalLinks
-{
+public sealed class LocalLinks {
     public const string FileName = "dotquay.local.toml";
 
     private const string SectionKey = "link";
@@ -62,8 +60,7 @@ public sealed class LocalLinks
 
     private readonly IFileSystem _fileSystem;
 
-    public LocalLinks(IFileSystem fileSystem)
-    {
+    public LocalLinks(IFileSystem fileSystem) {
         _fileSystem = fileSystem;
     }
 
@@ -87,52 +84,41 @@ public sealed class LocalLinks
     /// deliberately created it, so silently ignoring it would leave them staring at a link that
     /// refuses to apply with nothing said about why.
     /// </remarks>
-    public LocalLinkSet ReadAll(string projectDirectory)
-    {
+    public LocalLinkSet ReadAll(string projectDirectory) {
         var path = PathFor(projectDirectory);
-        if (!_fileSystem.FileExists(path))
-        {
+        if (!_fileSystem.FileExists(path)) {
             return LocalLinkSet.Empty;
         }
 
         TomlTable table;
-        try
-        {
+        try {
             table = DotquayToml.Parse(_fileSystem.ReadAllText(path), path);
-        }
-        catch (TomlException ex)
-        {
+        } catch (TomlException ex) {
             throw new LocalLinksParseException($"{path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
         var addons = new Dictionary<string, LocalLink>(StringComparer.Ordinal);
         var dotnet = new Dictionary<string, DotnetLink>(StringComparer.Ordinal);
 
-        if (!table.TryGetValue(SectionKey, out var raw) || raw is not TomlTable links)
-        {
+        if (!table.TryGetValue(SectionKey, out var raw) || raw is not TomlTable links) {
             return LocalLinkSet.Empty;
         }
 
-        foreach (var key in links.Keys)
-        {
-            if (links[key] is not TomlTable entry)
-            {
+        foreach (var key in links.Keys) {
+            if (links[key] is not TomlTable entry) {
                 throw new LocalLinksParseException($"{path}: [{SectionKey}.{key}] must be a table with a 'path' key.");
             }
 
-            switch (key)
-            {
+            switch (key) {
                 case AddonSection:
-                    foreach (var (name, addonEntry) in Leaves(entry, path, $"{SectionKey}.{AddonSection}"))
-                    {
+                    foreach (var (name, addonEntry) in Leaves(entry, path, $"{SectionKey}.{AddonSection}")) {
                         addons[name] = new LocalLink(name, RequirePath(addonEntry, path, $"{SectionKey}.{AddonSection}.{name}"));
                     }
 
                     break;
 
                 case DotnetSection:
-                    foreach (var (id, dotnetEntry) in Leaves(entry, path, $"{SectionKey}.{DotnetSection}"))
-                    {
+                    foreach (var (id, dotnetEntry) in Leaves(entry, path, $"{SectionKey}.{DotnetSection}")) {
                         dotnet[id] = new DotnetLink(
                             id,
                             RequirePath(dotnetEntry, path, $"{SectionKey}.{DotnetSection}.{id}"),
@@ -164,23 +150,18 @@ public sealed class LocalLinks
     /// what an unexpected key means — a helper taking both as parameters would be longer than either.
     /// dotquay's own writer always quotes the key, so this only ever matters for a hand-edit.
     /// </remarks>
-    private static IEnumerable<(string Name, TomlTable Entry)> Leaves(TomlTable table, string sourcePath, string section)
-    {
-        foreach (var key in table.Keys)
-        {
-            if (table[key] is not TomlTable child)
-            {
+    private static IEnumerable<(string Name, TomlTable Entry)> Leaves(TomlTable table, string sourcePath, string section) {
+        foreach (var key in table.Keys) {
+            if (table[key] is not TomlTable child) {
                 throw new LocalLinksParseException($"{sourcePath}: [{section}.{key}] must be a table with a 'path' key.");
             }
 
-            if (child.ContainsKey("path"))
-            {
+            if (child.ContainsKey("path")) {
                 yield return (key, child);
                 continue;
             }
 
-            foreach (var (nested, entry) in Leaves(child, sourcePath, $"{section}.{key}"))
-            {
+            foreach (var (nested, entry) in Leaves(child, sourcePath, $"{section}.{key}")) {
                 yield return ($"{key}.{nested}", entry);
             }
         }
@@ -192,20 +173,17 @@ public sealed class LocalLinks
             : throw new LocalLinksParseException($"{sourcePath}: [{section}] is missing required key 'path'.");
 
     /// <summary>Adds or replaces one addon link and writes the file back.</summary>
-    public void Set(string projectDirectory, string name, string localPath)
-    {
+    public void Set(string projectDirectory, string name, string localPath) {
         var resolved = _fileSystem.GetFullPath(localPath);
 
-        if (!_fileSystem.DirectoryExists(resolved))
-        {
+        if (!_fileSystem.DirectoryExists(resolved)) {
             throw new LocalLinkException(
                 $"'{resolved}' is not a directory. A link points at the addon folder itself — the one whose "
                 + "contents should appear under addons/ — not at the repository root unless they are the same.");
         }
 
         var current = ReadAll(projectDirectory);
-        var addons = new Dictionary<string, LocalLink>(current.Addons, StringComparer.Ordinal)
-        {
+        var addons = new Dictionary<string, LocalLink>(current.Addons, StringComparer.Ordinal) {
             [name] = new LocalLink(name, resolved),
         };
 
@@ -217,41 +195,31 @@ public sealed class LocalLinks
     /// one <c>.csproj</c> or the <c>.csproj</c> itself; either way the stored value is the project
     /// file, so nothing downstream has to re-derive it.
     /// </summary>
-    public void SetDotnet(string projectDirectory, string packageId, string localPath, bool analyzer)
-    {
+    public void SetDotnet(string projectDirectory, string packageId, string localPath, bool analyzer) {
         RefuseIfBuiltFromSource(projectDirectory, packageId);
 
         var resolved = _fileSystem.GetFullPath(localPath);
 
         string projectFile;
-        if (resolved.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-        {
+        if (resolved.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)) {
             projectFile = _fileSystem.FileExists(resolved)
                 ? resolved
                 : throw new LocalLinkException($"'{resolved}' does not exist.");
-        }
-        else if (_fileSystem.DirectoryExists(resolved))
-        {
-            try
-            {
+        } else if (_fileSystem.DirectoryExists(resolved)) {
+            try {
                 // The same "exactly one .csproj, or say so" rule the consuming project already uses,
                 // rather than a second notion of how to find a project.
                 projectFile = CsprojLocator.Locate(_fileSystem, resolved);
-            }
-            catch (DotnetSyncException ex)
-            {
+            } catch (DotnetSyncException ex) {
                 throw new LocalLinkException(ex.Message, ex);
             }
-        }
-        else
-        {
+        } else {
             throw new LocalLinkException(
                 $"'{resolved}' is neither a .csproj nor a folder containing one.");
         }
 
         var current = ReadAll(projectDirectory);
-        var dotnet = new Dictionary<string, DotnetLink>(current.Dotnet, StringComparer.Ordinal)
-        {
+        var dotnet = new Dictionary<string, DotnetLink>(current.Dotnet, StringComparer.Ordinal) {
             [packageId] = new DotnetLink(packageId, projectFile, analyzer),
         };
 
@@ -269,22 +237,17 @@ public sealed class LocalLinks
     /// still builds from source in its configuration, and the overlay would duplicate it there. Checked
     /// before anything about the local path, because no path makes this link safe.
     /// </remarks>
-    private void RefuseIfBuiltFromSource(string projectDirectory, string packageId)
-    {
+    private void RefuseIfBuiltFromSource(string projectDirectory, string packageId) {
         string csprojPath;
-        try
-        {
+        try {
             csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
-        }
-        catch (DotnetSyncException)
-        {
+        } catch (DotnetSyncException) {
             // No .csproj (or several): nothing to collide with here, and the install that follows says so.
             return;
         }
 
         var existing = SourceProvidedPackages.ReferencesTo(_fileSystem, csprojPath, packageId).FirstOrDefault();
-        if (existing is null)
-        {
+        if (existing is null) {
             return;
         }
 
@@ -296,13 +259,11 @@ public sealed class LocalLinks
     }
     /// <summary>Removes one addon link. Returns false when there was nothing to remove, so a caller can
     /// say so rather than reporting a change that didn't happen.</summary>
-    public bool Remove(string projectDirectory, string name)
-    {
+    public bool Remove(string projectDirectory, string name) {
         var current = ReadAll(projectDirectory);
         var addons = new Dictionary<string, LocalLink>(current.Addons, StringComparer.Ordinal);
 
-        if (!addons.Remove(name))
-        {
+        if (!addons.Remove(name)) {
             return false;
         }
 
@@ -311,13 +272,11 @@ public sealed class LocalLinks
     }
 
     /// <summary>Removes one dotnet link.</summary>
-    public bool RemoveDotnet(string projectDirectory, string packageId)
-    {
+    public bool RemoveDotnet(string projectDirectory, string packageId) {
         var current = ReadAll(projectDirectory);
         var dotnet = new Dictionary<string, DotnetLink>(current.Dotnet, StringComparer.Ordinal);
 
-        if (!dotnet.Remove(packageId))
-        {
+        if (!dotnet.Remove(packageId)) {
             return false;
         }
 
@@ -325,12 +284,10 @@ public sealed class LocalLinks
         return true;
     }
 
-    private void Write(string projectDirectory, LocalLinkSet links)
-    {
+    private void Write(string projectDirectory, LocalLinkSet links) {
         var path = PathFor(projectDirectory);
 
-        if (links.IsEmpty)
-        {
+        if (links.IsEmpty) {
             // An empty file is indistinguishable from no links, and leaving one behind means the next
             // person to open the project finds a mysterious empty file suggesting something is
             // configured when nothing is.
@@ -345,21 +302,18 @@ public sealed class LocalLinks
         sb.AppendLine($"# {LocalTargetsWriter.FileName}, which is also per-machine.");
         sb.AppendLine($"# Add {FileName} and {LocalTargetsWriter.FileName} to .gitignore.");
 
-        foreach (var (name, link) in links.Addons.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-        {
+        foreach (var (name, link) in links.Addons.OrderBy(kv => kv.Key, StringComparer.Ordinal)) {
             sb.AppendLine();
             sb.AppendLine($"[{SectionKey}.{AddonSection}.{FormatKey(name)}]");
             sb.AppendLine($"path = {Quote(link.Path)}");
         }
 
-        foreach (var (id, link) in links.Dotnet.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-        {
+        foreach (var (id, link) in links.Dotnet.OrderBy(kv => kv.Key, StringComparer.Ordinal)) {
             sb.AppendLine();
             sb.AppendLine($"[{SectionKey}.{DotnetSection}.{FormatKey(id)}]");
             sb.AppendLine($"path = {Quote(link.ProjectPath)}");
 
-            if (link.Analyzer)
-            {
+            if (link.Analyzer) {
                 sb.AppendLine("analyzer = true");
             }
         }
@@ -380,15 +334,12 @@ public sealed class LocalLinks
 /// <summary>Thrown for a malformed or unusable <c>dotquay.local.toml</c>, or a link target that
 /// can't be used. A file that can't be read at all is the narrower
 /// <see cref="LocalLinksParseException"/>.</summary>
-public class LocalLinkException : Exception
-{
+public class LocalLinkException : Exception {
     public LocalLinkException(string message)
-        : base(message)
-    {
+        : base(message) {
     }
 
     public LocalLinkException(string message, Exception innerException)
-        : base(message, innerException)
-    {
+        : base(message, innerException) {
     }
 }

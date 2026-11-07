@@ -8,12 +8,10 @@ namespace Dotquay.Tests.Support;
 /// calling test's logical flow - parallel tests each see only their own lines (see
 /// <see cref="DiagnosticLog"/>'s remarks).
 /// </summary>
-public sealed class RecordingDiagnosticSink : IDiagnosticSink
-{
+public sealed class RecordingDiagnosticSink : IDiagnosticSink {
     private readonly ConcurrentQueue<DiagnosticEvent> _events = new();
 
-    public RecordingDiagnosticSink(DiagnosticLevel level = DiagnosticLevel.Trace)
-    {
+    public RecordingDiagnosticSink(DiagnosticLevel level = DiagnosticLevel.Trace) {
         Level = level;
     }
 
@@ -29,8 +27,7 @@ public sealed class RecordingDiagnosticSink : IDiagnosticSink
     public void Write(DiagnosticEvent diagnostic) => _events.Enqueue(diagnostic);
 
     /// <summary>Creates a sink and makes it the ambient one until <paramref name="scope"/> is disposed.</summary>
-    public static RecordingDiagnosticSink Install(out IDisposable scope, DiagnosticLevel level = DiagnosticLevel.Trace)
-    {
+    public static RecordingDiagnosticSink Install(out IDisposable scope, DiagnosticLevel level = DiagnosticLevel.Trace) {
         var sink = new RecordingDiagnosticSink(level);
         scope = DiagnosticLog.Use(sink);
         return sink;

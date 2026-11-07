@@ -12,8 +12,7 @@ namespace Dotquay.Core.Git;
 /// (append-don't-reset, and the shell quoting) behind a real process launch, which is exactly the
 /// kind of thing that gets verified once by hand and then silently regresses.
 /// </remarks>
-public static class GitEnvironment
-{
+public static class GitEnvironment {
     /// <summary>The sub-command git invokes on dotquay. Must match the CLI command's name.</summary>
     public const string HelperCommandName = "credential-helper";
 
@@ -24,10 +23,8 @@ public static class GitEnvironment
     /// line pointing at nothing is worse than no config line, because git would report a helper
     /// failure instead of a missing credential.
     /// </summary>
-    public static IReadOnlyDictionary<string, string> Build(string? executablePath, IEnvironmentReader environment)
-    {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
+    public static IReadOnlyDictionary<string, string> Build(string? executablePath, IEnvironmentReader environment) {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal) {
             // The bug fix that stands on its own. ProcessGitClient redirects stdout and stderr but
             // not stdin, so before this, a repository needing credentials made git print a prompt
             // into a captured stream and wait forever on a stdin nobody was going to answer —
@@ -35,8 +32,7 @@ public static class GitEnvironment
             ["GIT_TERMINAL_PROMPT"] = "0",
         };
 
-        if (!TryBuildHelperValue(executablePath, out var helperValue))
-        {
+        if (!TryBuildHelperValue(executablePath, out var helperValue)) {
             return result;
         }
 
@@ -68,12 +64,10 @@ public static class GitEnvironment
     /// register the helper degrades to "no stored credentials for git", while getting the escaping
     /// subtly wrong would hand a broken command to a shell.</para>
     /// </remarks>
-    private static bool TryBuildHelperValue(string? executablePath, out string helperValue)
-    {
+    private static bool TryBuildHelperValue(string? executablePath, out string helperValue) {
         helperValue = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(executablePath) || executablePath.Contains('"', StringComparison.Ordinal))
-        {
+        if (string.IsNullOrWhiteSpace(executablePath) || executablePath.Contains('"', StringComparison.Ordinal)) {
             return false;
         }
 

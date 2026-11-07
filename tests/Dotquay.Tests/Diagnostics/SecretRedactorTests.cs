@@ -3,8 +3,7 @@ using Xunit;
 
 namespace Dotquay.Tests.Diagnostics;
 
-public sealed class SecretRedactorTests
-{
+public sealed class SecretRedactorTests {
     [Theory]
     // user:password in a URL keeps the user, masks the password.
     [InlineData("https://oauth2:s3cr3t@gitlab.example/x/y.git", "https://oauth2:***@gitlab.example/x/y.git")]
@@ -30,20 +29,17 @@ public sealed class SecretRedactorTests
     [InlineData("https://gitlab.com/x/y.git", "https://gitlab.com/x/y.git")]
     [InlineData("kani@kani.dev wrote this", "kani@kani.dev wrote this")]
     [InlineData("", "")]
-    public void Redact(string input, string expected)
-    {
+    public void Redact(string input, string expected) {
         Assert.Equal(expected, SecretRedactor.Redact(input));
     }
 
     [Fact]
-    public void Redact_null_is_empty()
-    {
+    public void Redact_null_is_empty() {
         Assert.Equal(string.Empty, SecretRedactor.Redact(null));
     }
 
     [Fact]
-    public void RedactArguments_masks_the_value_after_a_secret_option()
-    {
+    public void RedactArguments_masks_the_value_after_a_secret_option() {
         var redacted = SecretRedactor.RedactArguments(
             ["login", "gitlab.example", "--token", "abc123", "--project", "C:\\p", "--TOKEN", "x"]);
 
@@ -51,16 +47,14 @@ public sealed class SecretRedactorTests
     }
 
     [Fact]
-    public void RedactArguments_redacts_each_argument_as_text()
-    {
+    public void RedactArguments_redacts_each_argument_as_text() {
         var redacted = SecretRedactor.RedactArguments(["ls-remote", "https://u:p@h/r.git"]);
 
         Assert.Equal(["ls-remote", "https://u:***@h/r.git"], redacted);
     }
 
     [Fact]
-    public void A_trailing_secret_option_with_no_value_is_kept_as_is()
-    {
+    public void A_trailing_secret_option_with_no_value_is_kept_as_is() {
         Assert.Equal(["--token"], SecretRedactor.RedactArguments(["--token"]));
     }
 }

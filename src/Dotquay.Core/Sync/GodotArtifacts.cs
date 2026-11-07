@@ -20,8 +20,7 @@ namespace Dotquay.Core.Sync;
 /// making them a setting means every user has to discover and get it right before install works.
 /// </para>
 /// </remarks>
-public static class GodotArtifacts
-{
+public static class GodotArtifacts {
     /// <summary>Sidecars written next to the file they describe.</summary>
     /// <remarks>
     /// <c>.uid</c> is Godot 4.4+'s stable resource identifier for a script; <c>.import</c> is the
@@ -53,31 +52,24 @@ public static class GodotArtifacts
     /// True when <paramref name="relativePath"/> — forward-slashed and relative to the addon folder —
     /// is editor-generated.
     /// </summary>
-    public static bool IsArtifact(string relativePath)
-    {
-        if (IsEditorTemporary(relativePath))
-        {
+    public static bool IsArtifact(string relativePath) {
+        if (IsEditorTemporary(relativePath)) {
             return true;
         }
 
         var normalized = relativePath.Replace('\\', '/');
 
-        foreach (var extension in Extensions)
-        {
-            if (normalized.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-            {
+        foreach (var extension in Extensions) {
+            if (normalized.EndsWith(extension, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
         }
 
         // Matched segment-wise rather than by substring: a legitimate folder named "my.godot-stuff"
         // must not be swept up because its name happens to start with one of these.
-        foreach (var segment in normalized.Split('/'))
-        {
-            foreach (var directory in Directories)
-            {
-                if (string.Equals(segment, directory, StringComparison.OrdinalIgnoreCase))
-                {
+        foreach (var segment in normalized.Split('/')) {
+            foreach (var directory in Directories) {
+                if (string.Equals(segment, directory, StringComparison.OrdinalIgnoreCase)) {
                     return true;
                 }
             }
@@ -98,8 +90,7 @@ public static class GodotArtifacts
     /// it over would put a stale copy of the <em>old</em> library beside the new one. Reading it
     /// can also fail outright while the editor has it mapped.
     /// </remarks>
-    public static bool IsEditorTemporary(string relativePath)
-    {
+    public static bool IsEditorTemporary(string relativePath) {
         var fileName = relativePath.Substring(relativePath.LastIndexOfAny(['/', '\\']) + 1);
 
         return fileName.Length > 1 && fileName[0] == TemporaryPrefix;

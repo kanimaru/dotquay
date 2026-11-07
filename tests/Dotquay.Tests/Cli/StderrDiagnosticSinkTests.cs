@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Cli;
 
-public sealed class StderrDiagnosticSinkTests
-{
+public sealed class StderrDiagnosticSinkTests {
     [Fact]
-    public void Lines_carry_an_aligned_timestamp_and_category()
-    {
+    public void Lines_carry_an_aligned_timestamp_and_category() {
         var text = StderrDiagnosticSink.Format(
             new DiagnosticEvent(DiagnosticLevel.Verbose, "git", "$ git fetch"), TimeSpan.FromMilliseconds(1234.5));
 
@@ -16,8 +14,7 @@ public sealed class StderrDiagnosticSinkTests
     }
 
     [Fact]
-    public void Continuation_lines_sit_under_the_first()
-    {
+    public void Continuation_lines_sit_under_the_first() {
         var text = StderrDiagnosticSink.Format(
             new DiagnosticEvent(DiagnosticLevel.Trace, "git", "stdout| a\r\nstdout| b\n"), TimeSpan.Zero);
 
@@ -29,8 +26,7 @@ public sealed class StderrDiagnosticSinkTests
     }
 
     [Fact]
-    public void Long_categories_are_cut_to_keep_the_columns()
-    {
+    public void Long_categories_are_cut_to_keep_the_columns() {
         var text = StderrDiagnosticSink.Format(
             new DiagnosticEvent(DiagnosticLevel.Verbose, "averyverylongcategory", "x"), TimeSpan.Zero);
 
@@ -38,16 +34,14 @@ public sealed class StderrDiagnosticSinkTests
     }
 
     [Fact]
-    public void Write_goes_to_the_writer_and_pauses_progress_around_each_line()
-    {
+    public void Write_goes_to_the_writer_and_pauses_progress_around_each_line() {
         var writer = new StringWriter();
         var pauses = 0;
         var sink = new StderrDiagnosticSink(
             DiagnosticLevel.Verbose,
             writer,
             color: false,
-            pauseProgress: () =>
-            {
+            pauseProgress: () => {
                 pauses++;
                 return new Scope();
             },
@@ -63,15 +57,12 @@ public sealed class StderrDiagnosticSinkTests
     }
 
     [Fact]
-    public void Off_creates_the_null_sink()
-    {
+    public void Off_creates_the_null_sink() {
         Assert.Same(NullDiagnosticSink.Instance, StderrDiagnosticSink.Create(DiagnosticLevel.Off));
     }
 
-    private sealed class Scope : IDisposable
-    {
-        public void Dispose()
-        {
+    private sealed class Scope : IDisposable {
+        public void Dispose() {
         }
     }
 }

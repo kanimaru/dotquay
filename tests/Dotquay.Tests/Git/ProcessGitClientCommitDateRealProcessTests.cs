@@ -13,36 +13,32 @@ namespace Dotquay.Tests.Git;
 /// parse agree with what git prints, and that a depth-1 fetch still carries the commit's date. Returns early,
 /// passing, without git (same convention as the other real-process tests).
 /// </remarks>
-public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable
-{
+public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable {
     // 01:30 on 1 October at UTC+2: 23:30 on 30 September in UTC, so a local-time reading shows as the wrong day.
     private const string CommitterDate = "2026-10-01T01:30:00+02:00";
 
     private readonly string _root = Directory.CreateTempSubdirectory("dotquay-commitdate-real-").FullName;
 
-    public void Dispose()
-    {
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
-            {
+    public void Dispose() {
+        try {
+            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
                 File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
             }
 
             Directory.Delete(_root, recursive: true);
-        }
-        catch
-        {
+        } catch {
             // Best effort.
         }
     }
 
-    private (int Exit, string Out) Git(string dir, params string[] args)
-    {
-        var info = new ProcessStartInfo("git")
-        {
-            WorkingDirectory = dir, RedirectStandardOutput = true, RedirectStandardError = true,
-            RedirectStandardInput = true, UseShellExecute = false, CreateNoWindow = true,
+    private (int Exit, string Out) Git(string dir, params string[] args) {
+        var info = new ProcessStartInfo("git") {
+            WorkingDirectory = dir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
         foreach (var a in args) info.ArgumentList.Add(a);
         foreach (var (k, v) in Environment()) info.Environment[k] = v;
@@ -54,30 +50,27 @@ public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable
         return (p.ExitCode, o.Result);
     }
 
-    private Dictionary<string, string> Environment()
-    {
+    private Dictionary<string, string> Environment() {
         var config = Path.Combine(_root, "test.gitconfig");
-        if (!File.Exists(config))
-        {
+        if (!File.Exists(config)) {
             File.WriteAllText(config, "[user]\n\tname = t\n\temail = t@example.com\n");
         }
 
-        return new Dictionary<string, string>
-        {
-            ["GIT_CONFIG_GLOBAL"] = config, ["GIT_CONFIG_NOSYSTEM"] = "1", ["GIT_TERMINAL_PROMPT"] = "0",
-            ["GIT_AUTHOR_DATE"] = CommitterDate, ["GIT_COMMITTER_DATE"] = CommitterDate,
+        return new Dictionary<string, string> {
+            ["GIT_CONFIG_GLOBAL"] = config,
+            ["GIT_CONFIG_NOSYSTEM"] = "1",
+            ["GIT_TERMINAL_PROMPT"] = "0",
+            ["GIT_AUTHOR_DATE"] = CommitterDate,
+            ["GIT_COMMITTER_DATE"] = CommitterDate,
         };
     }
 
-    private bool GitAvailable()
-    {
-        try { return Git(Path.GetTempPath(), "--version").Exit == 0; }
-        catch { return false; }
+    private bool GitAvailable() {
+        try { return Git(Path.GetTempPath(), "--version").Exit == 0; } catch { return false; }
     }
 
     /// <summary>A bare repository with two commits, so the fetched one is not the root and depth 1 really cuts history.</summary>
-    private (string Remote, string Sha) MakeRemote()
-    {
+    private (string Remote, string Sha) MakeRemote() {
         var remote = Path.Combine(_root, "remote.git");
         var work = Path.Combine(_root, "work");
         Directory.CreateDirectory(remote);
@@ -97,8 +90,7 @@ public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable
     }
 
     [Fact]
-    public async Task AShallowFetchedCommit_ReadsBackItsCommitterDate()
-    {
+    public async Task AShallowFetchedCommit_ReadsBackItsCommitterDate() {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
         var client = new ProcessGitClient(Environment());
@@ -112,8 +104,7 @@ public sealed class ProcessGitClientCommitDateRealProcessTests : IDisposable
     }
 
     [Fact]
-    public async Task ACommitTheCheckoutDoesNotHold_HasNoDate()
-    {
+    public async Task ACommitTheCheckoutDoesNotHold_HasNoDate() {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
         var client = new ProcessGitClient(Environment());

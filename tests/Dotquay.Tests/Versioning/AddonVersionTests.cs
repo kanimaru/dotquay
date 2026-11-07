@@ -3,16 +3,14 @@ using Xunit;
 
 namespace Dotquay.Tests.Versioning;
 
-public class AddonVersionTests
-{
+public class AddonVersionTests {
     [Theory]
     [InlineData("v1.5.1", new long[] { 1, 5, 1 })]
     [InlineData("v1.8.0", new long[] { 1, 8, 0 })]
     [InlineData("v0.11.0.3", new long[] { 0, 11, 0, 3 })] // Phantom Camera: 4-component tags
     [InlineData("v4.9", new long[] { 4, 9 })] // godot-sqlite: 2-component tags
     [InlineData("2.44.0", new long[] { 2, 44, 0 })] // no "v" prefix is also fine
-    public void TryParse_AcceptsRealWorldTagShapes(string tag, long[] expectedComponents)
-    {
+    public void TryParse_AcceptsRealWorldTagShapes(string tag, long[] expectedComponents) {
         var ok = AddonVersion.TryParse(tag, out var version);
 
         Assert.True(ok);
@@ -23,8 +21,7 @@ public class AddonVersionTests
     [Theory]
     [InlineData("v5.0-dev1", "dev1")]
     [InlineData("v1.0.2-rc1", "rc1")]
-    public void TryParse_TreatsDashSuffixAsPrerelease(string tag, string expectedLabel)
-    {
+    public void TryParse_TreatsDashSuffixAsPrerelease(string tag, string expectedLabel) {
         var ok = AddonVersion.TryParse(tag, out var version);
 
         Assert.True(ok);
@@ -33,8 +30,7 @@ public class AddonVersionTests
     }
 
     [Fact]
-    public void TryParse_TreatsStableSuffixAsRelease()
-    {
+    public void TryParse_TreatsStableSuffixAsRelease() {
         var ok = AddonVersion.TryParse("v1.0.2-stable", out var version);
 
         Assert.True(ok);
@@ -48,8 +44,7 @@ public class AddonVersionTests
     [InlineData("1")]           // fewer than 2 components
     [InlineData("1.2.3.4.5")]   // more than 4 components
     [InlineData("1.a.3")]       // non-numeric component
-    public void TryParse_RejectsUnparseableTags(string tag)
-    {
+    public void TryParse_RejectsUnparseableTags(string tag) {
         var ok = AddonVersion.TryParse(tag, out var version);
 
         Assert.False(ok);
@@ -57,8 +52,7 @@ public class AddonVersionTests
     }
 
     [Fact]
-    public void CompareTo_OrdersByComponentsThenPrerelease()
-    {
+    public void CompareTo_OrdersByComponentsThenPrerelease() {
         AddonVersion.TryParse("1.2.0", out var v120);
         AddonVersion.TryParse("1.10.0", out var v1100);
         AddonVersion.TryParse("2.0.0-rc1", out var v200rc1);
@@ -75,8 +69,7 @@ public class AddonVersionTests
     [InlineData("1.0.0-alpha.1", "1.0.0-alpha.beta")] // numeric sorts below alphanumeric
     [InlineData("1.0.0-beta", "1.0.0-rc1")]
     [InlineData("1.0.0-rc1", "1.0.0")]
-    public void CompareTo_FollowsSemVerPrereleasePrecedence(string lower, string higher)
-    {
+    public void CompareTo_FollowsSemVerPrereleasePrecedence(string lower, string higher) {
         AddonVersion.TryParse(lower, out var low);
         AddonVersion.TryParse(higher, out var high);
 
@@ -85,8 +78,7 @@ public class AddonVersionTests
     }
 
     [Fact]
-    public void TryParse_IgnoresBuildMetadata()
-    {
+    public void TryParse_IgnoresBuildMetadata() {
         Assert.True(AddonVersion.TryParse("1.0.7+r3456", out var version));
 
         Assert.Equal(new long[] { 1, 0, 7 }, version!.Components);

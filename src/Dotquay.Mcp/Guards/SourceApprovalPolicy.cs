@@ -22,14 +22,11 @@ namespace Dotquay.Mcp.Guards;
 /// else could resolve it (<c>DependencyWorkflow.ApplyAdoption</c>'s own remarks explain why a refusal
 /// is deliberately not fatal on its own). Nothing is added to Core either way.
 /// </remarks>
-public sealed class SourceApprovalPolicy : IWritePolicy
-{
+public sealed class SourceApprovalPolicy : IWritePolicy {
     public string Name => "source_approval";
 
-    public async ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken)
-    {
-        if (context.AddPreview is not { } request)
-        {
+    public async ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken) {
+        if (context.AddPreview is not { } request) {
             // No dry run available for this call (dotquay_update, or a tool that doesn't touch feeds
             // at all) — nothing to pre-check.
             return WriteGuardVerdict.Allow();
@@ -38,8 +35,7 @@ public sealed class SourceApprovalPolicy : IWritePolicy
         var preview = await context.InspectionWorkflow.PreviewAddAsync(
             context.ProjectDirectory, request.GitUrl, request.Options, context.ApprovedSourceUrls, cancellationToken);
 
-        if (preview.SourcesNeedingApproval.Count == 0)
-        {
+        if (preview.SourcesNeedingApproval.Count == 0) {
             return WriteGuardVerdict.Allow();
         }
 
@@ -49,8 +45,7 @@ public sealed class SourceApprovalPolicy : IWritePolicy
             $"'{request.GitUrl}' declares {preview.SourcesNeedingApproval.Count} NuGet feed(s) this project "
             + $"has not agreed to trust: {urls}. Show the user each feed and what it would own, then retry "
             + "with approved_source_urls naming every one the user accepts.",
-            new SourceApprovalDetailJson
-            {
+            new SourceApprovalDetailJson {
                 Policy = Name,
                 UnapprovedSources = preview.SourcesNeedingApproval.Select(ToJson).ToList(),
             });
@@ -67,8 +62,7 @@ public sealed class SourceApprovalPolicy : IWritePolicy
     /// public API), so a refusal's <c>detail.unapproved_sources</c> — which needs exactly one entry,
     /// not a whole preview — builds <see cref="PreviewSourceJson"/> directly from the same fields.
     /// </summary>
-    private static PreviewSourceJson ToJson(PreviewSource source) => new()
-    {
+    private static PreviewSourceJson ToJson(PreviewSource source) => new() {
         Name = source.Name,
         Url = source.Url,
         DeclaredByAddon = source.DeclaredByAddon,

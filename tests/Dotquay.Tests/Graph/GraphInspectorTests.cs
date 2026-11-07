@@ -21,8 +21,7 @@ namespace Dotquay.Tests.Graph;
 /// here because it delegates entirely to <see cref="DependencyGraphResolver"/>, which has its own
 /// suite.
 /// </remarks>
-public class GraphInspectorTests
-{
+public class GraphInspectorTests {
     private const string ProjectDirectory = "project";
     private const string AUrl = "https://example.com/a.git";
     private const string BUrl = "https://example.com/b.git";
@@ -30,8 +29,7 @@ public class GraphInspectorTests
 
     private static string Sha(char c) => new(c, 40);
 
-    private static (GraphInspector Inspector, InMemoryFileSystem FileSystem) Build(string manifest, string lockfile)
-    {
+    private static (GraphInspector Inspector, InMemoryFileSystem FileSystem) Build(string manifest, string lockfile) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
@@ -78,8 +76,7 @@ public class GraphInspectorTests
         """;
 
     [Fact]
-    public void Inspect_ReportsTheLockfileAsItsSource()
-    {
+    public void Inspect_ReportsTheLockfileAsItsSource() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -91,8 +88,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ADiamondIsOneSharedNode()
-    {
+    public void Inspect_ADiamondIsOneSharedNode() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -102,8 +98,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_DistinguishesRootsFromTransitiveAddons()
-    {
+    public void Inspect_DistinguishesRootsFromTransitiveAddons() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -113,8 +108,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_FlagsAnUnreachableLockedAddonAsAnOrphan()
-    {
+    public void Inspect_FlagsAnUnreachableLockedAddonAsAnOrphan() {
         // Nothing declares or depends on "ghost" any more — the drift `doctor` reports as a dangling
         // entry. Calling it transitive would tell the user something still needs it.
         var lockfile = DiamondLockfile + $"""
@@ -134,8 +128,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_BuildsProjectEdgesForEveryRoot()
-    {
+    public void Inspect_BuildsProjectEdgesForEveryRoot() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -145,8 +138,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_BuildsBothSidesOfADiamond()
-    {
+    public void Inspect_BuildsBothSidesOfADiamond() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -156,8 +148,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_DropsEdgesToNamesWithNoNode()
-    {
+    public void Inspect_DropsEdgesToNamesWithNoNode() {
         // A lockfile can name a dependency that isn't locked (a hand-edit, or an interrupted install).
         // Drawing an arrow into nothing is worse than admitting the child isn't in this picture.
         var lockfile = $"""
@@ -183,8 +174,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_IncludesAManifestEntryThatWasNeverLocked()
-    {
+    public void Inspect_IncludesAManifestEntryThatWasNeverLocked() {
         var manifest = DiamondManifest + $"""
 
             [addons.newcomer]
@@ -204,8 +194,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ReportsAnAddonWithNoFolderAsMissing()
-    {
+    public void Inspect_ReportsAnAddonWithNoFolderAsMissing() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -214,8 +203,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ReportsAnUnrecordedFolderAsModified()
-    {
+    public void Inspect_ReportsAnUnrecordedFolderAsModified() {
         var (inspector, fileSystem) = Build(DiamondManifest, DiamondLockfile);
         // On disk, but the lockfile has no content_hash for it — a folder dotquay never installed
         // (SPEC.md §9 step 4 treats that as dirty rather than silently adopting it), so the panel
@@ -228,8 +216,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ReportsAMatchingTreeAsClean()
-    {
+    public void Inspect_ReportsAMatchingTreeAsClean() {
         var fileSystem = new InMemoryFileSystem();
         var installedPath = fileSystem.CombinePath(ProjectDirectory, "addons", "a");
         fileSystem.WriteAllText(fileSystem.CombinePath(installedPath, "plugin.cfg"), "cfg");
@@ -263,8 +250,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_MarksOverriddenAddons()
-    {
+    public void Inspect_MarksOverriddenAddons() {
         var manifest = DiamondManifest + $"""
 
             [overrides.core]
@@ -281,8 +267,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_AnOverrideSuppliesTheConstraintForATransitiveAddon()
-    {
+    public void Inspect_AnOverrideSuppliesTheConstraintForATransitiveAddon() {
         var manifest = DiamondManifest + $"""
 
             [overrides.core]
@@ -301,8 +286,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ReportsProjectDeclaredAndAddonDeclaredNuGetSeparately()
-    {
+    public void Inspect_ReportsProjectDeclaredAndAddonDeclaredNuGetSeparately() {
         var manifest = DiamondManifest + """
 
             [dotnet.Newtonsoft.Json]
@@ -337,8 +321,7 @@ public class GraphInspectorTests
     /// by the project, <c>Serilog</c> declared by addon <c>a</c>'s installed package manifest, and
     /// <c>Ghost.Package</c> that only the lockfile still mentions.</summary>
     private static GraphReport InspectWithNuGet(
-        string? aPackageManifest, string extraLockfile = "", string manifestExtra = "")
-    {
+        string? aPackageManifest, string extraLockfile = "", string manifestExtra = "") {
         var manifest = DiamondManifest + manifestExtra + """
 
             [dotnet.Newtonsoft.Json]
@@ -362,8 +345,7 @@ public class GraphInspectorTests
             """;
 
         var (inspector, fileSystem) = Build(manifest, lockfile);
-        if (aPackageManifest is not null)
-        {
+        if (aPackageManifest is not null) {
             fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "a", "dotquay.toml"), aPackageManifest);
         }
 
@@ -380,8 +362,7 @@ public class GraphInspectorTests
         """;
 
     [Fact]
-    public void Inspect_AddonDeclaredNuGet_NamesTheAddonThatDeclaredIt()
-    {
+    public void Inspect_AddonDeclaredNuGet_NamesTheAddonThatDeclaredIt() {
         // The whole point of v0.19: the default, offline view used to know only "not the project's",
         // which the panel could render as nothing better than "needed by an addon".
         var report = InspectWithNuGet(ADeclaresSerilog);
@@ -394,8 +375,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ProjectDeclaredNuGet_IsARootRequiredByTheProject()
-    {
+    public void Inspect_ProjectDeclaredNuGet_IsARootRequiredByTheProject() {
         var report = InspectWithNuGet(ADeclaresSerilog);
 
         var json = report.Dotnet.Single(d => d.Name == "Newtonsoft.Json");
@@ -404,8 +384,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_NuGetNothingDeclares_IsAnOrphan()
-    {
+    public void Inspect_NuGetNothingDeclares_IsAnOrphan() {
         var report = InspectWithNuGet(ADeclaresSerilog);
 
         var ghost = report.Dotnet.Single(d => d.Name == "Ghost.Package");
@@ -414,8 +393,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_AddonWithNoPackageManifest_VouchesForNothing()
-    {
+    public void Inspect_AddonWithNoPackageManifest_VouchesForNothing() {
         // Without a manifest on disk, nothing claims Serilog is needed. Showing it as an orphan is the
         // same honest answer doctor gives, and the two must not disagree.
         var report = InspectWithNuGet(aPackageManifest: null);
@@ -424,8 +402,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_MalformedPackageManifest_ReadsAsDeclaringNothing()
-    {
+    public void Inspect_MalformedPackageManifest_ReadsAsDeclaringNothing() {
         // A read-only view must not fail over a broken addon file. doctor's
         // package_manifest_unreadable check reports it, once.
         var report = InspectWithNuGet("this is [not toml");
@@ -434,8 +411,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_UnreachableAddon_DoesNotVouchForItsPackages()
-    {
+    public void Inspect_UnreachableAddon_DoesNotVouchForItsPackages() {
         // 'ghost' is still on disk and still declares Serilog, but nothing requires 'ghost' any more.
         // Letting an orphaned addon keep its package alive would hide exactly the drift an orphan
         // badge exists to show.
@@ -470,8 +446,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_ReadsThePackageManifestFromTheInstallAsFolder()
-    {
+    public void Inspect_ReadsThePackageManifestFromTheInstallAsFolder() {
         // 'a' installs into addons/renamed_a. Its package manifest lives there, not in addons/a, and a
         // name-derived path would quietly find nothing.
         var lockfile = DiamondLockfile.Replace(
@@ -494,8 +469,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void ToJson_CarriesNuGetOriginRequirersAndSource()
-    {
+    public void ToJson_CarriesNuGetOriginRequirersAndSource() {
         var payload = JsonMapper.ToJson(InspectWithNuGet(ADeclaresSerilog));
 
         var serilog = payload.Dotnet.Single(d => d.Name == "Serilog");
@@ -507,8 +481,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_EmptyProject_IsNotAnError()
-    {
+    public void Inspect_EmptyProject_IsNotAnError() {
         var (inspector, _) = Build("[project]\ngodot = \"4.7\"\n", "");
 
         var report = inspector.Inspect(ProjectDirectory);
@@ -519,8 +492,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void Inspect_WithNoManifest_Throws()
-    {
+    public void Inspect_WithNoManifest_Throws() {
         var fileSystem = new InMemoryFileSystem();
         var inspector = new GraphInspector(fileSystem, new FakeGitClient(), "cache");
 
@@ -531,8 +503,7 @@ public class GraphInspectorTests
     }
 
     [Fact]
-    public void ToJson_ProducesTheContractTheGodotPluginParses()
-    {
+    public void ToJson_ProducesTheContractTheGodotPluginParses() {
         var (inspector, _) = Build(DiamondManifest, DiamondLockfile);
 
         var payload = JsonMapper.ToJson(inspector.Inspect(ProjectDirectory));

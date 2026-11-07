@@ -5,8 +5,7 @@ using Xunit;
 
 namespace Dotquay.Tests.Dotnet;
 
-public class CsprojPackageReferenceWriterTests
-{
+public class CsprojPackageReferenceWriterTests {
     private const string SdkStyleCsproj = """
         <Project Sdk="Godot.NET.Sdk/4.3.0">
           <PropertyGroup>
@@ -16,8 +15,7 @@ public class CsprojPackageReferenceWriterTests
         """;
 
     [Fact]
-    public void AddOrUpdate_NoExistingReference_AddsOne()
-    {
+    public void AddOrUpdate_NoExistingReference_AddsOne() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
@@ -29,8 +27,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_NoItemGroup_InsertsAboveTrailingImportsAndTheirComments()
-    {
+    public void AddOrUpdate_NoItemGroup_InsertsAboveTrailingImportsAndTheirComments() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", """
             <Project>
@@ -51,8 +48,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_ExistingReference_UpdatesVersionInPlace()
-    {
+    public void AddOrUpdate_ExistingReference_UpdatesVersionInPlace() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
         CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
@@ -66,8 +62,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_MatchesPackageIdCaseInsensitively()
-    {
+    public void AddOrUpdate_MatchesPackageIdCaseInsensitively() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
         CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
@@ -79,8 +74,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_PreservesExistingPropertyGroup()
-    {
+    public void AddOrUpdate_PreservesExistingPropertyGroup() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
@@ -92,8 +86,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void Remove_ExistingReference_RemovesItAndReturnsTrue()
-    {
+    public void Remove_ExistingReference_RemovesItAndReturnsTrue() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
         CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
@@ -105,8 +98,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void Remove_NoExistingReference_ReturnsFalseAndLeavesFileUnchanged()
-    {
+    public void Remove_NoExistingReference_ReturnsFalseAndLeavesFileUnchanged() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
@@ -116,8 +108,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_NotAProjectRoot_Throws()
-    {
+    public void AddOrUpdate_NotAProjectRoot_Throws() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", "<NotAProject></NotAProject>");
 
@@ -126,8 +117,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_InvalidXml_Throws()
-    {
+    public void AddOrUpdate_InvalidXml_Throws() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", "<Project><Unclosed></Project>");
 
@@ -137,22 +127,19 @@ public class CsprojPackageReferenceWriterTests
 
     // ---- asset metadata (v0.10) -------------------------------------------
 
-    private static readonly PackageAssets AnalyzerAssets = new()
-    {
+    private static readonly PackageAssets AnalyzerAssets = new() {
         Private = ["none"],
         Include = ["runtime", "analyzers"],
     };
 
-    private static InMemoryFileSystem WithReference(string csproj)
-    {
+    private static InMemoryFileSystem WithReference(string csproj) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", csproj);
         return fileSystem;
     }
 
     [Fact]
-    public void AddOrUpdate_WithDeclaredAssets_WritesChildElements()
-    {
+    public void AddOrUpdate_WithDeclaredAssets_WritesChildElements() {
         var fileSystem = WithReference(SdkStyleCsproj);
 
         CsprojPackageReferenceWriter.AddOrUpdate(
@@ -165,8 +152,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_ChangedAssets_ReplaceRatherThanDuplicate()
-    {
+    public void AddOrUpdate_ChangedAssets_ReplaceRatherThanDuplicate() {
         var fileSystem = WithReference(SdkStyleCsproj);
         CsprojPackageReferenceWriter.AddOrUpdate(
             fileSystem, "project/Game.csproj", "gdUnit4.analyzers", "1.0.0", AnalyzerAssets);
@@ -181,8 +167,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_UndeclaredAndNeverWrittenByDotquay_LeavesHandEditsAlone()
-    {
+    public void AddOrUpdate_UndeclaredAndNeverWrittenByDotquay_LeavesHandEditsAlone() {
         // The pre-v0.10 workflow: someone hand-added the metadata and dotquay knows nothing about it.
         // Stripping it on the next version bump would be dotquay destroying work it never owned.
         var fileSystem = WithReference("""
@@ -203,8 +188,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_UndeclaredButPreviouslyWrittenByDotquay_RemovesIt()
-    {
+    public void AddOrUpdate_UndeclaredButPreviouslyWrittenByDotquay_RemovesIt() {
         // The manifest withdrew the declaration. Only the lockfile record makes this distinguishable
         // from the hand-edit case above.
         var fileSystem = WithReference(SdkStyleCsproj);
@@ -220,8 +204,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_MetadataWrittenAsAnAttribute_IsUpdatedInPlace()
-    {
+    public void AddOrUpdate_MetadataWrittenAsAnAttribute_IsUpdatedInPlace() {
         var fileSystem = WithReference("""
             <Project Sdk="Godot.NET.Sdk/4.3.0">
               <ItemGroup>
@@ -242,8 +225,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void ReadAssets_TolerantOfSpacingAndCasing()
-    {
+    public void ReadAssets_TolerantOfSpacingAndCasing() {
         var fileSystem = WithReference("""
             <Project Sdk="Godot.NET.Sdk/4.3.0">
               <ItemGroup>
@@ -260,8 +242,7 @@ public class CsprojPackageReferenceWriterTests
     }
 
     [Fact]
-    public void AddOrUpdate_UnrelatedMetadata_SurvivesEveryPath()
-    {
+    public void AddOrUpdate_UnrelatedMetadata_SurvivesEveryPath() {
         var fileSystem = WithReference("""
             <Project Sdk="Godot.NET.Sdk/4.3.0">
               <ItemGroup>
@@ -281,12 +262,10 @@ public class CsprojPackageReferenceWriterTests
         Assert.Contains("Condition=\"'$(X)'=='y'\"", text);
     }
 
-    private static int CountOccurrences(string text, string substring)
-    {
+    private static int CountOccurrences(string text, string substring) {
         var count = 0;
         var index = 0;
-        while ((index = text.IndexOf(substring, index, StringComparison.Ordinal)) >= 0)
-        {
+        while ((index = text.IndexOf(substring, index, StringComparison.Ordinal)) >= 0) {
             count++;
             index += substring.Length;
         }

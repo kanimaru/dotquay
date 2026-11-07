@@ -20,8 +20,7 @@ namespace Dotquay.Tests.Cli;
 /// never the developer's own. Set <c>DOTQUAY_TEST_CLI_EXE</c> to run the same assertions against a
 /// NativeAOT publish.</para>
 /// </remarks>
-public sealed class UserConfigFileErrorRealProcessTests
-{
+public sealed class UserConfigFileErrorRealProcessTests {
     private const string BrokenToml = "this is [ not toml\n";
     private const string CredentialsFile = "credentials.toml";
     private const string ConfigFile = "config.toml";
@@ -40,10 +39,8 @@ public sealed class UserConfigFileErrorRealProcessTests
     [Theory]
     [MemberData(nameof(JsonCases))]
     public async Task Json_reports_a_malformed_user_file_as_invalid_config_file(
-        string file, string[] command, string envelopeName)
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+        string file, string[] command, string envelopeName) {
+        await WithProjectAsync(async (cli, project) => {
             var brokenPath = WriteBroken(cli, file);
 
             var (exitCode, stdout, stderr) = await RunAsync(cli, [.. command, "--project", project]);
@@ -69,10 +66,8 @@ public sealed class UserConfigFileErrorRealProcessTests
     [InlineData(CredentialsFile, new[] { "add", "Some.Package", "--version", "1.0.0", "--source", "feed" })]
     [InlineData(CredentialsFile, new[] { "login", "--list" })]
     [InlineData(ConfigFile, new[] { "self", "notify", "on" })]
-    public async Task Plain_output_is_the_message_not_a_stack_trace(string file, string[] command)
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Plain_output_is_the_message_not_a_stack_trace(string file, string[] command) {
+        await WithProjectAsync(async (cli, project) => {
             var brokenPath = WriteBroken(cli, file);
 
             var (exitCode, stdout, stderr) = await RunAsync(cli, [.. command, "--project", project]);
@@ -88,10 +83,8 @@ public sealed class UserConfigFileErrorRealProcessTests
     }
 
     [Fact]
-    public async Task An_mcp_tool_reports_a_malformed_credentials_file_as_invalid_config_file()
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task An_mcp_tool_reports_a_malformed_credentials_file_as_invalid_config_file() {
+        await WithProjectAsync(async (cli, project) => {
             var brokenPath = WriteBroken(cli, CredentialsFile);
 
             using var server = Process.Start(StartInfo(cli, ["mcp", "--project", project]))
@@ -102,15 +95,12 @@ public sealed class UserConfigFileErrorRealProcessTests
             server.ErrorDataReceived += (_, _) => { };
             server.BeginErrorReadLine();
 
-            try
-            {
-                await SendAsync(server.StandardInput, new
-                {
+            try {
+                await SendAsync(server.StandardInput, new {
                     jsonrpc = "2.0",
                     id = 1,
                     method = "initialize",
-                    @params = new
-                    {
+                    @params = new {
                         protocolVersion = "2025-06-18",
                         capabilities = new { },
                         clientInfo = new { name = "user-config-file-test", version = "0.0.1" },
@@ -119,16 +109,13 @@ public sealed class UserConfigFileErrorRealProcessTests
                 (await ReadResponseAsync(server.StandardOutput, 1)).Dispose();
                 await SendAsync(server.StandardInput, new { jsonrpc = "2.0", method = "notifications/initialized" });
 
-                await SendAsync(server.StandardInput, new
-                {
+                await SendAsync(server.StandardInput, new {
                     jsonrpc = "2.0",
                     id = 2,
                     method = "tools/call",
-                    @params = new
-                    {
+                    @params = new {
                         name = "dotquay_add_dotnet",
-                        arguments = new
-                        {
+                        arguments = new {
                             project,
                             package_id = "Some.Package",
                             version = "1.0.0",
@@ -144,12 +131,9 @@ public sealed class UserConfigFileErrorRealProcessTests
                 var error = result.GetProperty("structuredContent").GetProperty("error");
                 Assert.Equal("invalid_config_file", error.GetProperty("kind").GetString());
                 Assert.Contains(brokenPath, error.GetProperty("message").GetString());
-            }
-            finally
-            {
+            } finally {
                 server.StandardInput.Close();
-                if (!server.WaitForExit(TimeSpan.FromSeconds(10)))
-                {
+                if (!server.WaitForExit(TimeSpan.FromSeconds(10))) {
                     server.Kill(entireProcessTree: true);
                 }
             }
@@ -160,8 +144,7 @@ public sealed class UserConfigFileErrorRealProcessTests
     /// <c>.dotquay</c> (cache, credentials, config) is never the developer's real one.</summary>
     private sealed record CliUnderTest(string Exe, string Home);
 
-    private static string WriteBroken(CliUnderTest cli, string file)
-    {
+    private static string WriteBroken(CliUnderTest cli, string file) {
         var directory = Path.Combine(cli.Home, ".dotquay");
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, file);
@@ -169,8 +152,7 @@ public sealed class UserConfigFileErrorRealProcessTests
         return path;
     }
 
-    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body)
-    {
+    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body) {
         var exe = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
             ? overridden
             : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe" : "dotquay");
@@ -180,8 +162,7 @@ public sealed class UserConfigFileErrorRealProcessTests
         var project = Directory.CreateTempSubdirectory("dotquay-config-error-test-").FullName;
         var home = Directory.CreateTempSubdirectory("dotquay-config-error-home-").FullName;
         var cli = new CliUnderTest(exe, home);
-        try
-        {
+        try {
             var (initExit, _, initErr) = await RunAsync(cli, ["init", "--json", "--project", project]);
             Assert.True(initExit == 0, initErr);
 
@@ -192,34 +173,24 @@ public sealed class UserConfigFileErrorRealProcessTests
             Assert.True(sourceExit == 0, sourceErr);
 
             await body(cli, project);
-        }
-        finally
-        {
+        } finally {
             TryDelete(project);
             TryDelete(home);
         }
     }
 
-    private static void TryDelete(string directory)
-    {
-        try
-        {
+    private static void TryDelete(string directory) {
+        try {
             Directory.Delete(directory, recursive: true);
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // Best-effort cleanup.
-        }
-        catch (UnauthorizedAccessException)
-        {
+        } catch (UnauthorizedAccessException) {
             // Best-effort cleanup.
         }
     }
 
-    private static ProcessStartInfo StartInfo(CliUnderTest cli, string[] args)
-    {
-        var startInfo = new ProcessStartInfo(cli.Exe)
-        {
+    private static ProcessStartInfo StartInfo(CliUnderTest cli, string[] args) {
+        var startInfo = new ProcessStartInfo(cli.Exe) {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -227,8 +198,7 @@ public sealed class UserConfigFileErrorRealProcessTests
             CreateNoWindow = true,
         };
 
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 
@@ -238,8 +208,7 @@ public sealed class UserConfigFileErrorRealProcessTests
         return startInfo;
     }
 
-    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(CliUnderTest cli, string[] args)
-    {
+    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(CliUnderTest cli, string[] args) {
         using var process = Process.Start(StartInfo(cli, args))
             ?? throw new InvalidOperationException("Process.Start returned null.");
         process.StandardInput.Close();
@@ -253,27 +222,23 @@ public sealed class UserConfigFileErrorRealProcessTests
         return (process.ExitCode, await stdout, await stderr);
     }
 
-    private static async Task SendAsync(StreamWriter stdin, object message)
-    {
+    private static async Task SendAsync(StreamWriter stdin, object message) {
         await stdin.WriteAsync(JsonSerializer.Serialize(message) + "\n");
         await stdin.FlushAsync();
     }
 
     /// <summary>Reads lines until one with the expected <c>id</c> arrives, skipping notifications.</summary>
-    private static async Task<JsonDocument> ReadResponseAsync(StreamReader stdout, int expectedId)
-    {
+    private static async Task<JsonDocument> ReadResponseAsync(StreamReader stdout, int expectedId) {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
-        while (true)
-        {
+        while (true) {
             var line = await stdout.ReadLineAsync(timeout.Token)
                 ?? throw new InvalidOperationException($"The server closed stdout before response {expectedId}.");
 
             var document = JsonDocument.Parse(line);
             if (document.RootElement.TryGetProperty("id", out var id)
                 && id.ValueKind == JsonValueKind.Number
-                && id.GetInt32() == expectedId)
-            {
+                && id.GetInt32() == expectedId) {
                 return document;
             }
 

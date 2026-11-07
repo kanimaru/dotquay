@@ -21,37 +21,32 @@ namespace Dotquay.Tests.Git;
 /// Returns early, passing, where git-lfs is not installed: the behaviour under test needs it.
 /// </para>
 /// </remarks>
-public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
-{
+public sealed class ProcessGitClientLfsRealProcessTests : IDisposable {
     private readonly string _root = Directory.CreateTempSubdirectory("dotquay-lfs-real-").FullName;
 
-    public void Dispose()
-    {
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
-            {
+    public void Dispose() {
+        try {
+            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
                 var attributes = File.GetAttributes(file);
-                if ((attributes & FileAttributes.ReadOnly) != 0)
-                {
+                if ((attributes & FileAttributes.ReadOnly) != 0) {
                     File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
                 }
             }
 
             Directory.Delete(_root, recursive: true);
-        }
-        catch
-        {
+        } catch {
             // Best effort: a cleanup wrinkle must not fail a test whose assertions already passed.
         }
     }
 
-    private static (int Exit, string Out, string Err) Git(string dir, IReadOnlyDictionary<string, string> env, params string[] args)
-    {
-        var info = new ProcessStartInfo("git")
-        {
-            WorkingDirectory = dir, RedirectStandardOutput = true, RedirectStandardError = true,
-            RedirectStandardInput = true, UseShellExecute = false, CreateNoWindow = true,
+    private static (int Exit, string Out, string Err) Git(string dir, IReadOnlyDictionary<string, string> env, params string[] args) {
+        var info = new ProcessStartInfo("git") {
+            WorkingDirectory = dir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
         foreach (var a in args) info.ArgumentList.Add(a);
         foreach (var (k, v) in env) info.Environment[k] = v;
@@ -66,16 +61,15 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     private static bool LfsAvailable() => Git(Path.GetTempPath(), new Dictionary<string, string>(), "lfs", "version").Exit == 0;
 
     /// <summary>Environment for a machine whose global git config is the given file.</summary>
-    private Dictionary<string, string> Machine(string name, bool lfsActivated)
-    {
+    private Dictionary<string, string> Machine(string name, bool lfsActivated) {
         var config = Path.Combine(_root, name + ".gitconfig");
         File.WriteAllText(config, "[user]\n\tname = t\n\temail = t@example.com\n[init]\n\tdefaultBranch = main\n");
-        var env = new Dictionary<string, string>
-        {
-            ["GIT_CONFIG_GLOBAL"] = config, ["GIT_CONFIG_NOSYSTEM"] = "1", ["GIT_TERMINAL_PROMPT"] = "0",
+        var env = new Dictionary<string, string> {
+            ["GIT_CONFIG_GLOBAL"] = config,
+            ["GIT_CONFIG_NOSYSTEM"] = "1",
+            ["GIT_TERMINAL_PROMPT"] = "0",
         };
-        if (lfsActivated)
-        {
+        if (lfsActivated) {
             Assert.Equal(0, Git(_root, env, "lfs", "install", "--skip-repo").Exit);
         }
 
@@ -85,8 +79,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     private static string Sha256(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
     /// <summary>A bare repository with one commit holding an LFS-tracked binary and a plain text file.</summary>
-    private (string Remote, string Sha, string BinarySha256) MakeRemote(bool useLfs, bool pushLfsObjects = true)
-    {
+    private (string Remote, string Sha, string BinarySha256) MakeRemote(bool useLfs, bool pushLfsObjects = true) {
         var author = Machine("author", lfsActivated: true);
         var remote = Path.Combine(_root, "remote.git");
         var work = Path.Combine(_root, "work");
@@ -96,8 +89,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
         Assert.Equal(0, Git(work, author, "init", "--quiet").Exit);
         Assert.Equal(0, Git(work, author, "remote", "add", "origin", remote).Exit);
 
-        if (useLfs)
-        {
+        if (useLfs) {
             Assert.Equal(0, Git(work, author, "lfs", "track", "*.dll").Exit);
         }
 
@@ -112,8 +104,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
         Assert.Equal(0, Git(work, author, "commit", "--quiet", "-m", "fixture").Exit);
 
         var pushEnv = new Dictionary<string, string>(author);
-        if (!pushLfsObjects)
-        {
+        if (!pushLfsObjects) {
             pushEnv["GIT_LFS_SKIP_PUSH"] = "1"; // leaves the pointers in the commit and the objects off the server
         }
 
@@ -124,16 +115,14 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
 
     private static ProcessGitClient ClientOn(Dictionary<string, string> machine) => new(machine);
 
-    private string Fetch(ProcessGitClient client, string remote, string sha, string name)
-    {
+    private string Fetch(ProcessGitClient client, string remote, string sha, string name) {
         var dest = Path.Combine(_root, name);
         client.FetchCommitAsync(remote, sha, dest).GetAwaiter().GetResult();
         return Path.Combine(dest, "addons", "GDMP", "libs", "GDMP.windows.dll");
     }
 
     [Fact]
-    public void AMachineWithLfsActivated_GetsTheRealFiles()
-    {
+    public void AMachineWithLfsActivated_GetsTheRealFiles() {
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
         var (remote, sha, expected) = MakeRemote(useLfs: true);
 
@@ -143,8 +132,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void AMachineWithLfsInstalledButNeverActivated_IsRepaired_NotLeftWithPlaceholders()
-    {
+    public void AMachineWithLfsInstalledButNeverActivated_IsRepaired_NotLeftWithPlaceholders() {
         // The bug this exists for. Without the repair this checkout leaves a 130-byte pointer text file,
         // and dotquay installed it, hashed it into the lockfile, and reported the addon clean.
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
@@ -158,8 +146,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void TheRepairNeverTouchesTheUsersGlobalGitConfig()
-    {
+    public void TheRepairNeverTouchesTheUsersGlobalGitConfig() {
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
         var (remote, sha, _) = MakeRemote(useLfs: true);
         var machine = Machine("untouched", lfsActivated: false);
@@ -172,8 +159,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void ARepositoryWithoutLfs_IsUnaffected()
-    {
+    public void ARepositoryWithoutLfs_IsUnaffected() {
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
         var (remote, sha, expected) = MakeRemote(useLfs: false);
 
@@ -183,8 +169,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void AnLfsServerThatLacksTheFiles_FailsWithAMessage_NotWithPlaceholders()
-    {
+    public void AnLfsServerThatLacksTheFiles_FailsWithAMessage_NotWithPlaceholders() {
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
         var (remote, sha, _) = MakeRemote(useLfs: true, pushLfsObjects: false);
         var machine = Machine("missing-objects", lfsActivated: false);
@@ -196,8 +181,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public async Task ACheckoutThatWasLeftWithPlaceholders_IsRepairedWhenVerifiedLater()
-    {
+    public async Task ACheckoutThatWasLeftWithPlaceholders_IsRepairedWhenVerifiedLater() {
         // The cache path: an entry made by an older dotquay is verified in place on its next use.
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
         var (remote, sha, expected) = MakeRemote(useLfs: true);

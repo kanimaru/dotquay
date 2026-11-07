@@ -7,18 +7,15 @@ using Xunit;
 
 namespace Dotquay.Tests.Sync;
 
-public class AddonInstallerTests
-{
+public class AddonInstallerTests {
     private const string RepoUrl = "https://example.com/dialogue_manager.git";
     private const string Sha = "1111111111111111111111111111111111aaaa";
     private const string NewSha = "2222222222222222222222222222222222bbbb";
 
-    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem, FakeGitClient GitClient, FakePatchTool PatchTool) Build()
-    {
+    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem, FakeGitClient GitClient, FakePatchTool PatchTool) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/dialogue_manager.gd"] = "gd source",
         };
@@ -30,8 +27,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_FreshInstall_FetchesExtractsAndReturnsLockedAddon()
-    {
+    public async Task InstallAsync_FreshInstall_FetchesExtractsAndReturnsLockedAddon() {
         var (installer, fileSystem, gitClient, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: "v2.44.0", "addons/dialogue_manager");
 
@@ -49,8 +45,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_NoDisplayVersion_GeneratesPseudoVersionFromShortSha()
-    {
+    public async Task InstallAsync_NoDisplayVersion_GeneratesPseudoVersionFromShortSha() {
         var (installer, _, _, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
@@ -60,8 +55,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_NoDisplayVersion_DatesThePseudoVersionByTheCommit()
-    {
+    public async Task InstallAsync_NoDisplayVersion_DatesThePseudoVersionByTheCommit() {
         var (installer, _, gitClient, _) = Build();
         gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
@@ -74,8 +68,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_NoDisplayVersion_DatesThePseudoVersionInUtc()
-    {
+    public async Task InstallAsync_NoDisplayVersion_DatesThePseudoVersionInUtc() {
         var (installer, _, gitClient, _) = Build();
         // 01:30 on 1 October in UTC+2 is still 30 September in UTC. Every machine has to agree on the
         // label whatever its own time zone, or two teammates rewrite each other's lockfile.
@@ -88,8 +81,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithDisplayVersion_DoesNotAskGitForADate()
-    {
+    public async Task InstallAsync_WithDisplayVersion_DoesNotAskGitForADate() {
         var (installer, _, gitClient, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: "v2.44.0", "addons/dialogue_manager");
 
@@ -99,8 +91,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_DirtyDestinationWithoutForce_ThrowsSyncException()
-    {
+    public async Task InstallAsync_DirtyDestinationWithoutForce_ThrowsSyncException() {
         var (installer, fileSystem, _, _) = Build();
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "hand-edited");
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
@@ -110,8 +101,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_RefusedInstall_LeavesNoStagedTree()
-    {
+    public async Task InstallAsync_RefusedInstall_LeavesNoStagedTree() {
         // A refusal is final for this run, so the extracted tree has no further use. Leaving it made
         // .dotquay/staging accumulate full copies of addons nobody would ever finish installing.
         var (installer, fileSystem, _, _) = Build();
@@ -125,8 +115,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_DirtyDestinationWithForce_Overwrites()
-    {
+    public async Task InstallAsync_DirtyDestinationWithForce_Overwrites() {
         var (installer, fileSystem, _, _) = Build();
         fileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "hand-edited");
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
@@ -137,8 +126,7 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_ReusesCacheOnSecondCall_FetchesOnlyOnce()
-    {
+    public async Task InstallAsync_ReusesCacheOnSecondCall_FetchesOnlyOnce() {
         var (installer, _, gitClient, _) = Build();
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null, "addons/dialogue_manager");
 
@@ -149,16 +137,13 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_PatchedAddonCleanUpdate_ReappliesPatchAndCarriesForwardMetadata()
-    {
+    public async Task InstallAsync_PatchedAddonCleanUpdate_ReappliesPatchAndCarriesForwardMetadata() {
         var (installer, fileSystem, gitClient, patchTool) = Build();
 
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg", // upstream left this file alone
             ["addons/dialogue_manager/new_feature.gd"] = "new upstream feature", // upstream added this
         };
@@ -169,13 +154,11 @@ public class AddonInstallerTests
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
 
         fileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch", "fake-patch-text");
-        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string>
-        {
+        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string> {
             ["plugin.cfg"] = "cfg-edited",
         };
 
-        var previous = new LockedAddon
-        {
+        var previous = new LockedAddon {
             Name = "dialogue_manager",
             Git = RepoUrl,
             Resolved = Sha,
@@ -196,16 +179,13 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_PatchedAddonConflictingUpdate_ThrowsAndLeavesAddonsUntouched()
-    {
+    public async Task InstallAsync_PatchedAddonConflictingUpdate_ThrowsAndLeavesAddonsUntouched() {
         var (installer, fileSystem, gitClient, patchTool) = Build();
 
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
         };
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg-upstream-changed", // upstream touched it too
         };
 
@@ -213,16 +193,14 @@ public class AddonInstallerTests
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
 
         fileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch", "fake-patch-text");
-        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string>
-        {
+        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string> {
             ["plugin.cfg"] = "cfg-edited",
         };
         // base/ours/theirs all differ pairwise for plugin.cfg -> PatchMerger's fast paths don't apply,
         // so it falls through to a real 3-way merge attempt, which this forces to conflict.
         patchTool.DefaultConflictCount = 1;
 
-        var previous = new LockedAddon
-        {
+        var previous = new LockedAddon {
             Name = "dialogue_manager",
             Git = RepoUrl,
             Resolved = Sha,
@@ -246,17 +224,14 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_PatchDeletesFileUpstreamLeftAlone_CleanlyOmitsItFromResult()
-    {
+    public async Task InstallAsync_PatchDeletesFileUpstreamLeftAlone_CleanlyOmitsItFromResult() {
         var (installer, fileSystem, gitClient, patchTool) = Build();
 
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/extra.gd"] = "extra",
         };
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/extra.gd"] = "extra", // upstream didn't touch the file our patch deletes
         };
@@ -267,8 +242,7 @@ public class AddonInstallerTests
         fileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch", "fake-delete-patch");
         patchTool.FileDeletionsByPatchText["fake-delete-patch"] = ["extra.gd"];
 
-        var previous = new LockedAddon
-        {
+        var previous = new LockedAddon {
             Name = "dialogue_manager",
             Git = RepoUrl,
             Resolved = Sha,
@@ -286,11 +260,9 @@ public class AddonInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_LockfileSaysPatchedButPatchFileMissing_InstallsWithoutReapplying()
-    {
+    public async Task InstallAsync_LockfileSaysPatchedButPatchFileMissing_InstallsWithoutReapplying() {
         var (installer, fileSystem, gitClient, _) = Build();
-        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg-from-upstream",
         };
 
@@ -298,8 +270,7 @@ public class AddonInstallerTests
         var previousContentHash = ContentHasher.HashDirectory(fileSystem, "project/addons/dialogue_manager");
         // Deliberately no .dotquay/patches/dialogue_manager.patch written.
 
-        var previous = new LockedAddon
-        {
+        var previous = new LockedAddon {
             Name = "dialogue_manager",
             Git = RepoUrl,
             Resolved = Sha,
@@ -316,8 +287,7 @@ public class AddonInstallerTests
         Assert.Equal("sha256:deadbeef", locked.PatchHash);
     }
 
-    private static LockedAddon PreviousWithContentHash(string contentHash) => new()
-    {
+    private static LockedAddon PreviousWithContentHash(string contentHash) => new() {
         Name = "dialogue_manager",
         Git = RepoUrl,
         Resolved = Sha,

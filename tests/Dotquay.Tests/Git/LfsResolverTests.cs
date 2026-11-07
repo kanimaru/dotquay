@@ -8,14 +8,12 @@ namespace Dotquay.Tests.Git;
 /// Every branch of <see cref="LfsResolver"/>, with git scripted: no repository, network or git-lfs needed.
 /// The same logic against a real repository is in <see cref="ProcessGitClientLfsRealProcessTests"/>.
 /// </summary>
-public class LfsResolverTests
-{
+public class LfsResolverTests {
     private const string Oid = "968c222503ef1c9e27e1071361187c210ee72457ee6c6afebfd46aa845adca77";
     private static readonly string Pointer = $"version https://git-lfs.github.com/spec/v1\noid sha256:{Oid}\nsize 2500000\n";
 
     /// <summary>A scripted git: answers by the arguments it is given and records every call.</summary>
-    private sealed class ScriptedGit
-    {
+    private sealed class ScriptedGit {
         public readonly List<string> Calls = [];
         public string[] PointerPaths = [];
         public bool LfsInstalled = true;
@@ -30,11 +28,9 @@ public class LfsResolverTests
 
         public void Reset() { _current = PointerPaths; }
 
-        public Task<(int ExitCode, string StdOut, string StdErr)> Run(string dir, string[] args, CancellationToken ct)
-        {
+        public Task<(int ExitCode, string StdOut, string StdErr)> Run(string dir, string[] args, CancellationToken ct) {
             Calls.Add(string.Join(' ', args.Take(3)));
-            switch (args[0])
-            {
+            switch (args[0]) {
                 case "grep":
                     if (GrepFails) return Task.FromResult((2, "", "fatal: not a git repository"));
                     return _current.Length == 0
@@ -52,19 +48,16 @@ public class LfsResolverTests
         }
     }
 
-    private static LfsResolver Resolver(ScriptedGit git)
-    {
+    private static LfsResolver Resolver(ScriptedGit git) {
         git.Reset();
         // The pointer files "exist" with real pointer content, so the file confirmation passes. The
         // length guard reads the real file system, so write real small files under a temp directory.
         return new LfsResolver(git.Run, path => git.Files.TryGetValue(Path.GetFileName(path), out var b) ? b : Encoding.UTF8.GetBytes(Pointer));
     }
 
-    private static string TempCheckout(params string[] pointerNames)
-    {
+    private static string TempCheckout(params string[] pointerNames) {
         var dir = Directory.CreateTempSubdirectory("dotquay-lfs-unit-").FullName;
-        foreach (var name in pointerNames)
-        {
+        foreach (var name in pointerNames) {
             var full = Path.Combine(dir, name);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             File.WriteAllText(full, Pointer);
@@ -73,8 +66,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task ARepositoryWithoutPointers_CostsOneSearchAndNothingElse()
-    {
+    public async Task ARepositoryWithoutPointers_CostsOneSearchAndNothingElse() {
         var git = new ScriptedGit();
         var dir = TempCheckout();
 
@@ -85,8 +77,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task APointerWithGitLfsMissing_StopsWithAMessageThatNamesTheFix()
-    {
+    public async Task APointerWithGitLfsMissing_StopsWithAMessageThatNamesTheFix() {
         var git = new ScriptedGit { PointerPaths = ["addons/GDMP/libs/x.dll"], LfsInstalled = false };
         var dir = TempCheckout("addons/GDMP/libs/x.dll");
 
@@ -100,8 +91,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task APointerWithGitLfsPresentButNotActivated_ActivatesItLocallyAndPulls()
-    {
+    public async Task APointerWithGitLfsPresentButNotActivated_ActivatesItLocallyAndPulls() {
         var git = new ScriptedGit { PointerPaths = ["a.dll", "b.so"] };
         var dir = TempCheckout("a.dll", "b.so");
 
@@ -112,8 +102,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task AnActivationThatFails_StopsBeforePulling_WithGitsOwnReason()
-    {
+    public async Task AnActivationThatFails_StopsBeforePulling_WithGitsOwnReason() {
         var git = new ScriptedGit { PointerPaths = ["a.dll"], InstallExit = 1 };
         var dir = TempCheckout("a.dll");
 
@@ -124,11 +113,10 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task APullThatFails_SaysSoWithGitsOwnReason_AndFlagsAuthentication()
-    {
-        var git = new ScriptedGit
-        {
-            PointerPaths = ["a.dll"], PullExit = 1,
+    public async Task APullThatFails_SaysSoWithGitsOwnReason_AndFlagsAuthentication() {
+        var git = new ScriptedGit {
+            PointerPaths = ["a.dll"],
+            PullExit = 1,
             PullStdErr = "batch response: Authorization error: ssh://git@host/x.git",
         };
         var dir = TempCheckout("a.dll");
@@ -140,8 +128,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task APullThatSucceedsButLeavesPointers_IsStillAnError()
-    {
+    public async Task APullThatSucceedsButLeavesPointers_IsStillAnError() {
         // An LFS server that answers but lacks the objects can exit 0 and leave the placeholders.
         var git = new ScriptedGit { PointerPaths = ["a.dll"], PullFixesFiles = false };
         var dir = TempCheckout("a.dll");
@@ -153,8 +140,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task ASearchThatCannotRun_NeverTurnsAWorkingInstallIntoAFailingOne()
-    {
+    public async Task ASearchThatCannotRun_NeverTurnsAWorkingInstallIntoAFailingOne() {
         // The safeguard is not a gate: if git grep itself breaks, there is nothing to act on.
         var git = new ScriptedGit { GrepFails = true };
         var dir = TempCheckout();
@@ -165,8 +151,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task AFileThatGrepFlagsButIsNotAPointer_IsLeftAlone()
-    {
+    public async Task AFileThatGrepFlagsButIsNotAPointer_IsLeftAlone() {
         // A short text file that merely begins with the version line, no oid: grep matches, the check does not.
         var dir = Directory.CreateTempSubdirectory("dotquay-lfs-unit-").FullName;
         File.WriteAllText(Path.Combine(dir, "notes.txt"), "version https://git-lfs.github.com/spec/v1\n");
@@ -179,8 +164,7 @@ public class LfsResolverTests
     }
 
     [Fact]
-    public async Task AFileLargerThanAPointer_IsNeverReadAsOne()
-    {
+    public async Task AFileLargerThanAPointer_IsNeverReadAsOne() {
         var dir = Directory.CreateTempSubdirectory("dotquay-lfs-unit-").FullName;
         File.WriteAllText(Path.Combine(dir, "changelog.md"), Pointer + new string('x', 5000));
         var git = new ScriptedGit { PointerPaths = ["changelog.md"] };

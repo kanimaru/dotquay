@@ -10,19 +10,16 @@ namespace Dotquay.Tests.Workflows;
 /// <c>add …/vbeami/ --branch main --path godot/addons/vbeami_vcam --install-as vbeami_vcam</c> was refused
 /// with "'vbeami' is already declared" because the name came from the URL alone (see <see cref="AddonNaming"/>).
 /// </summary>
-public class MultiAddonRepositoryAddTests
-{
+public class MultiAddonRepositoryAddTests {
     private const string RepoUrl = "https://gitlab.kemomi.de/wild-alliance/vbeami/";
     private const string ProjectDir = "project";
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build()
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["godot/addons/vbeami/plugin.cfg"] = "core",
             ["godot/addons/vbeami_vcam/plugin.cfg"] = "vcam",
             ["godot/addons/vbeami_gdmp/plugin.cfg"] = "gdmp",
@@ -39,8 +36,7 @@ public class MultiAddonRepositoryAddTests
         workflow.AddAsync(ProjectDir, RepoUrl, new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami" });
 
     [Fact]
-    public async Task AddAsync_SecondSubtreeWithInstallAs_IsAddedUnderItsInstallAsName()
-    {
+    public async Task AddAsync_SecondSubtreeWithInstallAs_IsAddedUnderItsInstallAsName() {
         var (workflow, fileSystem) = Build();
         await AddCore(workflow);
 
@@ -65,8 +61,7 @@ public class MultiAddonRepositoryAddTests
     }
 
     [Fact]
-    public async Task AddAsync_SecondSubtreeWithoutInstallAs_IsNamedAndInstalledAfterItsPathLeaf()
-    {
+    public async Task AddAsync_SecondSubtreeWithoutInstallAs_IsNamedAndInstalledAfterItsPathLeaf() {
         var (workflow, fileSystem) = Build();
         await AddCore(workflow);
 
@@ -81,8 +76,7 @@ public class MultiAddonRepositoryAddTests
     }
 
     [Fact]
-    public async Task AddAsync_ExplicitName_IsWrittenAsTheKey()
-    {
+    public async Task AddAsync_ExplicitName_IsWrittenAsTheKey() {
         var (workflow, fileSystem) = Build();
         await AddCore(workflow);
 
@@ -97,8 +91,7 @@ public class MultiAddonRepositoryAddTests
     }
 
     [Fact]
-    public async Task AddAsync_ThreeAddonsFromOneRepo_AllCoexist()
-    {
+    public async Task AddAsync_ThreeAddonsFromOneRepo_AllCoexist() {
         var (workflow, fileSystem) = Build();
         await AddCore(workflow);
         await workflow.AddAsync(ProjectDir, RepoUrl, new AddonAddOptions { Branch = "main", Path = "godot/addons/vbeami_gdmp" });
@@ -111,8 +104,7 @@ public class MultiAddonRepositoryAddTests
     }
 
     [Fact]
-    public async Task AddAsync_SameSubtreeAgain_StillRefusesWithUpdateHint()
-    {
+    public async Task AddAsync_SameSubtreeAgain_StillRefusesWithUpdateHint() {
         var (workflow, _) = Build();
         await AddCore(workflow);
 
@@ -122,8 +114,7 @@ public class MultiAddonRepositoryAddTests
     }
 
     [Fact]
-    public async Task PreviewAddAsync_SecondSubtree_ReportsTheNameTheAddWouldWrite()
-    {
+    public async Task PreviewAddAsync_SecondSubtree_ReportsTheNameTheAddWouldWrite() {
         var (workflow, fileSystem) = Build();
         await AddCore(workflow);
         var manifestBefore = fileSystem.ReadAllText($"{ProjectDir}/dotquay.toml");

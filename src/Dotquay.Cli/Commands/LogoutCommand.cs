@@ -11,14 +11,11 @@ namespace Dotquay.Cli.Commands;
 /// stored for one project on that host — removing more credentials than were named is not a thing a
 /// <c>logout</c> should ever do, and the recovery is "find the token again".
 /// </remarks>
-internal static class LogoutCommand
-{
+internal static class LogoutCommand {
     private const string CommandName = "logout";
 
-    public static Command Build()
-    {
-        var hostArgument = new Argument<string>("host")
-        {
+    public static Command Build() {
+        var hostArgument = new Argument<string>("host") {
             Description = "The host or scope to forget, exactly as 'dotquay login --list' shows it.",
         };
 
@@ -29,15 +26,12 @@ internal static class LogoutCommand
             hostArgument, jsonOption,
         };
 
-        command.SetAction(parseResult =>
-        {
+        command.SetAction(parseResult => {
             var json = parseResult.GetValue(jsonOption);
             var host = parseResult.GetValue(hostArgument)!;
 
-            try
-            {
-                if (!CredentialScope.TryParse(host, out var scope, out var error))
-                {
+            try {
+                if (!CredentialScope.TryParse(host, out var scope, out var error)) {
                     return JsonOutput.Fail(json, CommandName, JsonErrorKind.Workflow, error);
                 }
 
@@ -46,10 +40,8 @@ internal static class LogoutCommand
                     ? $"Removed stored credentials for {scope.Key}."
                     : $"No stored credentials for {scope.Key} — nothing to do.";
 
-                if (json)
-                {
-                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson
-                    {
+                if (json) {
+                    Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson {
                         StorePath = CredentialFactory.StorePath(),
                         Messages = [message],
                     })));
@@ -58,9 +50,7 @@ internal static class LogoutCommand
 
                 ConsoleOutput.WriteLine(removed ? ConsoleColor.Green : ConsoleColor.Yellow, message);
                 return 0;
-            }
-            catch (CredentialException ex)
-            {
+            } catch (CredentialException ex) {
                 return JsonOutput.Fail(json, CommandName, ex);
             }
         });

@@ -10,8 +10,7 @@ namespace Dotquay.Mcp.Guards;
 /// remove an addon something else depends on, once the graph exposes reverse edges) is a new class
 /// implementing this interface, never an edit to existing guard logic.
 /// </remarks>
-public interface IWritePolicy
-{
+public interface IWritePolicy {
     /// <summary>Stable machine name for this policy, echoed in a refusal's structured detail so an
     /// agent that has seen one refusal recognizes the same policy behind another tool's.</summary>
     string Name { get; }

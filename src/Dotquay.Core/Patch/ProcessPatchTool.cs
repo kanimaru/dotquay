@@ -23,17 +23,14 @@ namespace Dotquay.Core.Patch;
 /// completely different machines (a patch is captured on one developer's machine, re-applied on a
 /// teammate's during <c>install</c>) with no shared filesystem layout to rely on otherwise.
 /// </remarks>
-public sealed class ProcessPatchTool : IPatchTool
-{
+public sealed class ProcessPatchTool : IPatchTool {
     public async Task<string> DiffDirectoriesAsync(
-        string baseDirectory, string oursDirectory, CancellationToken cancellationToken = default)
-    {
+        string baseDirectory, string oursDirectory, CancellationToken cancellationToken = default) {
         var parent = Path.Combine(Path.GetTempPath(), "dotquay-diff-" + Guid.NewGuid().ToString("N"));
         var baseAlias = Path.Combine(parent, "base");
         var oursAlias = Path.Combine(parent, "ours");
 
-        try
-        {
+        try {
             // Real copies, not symlinks/junctions — keeps this fully cross-platform (SPEC.md §12
             // targets win/linux/mac from one codebase) at the cost of a copy. Addon folders are
             // small enough (a few MB at most) that this is a non-issue for an occasional,
@@ -45,30 +42,24 @@ public sealed class ProcessPatchTool : IPatchTool
 
             // git diff --no-index: exit 0 = identical, exit 1 = differences found (NOT an error —
             // this is the whole point of the call), anything else = a real failure.
-            if (result.ExitCode is not (0 or 1))
-            {
+            if (result.ExitCode is not (0 or 1)) {
                 throw new PatchException($"git diff --no-index failed (exit {result.ExitCode}): {result.StdErr.Trim()}");
             }
 
             return result.StdOut;
-        }
-        finally
-        {
+        } finally {
             TryDeleteDirectory(parent);
         }
     }
 
-    public async Task ApplyPatchAsync(string patchText, string targetDirectory, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrEmpty(patchText))
-        {
+    public async Task ApplyPatchAsync(string patchText, string targetDirectory, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrEmpty(patchText)) {
             return; // nothing to apply — an empty patch means "no changes", not an error
         }
 
         var patchFile = Path.Combine(Path.GetTempPath(), "dotquay-patch-" + Guid.NewGuid().ToString("N") + ".patch");
 
-        try
-        {
+        try {
             // Must preserve the diff text's own line endings exactly (git's own control lines —
             // "diff --git", "@@" hunks — are LF-terminated even on Windows; File.WriteAllText does
             // not rewrite embedded line endings, so this is safe as long as nothing upstream of here
@@ -88,22 +79,18 @@ public sealed class ProcessPatchTool : IPatchTool
             var result = await RunGitAsync(
                 workingDirectory: targetDirectory, ["apply", "-p2", patchFile], cancellationToken);
 
-            if (result.ExitCode != 0)
-            {
+            if (result.ExitCode != 0) {
                 throw new PatchException(
                     $"'git apply' failed to reconstruct the patched addon (exit {result.ExitCode}): {result.StdErr.Trim()}. "
                     + "The patch file or cache may be out of sync — try 'dotquay patch <name>' again once the conflict is resolved.");
             }
-        }
-        finally
-        {
+        } finally {
             TryDelete(patchFile);
         }
     }
 
     public async Task<int> MergeFileAsync(
-        string currentPath, string basePath, string otherPath, CancellationToken cancellationToken = default)
-    {
+        string currentPath, string basePath, string otherPath, CancellationToken cancellationToken = default) {
         var result = await RunGitAsync(
             workingDirectory: null,
             ["merge-file", "-L", "current", "-L", "base", "-L", "other", currentPath, basePath, otherPath],
@@ -111,20 +98,17 @@ public sealed class ProcessPatchTool : IPatchTool
 
         // git merge-file's exit code IS the conflict count (0 = clean); negative means a real error
         // (e.g. couldn't open one of the files) rather than a mergeable-but-conflicting result.
-        if (result.ExitCode < 0)
-        {
+        if (result.ExitCode < 0) {
             throw new PatchException($"'git merge-file' failed (exit {result.ExitCode}): {result.StdErr.Trim()}");
         }
 
         return result.ExitCode;
     }
 
-    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
-    {
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory) {
         Directory.CreateDirectory(destinationDirectory);
 
-        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
-        {
+        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)) {
             var relative = Path.GetRelativePath(sourceDirectory, file);
             var destination = Path.Combine(destinationDirectory, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
@@ -132,67 +116,50 @@ public sealed class ProcessPatchTool : IPatchTool
         }
     }
 
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path))
-            {
+    private static void TryDeleteDirectory(string path) {
+        try {
+            if (Directory.Exists(path)) {
                 Directory.Delete(path, recursive: true);
             }
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // Best-effort cleanup — a leftover temp copy is harmless clutter, not worth failing the
             // whole patch operation over.
         }
     }
 
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
+    private static void TryDelete(string path) {
+        try {
+            if (File.Exists(path)) {
                 File.Delete(path);
             }
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // Best-effort cleanup, same rationale as TryDeleteDirectory.
         }
     }
 
     private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
-        string? workingDirectory, string[] args, CancellationToken cancellationToken)
-    {
-        var startInfo = new ProcessStartInfo("git")
-        {
+        string? workingDirectory, string[] args, CancellationToken cancellationToken) {
+        var startInfo = new ProcessStartInfo("git") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
 
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 
-        if (workingDirectory is not null)
-        {
+        if (workingDirectory is not null) {
             startInfo.WorkingDirectory = workingDirectory;
         }
 
         using var process = new Process { StartInfo = startInfo };
         var trace = ProcessTrace.Start("git", args, workingDirectory, category: "patch");
 
-        try
-        {
+        try {
             process.Start();
-        }
-        catch (Win32Exception ex)
-        {
+        } catch (Win32Exception ex) {
             trace.Failed(ex);
             throw new PatchException("Could not start 'git'. Is it installed and on PATH?", ex);
         }

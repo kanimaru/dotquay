@@ -12,15 +12,13 @@ namespace Dotquay.Core.Patch;
 /// ("theirs", supplied by the caller) using <see cref="PatchMerger"/>, overwriting the new version's
 /// staging tree with the result in place.
 /// </summary>
-public sealed class PatchReapplier
-{
+public sealed class PatchReapplier {
     private readonly IFileSystem _fileSystem;
     private readonly RepoCache _cache;
     private readonly IPatchTool _patchTool;
     private readonly PatchMerger _merger;
 
-    public PatchReapplier(IFileSystem fileSystem, RepoCache cache, IPatchTool patchTool)
-    {
+    public PatchReapplier(IFileSystem fileSystem, RepoCache cache, IPatchTool patchTool) {
         _fileSystem = fileSystem;
         _cache = cache;
         _patchTool = patchTool;
@@ -42,14 +40,12 @@ public sealed class PatchReapplier
         string baseSubtreePath,
         string patchText,
         string newVersionStagingPath,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         var oldBaseStagingPath = $"{newVersionStagingPath}-patch-old-base";
         var oursStagingPath = $"{newVersionStagingPath}-patch-ours";
         var mergedStagingPath = $"{newVersionStagingPath}-patch-merged";
 
-        try
-        {
+        try {
             var cachedOldBase = await _cache.GetOrFetchAsync(repositoryUrl, patchBaseSha, cancellationToken);
             SubtreeExtractor.Extract(_fileSystem, cachedOldBase, baseSubtreePath, oldBaseStagingPath);
 
@@ -65,9 +61,7 @@ public sealed class PatchReapplier
             _fileSystem.MoveDirectory(mergedStagingPath, newVersionStagingPath);
 
             return mergeResult.ConflictedPaths;
-        }
-        finally
-        {
+        } finally {
             _fileSystem.DeleteDirectory(oldBaseStagingPath);
             _fileSystem.DeleteDirectory(oursStagingPath);
 
@@ -81,13 +75,11 @@ public sealed class PatchReapplier
     /// works identically against <c>SystemFileSystem</c> in production and an in-memory test double,
     /// unlike <c>ProcessPatchTool</c>'s own directory copy (which must use real OS paths, since it
     /// shells out to a real <c>git</c> process that only understands the real filesystem).</summary>
-    private void CopyDirectory(string sourceDirectory, string destinationDirectory)
-    {
+    private void CopyDirectory(string sourceDirectory, string destinationDirectory) {
         _fileSystem.DeleteDirectory(destinationDirectory);
         _fileSystem.CreateDirectory(destinationDirectory);
 
-        foreach (var file in _fileSystem.EnumerateFiles(sourceDirectory, recursive: true).ToList())
-        {
+        foreach (var file in _fileSystem.EnumerateFiles(sourceDirectory, recursive: true).ToList()) {
             var relative = file[sourceDirectory.Length..].TrimStart('/', '\\').Replace('\\', '/');
             _fileSystem.WriteAllBytes(_fileSystem.CombinePath(destinationDirectory, relative), _fileSystem.ReadAllBytes(file));
         }

@@ -6,8 +6,7 @@ namespace Dotquay.Core.Sync;
 
 /// <summary>Why a folder in the fetched repository looks like the addon that was being looked
 /// for.</summary>
-public enum SubtreeMatchKind
-{
+public enum SubtreeMatchKind {
     /// <summary>The same words as the guess, spelled in a different separator convention —
     /// <c>SproutyDialogs</c> against <c>sprouty_dialogs</c>.</summary>
     NameShape,
@@ -25,8 +24,7 @@ public enum SubtreeMatchKind
 /// the addon and not a preference.</param>
 /// <param name="Kind">Which rule found it, so a prompt can say what it actually observed rather than
 /// asking the user to trust an unexplained suggestion.</param>
-public sealed record SubtreeCandidate(string Path, string Folder, SubtreeMatchKind Kind)
-{
+public sealed record SubtreeCandidate(string Path, string Folder, SubtreeMatchKind Kind) {
     /// <summary>The <c>reason</c> wire value (docs/DESIGN-v0.20-SUBTREE-GUESS.md §7). A fixed string
     /// and therefore a contract with the editor plugin, exactly like <c>DoctorIssueKind</c>: adding a
     /// third rule means teaching the plugin about it, not hoping it copes.</summary>
@@ -47,17 +45,14 @@ public sealed record SubtreeCandidate(string Path, string Folder, SubtreeMatchKi
 /// <param name="Suggestion">The single candidate worth offering, or null when the repository gives
 /// no clear answer and the message has to fall back to listing.</param>
 public sealed record SubtreeFinding(
-    string GuessedPath, IReadOnlyList<SubtreeCandidate> Candidates, SubtreeCandidate? Suggestion)
-{
+    string GuessedPath, IReadOnlyList<SubtreeCandidate> Candidates, SubtreeCandidate? Suggestion) {
     public bool HasCandidates => Candidates.Count > 0;
 
     /// <summary>The clause naming where the addon is, or that there is no obvious answer — shared by
     /// the prompt, the refusal, and <see cref="SubtreeExtractor"/>'s exception so all three describe
     /// the same repository the same way.</summary>
-    public string DescribeWhereTheAddonIs()
-    {
-        if (Suggestion is not null)
-        {
+    public string DescribeWhereTheAddonIs() {
+        if (Suggestion is not null) {
             var segment = SubtreeCandidates.LastSegment(GuessedPath);
             return $"its repository holds '{Suggestion.Path}' — {Suggestion.Explain(segment)}";
         }
@@ -91,8 +86,7 @@ public sealed record SubtreeFinding(
 /// told (SPEC.md §7.1, OQ-2) — it now offers to be told.
 /// </para>
 /// </remarks>
-public static class SubtreeCandidates
-{
+public static class SubtreeCandidates {
     /// <summary>Where a Godot project keeps its plugins.</summary>
     private const string AddonsFolder = GodotProjectRootChecker.AddonsFolder;
 
@@ -111,10 +105,8 @@ public static class SubtreeCandidates
     /// already handled, and re-reporting it here would ask the user to confirm a correction dotquay
     /// makes silently and correctly.
     /// </remarks>
-    public static SubtreeFinding? Find(IFileSystem fileSystem, string cachedRepoPath, string guessedSubtreePath)
-    {
-        if (!fileSystem.DirectoryExists(cachedRepoPath))
-        {
+    public static SubtreeFinding? Find(IFileSystem fileSystem, string cachedRepoPath, string guessedSubtreePath) {
+        if (!fileSystem.DirectoryExists(cachedRepoPath)) {
             return null;
         }
 
@@ -123,8 +115,7 @@ public static class SubtreeCandidates
             ? cachedRepoPath
             : fileSystem.CombinePath(cachedRepoPath, resolved);
 
-        if (fileSystem.DirectoryExists(resolvedFull))
-        {
+        if (fileSystem.DirectoryExists(resolvedFull)) {
             return null;
         }
 
@@ -143,11 +134,9 @@ public static class SubtreeCandidates
     /// exists not to do — the message lists them instead, which is a question the user can answer in
     /// one flag.
     /// </remarks>
-    private static SubtreeCandidate? Choose(IReadOnlyList<SubtreeCandidate> candidates)
-    {
+    private static SubtreeCandidate? Choose(IReadOnlyList<SubtreeCandidate> candidates) {
         var byShape = candidates.Where(c => c.Kind == SubtreeMatchKind.NameShape).ToList();
-        if (byShape.Count > 0)
-        {
+        if (byShape.Count > 0) {
             return byShape.Count == 1 ? byShape[0] : null;
         }
 
@@ -164,12 +153,10 @@ public static class SubtreeCandidates
     /// plugins. Mixing them would turn one clear answer into a list, which <see cref="Choose"/> reads
     /// as "no suggestion".
     /// </remarks>
-    private static List<SubtreeCandidate> Collect(IFileSystem fileSystem, string repoPath, string wanted)
-    {
+    private static List<SubtreeCandidate> Collect(IFileSystem fileSystem, string repoPath, string wanted) {
         var folders = AddonFoldersIn(fileSystem, repoPath, AddonsFolder);
 
-        if (folders.Count == 0 && fileSystem.FileExists(fileSystem.CombinePath(repoPath, PluginMarker)))
-        {
+        if (folders.Count == 0 && fileSystem.FileExists(fileSystem.CombinePath(repoPath, PluginMarker))) {
             // The addon *is* the repository. SPEC.md §7.1 requires `path = "."` to be stated rather
             // than inferred, which is exactly the statement this suggestion offers to make. The
             // folder stays the name that was being looked for: the cache directory this was read
@@ -178,22 +165,17 @@ public static class SubtreeCandidates
             return [new SubtreeCandidate(".", wanted, SubtreeMatchKind.OnlyAddon)];
         }
 
-        if (folders.Count == 0)
-        {
+        if (folders.Count == 0) {
             folders = NestedAddonFolders(fileSystem, repoPath);
         }
 
         var candidates = new List<SubtreeCandidate>();
         var normalizedWanted = Normalize(wanted);
 
-        foreach (var (path, name, hasPlugin) in folders)
-        {
-            if (normalizedWanted.Length > 0 && Normalize(name) == normalizedWanted)
-            {
+        foreach (var (path, name, hasPlugin) in folders) {
+            if (normalizedWanted.Length > 0 && Normalize(name) == normalizedWanted) {
                 candidates.Add(new SubtreeCandidate(path, name, SubtreeMatchKind.NameShape));
-            }
-            else if (hasPlugin)
-            {
+            } else if (hasPlugin) {
                 // Not yet known to be the *only* addon — Choose decides that. Collected either way,
                 // because a list of them is what the message falls back to when it can't suggest.
                 candidates.Add(new SubtreeCandidate(path, name, SubtreeMatchKind.OnlyAddon));
@@ -207,19 +189,16 @@ public static class SubtreeCandidates
     /// <summary>Immediate children of <paramref name="container"/> inside the repository, with
     /// whether each holds a <c>plugin.cfg</c>.</summary>
     private static List<(string Path, string Name, bool HasPlugin)> AddonFoldersIn(
-        IFileSystem fileSystem, string repoPath, string container)
-    {
+        IFileSystem fileSystem, string repoPath, string container) {
         var found = new List<(string, string, bool)>();
         var resolvedContainer = SubtreeExtractor.ResolveSubtreePath(fileSystem, repoPath, container);
         var containerPath = fileSystem.CombinePath(repoPath, resolvedContainer);
 
-        if (!fileSystem.DirectoryExists(containerPath))
-        {
+        if (!fileSystem.DirectoryExists(containerPath)) {
             return found;
         }
 
-        foreach (var directory in fileSystem.EnumerateDirectories(containerPath))
-        {
+        foreach (var directory in fileSystem.EnumerateDirectories(containerPath)) {
             var name = LastSegment(directory);
             var hasPlugin = fileSystem.FileExists(fileSystem.CombinePath(directory, PluginMarker));
             found.Add(($"{resolvedContainer}/{name}", name, hasPlugin));
@@ -238,17 +217,14 @@ public static class SubtreeCandidates
     /// the repository's structure and starts being a coincidence.
     /// </remarks>
     private static List<(string Path, string Name, bool HasPlugin)> NestedAddonFolders(
-        IFileSystem fileSystem, string repoPath)
-    {
+        IFileSystem fileSystem, string repoPath) {
         var found = new List<(string, string, bool)>();
 
-        foreach (var directory in fileSystem.EnumerateDirectories(repoPath))
-        {
+        foreach (var directory in fileSystem.EnumerateDirectories(repoPath)) {
             var child = LastSegment(directory);
 
             // git's own metadata and dotquay's cache bookkeeping are not repository content.
-            if (child.StartsWith('.'))
-            {
+            if (child.StartsWith('.')) {
                 continue;
             }
 
@@ -269,14 +245,11 @@ public static class SubtreeCandidates
     /// two names match exactly when they are the same word spelled the same way — a stricter test
     /// than it looks, and deliberately blind to nothing else.
     /// </remarks>
-    public static string Normalize(string name)
-    {
+    public static string Normalize(string name) {
         var builder = new StringBuilder(name.Length);
 
-        foreach (var character in name)
-        {
-            if (char.IsLetterOrDigit(character))
-            {
+        foreach (var character in name) {
+            if (char.IsLetterOrDigit(character)) {
                 builder.Append(char.ToLowerInvariant(character));
             }
         }
@@ -285,8 +258,7 @@ public static class SubtreeCandidates
     }
 
     /// <summary>The last path segment, separator-agnostic and trailing-slash tolerant.</summary>
-    internal static string LastSegment(string path)
-    {
+    internal static string LastSegment(string path) {
         var trimmed = path.Replace('\\', '/').TrimEnd('/');
         var slash = trimmed.LastIndexOf('/');
         return slash < 0 ? trimmed : trimmed[(slash + 1)..];

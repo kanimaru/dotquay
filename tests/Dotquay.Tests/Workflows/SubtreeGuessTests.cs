@@ -23,8 +23,7 @@ namespace Dotquay.Tests.Workflows;
 /// re-derived on the next machine.
 /// </para>
 /// </remarks>
-public class SubtreeGuessTests
-{
+public class SubtreeGuessTests {
     private const string ProjectDir = "project";
     private const string ManifestPath = $"{ProjectDir}/dotquay.toml";
     private const string Url = "https://github.com/SproutyLabs/SproutyDialogs";
@@ -35,19 +34,16 @@ public class SubtreeGuessTests
         """;
 
     /// <summary>Says yes to everything, standing in for a user at a terminal.</summary>
-    private sealed class AcceptSubtreeChoice : ISubtreeChoice
-    {
+    private sealed class AcceptSubtreeChoice : ISubtreeChoice {
         public SubtreeChoiceRequest? Asked { get; private set; }
 
-        public bool Accept(SubtreeChoiceRequest request)
-        {
+        public bool Accept(SubtreeChoiceRequest request) {
             Asked = request;
             return true;
         }
     }
 
-    private sealed class Fixture
-    {
+    private sealed class Fixture {
         public required DependencyWorkflow Workflow { get; init; }
 
         public required InMemoryFileSystem FileSystem { get; init; }
@@ -55,8 +51,7 @@ public class SubtreeGuessTests
         public required AcceptSubtreeChoice Choice { get; init; }
     }
 
-    private static Fixture Build(ISubtreeChoice? choice = null, params string[] repoFiles)
-    {
+    private static Fixture Build(ISubtreeChoice? choice = null, params string[] repoFiles) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(ManifestPath, EmptyProject);
 
@@ -77,8 +72,7 @@ public class SubtreeGuessTests
             gitClient,
             new FakeNuGetClientFactory(new FakeNuGetClient()),
             addonInstaller,
-            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()))
-        {
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None())) {
             SubtreeChoice = choice ?? accepting,
         };
 
@@ -92,8 +86,7 @@ public class SubtreeGuessTests
     // -- accepting ---------------------------------------------------------------------------------
 
     [Fact]
-    public async Task Add_AcceptedGuess_InstallsFromTheRealSubtree()
-    {
+    public async Task Add_AcceptedGuess_InstallsFromTheRealSubtree() {
         var fixture = SproutyDialogs();
 
         var locked = await fixture.Workflow.AddAsync(ProjectDir, Url);
@@ -104,8 +97,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Add_AcceptedGuess_WritesBothKeysToTheManifest()
-    {
+    public async Task Add_AcceptedGuess_WritesBothKeysToTheManifest() {
         // The whole point of asking once. Without install_as the addon's own
         // res://addons/sprouty_dialogs/ references would point at a folder Godot cannot find, which
         // is the Gut bug (SPEC.md §7.1.1); without path, the next machine re-derives the wrong guess.
@@ -120,8 +112,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Add_AcceptedGuess_KeepsTheAddonsIdentity()
-    {
+    public async Task Add_AcceptedGuess_KeepsTheAddonsIdentity() {
         // Layout is corrected; identity is not. The manifest key, and therefore `remove`, `update`
         // and every dependency edge, stay on the name derived from the URL.
         var fixture = SproutyDialogs();
@@ -132,8 +123,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Add_Guess_IsAskedAboutWithItsEvidence()
-    {
+    public async Task Add_Guess_IsAskedAboutWithItsEvidence() {
         var fixture = SproutyDialogs();
 
         await fixture.Workflow.AddAsync(ProjectDir, Url);
@@ -148,8 +138,7 @@ public class SubtreeGuessTests
     // -- declining ---------------------------------------------------------------------------------
 
     [Fact]
-    public async Task Add_DeclinedGuess_RefusesAndNamesTheFlags()
-    {
+    public async Task Add_DeclinedGuess_RefusesAndNamesTheFlags() {
         var fixture = SproutyDialogs(DeclineSubtreeChoice.Instance);
 
         var error = await Assert.ThrowsAsync<WorkflowException>(
@@ -160,8 +149,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Add_DeclinedGuess_WritesNothing()
-    {
+    public async Task Add_DeclinedGuess_WritesNothing() {
         var fixture = SproutyDialogs(DeclineSubtreeChoice.Instance);
 
         await Assert.ThrowsAsync<WorkflowException>(() => fixture.Workflow.AddAsync(ProjectDir, Url));
@@ -172,8 +160,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Add_NoSuggestion_RefusesWithoutAsking()
-    {
+    public async Task Add_NoSuggestion_RefusesWithoutAsking() {
         // Several plugins and none obviously this one. There is nothing to confirm, so nobody is
         // asked — the message lists what it found and the user names one.
         var fixture = Build(null, "addons/one/plugin.cfg", "addons/two/plugin.cfg");
@@ -190,8 +177,7 @@ public class SubtreeGuessTests
     // -- when the question doesn't arise -----------------------------------------------------------
 
     [Fact]
-    public async Task Add_ExplicitPath_IsNeverSecondGuessed()
-    {
+    public async Task Add_ExplicitPath_IsNeverSecondGuessed() {
         // Also the channel a UI replays a confirmed suggestion through, so this doubles as the test
         // that confirming in the editor plugin doesn't re-ask on the run that follows.
         var fixture = SproutyDialogs();
@@ -206,8 +192,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Add_GuessIsRight_AsksNothing()
-    {
+    public async Task Add_GuessIsRight_AsksNothing() {
         var fixture = Build(null, "addons/SproutyDialogs/plugin.cfg");
 
         var locked = await fixture.Workflow.AddAsync(ProjectDir, Url);
@@ -219,8 +204,7 @@ public class SubtreeGuessTests
     // -- the preview's half of the two-phase flow ---------------------------------------------------
 
     [Fact]
-    public async Task Preview_ReportsTheGuessInsteadOfAskingAboutIt()
-    {
+    public async Task Preview_ReportsTheGuessInsteadOfAskingAboutIt() {
         var fixture = SproutyDialogs();
 
         var preview = await fixture.Workflow.PreviewAddAsync(ProjectDir, Url);
@@ -235,8 +219,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Preview_ResolvesTheGraphAgainstTheSuggestion()
-    {
+    public async Task Preview_ResolvesTheGraphAgainstTheSuggestion() {
         // The preview has to describe the install a confirmation would produce. Resolving against a
         // path that isn't there would report an addon with no dependencies and no version, which is
         // precisely the misinformation a confirmation dialog exists to prevent.
@@ -250,8 +233,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Preview_WritesNothing()
-    {
+    public async Task Preview_WritesNothing() {
         var fixture = SproutyDialogs();
 
         await fixture.Workflow.PreviewAddAsync(ProjectDir, Url);
@@ -261,8 +243,7 @@ public class SubtreeGuessTests
     }
 
     [Fact]
-    public async Task Preview_GuessIsRight_ReportsNoSubtree()
-    {
+    public async Task Preview_GuessIsRight_ReportsNoSubtree() {
         var fixture = Build(null, "addons/SproutyDialogs/plugin.cfg");
 
         Assert.Null((await fixture.Workflow.PreviewAddAsync(ProjectDir, Url)).Subtree);

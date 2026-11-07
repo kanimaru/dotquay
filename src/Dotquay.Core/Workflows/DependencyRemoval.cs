@@ -5,8 +5,7 @@ namespace Dotquay.Core.Workflows;
 /// <param name="StillRequiredBy">Reachable addons that still declare the package, so its lock entry
 /// and <c>PackageReference</c> were kept and only the project's own declaration was removed
 /// (DESIGN-v0.19 §7a.2). Empty when the removal was complete.</param>
-public sealed record DependencyRemoval(DependencyKind Kind, IReadOnlyList<string> StillRequiredBy)
-{
+public sealed record DependencyRemoval(DependencyKind Kind, IReadOnlyList<string> StillRequiredBy) {
     public static DependencyRemoval Complete(DependencyKind kind) => new(kind, []);
 
     /// <summary>True when only the manifest entry went away.</summary>

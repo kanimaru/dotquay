@@ -15,8 +15,7 @@ namespace Dotquay.Tests.Lockfile;
 /// hand-resolved merge conflict can easily produce one — and silently losing entries from the
 /// artifact that exists to guarantee reproducibility (goal #1) is the worst possible failure mode.
 /// </remarks>
-public class LockfileInterleavingTests
-{
+public class LockfileInterleavingTests {
     private static string Sha(char c) => new(c, 40);
 
     private static readonly string Contiguous = $"""
@@ -56,8 +55,7 @@ public class LockfileInterleavingTests
         """;
 
     [Fact]
-    public void Read_ContiguousBlocks_ReadsEverything()
-    {
+    public void Read_ContiguousBlocks_ReadsEverything() {
         var parsed = LockfileReader.Read(Contiguous);
 
         Assert.Equal(["root", "child"], parsed.Addons.Select(a => a.Name));
@@ -65,8 +63,7 @@ public class LockfileInterleavingTests
     }
 
     [Fact]
-    public void Read_InterleavedBlocks_ThrowsInsteadOfDroppingEntries()
-    {
+    public void Read_InterleavedBlocks_ThrowsInsteadOfDroppingEntries() {
         var exception = Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Interleaved));
 
         // Before this guard, the same input returned exactly one addon ("child") and no error at all.
@@ -75,8 +72,7 @@ public class LockfileInterleavingTests
     }
 
     [Fact]
-    public void Read_InterleavedBlocks_ExplainsHowToFixIt()
-    {
+    public void Read_InterleavedBlocks_ExplainsHowToFixIt() {
         var exception = Assert.Throws<LockfileParseException>(() => LockfileReader.Read(Interleaved));
 
         Assert.Contains("merge conflict", exception.Message);
@@ -84,8 +80,7 @@ public class LockfileInterleavingTests
     }
 
     [Fact]
-    public void Read_InterleavedDotnetBlocks_AreCaughtToo()
-    {
+    public void Read_InterleavedDotnetBlocks_AreCaughtToo() {
         var text = $"""
             [[dotnet]]
             name = "Newtonsoft.Json"
@@ -108,8 +103,7 @@ public class LockfileInterleavingTests
     }
 
     [Fact]
-    public void Read_EmptyLockfile_IsStillValid()
-    {
+    public void Read_EmptyLockfile_IsStillValid() {
         var parsed = LockfileReader.Read("");
 
         // A project that has been initialised but never installed has an empty lockfile; the guard
@@ -119,8 +113,7 @@ public class LockfileInterleavingTests
     }
 
     [Fact]
-    public void Read_IndentedHeaders_AreCounted()
-    {
+    public void Read_IndentedHeaders_AreCounted() {
         // TOML permits leading whitespace before a header. The guard counts what the parser would
         // accept, or it would report a phantom mismatch on a perfectly valid file.
         var text = $"""
@@ -137,8 +130,7 @@ public class LockfileInterleavingTests
     }
 
     [Fact]
-    public void Read_RoundTripsWhatTheWriterProduces()
-    {
+    public void Read_RoundTripsWhatTheWriterProduces() {
         // The guard's core assumption: dotquay's own writer always groups blocks, so a file dotquay
         // wrote can never trip it.
         var original = LockfileReader.Read(Contiguous);

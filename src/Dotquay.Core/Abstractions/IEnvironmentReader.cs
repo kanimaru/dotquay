@@ -12,8 +12,7 @@ namespace Dotquay.Core.Abstractions;
 /// and neither covering the fact that xunit parallelises *across* classes by default, which is
 /// exactly what those two classes did to each other.
 /// </remarks>
-public interface IEnvironmentReader
-{
+public interface IEnvironmentReader {
     /// <summary>The variable's value, or null when unset. An empty value is returned as-is; callers
     /// decide whether empty means "unset" (credentials do).</summary>
     string? GetVariable(string name);

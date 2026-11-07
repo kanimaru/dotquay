@@ -19,8 +19,7 @@ namespace Dotquay.Core.Dotnet;
 /// resolves at restore time without anything touching disk. Confirmed against Microsoft's own docs
 /// (learn.microsoft.com/en-us/nuget/consume-packages/consuming-packages-authenticated-feeds).</para>
 /// </remarks>
-public static class NuGetConfigWriter
-{
+public static class NuGetConfigWriter {
     /// <summary>The key the pre-v0.7 single-source form used, preserved for the source named
     /// <see cref="NuGetSourceSpec.LegacyName"/> so upgrading doesn't rewrite existing files.</summary>
     public const string DotquaySourceName = "dotquay";
@@ -42,13 +41,11 @@ public static class NuGetConfigWriter
         string projectDirectory,
         NuGetSourceSet sources,
         IReadOnlyDictionary<string, string>? pinnedPackages = null,
-        bool writeSourceMapping = true)
-    {
+        bool writeSourceMapping = true) {
         var path = ResolvePath(fileSystem, projectDirectory);
         var document = LoadOrCreate(fileSystem, path);
         var configuration = document.Root;
-        if (configuration is null || configuration.Name.LocalName != "configuration")
-        {
+        if (configuration is null || configuration.Name.LocalName != "configuration") {
             throw new DotnetSyncException($"{path}: expected a <configuration> root element.");
         }
 
@@ -56,27 +53,21 @@ public static class NuGetConfigWriter
 
         WritePackageSources(configuration, declared, writeSourceMapping);
 
-        if (writeSourceMapping && declared.Count > 0)
-        {
+        if (writeSourceMapping && declared.Count > 0) {
             WritePackageSourceMapping(configuration, declared, pinnedPackages ?? new Dictionary<string, string>());
         }
 
         fileSystem.WriteAllText(path, document.ToString(SaveOptions.None) + Environment.NewLine);
     }
 
-    private static XDocument LoadOrCreate(IFileSystem fileSystem, string path)
-    {
-        if (!fileSystem.FileExists(path))
-        {
+    private static XDocument LoadOrCreate(IFileSystem fileSystem, string path) {
+        if (!fileSystem.FileExists(path)) {
             return new XDocument(new XElement("configuration"));
         }
 
-        try
-        {
+        try {
             return XDocument.Parse(fileSystem.ReadAllText(path));
-        }
-        catch (System.Xml.XmlException ex)
-        {
+        } catch (System.Xml.XmlException ex) {
             throw new DotnetSyncException($"{path}: not valid XML.{Environment.NewLine}{ex.Message}", ex);
         }
     }
@@ -93,36 +84,28 @@ public static class NuGetConfigWriter
     /// already reported by anything that tries to write it.
     /// </remarks>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadSourceMapping(
-        IFileSystem fileSystem, string projectDirectory)
-    {
+        IFileSystem fileSystem, string projectDirectory) {
         var mapped = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var path = ResolvePath(fileSystem, projectDirectory);
 
-        if (!fileSystem.FileExists(path))
-        {
+        if (!fileSystem.FileExists(path)) {
             return mapped;
         }
 
         XDocument document;
-        try
-        {
+        try {
             document = XDocument.Parse(fileSystem.ReadAllText(path));
-        }
-        catch (System.Xml.XmlException)
-        {
+        } catch (System.Xml.XmlException) {
             return mapped;
         }
 
         var mapping = document.Root?.Element("packageSourceMapping");
-        if (mapping is null)
-        {
+        if (mapping is null) {
             return mapped;
         }
 
-        foreach (var source in mapping.Elements("packageSource"))
-        {
-            if ((string?)source.Attribute("key") is not { } key)
-            {
+        foreach (var source in mapping.Elements("packageSource")) {
+            if ((string?)source.Attribute("key") is not { } key) {
                 continue;
             }
 
@@ -137,8 +120,7 @@ public static class NuGetConfigWriter
 
     /// <summary>Either casing, preferring one that is already on disk - NuGet does not care which,
     /// and dotquay must not create a second file beside one that is already there.</summary>
-    private static string ResolvePath(IFileSystem fileSystem, string projectDirectory)
-    {
+    private static string ResolvePath(IFileSystem fileSystem, string projectDirectory) {
         var lowercasePath = fileSystem.CombinePath(projectDirectory, LowercaseConfigFileName);
 
         return fileSystem.FileExists(lowercasePath)
@@ -155,11 +137,9 @@ public static class NuGetConfigWriter
     /// undoing the removal.
     /// </remarks>
     private static void WritePackageSources(
-        XElement configuration, IReadOnlyList<NuGetSourceSpec> declared, bool writeSourceMapping)
-    {
+        XElement configuration, IReadOnlyList<NuGetSourceSpec> declared, bool writeSourceMapping) {
         var packageSources = configuration.Element("packageSources");
-        if (packageSources is null)
-        {
+        if (packageSources is null) {
             packageSources = new XElement("packageSources");
             configuration.Add(packageSources);
         }
@@ -169,30 +149,24 @@ public static class NuGetConfigWriter
         // A mapping element makes NuGet ignore every source that has no pattern, so the catch-all
         // needs a nuget.org entry to point at. It cannot be inherited from machine-level config: a
         // mapping key must name a source declared in the same file.
-        if (writeSourceMapping && declared.Count > 0)
-        {
+        if (writeSourceMapping && declared.Count > 0) {
             wanted[NuGetSourceSpec.PublicName] = NuGetSourceSpec.PublicUrl;
         }
 
         foreach (var stale in packageSources.Elements("add")
                      .Where(element => IsOwnedKey((string?)element.Attribute("key"))
                                        && !wanted.ContainsKey((string?)element.Attribute("key") ?? string.Empty))
-                     .ToList())
-        {
+                     .ToList()) {
             stale.Remove();
         }
 
-        foreach (var (key, url) in wanted)
-        {
+        foreach (var (key, url) in wanted) {
             var existing = packageSources.Elements("add")
                 .FirstOrDefault(element => string.Equals((string?)element.Attribute("key"), key, StringComparison.OrdinalIgnoreCase));
 
-            if (existing is not null)
-            {
+            if (existing is not null) {
                 existing.SetAttributeValue("value", url);
-            }
-            else
-            {
+            } else {
                 packageSources.Add(new XElement("add", new XAttribute("key", key), new XAttribute("value", url)));
             }
         }
@@ -212,22 +186,19 @@ public static class NuGetConfigWriter
     private static void WritePackageSourceMapping(
         XElement configuration,
         IReadOnlyList<NuGetSourceSpec> declared,
-        IReadOnlyDictionary<string, string> pinnedPackages)
-    {
+        IReadOnlyDictionary<string, string> pinnedPackages) {
         configuration.Element("packageSourceMapping")?.Remove();
 
         var mapping = new XElement("packageSourceMapping");
 
-        foreach (var source in declared)
-        {
+        foreach (var source in declared) {
             var patterns = pinnedPackages
                 .Where(pin => string.Equals(pin.Value, source.Name, StringComparison.Ordinal))
                 .Select(pin => pin.Key)
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToList();
 
-            if (patterns.Count == 0)
-            {
+            if (patterns.Count == 0) {
                 continue;
             }
 

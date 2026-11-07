@@ -9,8 +9,7 @@ namespace Dotquay.Core.Lockfile;
 /// <c>status</c> called it missing and <c>doctor</c> called its folder an orphan. Copying by hand is
 /// exactly the wrong tool for a type that gains fields.
 /// </remarks>
-public sealed record LockedAddon
-{
+public sealed record LockedAddon {
     public required string Name { get; init; }
 
     public required string Git { get; init; }

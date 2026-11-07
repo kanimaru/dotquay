@@ -17,37 +17,30 @@ namespace Dotquay.Core.Doctor;
 /// conditional one or a version difference is a decision only the project's author can make.
 /// Only packages the lockfile records are checked, so <c>doctor</c> keeps to what dotquay manages.
 /// </remarks>
-public static class SourceBuildChecker
-{
-    public static IReadOnlyList<DoctorIssue> Check(IFileSystem fileSystem, string csprojPath, DotquayLockfile lockfile)
-    {
+public static class SourceBuildChecker {
+    public static IReadOnlyList<DoctorIssue> Check(IFileSystem fileSystem, string csprojPath, DotquayLockfile lockfile) {
         var references = SourceProvidedPackages.ReadAll(fileSystem, csprojPath);
-        if (references.Count == 0)
-        {
+        if (references.Count == 0) {
             return [];
         }
 
         var issues = new List<DoctorIssue>();
 
-        foreach (var locked in lockfile.Dotnet)
-        {
+        foreach (var locked in lockfile.Dotnet) {
             var providers = references.Where(r => r.Builds(locked.Name)).ToList();
-            if (providers.Count == 0)
-            {
+            if (providers.Count == 0) {
                 continue;
             }
 
             var unconditional = providers.FirstOrDefault(p => p.IsUnconditional);
 
-            if (CsprojPackageReferenceWriter.HasReference(fileSystem, csprojPath, locked.Name))
-            {
+            if (CsprojPackageReferenceWriter.HasReference(fileSystem, csprojPath, locked.Name)) {
                 issues.Add(unconditional is not null
                     ? AlsoReferenced(locked.Name, unconditional, csprojPath)
                     : AlsoReferencedConditionally(locked.Name, providers[0], csprojPath));
             }
 
-            if (unconditional?.Identity.Version is { } sourceVersion && !SameVersion(sourceVersion, locked.Resolved))
-            {
+            if (unconditional?.Identity.Version is { } sourceVersion && !SameVersion(sourceVersion, locked.Resolved)) {
                 issues.Add(VersionMismatch(locked.Name, unconditional, sourceVersion, locked.Resolved));
             }
         }
@@ -86,13 +79,11 @@ public static class SourceBuildChecker
     internal static bool SameVersion(string a, string b) =>
         string.Equals(Normalize(a), Normalize(b), StringComparison.OrdinalIgnoreCase);
 
-    private static string Normalize(string version)
-    {
+    private static string Normalize(string version) {
         var text = version.Trim().TrimStart('v', 'V');
 
         var plus = text.IndexOf('+');
-        if (plus >= 0)
-        {
+        if (plus >= 0) {
             text = text[..plus];
         }
 
@@ -101,13 +92,11 @@ public static class SourceBuildChecker
         var prerelease = dash >= 0 ? text[dash..] : string.Empty;
 
         var parts = release.Split('.').ToList();
-        while (parts.Count > 3 && parts[^1] == "0")
-        {
+        while (parts.Count > 3 && parts[^1] == "0") {
             parts.RemoveAt(parts.Count - 1);
         }
 
-        while (parts.Count < 3)
-        {
+        while (parts.Count < 3) {
             parts.Add("0");
         }
 

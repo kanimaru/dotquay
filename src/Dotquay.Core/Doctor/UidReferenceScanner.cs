@@ -17,8 +17,7 @@ namespace Dotquay.Core.Doctor;
 /// <c>addons/</c> — nothing else (SPEC.md §18).
 /// </para>
 /// </remarks>
-public static partial class UidReferenceScanner
-{
+public static partial class UidReferenceScanner {
     /// <param name="File">Project-relative path of the script holding the reference.</param>
     /// <param name="Uid">The <c>uid://…</c> value, as written.</param>
     /// <param name="Target">The addon-relative file it resolves to.</param>
@@ -37,40 +36,33 @@ public static partial class UidReferenceScanner
     /// own resource is nobody's problem — dotquay never touches those files — and reporting them would
     /// bury the handful that matter.
     /// </remarks>
-    public static IReadOnlyList<Finding> Scan(IFileSystem fileSystem, string projectDirectory, string addonsDirectory)
-    {
-        if (!fileSystem.DirectoryExists(addonsDirectory))
-        {
+    public static IReadOnlyList<Finding> Scan(IFileSystem fileSystem, string projectDirectory, string addonsDirectory) {
+        if (!fileSystem.DirectoryExists(addonsDirectory)) {
             return [];
         }
 
         var owners = MapUidsToAddonFiles(fileSystem, addonsDirectory);
-        if (owners.Count == 0)
-        {
+        if (owners.Count == 0) {
             return [];
         }
 
         var findings = new List<Finding>();
         var visibility = new GodotVisibility(fileSystem, projectDirectory);
 
-        foreach (var file in fileSystem.EnumerateFiles(projectDirectory, recursive: true))
-        {
+        foreach (var file in fileSystem.EnumerateFiles(projectDirectory, recursive: true)) {
             var relative = Relative(file, projectDirectory);
 
             // Code *inside* an addon referencing that addon's own resources is the addon author's
             // business, and it moves in lockstep with the uids it names. Code Godot never scans
             // (.godot/, .dotquay/staging/, a .gdignore'd folder) is never loaded, so it cannot break.
             if (!IsCode(relative) || relative.StartsWith("addons/", StringComparison.OrdinalIgnoreCase)
-                || !visibility.IsVisible(relative))
-            {
+                || !visibility.IsVisible(relative)) {
                 continue;
             }
 
-            foreach (Match match in UidPattern().Matches(fileSystem.ReadAllText(file)))
-            {
+            foreach (Match match in UidPattern().Matches(fileSystem.ReadAllText(file))) {
                 var uid = match.Value;
-                if (owners.TryGetValue(uid, out var target))
-                {
+                if (owners.TryGetValue(uid, out var target)) {
                     findings.Add(new Finding(relative, uid, target));
                 }
             }
@@ -83,41 +75,34 @@ public static partial class UidReferenceScanner
     /// Builds uid → addon file from the two places an addon's uids are recorded: the <c>.uid</c>
     /// sidecar beside a script, and the <c>uid=</c> line in an asset's <c>.import</c>.
     /// </summary>
-    private static Dictionary<string, string> MapUidsToAddonFiles(IFileSystem fileSystem, string addonsDirectory)
-    {
+    private static Dictionary<string, string> MapUidsToAddonFiles(IFileSystem fileSystem, string addonsDirectory) {
         var owners = new Dictionary<string, string>(StringComparer.Ordinal);
         var visibility = new GodotVisibility(fileSystem, addonsDirectory);
 
-        foreach (var file in fileSystem.EnumerateFiles(addonsDirectory, recursive: true))
-        {
+        foreach (var file in fileSystem.EnumerateFiles(addonsDirectory, recursive: true)) {
             var relative = Relative(file, addonsDirectory);
 
             // Godot never registers a uid it never scanned, so nothing can load one by it.
-            if (!visibility.IsVisible(relative))
-            {
+            if (!visibility.IsVisible(relative)) {
                 continue;
             }
 
             // A .uid file is exactly one line: the uid of the script it sits beside.
-            if (relative.EndsWith(".uid", StringComparison.OrdinalIgnoreCase))
-            {
+            if (relative.EndsWith(".uid", StringComparison.OrdinalIgnoreCase)) {
                 var uid = fileSystem.ReadAllText(file).Trim();
-                if (uid.StartsWith("uid://", StringComparison.Ordinal))
-                {
+                if (uid.StartsWith("uid://", StringComparison.Ordinal)) {
                     owners[uid] = relative[..^".uid".Length];
                 }
 
                 continue;
             }
 
-            if (!relative.EndsWith(".import", StringComparison.OrdinalIgnoreCase))
-            {
+            if (!relative.EndsWith(".import", StringComparison.OrdinalIgnoreCase)) {
                 continue;
             }
 
             var declared = UidPattern().Match(fileSystem.ReadAllText(file));
-            if (declared.Success)
-            {
+            if (declared.Success) {
                 owners[declared.Value] = relative[..^".import".Length];
             }
         }

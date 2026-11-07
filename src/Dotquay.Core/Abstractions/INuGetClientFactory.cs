@@ -6,8 +6,7 @@ namespace Dotquay.Core.Abstractions;
 /// Builds the <see cref="INuGetClient"/> for a project's feeds, so <c>DependencyWorkflow</c> can be
 /// tested without HTTP.
 /// </summary>
-public interface INuGetClientFactory
-{
+public interface INuGetClientFactory {
     /// <summary>
     /// A client over <paramref name="sources"/>, narrowed to one feed when
     /// <paramref name="pinnedSourceName"/> names it (SPEC.md §7.1's <c>source = "..."</c>).

@@ -10,22 +10,19 @@ namespace Dotquay.Core.SelfUpdate;
 /// rather than by "text after the last dot", which would read <c>dotquay.new-0.17.0</c> as having
 /// the extension <c>.0</c> and hand the rename dance a name it could not parse back.</para>
 /// </remarks>
-internal static class ExecutablePaths
-{
+internal static class ExecutablePaths {
     public const string StagedInfix = ".new-";
 
     public const string RetiredInfix = ".old-";
 
     private const string WindowsExtension = ".exe";
 
-    public static string DirectoryOf(string path)
-    {
+    public static string DirectoryOf(string path) {
         var index = LastSeparator(path);
         return index < 0 ? string.Empty : path[..index];
     }
 
-    public static string FileNameOf(string path)
-    {
+    public static string FileNameOf(string path) {
         var index = LastSeparator(path);
         return index < 0 ? path : path[(index + 1)..];
     }
@@ -55,15 +52,13 @@ internal static class ExecutablePaths
     public static string? VersionOfStaged(string executablePath, string candidatePath) =>
         VersionOfSibling(executablePath, candidatePath, StagedInfix);
 
-    private static string? VersionOfSibling(string executablePath, string candidatePath, string infix)
-    {
+    private static string? VersionOfSibling(string executablePath, string candidatePath, string infix) {
         var (stem, extension) = Split(FileNameOf(executablePath));
         var candidate = FileNameOf(candidatePath);
 
         var prefix = stem + infix;
         if (!candidate.StartsWith(prefix, StringComparison.Ordinal)
-            || !candidate.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-        {
+            || !candidate.EndsWith(extension, StringComparison.OrdinalIgnoreCase)) {
             return null;
         }
 
@@ -71,8 +66,7 @@ internal static class ExecutablePaths
         return version.Length == 0 ? null : version;
     }
 
-    private static string Sibling(string executablePath, string infix, string version)
-    {
+    private static string Sibling(string executablePath, string infix, string version) {
         var directory = DirectoryOf(executablePath);
         var (stem, extension) = Split(FileNameOf(executablePath));
         var name = $"{stem}{infix}{version}{extension}";
@@ -80,12 +74,9 @@ internal static class ExecutablePaths
         return directory.Length == 0 ? name : $"{directory}{SeparatorOf(executablePath)}{name}";
     }
 
-    private static int LastSeparator(string path)
-    {
-        for (var i = path.Length - 1; i >= 0; i--)
-        {
-            if (path[i] is '/' or '\\')
-            {
+    private static int LastSeparator(string path) {
+        for (var i = path.Length - 1; i >= 0; i--) {
+            if (path[i] is '/' or '\\') {
                 return i;
             }
         }
@@ -96,8 +87,7 @@ internal static class ExecutablePaths
     /// <summary>Reuses the separator the caller's own path used, so a sibling of a Windows path is
     /// spelled like a Windows path and one of a POSIX path like a POSIX path — including inside the
     /// in-memory filesystem, which is neither.</summary>
-    private static char SeparatorOf(string path)
-    {
+    private static char SeparatorOf(string path) {
         var index = LastSeparator(path);
         return index < 0 ? '/' : path[index];
     }

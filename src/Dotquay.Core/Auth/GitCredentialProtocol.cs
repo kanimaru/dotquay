@@ -11,30 +11,25 @@ namespace Dotquay.Core.Auth;
 /// pipe: it is never written into <c>.git/config</c>, never appears in a command line, and so never
 /// shows up in an error message or in another user's <c>ps</c> output.
 /// </remarks>
-public static class GitCredentialProtocol
-{
+public static class GitCredentialProtocol {
     /// <summary>
     /// Parses git's request into its key/value pairs. Unknown keys are kept — git adds fields over
     /// time (<c>wwwauth[]</c>, <c>capability[]</c>) and a helper that choked on one it didn't
     /// recognise would break on a git upgrade.
     /// </summary>
-    public static IReadOnlyDictionary<string, string> ParseRequest(string input)
-    {
+    public static IReadOnlyDictionary<string, string> ParseRequest(string input) {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var rawLine in input.Split('\n'))
-        {
+        foreach (var rawLine in input.Split('\n')) {
             var line = rawLine.TrimEnd('\r');
-            if (line.Length == 0)
-            {
+            if (line.Length == 0) {
                 // A blank line terminates the request. Anything after it belongs to a later
                 // exchange and is not ours to interpret.
                 break;
             }
 
             var separator = line.IndexOf('=', StringComparison.Ordinal);
-            if (separator <= 0)
-            {
+            if (separator <= 0) {
                 continue;
             }
 
@@ -56,15 +51,12 @@ public static class GitCredentialProtocol
     /// breaking a working Git Credential Manager setup to enable a rarely-needed narrowing is a bad
     /// trade. The practical consequence: git credentials match host-wide scopes.
     /// </remarks>
-    public static string? BuildUrl(IReadOnlyDictionary<string, string> request)
-    {
-        if (request.TryGetValue("url", out var url) && url.Length > 0)
-        {
+    public static string? BuildUrl(IReadOnlyDictionary<string, string> request) {
+        if (request.TryGetValue("url", out var url) && url.Length > 0) {
             return url;
         }
 
-        if (!request.TryGetValue("host", out var host) || host.Length == 0)
-        {
+        if (!request.TryGetValue("host", out var host) || host.Length == 0) {
             return null;
         }
 

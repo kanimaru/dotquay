@@ -3,15 +3,12 @@ using Xunit;
 
 namespace Dotquay.Tests.Lockfile;
 
-public class LockfileWriterTests
-{
+public class LockfileWriterTests {
     private const string FullSha = "abcdefabcdefabcdefabcdefabcdefabcdefabcd"; // 40 hex chars
 
     [Fact]
-    public void Serialize_ThenRead_RoundTrips()
-    {
-        var lockfile = new DotquayLockfile
-        {
+    public void Serialize_ThenRead_RoundTrips() {
+        var lockfile = new DotquayLockfile {
             Addons =
             [
                 new LockedAddon
@@ -46,10 +43,8 @@ public class LockfileWriterTests
     }
 
     [Fact]
-    public void Serialize_NoPatch_OmitsPatchKeysEntirely()
-    {
-        var lockfile = new DotquayLockfile
-        {
+    public void Serialize_NoPatch_OmitsPatchKeysEntirely() {
+        var lockfile = new DotquayLockfile {
             Addons = [new LockedAddon { Name = "clean", Git = "https://example.com/c", Resolved = FullSha, Path = "addons/clean" }],
         };
 
@@ -60,10 +55,8 @@ public class LockfileWriterTests
     }
 
     [Fact]
-    public void Serialize_SortsEntriesByNameForDeterministicOutput()
-    {
-        var lockfile = new DotquayLockfile
-        {
+    public void Serialize_SortsEntriesByNameForDeterministicOutput() {
+        var lockfile = new DotquayLockfile {
             Addons =
             [
                 new LockedAddon { Name = "zeta", Git = "https://example.com/z", Resolved = FullSha, Path = "addons/zeta" },

@@ -14,15 +14,13 @@ namespace Dotquay.Tests.Workflows;
 /// about access rights, and went looking for a credential problem that did not exist. Nothing in the
 /// project was wrong, so nothing in the project could be edited to fix it.
 /// </remarks>
-public class DoctorSshHostTrustTests
-{
+public class DoctorSshHostTrustTests {
     private const string ProjectDirectory = "project";
     private const string KnownHostsPath = "/home/kani/.ssh/known_hosts";
 
     private static string Sha => new('a', 40);
 
-    private static InMemoryFileSystem BuildProject(params (string Name, string Url)[] addons)
-    {
+    private static InMemoryFileSystem BuildProject(params (string Name, string Url)[] addons) {
         var fileSystem = new InMemoryFileSystem();
 
         var entries = addons.Select(addon => $"""
@@ -38,10 +36,8 @@ public class DoctorSshHostTrustTests
         return fileSystem;
     }
 
-    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem)
-    {
-        var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache")
-        {
+    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem) {
+        var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache") {
             // Pinned rather than inherited: whether this suite passes must not depend on whether the
             // machine running it happens to trust gitlab.kemomi.de.
             EnvironmentReader = new FakeEnvironmentReader { HomeDirectory = "/home/kani" },
@@ -53,8 +49,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task SshAddonWithNoKnownHostsEntry_IsReported()
-    {
+    public async Task SshAddonWithNoKnownHostsEntry_IsReported() {
         var fileSystem = BuildProject(("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
 
         var issue = Assert.Single(await RunAsync(fileSystem));
@@ -66,8 +61,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task SshAddonWithATrustedHost_IsSilent()
-    {
+    public async Task SshAddonWithATrustedHost_IsSilent() {
         var fileSystem = BuildProject(("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
         fileSystem.WriteAllText(KnownHostsPath, "gitlab.kemomi.de ssh-ed25519 AAAAExample");
 
@@ -75,8 +69,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task HttpsAddons_AreNeverReported()
-    {
+    public async Task HttpsAddons_AreNeverReported() {
         // No host key is involved, so there is nothing to be untrusted. A check that complained here
         // would fire on the majority of projects and immediately stop being read.
         var fileSystem = BuildProject(("mtoon-shader", "https://gitlab.kemomi.de/wild-alliance/mtoon-shader"));
@@ -85,8 +78,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task LocalPathAddons_AreNeverReported()
-    {
+    public async Task LocalPathAddons_AreNeverReported() {
         // Forward slashes because the lockfile is TOML and a backslash starts an escape there; the
         // drive-letter rule keys on the separator, not on which one it is.
         var fileSystem = BuildProject(("local-thing", "C:/repos/local-thing"));
@@ -95,8 +87,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task ManyAddonsOnOneHost_ProduceOneIssue()
-    {
+    public async Task ManyAddonsOnOneHost_ProduceOneIssue() {
         // The known_hosts entry is per host: ten addons on one GitLab need one fix, and ten copies of
         // it would bury whatever else doctor found.
         var fileSystem = BuildProject(
@@ -111,8 +102,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task ManyAddonsOnManyHosts_ProduceOneIssueEach()
-    {
+    public async Task ManyAddonsOnManyHosts_ProduceOneIssueEach() {
         var fileSystem = BuildProject(
             ("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"),
             ("gut", "git@github.com:bitwes/gut.git"));
@@ -121,8 +111,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task PartiallyTrusted_ReportsOnlyTheUntrustedHost()
-    {
+    public async Task PartiallyTrusted_ReportsOnlyTheUntrustedHost() {
         var fileSystem = BuildProject(
             ("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"),
             ("gut", "git@github.com:bitwes/gut.git"));
@@ -135,8 +124,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task RevokedHostKey_SaysSoRatherThanSuggestingAKeyscan()
-    {
+    public async Task RevokedHostKey_SaysSoRatherThanSuggestingAKeyscan() {
         // The remedy is the opposite of the ordinary case: do not go and trust it, go and find out
         // why it changed.
         var fileSystem = BuildProject(("mtoon-shader", "git@gitlab.kemomi.de:wild-alliance/mtoon-shader.git"));
@@ -149,8 +137,7 @@ public class DoctorSshHostTrustTests
     }
 
     [Fact]
-    public async Task NonDefaultPort_IsMatchedAgainstTheBracketedEntry()
-    {
+    public async Task NonDefaultPort_IsMatchedAgainstTheBracketedEntry() {
         var fileSystem = BuildProject(("mtoon-shader", "ssh://git@gitlab.kemomi.de:2222/wild-alliance/mtoon-shader"));
         fileSystem.WriteAllText(KnownHostsPath, "[gitlab.kemomi.de]:2222 ssh-ed25519 AAAAExample");
 

@@ -27,15 +27,13 @@ namespace Dotquay.Core.Json;
 [JsonSerializable(typeof(JsonEnvelope<SourceListJson>))]
 [JsonSerializable(typeof(JsonEnvelope<SelfCheckJson>))]
 [JsonSerializable(typeof(JsonEnvelope<SelfUpdateJson>))]
-public sealed partial class DotquayJsonContext : JsonSerializerContext
-{
+public sealed partial class DotquayJsonContext : JsonSerializerContext {
 }
 
 /// <summary>The write side of the contract — one entry point per payload type so no caller has to
 /// pick the right <see cref="JsonTypeInfo"/> itself (picking the wrong one is exactly how an AOT
 /// serialization bug gets shipped).</summary>
-public static class DotquayJson
-{
+public static class DotquayJson {
     public static string Write(JsonEnvelope<GraphJson> envelope) =>
         JsonSerializer.Serialize(envelope, DotquayJsonContext.Default.JsonEnvelopeGraphJson);
 

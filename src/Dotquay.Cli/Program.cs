@@ -56,12 +56,9 @@ var notice = UpdateNotice.Start(args);
 // instead, as an envelope with --json and as the old trace without it, except for a project file the
 // user has to fix, which gets the parser's message alone.
 int exitCode;
-try
-{
+try {
     exitCode = parseResult.Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
-}
-catch (Exception ex)
-{
+} catch (Exception ex) {
     exitCode = UnhandledFailure.Report(parseResult, ex);
 }
 

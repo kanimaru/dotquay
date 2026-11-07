@@ -9,8 +9,7 @@ namespace Dotquay.Core.Workflows;
 /// configurable (SPEC.md §10) — passing only the first would force every consumer to re-derive the
 /// patches path and guess at the manifest setting.
 /// </summary>
-public sealed record ProjectLayout(string ProjectDirectory, string PatchesDirectory)
-{
+public sealed record ProjectLayout(string ProjectDirectory, string PatchesDirectory) {
     /// <summary>Where dotquay keeps everything of its own. Mostly ephemeral (cache, staging), which
     /// is why patches inside it need their own <c>.gitignore</c> rule to stay committed.</summary>
     public const string DotquayDirectory = ".dotquay";
@@ -32,10 +31,8 @@ public sealed record ProjectLayout(string ProjectDirectory, string PatchesDirect
     /// and <c>status</c> would call the result correct. So an existing <c>patches/</c> folder keeps
     /// winning until its owner moves it or sets <c>patches_dir</c> explicitly.
     /// </remarks>
-    public static ProjectLayout For(IFileSystem fileSystem, string projectDirectory, ProjectManifest? manifest)
-    {
-        if (manifest?.PatchesDirectory is { Length: > 0 } configured)
-        {
+    public static ProjectLayout For(IFileSystem fileSystem, string projectDirectory, ProjectManifest? manifest) {
+        if (manifest?.PatchesDirectory is { Length: > 0 } configured) {
             return new ProjectLayout(projectDirectory, configured);
         }
 

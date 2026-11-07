@@ -7,8 +7,7 @@ namespace Dotquay.Mcp.Prompts;
 
 /// <summary>The plugin's add dialog as prose: preview, show the user what would change, get a yes,
 /// then add for real (design doc §7).</summary>
-public sealed class DotquayAddAddonPrompt : IMcpPrompt
-{
+public sealed class DotquayAddAddonPrompt : IMcpPrompt {
     public string Name => "dotquay_add_addon";
 
     public string Description =>
@@ -25,19 +24,16 @@ public sealed class DotquayAddAddonPrompt : IMcpPrompt
         },
     ];
 
-    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken)
-    {
+    public ValueTask<GetPromptResult> GetAsync(RequestContext<GetPromptRequestParams> context, CancellationToken cancellationToken) {
         var gitUrl = McpArgs.GetString(context.Params?.Arguments, "git_url");
 
-        if (string.IsNullOrWhiteSpace(gitUrl))
-        {
+        if (string.IsNullOrWhiteSpace(gitUrl)) {
             throw new McpException("'git_url' is required: the git repository URL of the addon to add.");
         }
 
         var text = McpPromptText.Render("dotquay_add_addon.md", new Dictionary<string, string> { ["git_url"] = gitUrl });
 
-        return ValueTask.FromResult(new GetPromptResult
-        {
+        return ValueTask.FromResult(new GetPromptResult {
             Description = Description,
             Messages = [new PromptMessage { Role = Role.User, Content = new TextContentBlock { Text = text } }],
         });

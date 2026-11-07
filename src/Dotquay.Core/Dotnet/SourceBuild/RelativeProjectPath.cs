@@ -16,21 +16,16 @@ namespace Dotquay.Core.Dotnet.SourceBuild;
 /// what Godot and Visual Studio emit) and built on Linux CI, and MSBuild accepts either on both.
 /// </para>
 /// </remarks>
-internal static class RelativeProjectPath
-{
-    public static string Resolve(string fromProjectFile, string include)
-    {
+internal static class RelativeProjectPath {
+    public static string Resolve(string fromProjectFile, string include) {
         var target = include.Trim().Replace('\\', '/');
 
         string root;
         List<string> segments;
 
-        if (IsRooted(target))
-        {
+        if (IsRooted(target)) {
             (root, segments) = Split(target);
-        }
-        else
-        {
+        } else {
             var from = fromProjectFile.Replace('\\', '/');
             var lastSlash = from.LastIndexOf('/');
             (root, segments) = Split(lastSlash < 0 ? string.Empty : from[..lastSlash]);
@@ -38,10 +33,8 @@ internal static class RelativeProjectPath
         }
 
         var folded = new List<string>(segments.Count);
-        foreach (var segment in segments)
-        {
-            switch (segment)
-            {
+        foreach (var segment in segments) {
+            switch (segment) {
                 case ".":
                     continue;
                 case ".." when folded.Count > 0 && folded[^1] != "..":
@@ -63,20 +56,14 @@ internal static class RelativeProjectPath
 
     private static bool HasDriveLetter(string path) => path.Length >= 2 && path[1] == ':' && char.IsAsciiLetter(path[0]);
 
-    private static (string Root, List<string> Segments) Split(string path)
-    {
+    private static (string Root, List<string> Segments) Split(string path) {
         var root = string.Empty;
 
-        if (path.StartsWith("//", StringComparison.Ordinal))
-        {
+        if (path.StartsWith("//", StringComparison.Ordinal)) {
             root = "//";
-        }
-        else if (path.StartsWith('/'))
-        {
+        } else if (path.StartsWith('/')) {
             root = "/";
-        }
-        else if (HasDriveLetter(path))
-        {
+        } else if (HasDriveLetter(path)) {
             root = path[..2] + "/";
             path = path[2..];
         }

@@ -14,8 +14,7 @@ namespace Dotquay.Mcp.Tools;
 /// Every getter here treats a present-but-wrong-kind value the same as an absent one and falls back,
 /// rather than failing the whole call over one malformed argument that the tool may not even need.
 /// </remarks>
-internal static class McpArgs
-{
+internal static class McpArgs {
     public static string? GetString(IDictionary<string, JsonElement>? arguments, string name) =>
         arguments is not null
         && arguments.TryGetValue(name, out var value)
@@ -23,34 +22,27 @@ internal static class McpArgs
             ? value.GetString()
             : null;
 
-    public static bool GetBool(IDictionary<string, JsonElement>? arguments, string name, bool defaultValue = false)
-    {
-        if (arguments is null || !arguments.TryGetValue(name, out var value))
-        {
+    public static bool GetBool(IDictionary<string, JsonElement>? arguments, string name, bool defaultValue = false) {
+        if (arguments is null || !arguments.TryGetValue(name, out var value)) {
             return defaultValue;
         }
 
-        return value.ValueKind switch
-        {
+        return value.ValueKind switch {
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             _ => defaultValue,
         };
     }
 
-    public static IReadOnlyList<string> GetStringArray(IDictionary<string, JsonElement>? arguments, string name)
-    {
-        if (arguments is null || !arguments.TryGetValue(name, out var value) || value.ValueKind != JsonValueKind.Array)
-        {
+    public static IReadOnlyList<string> GetStringArray(IDictionary<string, JsonElement>? arguments, string name) {
+        if (arguments is null || !arguments.TryGetValue(name, out var value) || value.ValueKind != JsonValueKind.Array) {
             return [];
         }
 
         var items = new List<string>();
 
-        foreach (var element in value.EnumerateArray())
-        {
-            if (element.ValueKind == JsonValueKind.String && element.GetString() is { Length: > 0 } text)
-            {
+        foreach (var element in value.EnumerateArray()) {
+            if (element.ValueKind == JsonValueKind.String && element.GetString() is { Length: > 0 } text) {
                 items.Add(text);
             }
         }

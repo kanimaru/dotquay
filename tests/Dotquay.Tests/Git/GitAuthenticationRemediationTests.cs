@@ -11,8 +11,7 @@ namespace Dotquay.Tests.Git;
 /// followed the old advice to run <c>dotquay login</c>, and got the identical failure: dotquay hands
 /// its token to git through a credential helper, and git only consults helpers over https.
 /// </remarks>
-public class GitAuthenticationRemediationTests
-{
+public class GitAuthenticationRemediationTests {
     private const string SshUrl = "git@gitlab.kemomi.de:wild-alliance/vbeami_gdmp.git";
     private const string HttpsUrl = "https://gitlab.kemomi.de/wild-alliance/vbeami_gdmp.git";
 
@@ -34,8 +33,7 @@ public class GitAuthenticationRemediationTests
         Assert.Equal(GitFailureKind.Authentication, GitErrorClassifier.Classify(PublicKeyRefused));
 
     [Fact]
-    public void An_ssh_refusal_says_a_stored_login_does_not_apply()
-    {
+    public void An_ssh_refusal_says_a_stored_login_does_not_apply() {
         var advice = GitErrorClassifier.Remediation(GitFailureKind.Authentication, SshUrl)!;
 
         Assert.Contains("never used for an ssh URL", advice);
@@ -44,8 +42,7 @@ public class GitAuthenticationRemediationTests
     }
 
     [Fact]
-    public void An_https_refusal_still_points_at_dotquay_login()
-    {
+    public void An_https_refusal_still_points_at_dotquay_login() {
         Assert.Equal(GitFailureKind.Authentication, GitErrorClassifier.Classify(HttpsRefused));
         var advice = GitErrorClassifier.Remediation(GitFailureKind.Authentication, HttpsUrl)!;
 
@@ -54,8 +51,7 @@ public class GitAuthenticationRemediationTests
     }
 
     [Fact]
-    public void The_full_fetch_message_for_the_reported_case_leads_with_the_ssh_remedy()
-    {
+    public void The_full_fetch_message_for_the_reported_case_leads_with_the_ssh_remedy() {
         var message = GitErrorClassifier.DescribeFetchFailure(
             SshUrl, "5f977e7ac86903e970c556cc93d7d05e542b68f0", PublicKeyRefused, PublicKeyRefused);
 

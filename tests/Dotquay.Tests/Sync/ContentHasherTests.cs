@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Sync;
 
-public class ContentHasherTests
-{
+public class ContentHasherTests {
     [Fact]
-    public void HashDirectory_IsStableForIdenticalContent()
-    {
+    public void HashDirectory_IsStableForIdenticalContent() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("a/plugin.cfg", "cfg");
         fileSystem.WriteAllText("a/scripts/main.gd", "gd");
@@ -23,8 +21,7 @@ public class ContentHasherTests
     }
 
     [Fact]
-    public void HashDirectory_ChangesWhenFileContentChanges()
-    {
+    public void HashDirectory_ChangesWhenFileContentChanges() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("a/plugin.cfg", "cfg-v1");
         var before = ContentHasher.HashDirectory(fileSystem, "a");
@@ -36,8 +33,7 @@ public class ContentHasherTests
     }
 
     [Fact]
-    public void HashDirectory_ChangesWhenAFileIsRenamedEvenWithSameContent()
-    {
+    public void HashDirectory_ChangesWhenAFileIsRenamedEvenWithSameContent() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("a/one.txt", "same content");
         var hashA = ContentHasher.HashDirectory(fileSystem, "a");
@@ -50,8 +46,7 @@ public class ContentHasherTests
     }
 
     [Fact]
-    public void HashDirectory_EmptyDirectoryProducesAStableHash()
-    {
+    public void HashDirectory_EmptyDirectoryProducesAStableHash() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.CreateDirectory("empty");
 

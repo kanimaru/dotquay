@@ -7,15 +7,13 @@ using Xunit;
 
 namespace Dotquay.Tests.Resolve;
 
-public class DependencyGraphResolverTests
-{
+public class DependencyGraphResolverTests {
     private const string LeafUrl = "https://example.com/leaf.git";
     private const string CoreUrl = "https://example.com/core.git";
     private const string AUrl = "https://example.com/a.git";
     private const string BUrl = "https://example.com/b.git";
 
-    private static (DependencyGraphResolver Resolver, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build()
-    {
+    private static (DependencyGraphResolver Resolver, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var cache = new RepoCache(fileSystem, gitClient, "cache");
@@ -31,17 +29,14 @@ public class DependencyGraphResolverTests
     private static Dictionary<string, AddonSpec> NoOverrides() => new();
 
     [Fact]
-    public async Task ResolveGraphAsync_LeafAddon_HasNoDependencies()
-    {
+    public async Task ResolveGraphAsync_LeafAddon_HasNoDependencies() {
         var (resolver, _, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
         };
 
-        var rootAddons = new Dictionary<string, AddonSpec>
-        {
+        var rootAddons = new Dictionary<string, AddonSpec> {
             ["leaf"] = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" },
         };
 
@@ -54,20 +49,17 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_LeafAddonWithNonPackageDotquayToml_TreatedAsLeaf()
-    {
+    public async Task ResolveGraphAsync_LeafAddonWithNonPackageDotquayToml_TreatedAsLeaf() {
         var (resolver, _, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
             // A project-style manifest, not a [package] one -- some addons might ship an unrelated
             // dotquay.toml by coincidence; it must not crash the graph walk (SPEC.md §7.2).
             ["addons/leaf/dotquay.toml"] = "[project]\ngodot = \"4.3\"\n",
         };
 
-        var rootAddons = new Dictionary<string, AddonSpec>
-        {
+        var rootAddons = new Dictionary<string, AddonSpec> {
             ["leaf"] = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" },
         };
 
@@ -77,14 +69,12 @@ public class DependencyGraphResolverTests
         Assert.Empty(entry.DependencyNames);
     }
 
-    private static void SetUpDiamond(FakeGitClient gitClient, string aCoreConstraint, string bCoreConstraint)
-    {
+    private static void SetUpDiamond(FakeGitClient gitClient, string aCoreConstraint, string bCoreConstraint) {
         SetTags(gitClient, CoreUrl, "v1.2.0", "v1.3.0", "v1.4.0", "v1.4.2", "v2.0.0");
         gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
 
         gitClient.RemoteRefsByUrl[AUrl] = [];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -98,8 +88,7 @@ public class DependencyGraphResolverTests
         };
 
         gitClient.RemoteRefsByUrl[BUrl] = [];
-        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string> {
             ["addons/b/plugin.cfg"] = "b",
             ["addons/b/dotquay.toml"] = $"""
                 [package]
@@ -113,15 +102,13 @@ public class DependencyGraphResolverTests
         };
     }
 
-    private static Dictionary<string, AddonSpec> DiamondRoots() => new()
-    {
+    private static Dictionary<string, AddonSpec> DiamondRoots() => new() {
         ["a"] = new AddonSpec { Name = "a", Git = AUrl, Rev = "reva", Path = "addons/a" },
         ["b"] = new AddonSpec { Name = "b", Git = BUrl, Rev = "revb", Path = "addons/b" },
     };
 
     [Fact]
-    public async Task ResolveGraphAsync_Diamond_UnifiesToHighestVersionSatisfyingBothConstraints()
-    {
+    public async Task ResolveGraphAsync_Diamond_UnifiesToHighestVersionSatisfyingBothConstraints() {
         var (resolver, _, gitClient) = Build();
         // "~1" matches any 1.x.x; "~1.4" matches only 1.4.x -- the overlap is 1.4.x, so the highest
         // tag satisfying both is v1.4.2 (SPEC.md §8's diamond example, expressed in this codebase's
@@ -139,8 +126,7 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_DisjointVersionRanges_ThrowsNamingBothRequirers()
-    {
+    public async Task ResolveGraphAsync_DisjointVersionRanges_ThrowsNamingBothRequirers() {
         var (resolver, _, gitClient) = Build();
         // "~1.2" (< 1.3) and "~1.4" (>= 1.4, < 1.5) never overlap -- no tag can satisfy both.
         SetUpDiamond(gitClient, aCoreConstraint: "~1.2", bCoreConstraint: "~1.4");
@@ -154,15 +140,13 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_ConflictingRevPins_ThrowsNamingBothRequirers()
-    {
+    public async Task ResolveGraphAsync_ConflictingRevPins_ThrowsNamingBothRequirers() {
         var (resolver, _, gitClient) = Build();
         SetTags(gitClient, CoreUrl, "v1.0.0");
         gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> { ["addons/core/plugin.cfg"] = "core" };
 
         gitClient.RemoteRefsByUrl[AUrl] = [];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -176,8 +160,7 @@ public class DependencyGraphResolverTests
         };
 
         gitClient.RemoteRefsByUrl[BUrl] = [];
-        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string> {
             ["addons/b/plugin.cfg"] = "b",
             ["addons/b/dotquay.toml"] = $"""
                 [package]
@@ -198,13 +181,11 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_SameNameDifferentGitUrls_Throws()
-    {
+    public async Task ResolveGraphAsync_SameNameDifferentGitUrls_Throws() {
         var (resolver, _, gitClient) = Build();
 
         gitClient.RemoteRefsByUrl[AUrl] = [];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = """
                 [package]
@@ -218,8 +199,7 @@ public class DependencyGraphResolverTests
         };
 
         gitClient.RemoteRefsByUrl[BUrl] = [];
-        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string> {
             ["addons/b/plugin.cfg"] = "b",
             ["addons/b/dotquay.toml"] = """
                 [package]
@@ -239,19 +219,16 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_OverrideOnConflictingName_WinsUnconditionally()
-    {
+    public async Task ResolveGraphAsync_OverrideOnConflictingName_WinsUnconditionally() {
         var (resolver, _, gitClient) = Build();
         SetUpDiamond(gitClient, aCoreConstraint: "~1.2", bCoreConstraint: "~1.4"); // would normally conflict
 
         const string overrideRev = "3333333333333333333333333333333333cccc";
-        gitClient.FetchedFilesByUrlAndSha[(CoreUrl, overrideRev)] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrlAndSha[(CoreUrl, overrideRev)] = new Dictionary<string, string> {
             ["addons/core/plugin.cfg"] = "overridden core",
         };
 
-        var overrides = new Dictionary<string, AddonSpec>
-        {
+        var overrides = new Dictionary<string, AddonSpec> {
             ["core"] = new AddonSpec { Name = "core", Git = CoreUrl, Rev = overrideRev, Path = "addons/core" },
         };
 
@@ -262,12 +239,10 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_AddonDeclaredDotnetDependency_IsUnioned()
-    {
+    public async Task ResolveGraphAsync_AddonDeclaredDotnetDependency_IsUnioned() {
         var (resolver, _, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
             ["addons/leaf/dotquay.toml"] = """
                 [package]
@@ -279,8 +254,7 @@ public class DependencyGraphResolverTests
                 """,
         };
 
-        var rootAddons = new Dictionary<string, AddonSpec>
-        {
+        var rootAddons = new Dictionary<string, AddonSpec> {
             ["leaf"] = new AddonSpec { Name = "leaf", Git = LeafUrl, Version = "~1.0", Path = "addons/leaf" },
         };
 
@@ -292,13 +266,11 @@ public class DependencyGraphResolverTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_Cycle_DoesNotInfiniteLoop()
-    {
+    public async Task ResolveGraphAsync_Cycle_DoesNotInfiniteLoop() {
         var (resolver, _, gitClient) = Build();
 
         gitClient.RemoteRefsByUrl[AUrl] = [];
-        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[AUrl] = new Dictionary<string, string> {
             ["addons/a/plugin.cfg"] = "a",
             ["addons/a/dotquay.toml"] = $"""
                 [package]
@@ -312,8 +284,7 @@ public class DependencyGraphResolverTests
         };
 
         gitClient.RemoteRefsByUrl[BUrl] = [];
-        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[BUrl] = new Dictionary<string, string> {
             ["addons/b/plugin.cfg"] = "b",
             ["addons/b/dotquay.toml"] = $"""
                 [package]
@@ -326,8 +297,7 @@ public class DependencyGraphResolverTests
                 """,
         };
 
-        var rootAddons = new Dictionary<string, AddonSpec>
-        {
+        var rootAddons = new Dictionary<string, AddonSpec> {
             ["a"] = new AddonSpec { Name = "a", Git = AUrl, Rev = new string('a', 40), Path = "addons/a" },
         };
 

@@ -4,8 +4,7 @@ namespace Dotquay.Core.Json;
 
 /// <summary>The CLI's own version string, reported in every <c>--json</c> envelope so a consumer can
 /// tell an old dotquay from a new one before blaming the payload.</summary>
-public static class DotquayVersion
-{
+public static class DotquayVersion {
     // The entry assembly, not this one: the number that matters to a consumer is the executable's
     // (Dotquay.Cli carries the shipped version), and Dotquay.Core is a library that happens to host
     // this helper. Falls back to this assembly when there is no entry assembly at all — which is the

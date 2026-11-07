@@ -6,8 +6,7 @@ namespace Dotquay.Core.Graph;
 
 /// <summary>How a <see cref="GraphReport"/> was produced — which decides what it can and cannot
 /// tell you.</summary>
-public enum GraphSource
-{
+public enum GraphSource {
     /// <summary>Built purely from <c>dotquay.lock</c> plus the manifest and disk. No network, no
     /// resolution: instant, always available, and therefore what the editor plugin opens with. Can
     /// never report a conflict, because the lockfile only exists once conflicts were already
@@ -22,8 +21,7 @@ public enum GraphSource
 
 /// <summary>Where an addon node came from, which is what a UI needs to decide whether removing it
 /// is even meaningful.</summary>
-public enum GraphNodeOrigin
-{
+public enum GraphNodeOrigin {
     /// <summary>Declared in the project's own <c>[addons.*]</c> — the user put it there.</summary>
     Root,
 
@@ -38,8 +36,7 @@ public enum GraphNodeOrigin
 /// <summary>One addon in the report. <see cref="Requirements"/> is populated in
 /// <see cref="GraphSource.Resolved"/> mode only; lockfile mode knows the graph's shape (from
 /// <c>dependencies</c>) but not the constraint text each requirer used.</summary>
-public sealed record GraphNode
-{
+public sealed record GraphNode {
     public required string Name { get; init; }
 
     public required string Git { get; init; }
@@ -103,8 +100,7 @@ public sealed record GraphEdge(string From, string To);
 /// greyed-out sidebar row that only says "needed by an addon" (DESIGN-v0.19). Built by
 /// <see cref="DotnetGraphBuilder"/>, never by hand, so both graph modes agree.
 /// </remarks>
-public sealed record GraphDotnetNode(string Name, string? Constraint, string? Resolved, bool DeclaredByProject)
-{
+public sealed record GraphDotnetNode(string Name, string? Constraint, string? Resolved, bool DeclaredByProject) {
     /// <summary>Root when the project declares it, transitive when only addons do, orphan when only
     /// the lockfile still mentions it. The same meaning as <see cref="GraphNode.Origin"/>.</summary>
     public GraphNodeOrigin Origin { get; init; } = DeclaredByProject ? GraphNodeOrigin.Root : GraphNodeOrigin.Transitive;
@@ -123,8 +119,7 @@ public sealed record GraphDotnetNode(string Name, string? Constraint, string? Re
 /// (SPEC.md §18): the addon graph, its NuGet side, and any unresolved conflicts with the concrete
 /// versions on offer to settle them.
 /// </summary>
-public sealed record GraphReport
-{
+public sealed record GraphReport {
     public required GraphSource Source { get; init; }
 
     public required string ProjectDirectory { get; init; }

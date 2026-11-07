@@ -9,11 +9,9 @@ namespace Dotquay.Tests.Git;
 /// <c>git ls-remote</c> output — no real git process or network call needed, since this is pure
 /// text parsing (SPEC.md §12: testable without network/disk).
 /// </summary>
-public class ProcessGitClientTests
-{
+public class ProcessGitClientTests {
     [Fact]
-    public void ParseRefs_ParsesBranchesAndLightweightTags()
-    {
+    public void ParseRefs_ParsesBranchesAndLightweightTags() {
         const string output = """
             7fd1a60b01f91b314f59955a4e4d4e80d8edf11d	refs/heads/master
             b1b3f9723831141a31a1a7252a213e216ea76e56	refs/tags/v1.0.0
@@ -27,8 +25,7 @@ public class ProcessGitClientTests
     }
 
     [Fact]
-    public void ParseRefs_PrefersPeeledCommitOverAnnotatedTagObjectSha()
-    {
+    public void ParseRefs_PrefersPeeledCommitOverAnnotatedTagObjectSha() {
         // An annotated tag: the first line is the tag OBJECT's own sha; the "^{}" line is the
         // commit it points at. We want the commit, since that's what gets fetched/pinned.
         const string output = """
@@ -45,8 +42,7 @@ public class ProcessGitClientTests
     }
 
     [Fact]
-    public void ParseRefs_IgnoresRefsOutsideTagsAndHeads()
-    {
+    public void ParseRefs_IgnoresRefsOutsideTagsAndHeads() {
         const string output = """
             cccccccccccccccccccccccccccccccccccccccc	refs/pull/1/head
             dddddddddddddddddddddddddddddddddddddddd	refs/heads/main
@@ -59,8 +55,7 @@ public class ProcessGitClientTests
     }
 
     [Fact]
-    public void ParseRefs_IgnoresBlankLinesAndMalformedInput()
-    {
+    public void ParseRefs_IgnoresBlankLinesAndMalformedInput() {
         const string output = "\n\nnot-a-valid-line-at-all\n\n";
 
         var refs = ProcessGitClient.ParseRefs(output);
@@ -69,8 +64,7 @@ public class ProcessGitClientTests
     }
 
     [Fact]
-    public void ParseRefs_EmptyInputProducesNoRefs()
-    {
+    public void ParseRefs_EmptyInputProducesNoRefs() {
         var refs = ProcessGitClient.ParseRefs("");
 
         Assert.Empty(refs);

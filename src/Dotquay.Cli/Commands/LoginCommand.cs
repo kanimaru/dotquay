@@ -15,41 +15,33 @@ namespace Dotquay.Cli.Commands;
 /// would ask for the same secret a dozen times. Works with no project directory at all — the state it
 /// writes is the user's, not a project's.
 /// </remarks>
-internal static class LoginCommand
-{
+internal static class LoginCommand {
     private const string CommandName = "login";
 
-    public static Command Build()
-    {
-        var hostArgument = new Argument<string?>("host")
-        {
+    public static Command Build() {
+        var hostArgument = new Argument<string?>("host") {
             Description = "Host or feed URL to log in to, e.g. gitlab.example.com. "
                 + "Omit to use the project's only configured NuGet source.",
             Arity = ArgumentArity.ZeroOrOne,
         };
 
-        var usernameOption = new Option<string?>("--username", "-u")
-        {
+        var usernameOption = new Option<string?>("--username", "-u") {
             Description = "Username for the host. Prompted for if omitted.",
         };
 
-        var tokenOption = new Option<string?>("--token")
-        {
+        var tokenOption = new Option<string?>("--token") {
             Description = "Token or password. Prefer --token-stdin: a token given here lands in your shell history.",
         };
 
-        var tokenStdinOption = new Option<bool>("--token-stdin")
-        {
+        var tokenStdinOption = new Option<bool>("--token-stdin") {
             Description = "Read the token from stdin. The right choice for scripts and CI.",
         };
 
-        var noVerifyOption = new Option<bool>("--no-verify")
-        {
+        var noVerifyOption = new Option<bool>("--no-verify") {
             Description = "Store the credential without checking it against the server first.",
         };
 
-        var listOption = new Option<bool>("--list")
-        {
+        var listOption = new Option<bool>("--list") {
             Description = "List stored logins (hosts and usernames — never tokens).",
         };
 
@@ -60,14 +52,11 @@ internal static class LoginCommand
             hostArgument, usernameOption, tokenOption, tokenStdinOption, noVerifyOption, listOption, jsonOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var json = parseResult.GetValue(jsonOption);
 
-            try
-            {
-                if (parseResult.GetValue(listOption))
-                {
+            try {
+                if (parseResult.GetValue(listOption)) {
                     return ListLogins(json);
                 }
 
@@ -80,9 +69,7 @@ internal static class LoginCommand
                     GlobalOptions.Resolve(parseResult),
                     json,
                     cancellationToken);
-            }
-            catch (CredentialException ex)
-            {
+            } catch (CredentialException ex) {
                 return JsonOutput.Fail(json, CommandName, ex);
             }
         });
@@ -98,43 +85,36 @@ internal static class LoginCommand
         bool noVerify,
         string projectDirectory,
         bool json,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var target = hostArgument ?? InferHost(projectDirectory);
-        if (target is null)
-        {
+        if (target is null) {
             return JsonOutput.Fail(
                 json, CommandName, JsonErrorKind.Workflow,
                 "Which host? Pass one, e.g. 'dotquay login gitlab.example.com'. "
                 + "(Omitting it only works in a project with exactly one configured NuGet source.)");
         }
 
-        if (!CredentialScope.TryParse(target, out var scope, out var scopeError))
-        {
+        if (!CredentialScope.TryParse(target, out var scope, out var scopeError)) {
             return JsonOutput.Fail(json, CommandName, JsonErrorKind.Workflow, scopeError);
         }
 
         var messages = new List<string>();
 
-        if (!scope.IsSecure)
-        {
+        if (!scope.IsSecure) {
             return JsonOutput.Fail(
                 json, CommandName, JsonErrorKind.Auth,
                 $"{scope.Key} is plain HTTP. dotquay won't store a token it would have to send in cleartext. "
                 + "Use https, or a loopback address for local testing.");
         }
 
-        if (!TryReadCredential(username, token, tokenFromStdin, json, scope, out var credential, out var inputError))
-        {
+        if (!TryReadCredential(username, token, tokenFromStdin, json, scope, out var credential, out var inputError)) {
             return JsonOutput.Fail(json, CommandName, JsonErrorKind.Workflow, inputError);
         }
 
         var verified = false;
-        if (!noVerify)
-        {
+        if (!noVerify) {
             var (outcome, detail) = await VerifyAsync(target, scope, credential, projectDirectory, cancellationToken);
-            switch (outcome)
-            {
+            switch (outcome) {
                 case CredentialVerifier.Result.Rejected:
                     return JsonOutput.Fail(
                         json, CommandName, JsonErrorKind.Auth,
@@ -162,10 +142,8 @@ internal static class LoginCommand
         messages.Add($"Stored credentials for {scope.Key} in {storePath}.");
         messages.AddRange(ShadowWarnings(scope));
 
-        if (json)
-        {
-            Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson
-            {
+        if (json) {
+            Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson {
                 Credentials = [new CredentialEntryJson { Scope = scope.Key, Username = credential.Username }],
                 StorePath = storePath,
                 Verified = verified,
@@ -175,8 +153,7 @@ internal static class LoginCommand
         }
 
         ConsoleOutput.WriteLine(ConsoleColor.Green, messages[0]);
-        foreach (var message in messages.Skip(1))
-        {
+        foreach (var message in messages.Skip(1)) {
             ConsoleOutput.WriteLine(ConsoleColor.Yellow, message);
         }
 
@@ -192,13 +169,11 @@ internal static class LoginCommand
     /// session makes a successful <c>login</c> appear to have done nothing at all. Saying so here is
     /// cheaper than the debugging session it prevents.
     /// </remarks>
-    private static IEnumerable<string> ShadowWarnings(CredentialScope scope)
-    {
+    private static IEnumerable<string> ShadowWarnings(CredentialScope scope) {
         var environment = new SystemEnvironmentReader();
 
         if (!string.IsNullOrEmpty(environment.GetVariable(CredentialResolver.GlobalUsernameVariable))
-            && !string.IsNullOrEmpty(environment.GetVariable(CredentialResolver.GlobalTokenVariable)))
-        {
+            && !string.IsNullOrEmpty(environment.GetVariable(CredentialResolver.GlobalTokenVariable))) {
             yield return
                 $"Note: {CredentialResolver.GlobalUsernameVariable}/{CredentialResolver.GlobalTokenVariable} are set "
                 + "and take precedence over stored credentials for NuGet feeds. Unset them to use what you just "
@@ -216,41 +191,34 @@ internal static class LoginCommand
     /// </remarks>
     private static bool TryReadCredential(
         string? username, string? token, bool tokenFromStdin, bool json, CredentialScope scope,
-        out Credential credential, out string error)
-    {
+        out Credential credential, out string error) {
         credential = new Credential(string.Empty, string.Empty);
         error = string.Empty;
 
-        if (tokenFromStdin)
-        {
+        if (tokenFromStdin) {
             token = ReadSecretFromStdin();
         }
 
-        if (json && (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token)))
-        {
+        if (json && (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(token))) {
             error = "--json can't prompt. Pass --username and either --token or --token-stdin.";
             return false;
         }
 
-        if (string.IsNullOrEmpty(username))
-        {
+        if (string.IsNullOrEmpty(username)) {
             Console.Write($"Username for {scope.Key}: ");
             username = Console.ReadLine()?.Trim();
         }
 
-        if (string.IsNullOrEmpty(username))
-        {
+        if (string.IsNullOrEmpty(username)) {
             error = "A username is required.";
             return false;
         }
 
-        if (string.IsNullOrEmpty(token))
-        {
+        if (string.IsNullOrEmpty(token)) {
             token = ReadSecret($"Token for {scope.Key}: ");
         }
 
-        if (string.IsNullOrEmpty(token))
-        {
+        if (string.IsNullOrEmpty(token)) {
             error = "A token is required.";
             return false;
         }
@@ -276,8 +244,7 @@ internal static class LoginCommand
     /// codepage that can't represent it. Piping is the documented path for scripts and CI, so this is
     /// the common case rather than an edge one.</para>
     /// </remarks>
-    private static string ReadSecretFromStdin()
-    {
+    private static string ReadSecretFromStdin() {
         using var stream = Console.OpenStandardInput();
         using var reader = new StreamReader(
             stream,
@@ -296,32 +263,26 @@ internal static class LoginCommand
     /// the lesser evil against crashing, and anyone piping input should be using
     /// <c>--token-stdin</c> anyway.
     /// </remarks>
-    private static string ReadSecret(string prompt)
-    {
+    private static string ReadSecret(string prompt) {
         Console.Write(prompt);
 
-        if (Console.IsInputRedirected)
-        {
+        if (Console.IsInputRedirected) {
             // Same decoding path as --token-stdin, so a piped token behaves identically whether or
             // not the caller remembered the flag.
             return ReadSecretFromStdin();
         }
 
         var builder = new System.Text.StringBuilder();
-        while (true)
-        {
+        while (true) {
             var key = Console.ReadKey(intercept: true);
 
-            if (key.Key == ConsoleKey.Enter)
-            {
+            if (key.Key == ConsoleKey.Enter) {
                 Console.WriteLine();
                 return builder.ToString();
             }
 
-            if (key.Key == ConsoleKey.Backspace)
-            {
-                if (builder.Length > 0)
-                {
+            if (key.Key == ConsoleKey.Backspace) {
+                if (builder.Length > 0) {
                     builder.Length--;
                 }
 
@@ -330,8 +291,7 @@ internal static class LoginCommand
 
             // Control characters (arrow keys, function keys) arrive with KeyChar '\0' and must not
             // become part of the secret.
-            if (!char.IsControl(key.KeyChar))
-            {
+            if (!char.IsControl(key.KeyChar)) {
                 builder.Append(key.KeyChar);
             }
         }
@@ -348,20 +308,17 @@ internal static class LoginCommand
         CredentialScope scope,
         Credential credential,
         string projectDirectory,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var verifier = new CredentialVerifier();
 
-        if (target.Contains("://", StringComparison.Ordinal))
-        {
+        if (target.Contains("://", StringComparison.Ordinal)) {
             return await verifier.VerifyAsync(target, credential, cancellationToken);
         }
 
         var manifest = TryReadManifest(projectDirectory);
         IReadOnlyList<string> urls = manifest is null ? [] : CredentialProbeTargets.For(scope, manifest);
 
-        if (urls.Count == 0)
-        {
+        if (urls.Count == 0) {
             return (
                 CredentialVerifier.Result.Inconclusive,
                 "no URL to check — pass the full feed URL, or run this inside a project whose dotquay.toml "
@@ -374,8 +331,7 @@ internal static class LoginCommand
     /// <summary>The project's only NuGet source host, when there is exactly one. Convenience only —
     /// a missing or unreadable manifest just means "no inference", never an error, because
     /// <c>login</c> is a user-level command that must work outside a project.</summary>
-    private static string? InferHost(string projectDirectory)
-    {
+    private static string? InferHost(string projectDirectory) {
         var sources = TryReadManifest(projectDirectory)?.NuGetSources
             .Where(source => !source.IsPublicDefault)
             .ToList();
@@ -386,28 +342,21 @@ internal static class LoginCommand
     /// <summary>The project's manifest, or null when there is none or it doesn't parse — same
     /// reasoning as <see cref="InferHost"/>: <c>login</c> never fails because of the project it
     /// happens to be run from.</summary>
-    private static Core.Manifest.ProjectManifest? TryReadManifest(string projectDirectory)
-    {
-        try
-        {
+    private static Core.Manifest.ProjectManifest? TryReadManifest(string projectDirectory) {
+        try {
             var store = new Core.Workflows.ProjectFileStore(new SystemFileSystem());
             return store.HasManifest(projectDirectory) ? store.ReadManifestOrThrow(projectDirectory).Manifest : null;
-        }
-        catch (Exception ex) when (ex is Core.Workflows.WorkflowException or Core.Manifest.ManifestParseException)
-        {
+        } catch (Exception ex) when (ex is Core.Workflows.WorkflowException or Core.Manifest.ManifestParseException) {
             return null;
         }
     }
 
-    private static int ListLogins(bool json)
-    {
+    private static int ListLogins(bool json) {
         var entries = CredentialFactory.CreateStore().List();
         var storePath = CredentialFactory.StorePath();
 
-        if (json)
-        {
-            Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson
-            {
+        if (json) {
+            Console.WriteLine(DotquayJson.Write(JsonEnvelope<LoginJson>.Success(CommandName, new LoginJson {
                 Credentials = entries
                     .Select(entry => new CredentialEntryJson { Scope = entry.Scope, Username = entry.Username })
                     .ToList(),
@@ -416,14 +365,12 @@ internal static class LoginCommand
             return 0;
         }
 
-        if (entries.Count == 0)
-        {
+        if (entries.Count == 0) {
             Console.WriteLine("No stored logins. Add one with 'dotquay login <host>'.");
             return 0;
         }
 
-        foreach (var entry in entries)
-        {
+        foreach (var entry in entries) {
             // Username only. A token — even a few characters of one — has no reason to be on a
             // screen that gets screenshotted into bug reports.
             Console.WriteLine($"{entry.Scope}  ({entry.Username})");

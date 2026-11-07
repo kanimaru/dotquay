@@ -21,8 +21,7 @@ namespace Dotquay.Core.Doctor;
 /// manifest decides the folder" a claim rather than a hope.
 /// </para>
 /// </remarks>
-public static class InstallFolderDriftChecker
-{
+public static class InstallFolderDriftChecker {
     /// <param name="Folder">The folder the declaration asks the addon to be installed into.</param>
     /// <param name="IsExplicit">Whether an <c>install_as</c> was actually stated, as opposed to
     /// <paramref name="Folder"/> being the default of the addon's own name. The distinction is the
@@ -49,18 +48,15 @@ public static class InstallFolderDriftChecker
     /// fix. An <em>explicit</em> <c>install_as</c> is compared ordinally, because there the user has
     /// stated the casing and the correction never overrides them.
     /// </remarks>
-    public static Drift? Check(LockedAddon locked, FolderDeclaration declaration)
-    {
+    public static Drift? Check(LockedAddon locked, FolderDeclaration declaration) {
         var actual = locked.EffectiveFolder;
 
-        if (string.Equals(actual, declaration.Folder, StringComparison.Ordinal))
-        {
+        if (string.Equals(actual, declaration.Folder, StringComparison.Ordinal)) {
             return null;
         }
 
         if (!declaration.IsExplicit
-            && string.Equals(actual, declaration.Folder, StringComparison.OrdinalIgnoreCase))
-        {
+            && string.Equals(actual, declaration.Folder, StringComparison.OrdinalIgnoreCase)) {
             return null;
         }
 

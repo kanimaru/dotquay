@@ -15,8 +15,7 @@ namespace Dotquay.Mcp.Tools;
 /// gone (<c>DependencyWorkflow.ResolvePatchAsync</c> refuses otherwise), so there is nothing left for
 /// a human to have been asked about — the conflict itself already stopped the update that led here.
 /// </remarks>
-public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_patch_resolve";
 
     public override string Description =>
@@ -39,20 +38,17 @@ public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gat
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the addon whose conflict to resolve.");
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
         var result = await workflow.ResolvePatchAsync(projectDirectory, name, cancellationToken);
 
-        var payload = DotquayPatchCaptureTool.ToJson(result) with
-        {
+        var payload = DotquayPatchCaptureTool.ToJson(result) with {
             Messages =
             [
                 result.Captured

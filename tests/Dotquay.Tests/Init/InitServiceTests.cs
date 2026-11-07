@@ -5,11 +5,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Init;
 
-public class InitServiceTests
-{
+public class InitServiceTests {
     [Fact]
-    public void InitProject_WritesScaffoldWhenNoManifestExists()
-    {
+    public void InitProject_WritesScaffoldWhenNoManifestExists() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
@@ -27,8 +25,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitProject_DoesNotWriteAGodotVersion()
-    {
+    public void InitProject_DoesNotWriteAGodotVersion() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
@@ -43,8 +40,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitProject_WithNuGetSource_WritesANamedSource()
-    {
+    public void InitProject_WithNuGetSource_WritesANamedSource() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
@@ -56,8 +52,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitProject_ScaffoldNeverMentionsACredential()
-    {
+    public void InitProject_ScaffoldNeverMentionsACredential() {
         var fileSystem = new InMemoryFileSystem();
         new InitService(fileSystem).InitProject(
             "project", nuGetSource: "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json");
@@ -68,8 +63,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitProject_RefusesToOverwriteExistingManifest()
-    {
+    public void InitProject_RefusesToOverwriteExistingManifest() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
@@ -83,8 +77,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitPackage_WritesPackageHeader()
-    {
+    public void InitPackage_WritesPackageHeader() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
@@ -96,8 +89,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitPackage_DoesNotWriteAVersion()
-    {
+    public void InitPackage_DoesNotWriteAVersion() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 
@@ -110,8 +102,7 @@ public class InitServiceTests
     }
 
     [Fact]
-    public void InitPackage_RefusesToOverwriteExistingManifest()
-    {
+    public void InitPackage_RefusesToOverwriteExistingManifest() {
         var fileSystem = new InMemoryFileSystem();
         var service = new InitService(fileSystem);
 

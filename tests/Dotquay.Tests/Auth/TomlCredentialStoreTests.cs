@@ -4,27 +4,23 @@ using Xunit;
 
 namespace Dotquay.Tests.Auth;
 
-public class TomlCredentialStoreTests
-{
+public class TomlCredentialStoreTests {
     private const string Path = "/home/kani/.dotquay/credentials.toml";
 
-    private static (TomlCredentialStore Store, InMemoryFileSystem FileSystem) Create()
-    {
+    private static (TomlCredentialStore Store, InMemoryFileSystem FileSystem) Create() {
         var fileSystem = new InMemoryFileSystem();
         return (new TomlCredentialStore(fileSystem, Path), fileSystem);
     }
 
     [Fact]
-    public void Find_MissingFile_ReturnsNullWithoutThrowing()
-    {
+    public void Find_MissingFile_ReturnsNullWithoutThrowing() {
         var (store, _) = Create();
 
         Assert.Null(store.Find(CredentialScope.Parse("gitlab.example.com")));
     }
 
     [Fact]
-    public void SetThenFind_RoundTripsThroughRealToml()
-    {
+    public void SetThenFind_RoundTripsThroughRealToml() {
         var (store, _) = Create();
 
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", "glpat-abc123"));
@@ -34,8 +30,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Find_LongestMatchingPrefixWins()
-    {
+    public void Find_LongestMatchingPrefixWins() {
         var (store, _) = Create();
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", "host-wide"));
         store.Set(CredentialScope.Parse("gitlab.example.com/api/v4/projects/123"), new Credential("ci", "narrow"));
@@ -45,8 +40,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Set_WritesOwnerOnlyPermissions_AfterTheFileExists()
-    {
+    public void Set_WritesOwnerOnlyPermissions_AfterTheFileExists() {
         var (store, fileSystem) = Create();
 
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", "glpat-abc123"));
@@ -57,8 +51,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Set_ReplacesTheEntryForTheSameScope_RatherThanAppending()
-    {
+    public void Set_ReplacesTheEntryForTheSameScope_RatherThanAppending() {
         var (store, _) = Create();
         var scope = CredentialScope.Parse("gitlab.example.com");
 
@@ -70,8 +63,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Remove_MatchesTheExactScopeOnly_NeverByPrefix()
-    {
+    public void Remove_MatchesTheExactScopeOnly_NeverByPrefix() {
         var (store, _) = Create();
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", "host-wide"));
         store.Set(CredentialScope.Parse("gitlab.example.com/api/v4/projects/123"), new Credential("ci", "narrow"));
@@ -84,8 +76,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void List_ReturnsScopeAndUsername_AndNoTokenAnywhere()
-    {
+    public void List_ReturnsScopeAndUsername_AndNoTokenAnywhere() {
         var (store, _) = Create();
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", "glpat-supersecret"));
 
@@ -97,8 +88,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Set_TokenContainingQuotesAndBackslashes_SurvivesTheRoundTrip()
-    {
+    public void Set_TokenContainingQuotesAndBackslashes_SurvivesTheRoundTrip() {
         var (store, _) = Create();
         var awkward = "a\"b\\c\td";
 
@@ -108,8 +98,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Read_FileFromANewerVersion_IsRefusedRatherThanHalfRead()
-    {
+    public void Read_FileFromANewerVersion_IsRefusedRatherThanHalfRead() {
         var (store, fileSystem) = Create();
         fileSystem.WriteAllText(Path, $"version = {TomlCredentialStore.CurrentVersion + 1}\n");
 
@@ -118,8 +107,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Read_EntryMissingItsToken_SaysWhichScopeAndHowToFixIt()
-    {
+    public void Read_EntryMissingItsToken_SaysWhichScopeAndHowToFixIt() {
         var (store, fileSystem) = Create();
         fileSystem.WriteAllText(Path, "version = 1\n\n[credential.\"gitlab.example.com\"]\nusername = \"kani\"\n");
 
@@ -128,8 +116,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Read_InvalidToml_IsReportedWithTheFilePath()
-    {
+    public void Read_InvalidToml_IsReportedWithTheFilePath() {
         var (store, fileSystem) = Create();
         fileSystem.WriteAllText(Path, "this is not = = toml");
 
@@ -138,8 +125,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Write_HeaderIsPlainAscii()
-    {
+    public void Write_HeaderIsPlainAscii() {
         var (store, fileSystem) = Create();
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", "glpat-abc123"));
 
@@ -149,8 +135,7 @@ public class TomlCredentialStoreTests
     }
 
     [Fact]
-    public void Set_EmptyUsernameOrToken_IsRejected()
-    {
+    public void Set_EmptyUsernameOrToken_IsRejected() {
         var (store, _) = Create();
         var scope = CredentialScope.Parse("gitlab.example.com");
 

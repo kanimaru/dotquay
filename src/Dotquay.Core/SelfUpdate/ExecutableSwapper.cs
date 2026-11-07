@@ -17,12 +17,10 @@ namespace Dotquay.Core.SelfUpdate;
 /// <see cref="Sweep"/>) is the difference between a safety net and a directory slowly filling with
 /// every dotquay ever installed.</para>
 /// </remarks>
-public sealed class ExecutableSwapper
-{
+public sealed class ExecutableSwapper {
     private readonly IFileSystem _fileSystem;
 
-    public ExecutableSwapper(IFileSystem fileSystem)
-    {
+    public ExecutableSwapper(IFileSystem fileSystem) {
         _fileSystem = fileSystem;
     }
 
@@ -36,12 +34,10 @@ public sealed class ExecutableSwapper
     /// remaining question is whether the filesystem cooperates. If the second rename fails, the
     /// first is undone, so a failure leaves the installation exactly as it was rather than headless.
     /// </remarks>
-    public string Swap(string executablePath, string stagedPath, string retiringVersion)
-    {
+    public string Swap(string executablePath, string stagedPath, string retiringVersion) {
         var retiredPath = ExecutablePaths.Retired(executablePath, retiringVersion);
 
-        if (string.Equals(retiredPath, stagedPath, StringComparison.OrdinalIgnoreCase))
-        {
+        if (string.Equals(retiredPath, stagedPath, StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException(
                 $"Refusing to swap '{stagedPath}' onto itself. This is a bug: the staged binary and the "
                 + "path the current one would be retired to are the same file.");
@@ -50,17 +46,13 @@ public sealed class ExecutableSwapper
         _fileSystem.DeleteFile(retiredPath);
         _fileSystem.MoveFile(executablePath, retiredPath, overwrite: true);
 
-        try
-        {
+        try {
             _fileSystem.MoveFile(stagedPath, executablePath, overwrite: true);
-        }
-        catch
-        {
+        } catch {
             // The window this exists for is one rename wide, and it is the only window in which this
             // machine has no dotquay. Putting the old one back is more important than reporting
             // cleanly, so the restore runs before the original failure is rethrown.
-            if (!_fileSystem.FileExists(executablePath) && _fileSystem.FileExists(retiredPath))
-            {
+            if (!_fileSystem.FileExists(executablePath) && _fileSystem.FileExists(retiredPath)) {
                 _fileSystem.MoveFile(retiredPath, executablePath, overwrite: true);
             }
 
@@ -74,20 +66,16 @@ public sealed class ExecutableSwapper
     /// <summary>Every retired binary beside <paramref name="executablePath"/>, newest first. Ordered
     /// by the version in the file name, never by timestamp: a copy, a restore from backup, or an
     /// archive extraction rewrites mtimes, and this list decides what a rollback restores.</summary>
-    public IReadOnlyList<RetiredBinary> Retired(string executablePath)
-    {
+    public IReadOnlyList<RetiredBinary> Retired(string executablePath) {
         var directory = ExecutablePaths.DirectoryOf(executablePath);
-        if (directory.Length > 0 && !_fileSystem.DirectoryExists(directory))
-        {
+        if (directory.Length > 0 && !_fileSystem.DirectoryExists(directory)) {
             return [];
         }
 
         var found = new List<RetiredBinary>();
 
-        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory, recursive: false))
-        {
-            if (ExecutablePaths.VersionOfRetired(executablePath, path) is { } version)
-            {
+        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory, recursive: false)) {
+            if (ExecutablePaths.VersionOfRetired(executablePath, path) is { } version) {
                 found.Add(new RetiredBinary(path, version));
             }
         }
@@ -99,10 +87,8 @@ public sealed class ExecutableSwapper
     /// will not let go of (a virus scanner holding the image dotquay was running from a moment ago
     /// is the realistic case) is left for the next run rather than failing an update that already
     /// succeeded.</summary>
-    public void Sweep(string executablePath)
-    {
-        foreach (var stale in Retired(executablePath).Skip(1))
-        {
+    public void Sweep(string executablePath) {
+        foreach (var stale in Retired(executablePath).Skip(1)) {
             TryDelete(stale.Path);
         }
 
@@ -120,31 +106,23 @@ public sealed class ExecutableSwapper
     /// collected on the next attempt instead. Observed on a real published binary, not reasoned
     /// about.
     /// </remarks>
-    public void SweepStaged(string executablePath)
-    {
+    public void SweepStaged(string executablePath) {
         var directory = ExecutablePaths.DirectoryOf(executablePath);
-        if (directory.Length > 0 && !_fileSystem.DirectoryExists(directory))
-        {
+        if (directory.Length > 0 && !_fileSystem.DirectoryExists(directory)) {
             return;
         }
 
-        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory, recursive: false).ToList())
-        {
-            if (ExecutablePaths.VersionOfStaged(executablePath, path) is not null)
-            {
+        foreach (var path in _fileSystem.EnumerateFiles(directory.Length == 0 ? "." : directory, recursive: false).ToList()) {
+            if (ExecutablePaths.VersionOfStaged(executablePath, path) is not null) {
                 TryDelete(path);
             }
         }
     }
 
-    private void TryDelete(string path)
-    {
-        try
-        {
+    private void TryDelete(string path) {
+        try {
             _fileSystem.DeleteFile(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
         }
     }
 }

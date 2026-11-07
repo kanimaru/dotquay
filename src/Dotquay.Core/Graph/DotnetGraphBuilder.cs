@@ -23,8 +23,7 @@ namespace Dotquay.Core.Graph;
 /// the graph should draw.
 /// </para>
 /// </remarks>
-public static class DotnetGraphBuilder
-{
+public static class DotnetGraphBuilder {
     /// <param name="manifest">The project manifest. Its <c>[dotnet.*]</c> keys are the roots.</param>
     /// <param name="lockfile">Supplies <c>resolved</c> and <c>source</c>, and the leftovers that
     /// become orphans.</param>
@@ -37,11 +36,9 @@ public static class DotnetGraphBuilder
         ProjectManifest manifest,
         DotquayLockfile lockfile,
         IReadOnlyList<DotnetSpec> addonDeclared,
-        IReadOnlyDictionary<string, IReadOnlyList<string>> packagesByAddon)
-    {
+        IReadOnlyDictionary<string, IReadOnlyList<string>> packagesByAddon) {
         var lockedByName = new Dictionary<string, LockedDotnet>(StringComparer.Ordinal);
-        foreach (var locked in lockfile.Dotnet)
-        {
+        foreach (var locked in lockfile.Dotnet) {
             lockedByName.TryAdd(locked.Name, locked);
         }
 
@@ -49,23 +46,19 @@ public static class DotnetGraphBuilder
         var result = new List<GraphDotnetNode>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var (name, spec) in manifest.Dotnet)
-        {
+        foreach (var (name, spec) in manifest.Dotnet) {
             seen.Add(name);
             lockedByName.TryGetValue(name, out var locked);
-            result.Add(new GraphDotnetNode(name, spec.Version, locked?.Resolved, DeclaredByProject: true)
-            {
+            result.Add(new GraphDotnetNode(name, spec.Version, locked?.Resolved, DeclaredByProject: true) {
                 Origin = GraphNodeOrigin.Root,
                 RequiredBy = [GraphConflict.ProjectRequirerName, .. RequirersOf(name, addonRequirers)],
                 Source = locked?.Source,
             });
         }
 
-        foreach (var spec in addonDeclared.Where(s => seen.Add(s.Name)))
-        {
+        foreach (var spec in addonDeclared.Where(s => seen.Add(s.Name))) {
             lockedByName.TryGetValue(spec.Name, out var locked);
-            result.Add(new GraphDotnetNode(spec.Name, spec.Version, locked?.Resolved, DeclaredByProject: false)
-            {
+            result.Add(new GraphDotnetNode(spec.Name, spec.Version, locked?.Resolved, DeclaredByProject: false) {
                 Origin = GraphNodeOrigin.Transitive,
                 RequiredBy = RequirersOf(spec.Name, addonRequirers),
                 Source = locked?.Source,
@@ -74,10 +67,8 @@ public static class DotnetGraphBuilder
 
         // Locked, but neither the project nor any live addon declares it any more. This is the NuGet
         // version of an orphan addon, and the same drift doctor reports as a dangling entry.
-        foreach (var locked in lockfile.Dotnet.Where(d => seen.Add(d.Name)))
-        {
-            result.Add(new GraphDotnetNode(locked.Name, null, locked.Resolved, DeclaredByProject: false)
-            {
+        foreach (var locked in lockfile.Dotnet.Where(d => seen.Add(d.Name))) {
+            result.Add(new GraphDotnetNode(locked.Name, null, locked.Resolved, DeclaredByProject: false) {
                 Origin = GraphNodeOrigin.Orphan,
                 RequiredBy = [],
                 Source = locked.Source,
@@ -99,18 +90,15 @@ public static class DotnetGraphBuilder
     /// user actually has is never affected.
     /// </remarks>
     public static (IReadOnlyList<DotnetSpec> Winners, IReadOnlyDictionary<string, IReadOnlyList<string>> PackagesByAddon)
-        Flatten(IReadOnlyDictionary<string, IReadOnlyList<DotnetSpec>> declarationsByAddon)
-    {
+        Flatten(IReadOnlyDictionary<string, IReadOnlyList<DotnetSpec>> declarationsByAddon) {
         var winners = new Dictionary<string, DotnetSpec>(StringComparer.Ordinal);
         var packagesByAddon = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
 
-        foreach (var addon in declarationsByAddon.Keys.OrderBy(name => name, StringComparer.Ordinal))
-        {
+        foreach (var addon in declarationsByAddon.Keys.OrderBy(name => name, StringComparer.Ordinal)) {
             var specs = declarationsByAddon[addon];
             packagesByAddon[addon] = specs.Select(s => s.Name).ToList();
 
-            foreach (var spec in specs)
-            {
+            foreach (var spec in specs) {
                 winners.TryAdd(spec.Name, spec);
             }
         }
@@ -119,16 +107,12 @@ public static class DotnetGraphBuilder
     }
 
     private static Dictionary<string, SortedSet<string>> InvertByPackage(
-        IReadOnlyDictionary<string, IReadOnlyList<string>> packagesByAddon)
-    {
+        IReadOnlyDictionary<string, IReadOnlyList<string>> packagesByAddon) {
         var result = new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
 
-        foreach (var (addon, packages) in packagesByAddon)
-        {
-            foreach (var package in packages)
-            {
-                if (!result.TryGetValue(package, out var addons))
-                {
+        foreach (var (addon, packages) in packagesByAddon) {
+            foreach (var package in packages) {
+                if (!result.TryGetValue(package, out var addons)) {
                     addons = new SortedSet<string>(StringComparer.Ordinal);
                     result[package] = addons;
                 }

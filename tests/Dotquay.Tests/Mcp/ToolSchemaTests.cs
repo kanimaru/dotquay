@@ -9,10 +9,8 @@ namespace Dotquay.Tests.Mcp;
 /// Design doc §8 test layer 3: every tool's advertised schema is well-formed and internally
 /// consistent, independent of any running server.
 /// </summary>
-public sealed class ToolSchemaTests
-{
-    public static IEnumerable<object[]> Tools()
-    {
+public sealed class ToolSchemaTests {
+    public static IEnumerable<object[]> Tools() {
         var scope = new ProjectScope([Directory.GetCurrentDirectory()]);
         var gate = new ProjectGate();
 
@@ -28,8 +26,7 @@ public sealed class ToolSchemaTests
             new DotquayOverrideListTool(scope, gate),
         ];
 
-        foreach (var tool in tools)
-        {
+        foreach (var tool in tools) {
             yield return [tool];
         }
     }
@@ -41,8 +38,7 @@ public sealed class ToolSchemaTests
 
     [Theory]
     [MemberData(nameof(Tools))]
-    public void Description_is_non_empty_and_names_read_only(IMcpTool tool)
-    {
+    public void Description_is_non_empty_and_names_read_only(IMcpTool tool) {
         Assert.False(string.IsNullOrWhiteSpace(tool.Description));
 
         // Every Phase 1 tool is read-only (design doc §4.1); the description is the one place a
@@ -52,8 +48,7 @@ public sealed class ToolSchemaTests
 
     [Theory]
     [MemberData(nameof(Tools))]
-    public void InputSchema_is_an_object_schema_with_a_project_property(IMcpTool tool)
-    {
+    public void InputSchema_is_an_object_schema_with_a_project_property(IMcpTool tool) {
         var schema = tool.InputSchema;
 
         Assert.Equal(JsonValueKind.Object, schema.ValueKind);
@@ -70,15 +65,13 @@ public sealed class ToolSchemaTests
     }
 
     [Fact]
-    public void Every_tool_name_is_unique()
-    {
+    public void Every_tool_name_is_unique() {
         var names = Tools().Select(row => ((IMcpTool)row[0]).Name).ToList();
         Assert.Equal(names.Distinct(StringComparer.Ordinal).Count(), names.Count);
     }
 
     [Fact]
-    public void Phase_1_exposes_exactly_the_eight_designed_read_tools()
-    {
+    public void Phase_1_exposes_exactly_the_eight_designed_read_tools() {
         var names = Tools().Select(row => ((IMcpTool)row[0]).Name).ToHashSet(StringComparer.Ordinal);
 
         Assert.Equal(

@@ -8,23 +8,20 @@ namespace Dotquay.Tests.Patch;
 /// remarks list all eight) directly against three hand-built directory trees — no addon
 /// install/patch-capture machinery involved, so a failure here points straight at the merge logic
 /// itself.</summary>
-public class PatchMergerTests
-{
+public class PatchMergerTests {
     private const string BaseDir = "base";
     private const string OursDir = "ours";
     private const string TheirsDir = "theirs";
     private const string DestDir = "dest";
 
-    private static (PatchMerger Merger, InMemoryFileSystem FileSystem, FakePatchTool PatchTool) Build()
-    {
+    private static (PatchMerger Merger, InMemoryFileSystem FileSystem, FakePatchTool PatchTool) Build() {
         var fileSystem = new InMemoryFileSystem();
         var patchTool = new FakePatchTool(fileSystem);
         return (new PatchMerger(fileSystem, patchTool), fileSystem, patchTool);
     }
 
     [Fact]
-    public async Task MergeAsync_AddedOnlyInOurs_KeptAsIs()
-    {
+    public async Task MergeAsync_AddedOnlyInOurs_KeptAsIs() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{OursDir}/new.txt", "ours-added");
 
@@ -35,8 +32,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_AddedOnlyInTheirs_KeptAsIs()
-    {
+    public async Task MergeAsync_AddedOnlyInTheirs_KeptAsIs() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{TheirsDir}/new.txt", "theirs-added");
 
@@ -47,8 +43,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_AddedIdenticallyInBoth_NoConflict()
-    {
+    public async Task MergeAsync_AddedIdenticallyInBoth_NoConflict() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{OursDir}/new.txt", "same content");
         fileSystem.WriteAllText($"{TheirsDir}/new.txt", "same content");
@@ -60,8 +55,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_AddedDifferentlyInBoth_AddAddConflict()
-    {
+    public async Task MergeAsync_AddedDifferentlyInBoth_AddAddConflict() {
         var (merger, fileSystem, patchTool) = Build();
         fileSystem.WriteAllText($"{OursDir}/new.txt", "ours-version");
         fileSystem.WriteAllText($"{TheirsDir}/new.txt", "theirs-version");
@@ -74,8 +68,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_DeletedByOursUpstreamLeftAlone_CleanDelete()
-    {
+    public async Task MergeAsync_DeletedByOursUpstreamLeftAlone_CleanDelete() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{BaseDir}/gone.txt", "original");
         fileSystem.WriteAllText($"{TheirsDir}/gone.txt", "original");
@@ -88,8 +81,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_DeletedByOursButUpstreamModifiedIt_DeleteModifyConflictKeepsTheirs()
-    {
+    public async Task MergeAsync_DeletedByOursButUpstreamModifiedIt_DeleteModifyConflictKeepsTheirs() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{BaseDir}/contested.txt", "original");
         fileSystem.WriteAllText($"{TheirsDir}/contested.txt", "upstream-changed");
@@ -103,8 +95,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_DeletedUpstreamOursLeftAlone_CleanDelete()
-    {
+    public async Task MergeAsync_DeletedUpstreamOursLeftAlone_CleanDelete() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{BaseDir}/gone.txt", "original");
         fileSystem.WriteAllText($"{OursDir}/gone.txt", "original");
@@ -117,8 +108,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_DeletedUpstreamButOursModifiedIt_DeleteModifyConflictKeepsOurs()
-    {
+    public async Task MergeAsync_DeletedUpstreamButOursModifiedIt_DeleteModifyConflictKeepsOurs() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{BaseDir}/contested.txt", "original");
         fileSystem.WriteAllText($"{OursDir}/contested.txt", "our-edit");
@@ -132,8 +122,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_DeletedByBoth_CleanDelete()
-    {
+    public async Task MergeAsync_DeletedByBoth_CleanDelete() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{BaseDir}/gone.txt", "original");
         // Absent from both OursDir and TheirsDir.
@@ -145,8 +134,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_PresentInAllThreeIdentical_NoConflict()
-    {
+    public async Task MergeAsync_PresentInAllThreeIdentical_NoConflict() {
         var (merger, fileSystem, _) = Build();
         fileSystem.WriteAllText($"{BaseDir}/f.txt", "same");
         fileSystem.WriteAllText($"{OursDir}/f.txt", "same");
@@ -159,8 +147,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_OnlyOursChanged_TakesOursWithoutCallingMergeTool()
-    {
+    public async Task MergeAsync_OnlyOursChanged_TakesOursWithoutCallingMergeTool() {
         var (merger, fileSystem, patchTool) = Build();
         fileSystem.WriteAllText($"{BaseDir}/f.txt", "original");
         fileSystem.WriteAllText($"{OursDir}/f.txt", "our-edit");
@@ -174,8 +161,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_OnlyTheirsChanged_TakesTheirsWithoutCallingMergeTool()
-    {
+    public async Task MergeAsync_OnlyTheirsChanged_TakesTheirsWithoutCallingMergeTool() {
         var (merger, fileSystem, patchTool) = Build();
         fileSystem.WriteAllText($"{BaseDir}/f.txt", "original");
         fileSystem.WriteAllText($"{OursDir}/f.txt", "original");
@@ -189,8 +175,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_BothChangedIdentically_NoConflict()
-    {
+    public async Task MergeAsync_BothChangedIdentically_NoConflict() {
         var (merger, fileSystem, patchTool) = Build();
         fileSystem.WriteAllText($"{BaseDir}/f.txt", "original");
         fileSystem.WriteAllText($"{OursDir}/f.txt", "same-edit");
@@ -203,8 +188,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_BothChangedDifferently_ClashesThroughMergeTool()
-    {
+    public async Task MergeAsync_BothChangedDifferently_ClashesThroughMergeTool() {
         var (merger, fileSystem, patchTool) = Build();
         fileSystem.WriteAllText($"{BaseDir}/f.txt", "original");
         fileSystem.WriteAllText($"{OursDir}/f.txt", "our-edit");
@@ -218,8 +202,7 @@ public class PatchMergerTests
     }
 
     [Fact]
-    public async Task MergeAsync_BothChangedDifferentlyButMergeToolResolvesClean_NoConflict()
-    {
+    public async Task MergeAsync_BothChangedDifferentlyButMergeToolResolvesClean_NoConflict() {
         var (merger, fileSystem, patchTool) = Build();
         fileSystem.WriteAllText($"{BaseDir}/f.txt", "line1\nline2\nline3\n");
         fileSystem.WriteAllText($"{OursDir}/f.txt", "line1-ours\nline2\nline3\n");

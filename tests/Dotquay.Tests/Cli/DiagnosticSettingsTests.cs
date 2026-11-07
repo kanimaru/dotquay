@@ -4,8 +4,7 @@ using Xunit;
 
 namespace Dotquay.Tests.Cli;
 
-public sealed class DiagnosticSettingsTests
-{
+public sealed class DiagnosticSettingsTests {
     [Theory]
     [InlineData(false, false, null, DiagnosticLevel.Off)]
     [InlineData(true, false, null, DiagnosticLevel.Verbose)]
@@ -18,8 +17,7 @@ public sealed class DiagnosticSettingsTests
     [InlineData(false, true, "1", DiagnosticLevel.Trace)]
     // The variable can't turn a flag off.
     [InlineData(true, false, "0", DiagnosticLevel.Verbose)]
-    public void Flags_and_environment_combine_to_the_more_verbose(bool verbose, bool trace, string? environment, DiagnosticLevel expected)
-    {
+    public void Flags_and_environment_combine_to_the_more_verbose(bool verbose, bool trace, string? environment, DiagnosticLevel expected) {
         Assert.Equal(expected, DiagnosticSettings.Resolve(verbose, trace, environment));
     }
 
@@ -38,8 +36,7 @@ public sealed class DiagnosticSettingsTests
     [InlineData("2", DiagnosticLevel.Trace)]
     [InlineData(" Trace ", DiagnosticLevel.Trace)]
     [InlineData("all", DiagnosticLevel.Trace)]
-    public void Environment_values(string? value, DiagnosticLevel expected)
-    {
+    public void Environment_values(string? value, DiagnosticLevel expected) {
         Assert.Equal(expected, DiagnosticSettings.ParseEnvironment(value));
     }
 }

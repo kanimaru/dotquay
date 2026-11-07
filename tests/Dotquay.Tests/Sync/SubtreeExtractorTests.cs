@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Sync;
 
-public class SubtreeExtractorTests
-{
+public class SubtreeExtractorTests {
     [Fact]
-    public void Extract_CopiesOnlyTheConfiguredSubtree()
-    {
+    public void Extract_CopiesOnlyTheConfiguredSubtree() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("repo/README.md", "not part of the addon");
         fileSystem.WriteAllText("repo/addons/foo/plugin.cfg", "cfg");
@@ -22,8 +20,7 @@ public class SubtreeExtractorTests
     }
 
     [Fact]
-    public void Extract_WithDotPath_CopiesWholeRepoExceptGitMetadata()
-    {
+    public void Extract_WithDotPath_CopiesWholeRepoExceptGitMetadata() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("repo/plugin.cfg", "cfg");
         fileSystem.WriteAllText("repo/.git/HEAD", "ref: refs/heads/main");
@@ -37,8 +34,7 @@ public class SubtreeExtractorTests
     }
 
     [Fact]
-    public void Extract_PreservesBinaryContentByteForByte()
-    {
+    public void Extract_PreservesBinaryContentByteForByte() {
         var fileSystem = new InMemoryFileSystem();
         byte[] binary = [0x00, 0xFF, 0x10, 0x80, 0x7F, 0xC3, 0x28]; // includes an invalid UTF-8 sequence
         fileSystem.WriteAllBytes("repo/addons/foo/icon.png", binary);
@@ -49,8 +45,7 @@ public class SubtreeExtractorTests
     }
 
     [Fact]
-    public void Extract_ThrowsWhenConfiguredPathDoesNotExist()
-    {
+    public void Extract_ThrowsWhenConfiguredPathDoesNotExist() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("repo/README.md", "hi");
 
@@ -58,8 +53,7 @@ public class SubtreeExtractorTests
     }
 
     [Fact]
-    public void Extract_ThrowsWhenSubtreeIsEmptyAfterExclusions()
-    {
+    public void Extract_ThrowsWhenSubtreeIsEmptyAfterExclusions() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.CreateDirectory("repo/addons/empty");
 
@@ -67,8 +61,7 @@ public class SubtreeExtractorTests
     }
 
     [Fact]
-    public void Extract_ReplacesRatherThanMergesExistingStaging()
-    {
+    public void Extract_ReplacesRatherThanMergesExistingStaging() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("staging/stale.txt", "from a previous run");
         fileSystem.WriteAllText("repoV1/addons/foo/plugin.cfg", "v1");

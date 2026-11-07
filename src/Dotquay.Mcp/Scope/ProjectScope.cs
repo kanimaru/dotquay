@@ -19,16 +19,14 @@
 /// (SEP-2577), and dotquay dropped it rather than keep a legacy path alive.
 /// </para>
 /// </remarks>
-public sealed class ProjectScope : IProjectScope
-{
+public sealed class ProjectScope : IProjectScope {
     private readonly string[] _roots;
 
     /// <param name="roots">The <c>--project</c> values the server was started with, in the order
     /// given. Empty means "no root was named" — the process's own current directory becomes the one
     /// and only root, matching how every other dotquay command defaults <c>--project</c>
     /// (<c>Dotquay.Cli.Commands.GlobalOptions.Resolve</c>).</param>
-    public ProjectScope(IReadOnlyList<string> roots)
-    {
+    public ProjectScope(IReadOnlyList<string> roots) {
         _roots = (roots.Count == 0 ? [Directory.GetCurrentDirectory()] : roots)
             .Select(Path.GetFullPath)
             .ToArray();
@@ -38,15 +36,12 @@ public sealed class ProjectScope : IProjectScope
     /// them, and for <c>ResourceRegistry</c> to enumerate.</summary>
     public IReadOnlyList<string> Roots => _roots;
 
-    public string Resolve(string? requestedPath)
-    {
+    public string Resolve(string? requestedPath) {
         var candidate = Path.GetFullPath(
             string.IsNullOrWhiteSpace(requestedPath) ? _roots[0] : requestedPath);
 
-        foreach (var root in _roots)
-        {
-            if (IsWithin(root, candidate))
-            {
+        foreach (var root in _roots) {
+            if (IsWithin(root, candidate)) {
                 return candidate;
             }
         }
@@ -60,8 +55,7 @@ public sealed class ProjectScope : IProjectScope
     /// file) and case-sensitive everywhere else — the same rule <c>Path</c> itself applies, applied
     /// here because a scope check that disagreed with the filesystem it's guarding would be a hole,
     /// not a safeguard.</summary>
-    private static bool IsWithin(string root, string candidate)
-    {
+    private static bool IsWithin(string root, string candidate) {
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 

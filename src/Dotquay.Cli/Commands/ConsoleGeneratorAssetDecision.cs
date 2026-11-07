@@ -17,15 +17,13 @@ namespace Dotquay.Cli.Commands;
 /// <see cref="Core.Dotnet.CsprojPackable"/> already guessed, because that guess is a heuristic and the
 /// user is the authority on whether their project is published.</para>
 /// </remarks>
-internal sealed class ConsoleGeneratorAssetDecision : IGeneratorAssetDecision
-{
+internal sealed class ConsoleGeneratorAssetDecision : IGeneratorAssetDecision {
     /// <summary>The prompt, or "share" when there is no one to ask — <c>--json</c>, or redirected
     /// input, which covers CI and the editor plugin. Both of those get the pre-v0.14 behaviour.</summary>
     public static IGeneratorAssetDecision For(bool json) =>
         json || Console.IsInputRedirected ? ShareGeneratorDecision.Instance : new ConsoleGeneratorAssetDecision();
 
-    public bool KeepPrivate(GeneratorAssetRequest request)
-    {
+    public bool KeepPrivate(GeneratorAssetRequest request) {
         // The spinner is mid-line and still repainting when this is raised, so it has to be stood
         // down before the question is written — see ConsoleProgressReporter.Pause.
         using var quiet = ConsoleProgressReporter.Pause();
@@ -40,8 +38,7 @@ internal sealed class ConsoleGeneratorAssetDecision : IGeneratorAssetDecision
         Console.Write($"This project sets {request.PackableEvidence}. Is it published as a package that other "
             + "projects depend on? [y/N] ");
 
-        if (!ReadYes(defaultAnswer: false))
-        {
+        if (!ReadYes(defaultAnswer: false)) {
             // Nothing to configure, and saying so is the point: silence here would leave the user
             // wondering whether a decision was made for them.
             Console.WriteLine("  Nothing to configure then - a generator only matters to whatever compiles with it.");
@@ -52,8 +49,7 @@ internal sealed class ConsoleGeneratorAssetDecision : IGeneratorAssetDecision
 
         // Default yes, because that is what NuGet does with no declaration at all. A default that
         // silently differed from the no-flag behaviour would make the prompt itself a behaviour change.
-        if (ReadYes(defaultAnswer: true))
-        {
+        if (ReadYes(defaultAnswer: true)) {
             Console.WriteLine("  Leaving it shared - that is NuGet's default, so nothing is written.");
             return false;
         }
@@ -61,12 +57,10 @@ internal sealed class ConsoleGeneratorAssetDecision : IGeneratorAssetDecision
         return true;
     }
 
-    private static bool ReadYes(bool defaultAnswer)
-    {
+    private static bool ReadYes(bool defaultAnswer) {
         var answer = Console.ReadLine()?.Trim();
 
-        if (string.IsNullOrEmpty(answer))
-        {
+        if (string.IsNullOrEmpty(answer)) {
             return defaultAnswer;
         }
 

@@ -9,8 +9,7 @@ namespace Dotquay.Core.Manifest;
 /// commented scaffold <c>init</c> writes — is fully under our control and cheap to assert on in
 /// tests byte-for-byte, instead of trusting a third-party formatter's whitespace choices.
 /// </summary>
-public static class ManifestWriter
-{
+public static class ManifestWriter {
     /// <summary>The friendly, commented starting point <c>dotquay init</c> writes (SPEC.md §6).
     /// <paramref name="nuGetSource"/> is the V3 service-index URL of a private NuGet feed, if any —
     /// leave null to use the public default (nuget.org). Credentials never go here; see
@@ -20,8 +19,7 @@ public static class ManifestWriter
     /// <c>[project] nuget_source</c> key. Reading the legacy key stays supported indefinitely;
     /// writing it stops here, so nothing created from v0.7 onwards has to be migrated twice.
     /// </remarks>
-    public static string ScaffoldProjectToml(string? nuGetSource = null)
-    {
+    public static string ScaffoldProjectToml(string? nuGetSource = null) {
         var sb = new StringBuilder();
         sb.AppendLine("# Dotquay project manifest.");
         sb.AppendLine("# Run `dotquay add <git-url>` or `dotquay add <nuget-package-id>` to add a dependency.");
@@ -29,8 +27,7 @@ public static class ManifestWriter
         // No section header unless there is something to put in it. An empty section is a prompt to
         // fill it in, and the only thing anyone ever filled it in with was a Godot version dotquay
         // never read.
-        if (nuGetSource is not null)
-        {
+        if (nuGetSource is not null) {
             sb.AppendLine();
             // Plain ASCII, like the rest of the scaffold: this file is committed and gets opened in
             // whatever editor or shell is to hand, where non-ASCII punctuation renders as mojibake in
@@ -54,8 +51,7 @@ public static class ManifestWriter
 
     /// <summary>The commented starting point <c>dotquay init --package</c> writes inside an addon
     /// folder, next to <c>plugin.cfg</c> (SPEC.md §6, §7.2).</summary>
-    public static string ScaffoldPackageToml(string name)
-    {
+    public static string ScaffoldPackageToml(string name) {
         var sb = new StringBuilder();
         sb.AppendLine("# Dotquay package manifest — ships inside this addon's folder, next to plugin.cfg.");
         sb.AppendLine("# It MUST live inside the folder consumers install, or its dependencies never reach them.");
@@ -74,12 +70,10 @@ public static class ManifestWriter
 
     /// <summary>Canonical round-trip serialization of a fully-populated manifest — used by future
     /// <c>add</c>/<c>remove</c> commands and exercised directly by round-trip tests.</summary>
-    public static string Serialize(ProjectManifest manifest)
-    {
+    public static string Serialize(ProjectManifest manifest) {
         var sb = new StringBuilder();
 
-        if (manifest.PatchesDirectory is not null)
-        {
+        if (manifest.PatchesDirectory is not null) {
             sb.AppendLine("[project]");
             sb.AppendLine($"patches_dir = {Quote(manifest.PatchesDirectory)}");
         }
@@ -108,66 +102,55 @@ public static class ManifestWriter
     /// declaration order, since that order is the resolution rule (SPEC.md §11.1) — sorting them
     /// alphabetically, as this file does for addons, would silently change which feed wins.</para>
     /// </remarks>
-    private static void AppendNuGet(StringBuilder sb, ProjectManifest manifest)
-    {
-        if (!manifest.NuGetSourceMapping || manifest.TrustedHosts.Count > 0)
-        {
+    private static void AppendNuGet(StringBuilder sb, ProjectManifest manifest) {
+        if (!manifest.NuGetSourceMapping || manifest.TrustedHosts.Count > 0) {
             StartBlock(sb);
             sb.AppendLine("[nuget]");
 
-            if (!manifest.NuGetSourceMapping)
-            {
+            if (!manifest.NuGetSourceMapping) {
                 sb.AppendLine("source_mapping = false");
             }
 
-            if (manifest.TrustedHosts.Count > 0)
-            {
+            if (manifest.TrustedHosts.Count > 0) {
                 sb.AppendLine($"trusted_hosts = [{string.Join(", ", manifest.TrustedHosts.Select(Quote))}]");
             }
         }
 
-        foreach (var source in manifest.NuGetSources)
-        {
+        foreach (var source in manifest.NuGetSources) {
             StartBlock(sb);
 
             // Attribution is regenerated from the model, never preserved as text: the whole file is
             // rewritten from scratch on every mutating command (see DESIGN-v0.7-AUTH.md §2.7), so a
             // comment that only existed in the previous file's bytes would vanish on the next write.
-            if (source.DeclaredByAddon is not null)
-            {
+            if (source.DeclaredByAddon is not null) {
                 sb.AppendLine($"# Adopted from addon '{source.DeclaredByAddon}'. Delete this block to stop using it.");
             }
 
             sb.AppendLine($"[nuget.sources.{FormatKey(source.Name)}]");
             sb.AppendLine($"url = {Quote(source.Url)}");
 
-            if (source.Packages.Count > 0)
-            {
+            if (source.Packages.Count > 0) {
                 sb.AppendLine($"packages = [{string.Join(", ", source.Packages.Select(Quote))}]");
             }
 
             // A real key, not just the comment above it: the comment is for humans and the reader
             // cannot recover it, so attribution kept only as a comment would survive exactly one
             // rewrite and then silently become an unexplained feed.
-            if (source.DeclaredByAddon is not null)
-            {
+            if (source.DeclaredByAddon is not null) {
                 sb.AppendLine($"declared_by = {Quote(source.DeclaredByAddon)}");
             }
         }
     }
 
-    private static void AppendAddons(StringBuilder sb, string sectionKey, IReadOnlyDictionary<string, AddonSpec> addons)
-    {
-        foreach (var name in addons.Keys.OrderBy(k => k, StringComparer.Ordinal))
-        {
+    private static void AppendAddons(StringBuilder sb, string sectionKey, IReadOnlyDictionary<string, AddonSpec> addons) {
+        foreach (var name in addons.Keys.OrderBy(k => k, StringComparer.Ordinal)) {
             var addon = addons[name];
             StartBlock(sb);
 
             sb.AppendLine($"[{sectionKey}.{FormatKey(name)}]");
             sb.AppendLine($"git = {Quote(addon.Git)}");
 
-            switch (addon.SourceKind)
-            {
+            switch (addon.SourceKind) {
                 case AddonSourceKind.Version:
                     sb.AppendLine($"version = {Quote(addon.Version!)}");
                     break;
@@ -179,22 +162,18 @@ public static class ManifestWriter
                     break;
             }
 
-            if (addon.Path is not null)
-            {
+            if (addon.Path is not null) {
                 sb.AppendLine($"path = {Quote(addon.Path)}");
             }
 
-            if (addon.InstallAs is not null)
-            {
+            if (addon.InstallAs is not null) {
                 sb.AppendLine($"install_as = {Quote(addon.InstallAs)}");
             }
         }
     }
 
-    private static void AppendDotnet(StringBuilder sb, string sectionKey, IReadOnlyDictionary<string, DotnetSpec> dependencies)
-    {
-        foreach (var name in dependencies.Keys.OrderBy(k => k, StringComparer.Ordinal))
-        {
+    private static void AppendDotnet(StringBuilder sb, string sectionKey, IReadOnlyDictionary<string, DotnetSpec> dependencies) {
+        foreach (var name in dependencies.Keys.OrderBy(k => k, StringComparer.Ordinal)) {
             var dependency = dependencies[name];
             StartBlock(sb);
 
@@ -205,8 +184,7 @@ public static class ManifestWriter
             sb.AppendLine($"[{sectionKey}.{header}]");
             sb.AppendLine($"version = {Quote(dependency.Version)}");
 
-            if (dependency.Source is not null)
-            {
+            if (dependency.Source is not null) {
                 sb.AppendLine($"source = {Quote(dependency.Source)}");
             }
 
@@ -218,20 +196,16 @@ public static class ManifestWriter
         }
     }
 
-    private static void AppendAssetTags(StringBuilder sb, string key, IReadOnlyList<string>? tags)
-    {
-        if (tags is null)
-        {
+    private static void AppendAssetTags(StringBuilder sb, string key, IReadOnlyList<string>? tags) {
+        if (tags is null) {
             return;
         }
 
         sb.AppendLine($"{key} = [{string.Join(", ", tags.Select(Quote))}]");
     }
 
-    private static void StartBlock(StringBuilder sb)
-    {
-        if (sb.Length > 0)
-        {
+    private static void StartBlock(StringBuilder sb) {
+        if (sb.Length > 0) {
             sb.AppendLine();
         }
     }

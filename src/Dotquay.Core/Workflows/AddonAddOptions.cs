@@ -10,8 +10,7 @@ namespace Dotquay.Core.Workflows;
 /// one coherent statement of intent ("this repo, on this ref, into this folder"), and every one of
 /// them is optional. Leaving it null asks for the historical behaviour — pick the newest release tag.
 /// </remarks>
-public sealed record AddonAddOptions
-{
+public sealed record AddonAddOptions {
     /// <summary>The <c>[addons.&lt;name&gt;]</c> key to write instead of the one <see cref="AddonNaming"/>
     /// would choose. Only needed when the repository's name, <see cref="InstallAs"/> and the last
     /// segment of <see cref="Path"/> are all already taken.</summary>
@@ -61,12 +60,10 @@ public sealed record AddonAddOptions
     /// <summary>Guards the manifest invariant that exactly one of version/branch/rev is set
     /// (SPEC.md §7.1) at the point the user states it, rather than letting a nonsense combination
     /// reach the manifest writer.</summary>
-    public void Validate()
-    {
+    public void Validate() {
         var named = new[] { Version, Branch, Rev }.Count(v => v is not null);
 
-        if (named > 1)
-        {
+        if (named > 1) {
             throw new WorkflowException(
                 "Pass at most one of --version, --branch, or --rev: an addon is pinned one way or the other, "
                 + "not several at once (SPEC.md §7.1).");
@@ -74,8 +71,7 @@ public sealed record AddonAddOptions
     }
 
     /// <summary>Turns a classified <c>#ref</c> into the matching field.</summary>
-    public AddonAddOptions WithSource(AddonSourceKind kind, string value) => kind switch
-    {
+    public AddonAddOptions WithSource(AddonSourceKind kind, string value) => kind switch {
         AddonSourceKind.Branch => this with { Branch = value },
         AddonSourceKind.Rev => this with { Rev = value },
         _ => this with { Version = value },

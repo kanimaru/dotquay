@@ -15,8 +15,7 @@ namespace Dotquay.Mcp.Guards;
 /// cref="Dotquay.Core.Abstractions.ShareGeneratorDecision"/> regardless of what the real call will
 /// use: a pre-flight check must never itself adopt a feed or decide a generator's privacy.
 /// </remarks>
-public sealed record WriteGuardContext
-{
+public sealed record WriteGuardContext {
     public required string ProjectDirectory { get; init; }
 
     public required DependencyWorkflow InspectionWorkflow { get; init; }

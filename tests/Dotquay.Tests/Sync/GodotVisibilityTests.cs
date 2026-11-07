@@ -7,8 +7,7 @@ namespace Dotquay.Tests.Sync;
 /// <summary>
 /// Covers the rule every project-wide scan uses to decide whether Godot would see a path at all.
 /// </summary>
-public class GodotVisibilityTests
-{
+public class GodotVisibilityTests {
     private const string Root = "project";
 
     [Theory]
@@ -22,8 +21,7 @@ public class GodotVisibilityTests
         Assert.Equal(visible, new GodotVisibility(new InMemoryFileSystem(), Root).IsVisible(relative));
 
     [Fact]
-    public void IsVisible_BelowAGdignore_IsHidden()
-    {
+    public void IsVisible_BelowAGdignore_IsHidden() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Root}/vendor/.gdignore", "");
         var visibility = new GodotVisibility(fileSystem, Root);
@@ -34,8 +32,7 @@ public class GodotVisibilityTests
     }
 
     [Fact]
-    public void IsVisible_TheGdignoredFolderItself_IsHidden()
-    {
+    public void IsVisible_TheGdignoredFolderItself_IsHidden() {
         // Asked of a directory rather than a file: the folder that holds the .gdignore is hidden too.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Root}/addons/parked/.gdignore", "");

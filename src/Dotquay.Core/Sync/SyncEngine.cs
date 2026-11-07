@@ -8,12 +8,10 @@ namespace Dotquay.Core.Sync;
 /// upstream (<see cref="SubtreeExtractor"/>) — everything up to that point can fail freely without
 /// the project folder ever seeing a half-finished update.
 /// </summary>
-public sealed class SyncEngine
-{
+public sealed class SyncEngine {
     private readonly IFileSystem _fileSystem;
 
-    public SyncEngine(IFileSystem fileSystem)
-    {
+    public SyncEngine(IFileSystem fileSystem) {
         _fileSystem = fileSystem;
     }
 
@@ -24,14 +22,12 @@ public sealed class SyncEngine
     /// <paramref name="force"/> is set (requirement P0-6) — dotquay never overwrites hand-edits it
     /// doesn't know about.
     /// </summary>
-    public string SwapAndHash(string stagingPath, string destinationPath, string? expectedContentHash, bool force)
-    {
+    public string SwapAndHash(string stagingPath, string destinationPath, string? expectedContentHash, bool force) {
         RefuseToWriteThroughALink(destinationPath);
 
         var dirty = DirtyChecker.Check(_fileSystem, destinationPath, expectedContentHash);
 
-        if (dirty.IsDirty && !force && !MatchesIncomingVersion(stagingPath, destinationPath))
-        {
+        if (dirty.IsDirty && !force && !MatchesIncomingVersion(stagingPath, destinationPath)) {
             throw new ModifiedAddonException(
                 $"'{destinationPath}' has local modifications that don't match the lockfile. "
                 + "Run 'dotquay patch' to capture them, or pass --force to overwrite (SPEC.md requirement P0-6).",
@@ -43,8 +39,7 @@ public sealed class SyncEngine
 
         _fileSystem.MoveDirectory(stagingPath, destinationPath);
 
-        foreach (var (relative, contents) in carried)
-        {
+        foreach (var (relative, contents) in carried) {
             var target = _fileSystem.CombinePath(destinationPath, relative);
             _fileSystem.CreateDirectory(ParentOf(target));
             _fileSystem.WriteAllBytes(target, contents);
@@ -75,12 +70,10 @@ public sealed class SyncEngine
     /// mean writing a package into a folder belonging to someone else, through a path neither
     /// project's git is watching.
     /// </remarks>
-    private void RefuseToWriteThroughALink(string destinationPath)
-    {
+    private void RefuseToWriteThroughALink(string destinationPath) {
         var target = _fileSystem.ResolveDirectoryLinkTarget(destinationPath);
 
-        if (target is not null)
-        {
+        if (target is not null) {
             throw new SyncException(
                 $"Refusing to install into '{destinationPath}': it is a link to '{target}', so the write "
                 + "would land in a folder dotquay does not own. This is a bug in dotquay - the install "
@@ -109,10 +102,8 @@ public sealed class SyncEngine
     /// destination once and never touches staging.
     /// </para>
     /// </remarks>
-    private bool MatchesIncomingVersion(string stagingPath, string destinationPath)
-    {
-        if (!_fileSystem.DirectoryExists(destinationPath) || !_fileSystem.DirectoryExists(stagingPath))
-        {
+    private bool MatchesIncomingVersion(string stagingPath, string destinationPath) {
+        if (!_fileSystem.DirectoryExists(destinationPath) || !_fileSystem.DirectoryExists(stagingPath)) {
             return false;
         }
 
@@ -136,24 +127,20 @@ public sealed class SyncEngine
     /// author's uid is the one the addon's own scenes reference.
     /// </para>
     /// </remarks>
-    private List<(string Relative, byte[] Contents)> CollectCarriedArtifacts(string stagingPath, string destinationPath)
-    {
+    private List<(string Relative, byte[] Contents)> CollectCarriedArtifacts(string stagingPath, string destinationPath) {
         var carried = new List<(string, byte[])>();
 
-        if (!_fileSystem.DirectoryExists(destinationPath))
-        {
+        if (!_fileSystem.DirectoryExists(destinationPath)) {
             return carried;
         }
 
-        foreach (var file in _fileSystem.EnumerateFiles(destinationPath, recursive: true))
-        {
+        foreach (var file in _fileSystem.EnumerateFiles(destinationPath, recursive: true)) {
             var relative = Relative(file, destinationPath);
 
             // A "~name.dll" copy is regenerated on the next load and would be stale after the swap.
             if (!GodotArtifacts.IsArtifact(relative)
                 || GodotArtifacts.IsEditorTemporary(relative)
-                || _fileSystem.FileExists(_fileSystem.CombinePath(stagingPath, relative)))
-            {
+                || _fileSystem.FileExists(_fileSystem.CombinePath(stagingPath, relative))) {
                 continue;
             }
 
@@ -166,8 +153,7 @@ public sealed class SyncEngine
     private static string Relative(string filePath, string root) =>
         filePath[root.Length..].TrimStart('/', '\\').Replace('\\', '/');
 
-    private static string ParentOf(string path)
-    {
+    private static string ParentOf(string path) {
         var index = path.LastIndexOfAny(['/', '\\']);
         return index <= 0 ? path : path[..index];
     }

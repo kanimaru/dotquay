@@ -7,13 +7,10 @@ namespace Dotquay.Core.Dotnet;
 
 /// <summary>Shells out to <c>dotnet</c> on PATH (mirrors <see cref="Git.ProcessGitClient"/>'s
 /// process-running shape — same rationale: let the real tool do the real work).</summary>
-public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
-{
+public sealed class ProcessDotnetCliRunner : IDotnetCliRunner {
     public async Task RestoreAsync(
-        string csprojPath, IReadOnlyDictionary<string, string>? environmentVariables = null, CancellationToken cancellationToken = default)
-    {
-        var startInfo = new ProcessStartInfo("dotnet")
-        {
+        string csprojPath, IReadOnlyDictionary<string, string>? environmentVariables = null, CancellationToken cancellationToken = default) {
+        var startInfo = new ProcessStartInfo("dotnet") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -22,12 +19,10 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
         startInfo.ArgumentList.Add("restore");
         startInfo.ArgumentList.Add(csprojPath);
 
-        if (environmentVariables is not null)
-        {
+        if (environmentVariables is not null) {
             // ProcessStartInfo.Environment starts pre-populated with the inherited environment
             // (PATH, etc.) — this only adds/overrides the given keys, nothing else is touched.
-            foreach (var (key, value) in environmentVariables)
-            {
+            foreach (var (key, value) in environmentVariables) {
                 startInfo.Environment[key] = value;
             }
         }
@@ -35,12 +30,9 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
         using var process = new Process { StartInfo = startInfo };
         var trace = ProcessTrace.Start("dotnet", startInfo.ArgumentList, workingDirectory: null);
 
-        try
-        {
+        try {
             process.Start();
-        }
-        catch (Win32Exception ex)
-        {
+        } catch (Win32Exception ex) {
             trace.Failed(ex);
             throw new DotnetSyncException("Could not start 'dotnet'. Is the .NET SDK installed and on PATH?", ex);
         }
@@ -55,8 +47,7 @@ public sealed class ProcessDotnetCliRunner : IDotnetCliRunner
 
         trace.Completed(process.ExitCode, stdOut, stdErr);
 
-        if (process.ExitCode != 0)
-        {
+        if (process.ExitCode != 0) {
             throw new DotnetSyncException(
                 $"'dotnet restore {csprojPath}' failed (exit {process.ExitCode}):{Environment.NewLine}{stdErr}{stdOut}");
         }

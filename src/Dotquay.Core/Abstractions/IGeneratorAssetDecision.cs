@@ -15,8 +15,7 @@ namespace Dotquay.Core.Abstractions;
 /// common case — nothing depends on the project, so the question has no consequence and is never
 /// asked.</para>
 /// </remarks>
-public interface IGeneratorAssetDecision
-{
+public interface IGeneratorAssetDecision {
     /// <summary>True to write <c>private_assets = ["all"]</c>, keeping the generator out of anything
     /// that consumes this project.</summary>
     bool KeepPrivate(GeneratorAssetRequest request);
@@ -44,8 +43,7 @@ public sealed record GeneratorAssetRequest(string PackageId, string Version, str
 /// conservative guess about NuGet's behaviour — it is NuGet's behaviour, and choosing it keeps a
 /// non-interactive <c>add</c> byte-identical to every release before v0.14.
 /// </remarks>
-public sealed class ShareGeneratorDecision : IGeneratorAssetDecision
-{
+public sealed class ShareGeneratorDecision : IGeneratorAssetDecision {
     public static readonly ShareGeneratorDecision Instance = new();
 
     public bool KeepPrivate(GeneratorAssetRequest request) => false;
@@ -53,8 +51,7 @@ public sealed class ShareGeneratorDecision : IGeneratorAssetDecision
 
 /// <summary>Keeps the generator private — <c>add --keep-generator-private</c>, and the
 /// editor plugin's checkbox once it has one.</summary>
-public sealed class KeepGeneratorPrivateDecision : IGeneratorAssetDecision
-{
+public sealed class KeepGeneratorPrivateDecision : IGeneratorAssetDecision {
     public static readonly KeepGeneratorPrivateDecision Instance = new();
 
     public bool KeepPrivate(GeneratorAssetRequest request) => true;

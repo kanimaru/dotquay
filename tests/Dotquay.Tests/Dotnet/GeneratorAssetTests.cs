@@ -19,8 +19,7 @@ namespace Dotquay.Tests.Dotnet;
 /// author declared the package a development dependency <em>and</em> the project looks published, and
 /// the only thing ever written is the containment.
 /// </remarks>
-public class GeneratorAssetTests
-{
+public class GeneratorAssetTests {
     private const string ProjectDir = "project";
     private const string GeneratorId = "Dev.Kani.Godot.Generator";
 
@@ -45,20 +44,17 @@ public class GeneratorAssetTests
 
     /// <summary>Records what it was asked, so a test can assert the question was never put at all —
     /// which is the actual contract for the common case.</summary>
-    private sealed class RecordingDecision(bool keepPrivate) : IGeneratorAssetDecision
-    {
+    private sealed class RecordingDecision(bool keepPrivate) : IGeneratorAssetDecision {
         public List<GeneratorAssetRequest> Requests { get; } = [];
 
-        public bool KeepPrivate(GeneratorAssetRequest request)
-        {
+        public bool KeepPrivate(GeneratorAssetRequest request) {
             Requests.Add(request);
             return keepPrivate;
         }
     }
 
     private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient NuGetClient)
-        Build(string csproj, IGeneratorAssetDecision decision)
-    {
+        Build(string csproj, IGeneratorAssetDecision decision) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "# Dotquay project manifest.\n");
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", csproj);
@@ -75,8 +71,7 @@ public class GeneratorAssetTests
             gitClient,
             new FakeNuGetClientFactory(nuGetClient),
             addonInstaller,
-            new DotnetInstaller(fileSystem, runner, TestCredentials.None()))
-        {
+            new DotnetInstaller(fileSystem, runner, TestCredentials.None())) {
             GeneratorAssetDecision = decision,
         };
 
@@ -91,8 +86,7 @@ public class GeneratorAssetTests
 
     /// <summary>The common case, and the one a regression would be most annoying in.</summary>
     [Fact]
-    public async Task AGameIsNeverAsked()
-    {
+    public async Task AGameIsNeverAsked() {
         var decision = new RecordingDecision(keepPrivate: true);
         var (workflow, fileSystem, nuGetClient) = Build(GameCsproj, decision);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
@@ -106,8 +100,7 @@ public class GeneratorAssetTests
     }
 
     [Fact]
-    public async Task AnOrdinaryLibraryIsNeverAsked()
-    {
+    public async Task AnOrdinaryLibraryIsNeverAsked() {
         var decision = new RecordingDecision(keepPrivate: true);
         var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj, decision);
         nuGetClient.VersionsByPackageId["Newtonsoft.Json"] = ["13.0.3"];
@@ -121,8 +114,7 @@ public class GeneratorAssetTests
     /// <summary>A feed that will not serve a nuspec has said nothing, and "no signal" must not be read
     /// as "generator" — otherwise the question fires on every package from that feed.</summary>
     [Fact]
-    public async Task AnUnreadableNuspecIsNotTreatedAsAGenerator()
-    {
+    public async Task AnUnreadableNuspecIsNotTreatedAsAGenerator() {
         var decision = new RecordingDecision(keepPrivate: true);
         var (workflow, _, nuGetClient) = Build(LibraryCsproj, decision);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
@@ -134,8 +126,7 @@ public class GeneratorAssetTests
     }
 
     [Fact]
-    public async Task APublishedLibraryIsAskedAndToldWhy()
-    {
+    public async Task APublishedLibraryIsAskedAndToldWhy() {
         var decision = new RecordingDecision(keepPrivate: false);
         var (workflow, _, nuGetClient) = Build(LibraryCsproj, decision);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
@@ -153,8 +144,7 @@ public class GeneratorAssetTests
     }
 
     [Fact]
-    public async Task KeepingItPrivateWritesPrivateAssetsToBothFiles()
-    {
+    public async Task KeepingItPrivateWritesPrivateAssetsToBothFiles() {
         var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj, KeepGeneratorPrivateDecision.Instance);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
         nuGetClient.DevelopmentDependencyPackageIds.Add(GeneratorId);
@@ -172,8 +162,7 @@ public class GeneratorAssetTests
     }
 
     [Fact]
-    public async Task SharingItWritesNothing()
-    {
+    public async Task SharingItWritesNothing() {
         var (workflow, fileSystem, nuGetClient) = Build(LibraryCsproj, ShareGeneratorDecision.Instance);
         nuGetClient.VersionsByPackageId[GeneratorId] = ["0.0.5"];
         nuGetClient.DevelopmentDependencyPackageIds.Add(GeneratorId);
@@ -188,8 +177,7 @@ public class GeneratorAssetTests
     /// <summary>The default for every caller that never thought about this — CI, <c>--json</c>, the
     /// editor plugin — keeps an add byte-identical to every release before v0.14.</summary>
     [Fact]
-    public async Task TheDefaultDecisionSharesAndWritesNothing()
-    {
+    public async Task TheDefaultDecisionSharesAndWritesNothing() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "# Dotquay project manifest.\n");
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", LibraryCsproj);
@@ -217,12 +205,10 @@ public class GeneratorAssetTests
 /// Covers <see cref="CsprojPackable"/> — the probe that decides whether the generator question is
 /// worth asking at all.
 /// </summary>
-public class CsprojPackableTests
-{
+public class CsprojPackableTests {
     private const string CsprojPath = "project/Game.csproj";
 
-    private static string? Evidence(string csproj)
-    {
+    private static string? Evidence(string csproj) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(CsprojPath, csproj);
 

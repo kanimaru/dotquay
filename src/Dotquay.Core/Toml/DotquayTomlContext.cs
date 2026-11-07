@@ -15,29 +15,25 @@ namespace Dotquay.Core.Toml;
 /// rather than calling <c>TomlSerializer</c> directly.
 /// </summary>
 [TomlSerializable(typeof(TomlTable))]
-internal sealed partial class DotquayTomlContext : TomlSerializerContext
-{
+internal sealed partial class DotquayTomlContext : TomlSerializerContext {
     /// <summary>A context carrying per-call options. The generator only emits <c>Default</c>, built
     /// on <see cref="TomlSerializerOptions.Default"/>, but a reader needs its own
     /// <see cref="TomlSerializerOptions.SourceName"/> so parse errors name the file they came
     /// from.</summary>
     public DotquayTomlContext(TomlSerializerOptions options)
-        : base(options)
-    {
+        : base(options) {
     }
 }
 
 /// <summary>The read side of TOML: one entry point, so no caller has to pick a type info itself.</summary>
-public static class DotquayToml
-{
+public static class DotquayToml {
     /// <summary>
     /// Parses <paramref name="text"/> into the untyped model. <paramref name="sourceName"/> is the
     /// file name Tomlyn puts in front of every error position (null leaves errors unprefixed, which is
     /// what the reflection overload without options did). Invalid TOML throws
     /// <see cref="TomlException"/>; an empty document yields an empty table, never null.
     /// </summary>
-    public static TomlTable Parse(string text, string? sourceName)
-    {
+    public static TomlTable Parse(string text, string? sourceName) {
         var options = new TomlSerializerOptions { SourceName = sourceName };
         var context = new DotquayTomlContext(options);
         return TomlSerializer.Deserialize(text, context.TomlTable) ?? new TomlTable();

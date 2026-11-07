@@ -11,8 +11,7 @@ namespace Dotquay.Tests.Dotnet;
 /// ones it no longer owns, respecting an existing lowercase <c>nuget.config</c>, and binding restore
 /// to the right feed via <c>&lt;packageSourceMapping&gt;</c>.
 /// </summary>
-public class NuGetConfigWriterTests
-{
+public class NuGetConfigWriterTests {
     private const string SourceUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
     private const string SecondUrl = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
 
@@ -20,8 +19,7 @@ public class NuGetConfigWriterTests
         NuGetSourceSet.From([new NuGetSourceSpec(NuGetSourceSpec.LegacyName, url)]);
 
     [Fact]
-    public void EnsureSources_NoExistingConfig_CreatesOneWithTheSource()
-    {
+    public void EnsureSources_NoExistingConfig_CreatesOneWithTheSource() {
         var fileSystem = new InMemoryFileSystem();
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
@@ -32,8 +30,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_LegacyNamedSource_KeepsTheBareDotquayKey()
-    {
+    public void EnsureSources_LegacyNamedSource_KeepsTheBareDotquayKey() {
         var fileSystem = new InMemoryFileSystem();
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
@@ -45,8 +42,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_NamedSources_GetPrefixedKeys()
-    {
+    public void EnsureSources_NamedSources_GetPrefixedKeys() {
         var fileSystem = new InMemoryFileSystem();
         var sources = NuGetSourceSet.From(
             [new NuGetSourceSpec("core", SourceUrl), new NuGetSourceSpec("tools", SecondUrl)]);
@@ -61,8 +57,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_ExistingConfigWithOtherSources_AddsWithoutDisturbingThem()
-    {
+    public void EnsureSources_ExistingConfigWithOtherSources_AddsWithoutDisturbingThem() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/NuGet.Config", """
             <configuration>
@@ -81,8 +76,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_SourceRemovedFromTheManifest_IsPrunedFromTheConfig()
-    {
+    public void EnsureSources_SourceRemovedFromTheManifest_IsPrunedFromTheConfig() {
         var fileSystem = new InMemoryFileSystem();
         var both = NuGetSourceSet.From(
             [new NuGetSourceSpec("core", SourceUrl), new NuGetSourceSpec("tools", SecondUrl)]);
@@ -99,8 +93,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_PruningNeverTouchesSourcesDotquayDoesNotOwn()
-    {
+    public void EnsureSources_PruningNeverTouchesSourcesDotquayDoesNotOwn() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/NuGet.Config", """
             <configuration>
@@ -119,8 +112,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_CalledTwiceWithDifferentUrls_UpdatesInPlaceRatherThanDuplicating()
-    {
+    public void EnsureSources_CalledTwiceWithDifferentUrls_UpdatesInPlaceRatherThanDuplicating() {
         var fileSystem = new InMemoryFileSystem();
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy(SecondUrl));
@@ -132,8 +124,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_ExistingLowercaseConfig_UpdatesItRatherThanCreatingASecondFile()
-    {
+    public void EnsureSources_ExistingLowercaseConfig_UpdatesItRatherThanCreatingASecondFile() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/nuget.config", "<configuration><packageSources /></configuration>");
 
@@ -144,8 +135,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_NeverWritesAnyCredentialAttribute()
-    {
+    public void EnsureSources_NeverWritesAnyCredentialAttribute() {
         var fileSystem = new InMemoryFileSystem();
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
@@ -157,8 +147,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_MalformedExistingConfig_ThrowsDotnetSyncException()
-    {
+    public void EnsureSources_MalformedExistingConfig_ThrowsDotnetSyncException() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/NuGet.Config", "not xml <<<");
 
@@ -166,8 +155,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_Mapping_PinsThePackageAndAlwaysWritesTheCatchAll()
-    {
+    public void EnsureSources_Mapping_PinsThePackageAndAlwaysWritesTheCatchAll() {
         var fileSystem = new InMemoryFileSystem();
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]);
 
@@ -184,8 +172,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_Mapping_DeclaresNuGetOrgExplicitlyForTheCatchAllToPointAt()
-    {
+    public void EnsureSources_Mapping_DeclaresNuGetOrgExplicitlyForTheCatchAllToPointAt() {
         var fileSystem = new InMemoryFileSystem();
 
         NuGetConfigWriter.EnsureSources(fileSystem, "project", Legacy());
@@ -197,8 +184,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_MappingDisabled_WritesNoMappingAndNoImplicitPublicSource()
-    {
+    public void EnsureSources_MappingDisabled_WritesNoMappingAndNoImplicitPublicSource() {
         var fileSystem = new InMemoryFileSystem();
 
         NuGetConfigWriter.EnsureSources(
@@ -210,8 +196,7 @@ public class NuGetConfigWriterTests
     }
 
     [Fact]
-    public void EnsureSources_MappingRewrittenOnEachCall_RatherThanAccumulating()
-    {
+    public void EnsureSources_MappingRewrittenOnEachCall_RatherThanAccumulating() {
         var fileSystem = new InMemoryFileSystem();
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]);
 

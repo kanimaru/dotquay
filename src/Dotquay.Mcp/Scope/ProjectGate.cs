@@ -21,27 +21,21 @@ namespace Dotquay.Mcp.Scope;
 /// rather than retrofitted once a write tool needs it under pressure.
 /// </para>
 /// </remarks>
-public sealed class ProjectGate
-{
+public sealed class ProjectGate {
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks;
 
-    public ProjectGate()
-    {
+    public ProjectGate() {
         _locks = new ConcurrentDictionary<string, SemaphoreSlim>(
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     }
 
-    public async ValueTask<T> RunAsync<T>(string projectDirectory, Func<ValueTask<T>> operation)
-    {
+    public async ValueTask<T> RunAsync<T>(string projectDirectory, Func<ValueTask<T>> operation) {
         var gate = _locks.GetOrAdd(projectDirectory, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync().ConfigureAwait(false);
 
-        try
-        {
+        try {
             return await operation().ConfigureAwait(false);
-        }
-        finally
-        {
+        } finally {
             gate.Release();
         }
     }

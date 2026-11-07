@@ -17,8 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// (<c>OverrideCommand.ListOverrides</c>): an override entry already fits that shape (name, kind,
 /// from/to), so a second payload type would say nothing this one doesn't.
 /// </remarks>
-public sealed class DotquayOverrideListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayOverrideListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_override_list";
 
     public override string Description => "List the project's current dependency overrides ([overrides.*]). Read-only.";
@@ -37,16 +36,13 @@ public sealed class DotquayOverrideListTool(IProjectScope scope, ProjectGate gat
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var entries = McpInfrastructure.CreateOverrides().List(projectDirectory);
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes = entries
                 .OrderBy(kv => kv.Key, StringComparer.Ordinal)
-                .Select(kv => new ChangeJson
-                {
+                .Select(kv => new ChangeJson {
                     Name = kv.Key,
                     Kind = JsonMapper.ChangeKind.Addon,
                     Action = JsonMapper.ChangeAction.Unchanged,

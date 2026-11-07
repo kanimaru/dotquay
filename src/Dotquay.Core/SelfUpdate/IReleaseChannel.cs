@@ -14,8 +14,7 @@ namespace Dotquay.Core.SelfUpdate;
 /// without downloading 11 MB, and <c>--to</c> must be able to name a version without walking the
 /// release list.</para>
 /// </remarks>
-public interface IReleaseChannel
-{
+public interface IReleaseChannel {
     /// <summary>Human-readable channel identity for messages ("gitlab.kemomi.de/…"). Never a
     /// credential, and never the raw API URL with a token in it — there is no such URL in dotquay,
     /// and this is the property most likely to end up in a bug report.</summary>

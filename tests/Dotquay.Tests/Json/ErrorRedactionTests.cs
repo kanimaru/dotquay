@@ -12,37 +12,32 @@ namespace Dotquay.Tests.Json;
 /// client - found while verifying v0.24: a failing <c>add</c> of
 /// <c>https://oauth2:secret@host/x.git</c> printed the token in its <c>--json</c> error message.
 /// </summary>
-public sealed class ErrorRedactionTests
-{
+public sealed class ErrorRedactionTests {
     private const string SecretUrl = "https://oauth2:supersecret@gitlab.example/kani/x.git";
     private const string MaskedUrl = "https://oauth2:***@gitlab.example/kani/x.git";
 
     [Fact]
-    public void JsonError_masks_its_message_on_construction()
-    {
+    public void JsonError_masks_its_message_on_construction() {
         var error = new JsonError(JsonErrorKind.Git, $"git ls-remote failed for {SecretUrl}");
 
         Assert.Equal($"git ls-remote failed for {MaskedUrl}", error.Message);
     }
 
     [Fact]
-    public void JsonError_masks_a_message_assigned_through_with()
-    {
+    public void JsonError_masks_a_message_assigned_through_with() {
         var error = new JsonError(JsonErrorKind.Git, "fine") with { Message = $"failed for {SecretUrl}" };
 
         Assert.Equal($"failed for {MaskedUrl}", error.Message);
     }
 
     [Fact]
-    public void JsonError_keeps_equality_and_kind()
-    {
+    public void JsonError_keeps_equality_and_kind() {
         Assert.Equal(new JsonError("git", SecretUrl), new JsonError("git", MaskedUrl));
         Assert.Equal("git", new JsonError("git", "x").Kind);
     }
 
     [Fact]
-    public void Classify_masks_the_message_of_a_wrapped_git_failure_and_keeps_its_kind()
-    {
+    public void Classify_masks_the_message_of_a_wrapped_git_failure_and_keeps_its_kind() {
         var exception = new WorkflowException(
             $"'x': git ls-remote failed for {SecretUrl}: fatal: could not resolve host",
             new GitCommandException($"git ls-remote failed for {SecretUrl}"));
@@ -54,8 +49,7 @@ public sealed class ErrorRedactionTests
     }
 
     [Fact]
-    public void Classify_masks_the_http_backstop_message()
-    {
+    public void Classify_masks_the_http_backstop_message() {
         var (_, message) = JsonErrorClassifier.Classify(
             new HttpRequestException("https://h/v3/index.json?private_token=abc refused"));
 
@@ -63,16 +57,14 @@ public sealed class ErrorRedactionTests
     }
 
     [Fact]
-    public void Classify_still_recognises_a_missing_manifest()
-    {
+    public void Classify_still_recognises_a_missing_manifest() {
         var (kind, _) = JsonErrorClassifier.Classify(new WorkflowException("No dotquay.toml. Run 'dotquay init' first."));
 
         Assert.Equal(JsonErrorKind.NoManifest, kind);
     }
 
     [Fact]
-    public void Serialized_failure_envelope_carries_no_secret_and_keeps_the_wire_shape()
-    {
+    public void Serialized_failure_envelope_carries_no_secret_and_keeps_the_wire_shape() {
         var json = DotquayJson.Write(JsonEnvelope<OperationJson>.Failure(
             "add", new JsonError(JsonErrorKind.Git, $"failed for {SecretUrl}"), [$"warned about {SecretUrl}"]));
 
@@ -85,8 +77,7 @@ public sealed class ErrorRedactionTests
     }
 
     [Fact]
-    public void Success_envelope_masks_warnings_and_tolerates_none()
-    {
+    public void Success_envelope_masks_warnings_and_tolerates_none() {
         var withWarnings = JsonEnvelope<OperationJson>.Success("update", new OperationJson(), [$"pinned {SecretUrl}"]);
         var withNone = JsonEnvelope<OperationJson>.Success("update", new OperationJson());
 
@@ -95,8 +86,7 @@ public sealed class ErrorRedactionTests
     }
 
     [Fact]
-    public void DoctorIssue_masks_its_message_including_through_with()
-    {
+    public void DoctorIssue_masks_its_message_including_through_with() {
         var issue = new DoctorIssue(DoctorIssueKind.GitNotOnPath, $"could not reach {SecretUrl}");
         var changed = issue with { Message = "token glpat-AbCdEfGhIjKlMnOp found in dotquay.toml" };
 
@@ -105,8 +95,7 @@ public sealed class ErrorRedactionTests
     }
 
     [Fact]
-    public void Mcp_request_log_masks_the_failure_line()
-    {
+    public void Mcp_request_log_masks_the_failure_line() {
         var writer = new StringWriter();
         using var log = new RequestLog(writer, ownsWriter: false);
 

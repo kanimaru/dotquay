@@ -22,14 +22,12 @@ namespace Dotquay.Core.Dotnet;
 /// child process itself, resolved through the same <see cref="CredentialResolver"/> the read side
 /// uses — one rule, two consumers, never written to disk.
 /// </remarks>
-public sealed class DotnetInstaller
-{
+public sealed class DotnetInstaller {
     private readonly IFileSystem _fileSystem;
     private readonly IDotnetCliRunner _cliRunner;
     private readonly CredentialResolver _credentials;
 
-    public DotnetInstaller(IFileSystem fileSystem, IDotnetCliRunner cliRunner, CredentialResolver credentials)
-    {
+    public DotnetInstaller(IFileSystem fileSystem, IDotnetCliRunner cliRunner, CredentialResolver credentials) {
         _fileSystem = fileSystem;
         _cliRunner = cliRunner;
         _credentials = credentials;
@@ -79,29 +77,25 @@ public sealed class DotnetInstaller
         bool writeSourceMapping = true,
         Manifest.PackageAssets? assets = null,
         Manifest.PackageAssets? previouslyWritten = null,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         var csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
         var sourceBuilt = ReferenceUnlessBuiltFromSource(csprojPath, packageId, version, assets, previouslyWritten);
 
         var effectiveSources = sources ?? NuGetSourceSet.PublicOnly;
 
-        if (effectiveSources.HasCustomSources)
-        {
+        if (effectiveSources.HasCustomSources) {
             NuGetConfigWriter.EnsureSources(
                 _fileSystem, projectDirectory, effectiveSources, pinnedPackages, writeSourceMapping);
         }
 
-        if (restore)
-        {
+        if (restore) {
             await _cliRunner.RestoreAsync(csprojPath, BuildCredentialEnvironment(effectiveSources), cancellationToken);
         }
 
         // Records what was written, not what was asked for — they are the same here, but the lockfile's
         // job is to be the record of the action, so the next sync can remove metadata a manifest has
         // since withdrawn.
-        var locked = new LockedDotnet
-        {
+        var locked = new LockedDotnet {
             Name = packageId,
             Resolved = version,
             Source = resolvedSourceName,
@@ -118,12 +112,10 @@ public sealed class DotnetInstaller
         string packageId,
         string version,
         Manifest.PackageAssets? assets,
-        Manifest.PackageAssets? previouslyWritten)
-    {
+        Manifest.PackageAssets? previouslyWritten) {
         var provider = SourceProvidedPackages.FindProvider(_fileSystem, csprojPath, packageId);
 
-        if (provider is null)
-        {
+        if (provider is null) {
             CsprojPackageReferenceWriter.AddOrUpdate(_fileSystem, csprojPath, packageId, version, assets, previouslyWritten);
             return null;
         }
@@ -145,8 +137,7 @@ public sealed class DotnetInstaller
     /// version behind what the .csproj declares is harmless until the next real build, unlike
     /// installing (SPEC.md §9's "never leave addons/ half-updated" doesn't have a dotnet-side
     /// equivalent risk here).</summary>
-    public bool Remove(string projectDirectory, string packageId)
-    {
+    public bool Remove(string projectDirectory, string packageId) {
         var csprojPath = CsprojLocator.Locate(_fileSystem, projectDirectory);
         return CsprojPackageReferenceWriter.Remove(_fileSystem, csprojPath, packageId);
     }
@@ -166,12 +157,10 @@ public sealed class DotnetInstaller
         NuGetSourceSet? sources = null,
         CancellationToken cancellationToken = default,
         IReadOnlyDictionary<string, string>? mappedPackages = null,
-        bool writeSourceMapping = true)
-    {
+        bool writeSourceMapping = true) {
         var effectiveSources = sources ?? NuGetSourceSet.PublicOnly;
 
-        if (mappedPackages is not null && effectiveSources.HasCustomSources)
-        {
+        if (mappedPackages is not null && effectiveSources.HasCustomSources) {
             NuGetConfigWriter.EnsureSources(
                 _fileSystem, projectDirectory, effectiveSources, mappedPackages, writeSourceMapping);
         }
@@ -190,15 +179,12 @@ public sealed class DotnetInstaller
     /// untouched. nuget.org contributes nothing regardless — there is no credential for it, and
     /// sending a private feed's token to a public host would leak it.
     /// </remarks>
-    private IReadOnlyDictionary<string, string>? BuildCredentialEnvironment(NuGetSourceSet sources)
-    {
+    private IReadOnlyDictionary<string, string>? BuildCredentialEnvironment(NuGetSourceSet sources) {
         var variables = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var source in sources.All.Where(source => !source.IsPublicDefault))
-        {
+        foreach (var source in sources.All.Where(source => !source.IsPublicDefault)) {
             var lookup = _credentials.ForNuGetSource(source.Name, source.Url);
-            if (lookup.Credential is null)
-            {
+            if (lookup.Credential is null) {
                 continue;
             }
 

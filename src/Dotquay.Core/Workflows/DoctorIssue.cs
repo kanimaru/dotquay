@@ -12,14 +12,12 @@ namespace Dotquay.Core.Workflows;
 /// ssh host checks) and its output is the thing people paste when asking for help - including the
 /// secret scanner's own findings, which must name where a token is without repeating it.
 /// </remarks>
-public sealed record DoctorIssue(DoctorIssueKind Kind, string Message, UidReferenceFix? UidFix = null)
-{
+public sealed record DoctorIssue(DoctorIssueKind Kind, string Message, UidReferenceFix? UidFix = null) {
     private readonly string _message = SecretRedactor.Redact(Message);
 
     // An explicit init accessor, not an initializer alone: `with { Message = ... }` assigns through
     // init and would otherwise skip the redaction the constructor applies.
-    public string Message
-    {
+    public string Message {
         get => _message;
         init => _message = SecretRedactor.Redact(value);
     }

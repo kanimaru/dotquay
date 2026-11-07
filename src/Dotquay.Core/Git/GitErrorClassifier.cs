@@ -7,8 +7,7 @@ namespace Dotquay.Core.Git;
 /// "make sure you have the correct access rights", which reads as an authentication problem and is
 /// not one -- no credential will ever fix it.
 /// </remarks>
-public enum GitFailureKind
-{
+public enum GitFailureKind {
     /// <summary>Nothing recognised. Reported as a plain git error with git's own words.</summary>
     Unknown,
 
@@ -80,8 +79,7 @@ public enum GitFailureKind
 /// is exactly one list to correct when a git release rewords a message, and nothing downstream is
 /// re-parsing prose.
 /// </remarks>
-public static class GitErrorClassifier
-{
+public static class GitErrorClassifier {
     // Matched in this order. Each group is checked in full before the next, so a message carrying
     // markers from two groups is reported as the more specific one.
     private static readonly string[] HostKeyMarkers =
@@ -143,10 +141,8 @@ public static class GitErrorClassifier
     ];
 
     /// <summary>Reads <paramref name="stderr"/> as one <see cref="GitFailureKind"/>.</summary>
-    public static GitFailureKind Classify(string? stderr)
-    {
-        if (string.IsNullOrWhiteSpace(stderr))
-        {
+    public static GitFailureKind Classify(string? stderr) {
+        if (string.IsNullOrWhiteSpace(stderr)) {
             return GitFailureKind.Unknown;
         }
 
@@ -185,15 +181,13 @@ public static class GitErrorClassifier
     /// while git, using a different binary, gets far enough to reject the host key, so the two
     /// symptoms look unrelated and the obvious fix appears not to work.
     /// </remarks>
-    public static string? Remediation(GitFailureKind kind, string? repositoryUrl)
-    {
+    public static string? Remediation(GitFailureKind kind, string? repositoryUrl) {
         var host = GitUrl.TryParse(repositoryUrl, out var url) && url is not null && url.Host.Length > 0
             ? url.Host
             : null;
         var hostText = host ?? "the server";
 
-        return kind switch
-        {
+        return kind switch {
             GitFailureKind.HostKeyVerification =>
                 $"ssh has no trusted host key for {hostText}. Verify its fingerprint out of band, then add it: "
                 + $"'ssh-keyscan {hostText}' prints the keys and 'ssh-keygen -F {hostText}' checks what is already "
@@ -262,8 +256,7 @@ public static class GitErrorClassifier
     /// </para>
     /// </remarks>
     public static string DescribeFetchFailure(
-        string repositoryUrl, string commitSha, string? shallowStdErr, string? fullStdErr)
-    {
+        string repositoryUrl, string commitSha, string? shallowStdErr, string? fullStdErr) {
         var shallow = (shallowStdErr ?? string.Empty).Trim();
         var full = (fullStdErr ?? string.Empty).Trim();
 
@@ -276,18 +269,15 @@ public static class GitErrorClassifier
         // Classified from whichever attempt actually said something. The full fetch is the last word
         // on whether the repository is reachable at all, so it is preferred when the two disagree.
         var kind = Classify(full);
-        if (kind == GitFailureKind.Unknown)
-        {
+        if (kind == GitFailureKind.Unknown) {
             kind = Classify(shallow);
         }
 
         var message = $"Failed to fetch {commitSha} from {repositoryUrl}.";
 
-        if (detail.Length > 0)
-        {
+        if (detail.Length > 0) {
             message += " " + detail;
-            if (!detail.EndsWith('.'))
-            {
+            if (!detail.EndsWith('.')) {
                 message += ".";
             }
         }
@@ -306,18 +296,15 @@ public static class GitErrorClassifier
     /// <c>dotquay add</c> does with a new URL - printed git's stderr raw. An ssh key refusal there
     /// read as git's boilerplate about access rights and nothing else.
     /// </remarks>
-    public static string DescribeRemoteFailure(string failure, string repositoryUrl, string? stderr)
-    {
+    public static string DescribeRemoteFailure(string failure, string repositoryUrl, string? stderr) {
         var detail = (stderr ?? string.Empty).Trim();
         var message = detail.Length > 0 ? $"{failure}: {detail}" : failure;
 
-        if (Remediation(Classify(stderr), repositoryUrl) is not { } remediation)
-        {
+        if (Remediation(Classify(stderr), repositoryUrl) is not { } remediation) {
             return message;
         }
 
-        if (!message.EndsWith('.'))
-        {
+        if (!message.EndsWith('.')) {
             message += ".";
         }
 

@@ -24,8 +24,7 @@ namespace Dotquay.Core.Git;
 /// </code>
 /// </para>
 /// </remarks>
-public static class LfsPointer
-{
+public static class LfsPointer {
     public const string VersionLine = "version https://git-lfs.github.com/spec/v1";
 
     /// <summary>
@@ -35,10 +34,8 @@ public static class LfsPointer
     public const int MaxPointerBytes = 1024;
 
     /// <summary>True when <paramref name="content"/> is a complete LFS pointer file.</summary>
-    public static bool Matches(ReadOnlySpan<byte> content)
-    {
-        if (content.Length == 0 || content.Length > MaxPointerBytes)
-        {
+    public static bool Matches(ReadOnlySpan<byte> content) {
+        if (content.Length == 0 || content.Length > MaxPointerBytes) {
             return false;
         }
 
@@ -46,17 +43,14 @@ public static class LfsPointer
         // core.autocrlf rewrites them.
         var text = Encoding.UTF8.GetString(content);
         var lines = text.Split('\n');
-        if (lines[0].TrimEnd('\r') != VersionLine)
-        {
+        if (lines[0].TrimEnd('\r') != VersionLine) {
             return false;
         }
 
         // Version line alone is not enough — require the object id as well, so a one-line text file
         // that merely begins with the same words is left alone.
-        foreach (var line in lines)
-        {
-            if (line.StartsWith("oid sha256:", StringComparison.Ordinal))
-            {
+        foreach (var line in lines) {
+            if (line.StartsWith("oid sha256:", StringComparison.Ordinal)) {
                 return true;
             }
         }

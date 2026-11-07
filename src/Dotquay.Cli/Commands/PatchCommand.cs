@@ -15,25 +15,20 @@ namespace Dotquay.Cli.Commands;
 /// instruction the conflict message used to print, whose middle step (recapturing) was the one people
 /// skipped — and skipping it leaves the lockfile describing a patch that no longer matches the tree.
 /// </remarks>
-internal static class PatchCommand
-{
+internal static class PatchCommand {
     private const string CommandName = "patch";
 
-    public static Command Build()
-    {
-        var nameArgument = new Argument<string>("name")
-        {
+    public static Command Build() {
+        var nameArgument = new Argument<string>("name") {
             Description = "The installed addon to diff against its pristine cache copy.",
         };
 
-        var resolveOption = new Option<bool>("--resolve")
-        {
+        var resolveOption = new Option<bool>("--resolve") {
             Description = "Finish a conflicted update: install the files you resolved in staging, then recapture "
                 + "the patch against the new upstream commit.",
         };
 
-        var abandonOption = new Option<bool>("--abandon")
-        {
+        var abandonOption = new Option<bool>("--abandon") {
             Description = "Drop this addon's patch and take upstream as-is. For when the change was upstreamed "
                 + "or is no longer wanted.",
         };
@@ -48,8 +43,7 @@ internal static class PatchCommand
             jsonOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var name = parseResult.GetValue(nameArgument)!;
             var json = parseResult.GetValue(jsonOption);
             var resolve = parseResult.GetValue(resolveOption);
@@ -57,15 +51,13 @@ internal static class PatchCommand
             var projectDirectory = GlobalOptions.Resolve(parseResult);
             var workflow = WorkflowFactory.Create();
 
-            if (resolve && abandon)
-            {
+            if (resolve && abandon) {
                 return JsonOutput.Fail(
                     json, CommandName, JsonErrorKind.Workflow,
                     "--resolve and --abandon are opposites: one keeps your patch, the other discards it.");
             }
 
-            try
-            {
+            try {
                 var result = resolve
                     ? await workflow.ResolvePatchAsync(projectDirectory, name, cancellationToken)
                     : abandon
@@ -74,10 +66,8 @@ internal static class PatchCommand
 
                 var message = Describe(result, resolve, abandon);
 
-                if (json)
-                {
-                    JsonOutput.WriteOperation(CommandName, new OperationJson
-                    {
+                if (json) {
+                    JsonOutput.WriteOperation(CommandName, new OperationJson {
                         Changes =
                         [
                             new ChangeJson
@@ -95,19 +85,14 @@ internal static class PatchCommand
                     return 0;
                 }
 
-                if (result.Captured || abandon)
-                {
+                if (result.Captured || abandon) {
                     ConsoleOutput.WriteLine(ConsoleColor.Green, message);
-                }
-                else
-                {
+                } else {
                     Console.WriteLine(message);
                 }
 
                 return 0;
-            }
-            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
-            {
+            } catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex)) {
                 return JsonOutput.Fail(json, CommandName, ex);
             }
         });
@@ -115,15 +100,12 @@ internal static class PatchCommand
         return command;
     }
 
-    private static string Describe(PatchCaptureResult result, bool resolve, bool abandon)
-    {
-        if (abandon)
-        {
+    private static string Describe(PatchCaptureResult result, bool resolve, bool abandon) {
+        if (abandon) {
             return $"Dropped '{result.Name}'s patch and reinstalled it from upstream.";
         }
 
-        if (resolve)
-        {
+        if (resolve) {
             return result.Captured
                 ? $"Resolved '{result.Name}' and recaptured its patch -> {result.PatchFilePath}"
                 : $"Resolved '{result.Name}'. The result matches upstream exactly, so there is no patch left to keep.";

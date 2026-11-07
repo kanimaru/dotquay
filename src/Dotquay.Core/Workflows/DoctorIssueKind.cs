@@ -7,8 +7,7 @@ namespace Dotquay.Core.Workflows;
 /// <c>JsonMapper</c> and read by the Godot editor plugin, so adding a member is a JSON contract
 /// change and renaming one would break a consumer silently.
 /// </remarks>
-public enum DoctorIssueKind
-{
+public enum DoctorIssueKind {
     /// <summary>The <c>git</c> binary isn't on PATH — every git-sourced command is broken.</summary>
     GitNotOnPath,
 

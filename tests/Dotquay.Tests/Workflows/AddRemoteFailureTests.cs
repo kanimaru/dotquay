@@ -13,8 +13,7 @@ namespace Dotquay.Tests.Workflows;
 /// starts with threw a <see cref="GitCommandException"/> nothing caught, and the CLI printed
 /// "Unhandled exception" and a stack trace instead of the refusal and what to do about it.
 /// </remarks>
-public class AddRemoteFailureTests
-{
+public class AddRemoteFailureTests {
     private const string ProjectDir = "project";
     private const string SshUrl = "git@gitlab.kemomi.de:wild-alliance/vbeami_gdmp.git";
 
@@ -23,8 +22,7 @@ public class AddRemoteFailureTests
         + "fatal: Could not read from remote repository.";
 
     [Fact]
-    public async Task A_refused_remote_is_a_workflow_error_carrying_the_advice()
-    {
+    public async Task A_refused_remote_is_a_workflow_error_carrying_the_advice() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\n");
 
@@ -46,8 +44,7 @@ public class AddRemoteFailureTests
     }
 
     [Fact]
-    public void An_ls_remote_failure_gets_the_same_remediation_a_fetch_does()
-    {
+    public void An_ls_remote_failure_gets_the_same_remediation_a_fetch_does() {
         var message = GitErrorClassifier.DescribeRemoteFailure(
             $"git ls-remote failed for {SshUrl}", SshUrl, PublicKeyRefused);
 
@@ -56,8 +53,7 @@ public class AddRemoteFailureTests
     }
 
     [Fact]
-    public void An_unrecognised_failure_is_left_in_gits_own_words()
-    {
+    public void An_unrecognised_failure_is_left_in_gits_own_words() {
         var message = GitErrorClassifier.DescribeRemoteFailure("git ls-remote failed for x", "x", "something odd");
 
         Assert.Equal("git ls-remote failed for x: something odd", message);

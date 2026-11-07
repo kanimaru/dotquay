@@ -17,8 +17,7 @@ namespace Dotquay.Tests.Dotnet;
 /// save-set-restore approach was safe within this class and raced <c>NuGetV3ClientFactoryTests</c>,
 /// which mutated the same two variables in a class xunit runs in parallel with this one.
 /// </remarks>
-public class DotnetInstallerTests
-{
+public class DotnetInstallerTests {
     private const string SdkStyleCsproj = """
         <Project Sdk="Godot.NET.Sdk/4.3.0">
           <PropertyGroup>
@@ -34,14 +33,12 @@ public class DotnetInstallerTests
         NuGetSourceSet.From([new NuGetSourceSpec(NuGetSourceSpec.LegacyName, PrivateSourceUrl)]);
 
     private static (DotnetInstaller Installer, InMemoryFileSystem FileSystem, FakeDotnetCliRunner Runner) Build(
-        string? username = null, string? token = null, ICredentialStoreSeed? seed = null)
-    {
+        string? username = null, string? token = null, ICredentialStoreSeed? seed = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", SdkStyleCsproj);
 
         var environment = new FakeEnvironmentReader();
-        if (username is not null && token is not null)
-        {
+        if (username is not null && token is not null) {
             environment
                 .Set(CredentialResolver.GlobalUsernameVariable, username)
                 .Set(CredentialResolver.GlobalTokenVariable, token);
@@ -57,8 +54,7 @@ public class DotnetInstallerTests
     public delegate void ICredentialStoreSeed(InMemoryCredentialStore store);
 
     [Fact]
-    public async Task InstallAsync_WritesReferenceAndRestoresByDefault()
-    {
+    public async Task InstallAsync_WritesReferenceAndRestoresByDefault() {
         var (installer, fileSystem, runner) = Build();
 
         var locked = await installer.InstallAsync("project", "Newtonsoft.Json", "13.0.3");
@@ -70,8 +66,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_RecordsTheResolvedSourceOnTheLockEntry()
-    {
+    public async Task InstallAsync_RecordsTheResolvedSourceOnTheLockEntry() {
         var (installer, _, _) = Build();
 
         var locked = await installer.InstallAsync(
@@ -81,8 +76,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_PublicPackage_LeavesSourceNull()
-    {
+    public async Task InstallAsync_PublicPackage_LeavesSourceNull() {
         var (installer, _, _) = Build();
 
         var locked = await installer.InstallAsync("project", "Newtonsoft.Json", "13.0.3");
@@ -92,8 +86,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_RestoreFalse_WritesReferenceButSkipsRestore()
-    {
+    public async Task InstallAsync_RestoreFalse_WritesReferenceButSkipsRestore() {
         var (installer, fileSystem, runner) = Build();
 
         await installer.InstallAsync("project", "Newtonsoft.Json", "13.0.3", restore: false);
@@ -103,8 +96,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_RestoreFailure_Throws()
-    {
+    public async Task InstallAsync_RestoreFailure_Throws() {
         var (installer, _, runner) = Build();
         runner.ThrowOnRestore = true;
 
@@ -112,8 +104,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public void Remove_ExistingReference_RemovesItAndReturnsTrue()
-    {
+    public void Remove_ExistingReference_RemovesItAndReturnsTrue() {
         var (installer, fileSystem, _) = Build();
         CsprojPackageReferenceWriter.AddOrUpdate(fileSystem, "project/Game.csproj", "Newtonsoft.Json", "13.0.3");
 
@@ -124,8 +115,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task RestoreAsync_LocatesCsprojAndRestores()
-    {
+    public async Task RestoreAsync_LocatesCsprojAndRestores() {
         var (installer, _, runner) = Build();
 
         await installer.RestoreAsync("project");
@@ -134,8 +124,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_NoNuGetSource_LeavesNuGetConfigUntouchedAndSendsNoCredentialEnv()
-    {
+    public async Task InstallAsync_NoNuGetSource_LeavesNuGetConfigUntouchedAndSendsNoCredentialEnv() {
         var (installer, fileSystem, runner) = Build();
 
         await installer.InstallAsync("project", "Newtonsoft.Json", "13.0.3");
@@ -145,8 +134,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithNuGetSource_WritesNuGetConfigDeclaringIt()
-    {
+    public async Task InstallAsync_WithNuGetSource_WritesNuGetConfigDeclaringIt() {
         var (installer, fileSystem, _) = Build();
 
         await installer.InstallAsync("project", "Acme.Internal", "1.0.0", PrivateSources);
@@ -157,8 +145,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithNuGetSourceAndCredentials_PassesTranslatedEnvVarToRestore()
-    {
+    public async Task InstallAsync_WithNuGetSourceAndCredentials_PassesTranslatedEnvVarToRestore() {
         var (installer, _, runner) = Build("kani", "glpat-secret");
 
         await installer.InstallAsync("project", "Acme.Internal", "1.0.0", PrivateSources);
@@ -171,8 +158,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_TwoAuthenticatedSources_PassesOneEnvVarEach()
-    {
+    public async Task InstallAsync_TwoAuthenticatedSources_PassesOneEnvVarEach() {
         var (installer, _, runner) = Build("kani", "glpat-secret");
         var sources = NuGetSourceSet.From(
         [
@@ -191,8 +177,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_CredentialFromTheStore_ReachesRestoreJustLikeAnEnvironmentOne()
-    {
+    public async Task InstallAsync_CredentialFromTheStore_ReachesRestoreJustLikeAnEnvironmentOne() {
         var (installer, _, runner) = Build(
             seed: store => store.Add("gitlab.example.com", "kani", "from-login"));
 
@@ -205,8 +190,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithNuGetSourceButNoCredentialsConfigured_RestoresWithoutCredentialEnv()
-    {
+    public async Task InstallAsync_WithNuGetSourceButNoCredentialsConfigured_RestoresWithoutCredentialEnv() {
         var (installer, _, runner) = Build();
 
         await installer.InstallAsync("project", "Acme.Internal", "1.0.0", PrivateSources);
@@ -215,8 +199,7 @@ public class DotnetInstallerTests
     }
 
     [Fact]
-    public async Task InstallAsync_NuGetConfigNeverContainsRawSecret()
-    {
+    public async Task InstallAsync_NuGetConfigNeverContainsRawSecret() {
         var (installer, fileSystem, _) = Build("kani", "glpat-secret");
 
         await installer.InstallAsync("project", "Acme.Internal", "1.0.0", PrivateSources);

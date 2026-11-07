@@ -16,33 +16,29 @@ namespace Dotquay.Tests.Git;
 /// file the test writes, not at whatever the developer running the suite has configured. Returns early, passing,
 /// without git (same convention as the other real-process tests).
 /// </remarks>
-public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable
-{
+public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable {
     private readonly string _root = Directory.CreateTempSubdirectory("dotquay-eol-real-").FullName;
 
-    public void Dispose()
-    {
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories))
-            {
+    public void Dispose() {
+        try {
+            foreach (var file in Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)) {
                 File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
             }
 
             Directory.Delete(_root, recursive: true);
-        }
-        catch
-        {
+        } catch {
             // Best effort.
         }
     }
 
-    private static (int Exit, string Out) Git(string dir, IReadOnlyDictionary<string, string> env, params string[] args)
-    {
-        var info = new ProcessStartInfo("git")
-        {
-            WorkingDirectory = dir, RedirectStandardOutput = true, RedirectStandardError = true,
-            RedirectStandardInput = true, UseShellExecute = false, CreateNoWindow = true,
+    private static (int Exit, string Out) Git(string dir, IReadOnlyDictionary<string, string> env, params string[] args) {
+        var info = new ProcessStartInfo("git") {
+            WorkingDirectory = dir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
         foreach (var a in args) info.ArgumentList.Add(a);
         foreach (var (k, v) in env) info.Environment[k] = v;
@@ -54,25 +50,22 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable
         return (p.ExitCode, o.Result);
     }
 
-    private static bool GitAvailable()
-    {
-        try { return Git(Path.GetTempPath(), new Dictionary<string, string>(), "--version").Exit == 0; }
-        catch { return false; }
+    private static bool GitAvailable() {
+        try { return Git(Path.GetTempPath(), new Dictionary<string, string>(), "--version").Exit == 0; } catch { return false; }
     }
 
-    private Dictionary<string, string> Machine(string name, string config)
-    {
+    private Dictionary<string, string> Machine(string name, string config) {
         var path = Path.Combine(_root, name + ".gitconfig");
         File.WriteAllText(path, "[user]\n\tname = t\n\temail = t@example.com\n" + config);
-        return new Dictionary<string, string>
-        {
-            ["GIT_CONFIG_GLOBAL"] = path, ["GIT_CONFIG_NOSYSTEM"] = "1", ["GIT_TERMINAL_PROMPT"] = "0",
+        return new Dictionary<string, string> {
+            ["GIT_CONFIG_GLOBAL"] = path,
+            ["GIT_CONFIG_NOSYSTEM"] = "1",
+            ["GIT_TERMINAL_PROMPT"] = "0",
         };
     }
 
     /// <summary>A bare repository whose commit holds LF text and a binary containing CRLF bytes and a NUL.</summary>
-    private (string Remote, string Sha) MakeRemote()
-    {
+    private (string Remote, string Sha) MakeRemote() {
         var author = Machine("author", "[core]\n\tautocrlf = false\n");
         var remote = Path.Combine(_root, "remote.git");
         var work = Path.Combine(_root, "work");
@@ -94,16 +87,14 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable
         return (remote, Git(work, author, "rev-parse", "HEAD").Out.Trim());
     }
 
-    private string Checkout(Dictionary<string, string> machine, string remote, string sha, string name)
-    {
+    private string Checkout(Dictionary<string, string> machine, string remote, string sha, string name) {
         var dest = Path.Combine(_root, name);
         new ProcessGitClient(machine).FetchCommitAsync(remote, sha, dest).GetAwaiter().GetResult();
         return Path.Combine(dest, "addons", "thing");
     }
 
     [Fact]
-    public void TheSameCommit_OnAWindowsStyleAndALinuxStyleMachine_HasDifferentBytesAndTheSameHash()
-    {
+    public void TheSameCommit_OnAWindowsStyleAndALinuxStyleMachine_HasDifferentBytesAndTheSameHash() {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
 
@@ -121,8 +112,7 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void AMachineThatChecksOutCrlfBecauseOfCoreEol_AgreesToo()
-    {
+    public void AMachineThatChecksOutCrlfBecauseOfCoreEol_AgreesToo() {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
 
@@ -135,8 +125,7 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void ALockfileWrittenOnEitherMachine_IsCleanOnTheOther_AndNeverRewritten()
-    {
+    public void ALockfileWrittenOnEitherMachine_IsCleanOnTheOther_AndNeverRewritten() {
         if (!GitAvailable()) return;
         var (remote, sha) = MakeRemote();
         var windows = Checkout(Machine("windows2", "[core]\n\tautocrlf = true\n"), remote, sha, "dest-w2");
@@ -158,11 +147,9 @@ public sealed class ProcessGitClientLineEndingsRealProcessTests : IDisposable
         Assert.Equal(recordedOnWindows, kept);
     }
 
-    private static void CopyDirectory(string from, string to)
-    {
+    private static void CopyDirectory(string from, string to) {
         Directory.CreateDirectory(to);
-        foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
-        {
+        foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories)) {
             var target = Path.Combine(to, Path.GetRelativePath(from, file));
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(file, target);

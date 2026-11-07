@@ -17,8 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// an explicit, single-addon decision an agent cannot reach by accident the way a bulk
 /// <c>update --force</c> could.
 /// </remarks>
-public sealed class DotquayPatchAbandonTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayPatchAbandonTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_patch_abandon";
 
     public override string Description =>
@@ -40,20 +39,17 @@ public sealed class DotquayPatchAbandonTool(IProjectScope scope, ProjectGate gat
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the addon whose patch to abandon.");
         }
 
         var workflow = McpInfrastructure.CreateWorkflow();
         var result = await workflow.AbandonPatchAsync(projectDirectory, name, force: true, cancellationToken);
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson

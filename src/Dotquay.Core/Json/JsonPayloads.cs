@@ -18,8 +18,7 @@ namespace Dotquay.Core.Json;
 /// plus a host is already useful to whoever gets hold of the output and useless to the person reading
 /// it — and this payload is the one most likely to be pasted into a bug report.
 /// </remarks>
-public sealed record LoginJson
-{
+public sealed record LoginJson {
     /// <summary>Entries touched or listed — scope and username only.</summary>
     public IReadOnlyList<CredentialEntryJson> Credentials { get; init; } = [];
 
@@ -35,8 +34,7 @@ public sealed record LoginJson
     public IReadOnlyList<string> Messages { get; init; } = [];
 }
 
-public sealed record CredentialEntryJson
-{
+public sealed record CredentialEntryJson {
     /// <summary><c>host</c> or <c>host/path/prefix</c> — the key the credential is stored under.</summary>
     public required string Scope { get; init; }
 
@@ -44,8 +42,7 @@ public sealed record CredentialEntryJson
 }
 
 /// <summary>Payload of <c>dotquay graph --json</c>.</summary>
-public sealed record GraphJson
-{
+public sealed record GraphJson {
     /// <summary><c>"lockfile"</c> (no network) or <c>"resolved"</c> (live walk).</summary>
     public required string Source { get; init; }
 
@@ -69,8 +66,7 @@ public sealed record GraphJson
     public bool HasConflicts { get; init; }
 }
 
-public sealed record GraphNodeJson
-{
+public sealed record GraphNodeJson {
     public required string Name { get; init; }
 
     public required string Git { get; init; }
@@ -118,8 +114,7 @@ public sealed record RequirementJson(string Requirer, string Kind, string Constr
 
 /// <summary>A concrete choice that would settle a conflict — shaped so the plugin can hand it
 /// straight back as <c>dotquay override</c> arguments without reinterpreting anything.</summary>
-public sealed record CandidateJson
-{
+public sealed record CandidateJson {
     /// <summary><c>"version"</c>, <c>"branch"</c>, or <c>"rev"</c>.</summary>
     public required string Kind { get; init; }
 
@@ -141,8 +136,7 @@ public sealed record CandidateJson
     public string? InstallAs { get; init; }
 }
 
-public sealed record ConflictJson
-{
+public sealed record ConflictJson {
     public required string Name { get; init; }
 
     /// <summary><c>"different_git_urls"</c>, <c>"disjoint_pins"</c>, <c>"no_common_version"</c>, or
@@ -156,8 +150,7 @@ public sealed record ConflictJson
     public IReadOnlyList<CandidateJson> Candidates { get; init; } = [];
 }
 
-public sealed record DotnetJson
-{
+public sealed record DotnetJson {
     public required string Name { get; init; }
 
     public string? Constraint { get; init; }
@@ -196,15 +189,13 @@ public sealed record DotnetJson
 }
 
 /// <summary>Payload of <c>dotquay list --json</c>.</summary>
-public sealed record ListJson
-{
+public sealed record ListJson {
     public IReadOnlyList<ListAddonJson> Addons { get; init; } = [];
 
     public IReadOnlyList<DotnetJson> Dotnet { get; init; } = [];
 }
 
-public sealed record ListAddonJson
-{
+public sealed record ListAddonJson {
     public required string Name { get; init; }
 
     public string? Version { get; init; }
@@ -219,8 +210,7 @@ public sealed record ListAddonJson
 }
 
 /// <summary>Payload of <c>dotquay status --json</c>.</summary>
-public sealed record StatusJson
-{
+public sealed record StatusJson {
     public IReadOnlyList<StatusEntryJson> Addons { get; init; } = [];
 
     /// <summary>True when every addon is <c>clean</c> or <c>patched</c> — the one flag a UI badge
@@ -236,8 +226,7 @@ public sealed record StatusJson
 public sealed record StatusEntryJson(string Name, string Status, StatusExplanationJson? Explanation = null);
 
 /// <summary>Why one addon reads as <c>modified</c>, and whether forcing would cost anything.</summary>
-public sealed record StatusExplanationJson
-{
+public sealed record StatusExplanationJson {
     /// <summary><c>safe_to_force</c> | <c>review_needed</c> | <c>unavailable</c>.</summary>
     public required string Verdict { get; init; }
 
@@ -262,8 +251,7 @@ public sealed record StatusExplanationJson
     public bool PatchCouldNotBeApplied { get; init; }
 }
 
-public sealed record StatusChangeCountsJson
-{
+public sealed record StatusChangeCountsJson {
     public int Content { get; init; }
 
     public int UidOnly { get; init; }
@@ -284,8 +272,7 @@ public sealed record StatusChangeCountsJson
 public sealed record StatusChangeJson(string Path, string Kind, string Class);
 
 /// <summary>Payload of <c>dotquay outdated --json</c>.</summary>
-public sealed record OutdatedJson
-{
+public sealed record OutdatedJson {
     public IReadOnlyList<OutdatedEntryJson> Addons { get; init; } = [];
 
     public IReadOnlyList<OutdatedEntryJson> Dotnet { get; init; } = [];
@@ -296,8 +283,7 @@ public sealed record OutdatedJson
 public sealed record OutdatedEntryJson(string Name, string Current, string? Latest, bool IsOutdated);
 
 /// <summary>Payload of <c>dotquay doctor --json</c>.</summary>
-public sealed record DoctorJson
-{
+public sealed record DoctorJson {
     public IReadOnlyList<DoctorIssueJson> Issues { get; init; } = [];
 
     public bool Healthy { get; init; }
@@ -308,8 +294,7 @@ public sealed record DoctorJson
     public DoctorTrustJson Trust { get; init; } = new();
 }
 
-public sealed record DoctorTrustJson
-{
+public sealed record DoctorTrustJson {
     public IReadOnlyList<string> TrustedHosts { get; init; } = [];
 
     public IReadOnlyList<DoctorAdoptedSourceJson> AdoptedSources { get; init; } = [];
@@ -337,8 +322,7 @@ public sealed record DoctorIssueJson(
 /// refresh, a preview is reported so a UI can ask. Sharing the shape would mean sharing the parser
 /// with code whose job is to react to changes that already happened.
 /// </remarks>
-public sealed record AddPreviewJson
-{
+public sealed record AddPreviewJson {
     /// <summary>The name <c>add</c> would write into <c>[addons.*]</c>.</summary>
     public required string Name { get; init; }
 
@@ -378,8 +362,7 @@ public sealed record AddPreviewJson
 
 /// <summary>dotquay's guess at an addon's subtree, and the evidence for it (SPEC.md §6,
 /// docs/DESIGN-v0.20-SUBTREE-GUESS.md §7).</summary>
-public sealed record SubtreeJson
-{
+public sealed record SubtreeJson {
     /// <summary>The subtree that was looked for and isn't there.</summary>
     public required string GuessedPath { get; init; }
 
@@ -403,8 +386,7 @@ public sealed record SubtreeJson
 }
 
 /// <summary>One addon the graph resolves to.</summary>
-public sealed record PreviewAddonJson
-{
+public sealed record PreviewAddonJson {
     public required string Name { get; init; }
 
     public required string Git { get; init; }
@@ -431,8 +413,7 @@ public sealed record PreviewAddonJson
     public IReadOnlyList<string> RequiredBy { get; init; } = [];
 }
 
-public sealed record PreviewDotnetJson
-{
+public sealed record PreviewDotnetJson {
     public required string Name { get; init; }
 
     public string? Constraint { get; init; }
@@ -445,8 +426,7 @@ public sealed record PreviewDotnetJson
 }
 
 /// <summary>A NuGet feed an addon in the graph declared (SPEC.md §11.3).</summary>
-public sealed record PreviewSourceJson
-{
+public sealed record PreviewSourceJson {
     public required string Name { get; init; }
 
     public required string Url { get; init; }
@@ -472,8 +452,7 @@ public sealed record PreviewSourceJson
 /// response to all of them is identical (report what moved, then refresh the graph), so six payload
 /// types would be six parsers earning nothing.
 /// </summary>
-public sealed record OperationJson
-{
+public sealed record OperationJson {
     public IReadOnlyList<ChangeJson> Changes { get; init; } = [];
 
     /// <summary>Human-readable lines the CLI would otherwise have printed in color — surfaced so a UI
@@ -482,8 +461,7 @@ public sealed record OperationJson
 }
 
 /// <summary>One thing an operation did.</summary>
-public sealed record ChangeJson
-{
+public sealed record ChangeJson {
     public required string Name { get; init; }
 
     /// <summary><c>"addon"</c> or <c>"dotnet"</c>.</summary>
@@ -509,14 +487,12 @@ public sealed record ChangeJson
 /// — it is the resolution rule (SPEC.md §11.1) — so the array is emitted in declared order and must
 /// not be sorted by any consumer that wants to explain which feed wins.
 /// </remarks>
-public sealed record SourceListJson
-{
+public sealed record SourceListJson {
     public IReadOnlyList<SourceJson> Sources { get; init; } = [];
 }
 
 /// <summary>One declared <c>[nuget.sources.*]</c> feed.</summary>
-public sealed record SourceJson
-{
+public sealed record SourceJson {
     public required string Name { get; init; }
 
     public required string Url { get; init; }
@@ -544,8 +520,7 @@ public sealed record SourceJson
 /// in its banner, and a consumer that only learned <c>update_available</c> would have to run
 /// <c>--version</c> separately to say anything useful.
 /// </remarks>
-public sealed record SelfCheckJson
-{
+public sealed record SelfCheckJson {
     public required string CurrentVersion { get; init; }
 
     /// <summary>Null when the channel has published nothing, which is distinct from "you are up to
@@ -569,8 +544,7 @@ public sealed record SelfCheckJson
 }
 
 /// <summary>Payload of <c>dotquay self update --json</c> and <c>self rollback --json</c> (v0.17).</summary>
-public sealed record SelfUpdateJson
-{
+public sealed record SelfUpdateJson {
     public required string From { get; init; }
 
     public required string To { get; init; }

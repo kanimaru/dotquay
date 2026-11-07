@@ -13,8 +13,7 @@ namespace Dotquay.Mcp.Logging;
 /// whose migration note is "log to stderr (stdio)". A failed request still reaches the client, as the
 /// error result of that request itself.
 /// </remarks>
-public sealed class RequestLog(TextWriter writer, bool ownsWriter) : IDisposable
-{
+public sealed class RequestLog(TextWriter writer, bool ownsWriter) : IDisposable {
     private readonly object _lock = new();
 
     public void WriteSuccess(string requestId, string method, TimeSpan duration) =>
@@ -28,18 +27,14 @@ public sealed class RequestLog(TextWriter writer, bool ownsWriter) : IDisposable
     /// <summary>Disposes the underlying writer only when this <see cref="RequestLog"/> owns it — the
     /// stderr fallback (no <c>--log</c> file given) must never close <see cref="Console.Error"/> for
     /// the rest of the process.</summary>
-    public void Dispose()
-    {
-        if (ownsWriter)
-        {
+    public void Dispose() {
+        if (ownsWriter) {
             writer.Dispose();
         }
     }
 
-    private void WriteLine(string line)
-    {
-        lock (_lock)
-        {
+    private void WriteLine(string line) {
+        lock (_lock) {
             writer.WriteLine(line);
             writer.Flush();
         }

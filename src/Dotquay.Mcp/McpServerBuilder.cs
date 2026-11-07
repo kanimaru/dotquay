@@ -27,10 +27,8 @@ namespace Dotquay.Mcp;
 /// only thing not exercised without a real published binary, which is what each phase's exit criterion
 /// (Inspector + a real AOT publish) covers instead (docs/DESIGN-v0.18-MCP.md §9).
 /// </remarks>
-public static class McpServerBuilder
-{
-    public static async Task RunStdioAsync(IReadOnlyList<string> projectRoots, string? logFile = null, CancellationToken cancellationToken = default)
-    {
+public static class McpServerBuilder {
+    public static async Task RunStdioAsync(IReadOnlyList<string> projectRoots, string? logFile = null, CancellationToken cancellationToken = default) {
         using var host = Configure(projectRoots, stdio: true, input: null, output: null, logFile);
         await host.RunAsync(cancellationToken);
     }
@@ -40,8 +38,7 @@ public static class McpServerBuilder
     public static IHost BuildForStreams(IReadOnlyList<string> projectRoots, Stream input, Stream output, string? logFile = null) =>
         Configure(projectRoots, stdio: false, input, output, logFile);
 
-    private static IHost Configure(IReadOnlyList<string> projectRoots, bool stdio, Stream? input, Stream? output, string? logFile)
-    {
+    private static IHost Configure(IReadOnlyList<string> projectRoots, bool stdio, Stream? input, Stream? output, string? logFile) {
         var builder = Host.CreateApplicationBuilder();
 
         // stdout is the wire (design doc §3.2): Host.CreateApplicationBuilder registers a console
@@ -62,8 +59,7 @@ public static class McpServerBuilder
         var requestLog = new RequestLog(logWriter, ownsLogWriter);
 
         var mcpBuilder = builder.Services
-            .AddMcpServer(options =>
-            {
+            .AddMcpServer(options => {
                 options.ServerInfo = new Implementation { Name = "dotquay", Version = DotquayVersion.Current };
             })
             .WithListToolsHandler(toolRegistry.ListAsync)
@@ -72,8 +68,7 @@ public static class McpServerBuilder
             .WithReadResourceHandler(resourceRegistry.ReadAsync)
             .WithListPromptsHandler(promptRegistry.ListAsync)
             .WithGetPromptHandler(promptRegistry.GetAsync)
-            .WithRequestFilters(filters =>
-            {
+            .WithRequestFilters(filters => {
                 // One filter per request kind this server actually handles (design doc §6): every
                 // request id, method, and duration goes to `requestLog`, win or lose. The protocol's
                 // Logging feature is deprecated as of 2026-07-28 (SEP-2577), so the log stays on the
@@ -90,12 +85,9 @@ public static class McpServerBuilder
                 filters.AddGetPromptFilter(RequestLoggingFilters.Create<GetPromptRequestParams, GetPromptResult>("prompts/get", requestLog));
             });
 
-        if (stdio)
-        {
+        if (stdio) {
             mcpBuilder.WithStdioServerTransport();
-        }
-        else
-        {
+        } else {
             mcpBuilder.WithStreamServerTransport(input!, output!);
         }
 
@@ -155,10 +147,8 @@ public static class McpServerBuilder
     /// whether <see cref="RequestLog"/> owns (and must dispose) the writer — never true for
     /// <see cref="Console.Error"/>, which the rest of the process still needs after this server
     /// stops.</summary>
-    private static (TextWriter Writer, bool OwnsWriter) OpenLogWriter(string? logFile)
-    {
-        if (string.IsNullOrWhiteSpace(logFile))
-        {
+    private static (TextWriter Writer, bool OwnsWriter) OpenLogWriter(string? logFile) {
+        if (string.IsNullOrWhiteSpace(logFile)) {
             return (Console.Error, false);
         }
 

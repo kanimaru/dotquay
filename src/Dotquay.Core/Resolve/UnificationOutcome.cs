@@ -9,10 +9,8 @@ namespace Dotquay.Core.Resolve;
 /// into a hard <see cref="AddonResolutionException"/>) and behind <c>dotquay graph</c> (which
 /// reports it as data so the editor plugin can offer a picker, SPEC.md §18).
 /// </summary>
-public sealed record UnificationOutcome
-{
-    private UnificationOutcome(ResolvedAddon? resolved, GraphConflict? conflict)
-    {
+public sealed record UnificationOutcome {
+    private UnificationOutcome(ResolvedAddon? resolved, GraphConflict? conflict) {
         Resolved = resolved;
         Conflict = conflict;
     }

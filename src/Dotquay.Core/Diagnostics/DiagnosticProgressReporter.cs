@@ -12,12 +12,10 @@ namespace Dotquay.Core.Diagnostics;
 /// the first. And unlike the spinner, which redraws one line and vanishes under <c>--json</c>, the
 /// log keeps every step, in order, with a timestamp.
 /// </remarks>
-public sealed class DiagnosticProgressReporter : IProgressReporter
-{
+public sealed class DiagnosticProgressReporter : IProgressReporter {
     private readonly IProgressReporter _inner;
 
-    public DiagnosticProgressReporter(IProgressReporter inner)
-    {
+    public DiagnosticProgressReporter(IProgressReporter inner) {
         _inner = inner;
     }
 
@@ -26,8 +24,7 @@ public sealed class DiagnosticProgressReporter : IProgressReporter
     public static IProgressReporter Wrap(IProgressReporter inner) =>
         DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose) ? new DiagnosticProgressReporter(inner) : inner;
 
-    public void Report(ProgressUpdate update)
-    {
+    public void Report(ProgressUpdate update) {
         DiagnosticLog.Write(DiagnosticLevel.Verbose, "step", $"{Counter(update)}{update.Message}");
         _inner.Report(update);
     }

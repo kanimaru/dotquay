@@ -11,8 +11,7 @@ namespace Dotquay.Core.Workflows;
 public sealed record UpdateResult(
     IReadOnlyList<AddonUpdateResult> Addons,
     IReadOnlyList<DotnetUpdateResult> Dotnet,
-    IReadOnlyList<string> Warnings)
-{
+    IReadOnlyList<string> Warnings) {
     /// <summary>Packages the sync left without a <c>PackageReference</c> because the project builds them
     /// from source (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md). Only packages the sync actually wrote are
     /// here: <c>update</c> leaves an unchanged package's <c>.csproj</c> entry alone either way.</summary>

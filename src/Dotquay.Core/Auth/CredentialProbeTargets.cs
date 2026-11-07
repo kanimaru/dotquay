@@ -16,8 +16,7 @@ namespace Dotquay.Core.Auth;
 /// <para>Order matters a little: NuGet feeds first, because that is what the token is most often
 /// for, then git remotes. The verifier stops at the first decisive answer.</para>
 /// </remarks>
-public static class CredentialProbeTargets
-{
+public static class CredentialProbeTargets {
     /// <summary>What git's smart HTTP protocol fetches first; a host that wants credentials answers
     /// it with 401, which is all the probe needs.</summary>
     public const string GitInfoRefsSuffix = "/info/refs?service=git-upload-pack";
@@ -26,22 +25,17 @@ public static class CredentialProbeTargets
     /// service indexes as they are, git remotes as their <c>info/refs</c> endpoint. ssh remotes and
     /// the public nuget.org feed contribute nothing — the former can't carry this credential, the
     /// latter never needs one.</summary>
-    public static IReadOnlyList<string> For(CredentialScope scope, ProjectManifest manifest)
-    {
+    public static IReadOnlyList<string> For(CredentialScope scope, ProjectManifest manifest) {
         var targets = new List<string>();
 
-        foreach (var source in manifest.NuGetSources)
-        {
-            if (!source.IsPublicDefault && IsCovered(scope, source.Url))
-            {
+        foreach (var source in manifest.NuGetSources) {
+            if (!source.IsPublicDefault && IsCovered(scope, source.Url)) {
                 targets.Add(source.Url);
             }
         }
 
-        foreach (var addon in manifest.Addons.Values)
-        {
-            if (IsCovered(scope, addon.Git))
-            {
+        foreach (var addon in manifest.Addons.Values) {
+            if (IsCovered(scope, addon.Git)) {
                 targets.Add(GitInfoRefsUrl(addon.Git));
             }
         }

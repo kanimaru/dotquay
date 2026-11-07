@@ -8,25 +8,20 @@ namespace Dotquay.Tests.Support;
 /// than returning a canned answer — the rule is the interesting part of the contract, and a fake
 /// that ignored it would let a resolver bug through while every test passed.
 /// </summary>
-public sealed class InMemoryCredentialStore : ICredentialStore
-{
+public sealed class InMemoryCredentialStore : ICredentialStore {
     private readonly Dictionary<string, (CredentialScope Scope, Credential Credential)> _entries = new(StringComparer.Ordinal);
 
-    public InMemoryCredentialStore Add(string scope, string username, string token)
-    {
+    public InMemoryCredentialStore Add(string scope, string username, string token) {
         Set(CredentialScope.Parse(scope), new Credential(username, token));
         return this;
     }
 
-    public Credential? Find(CredentialScope scope)
-    {
+    public Credential? Find(CredentialScope scope) {
         Credential? best = null;
         var bestSpecificity = -1;
 
-        foreach (var (entryScope, credential) in _entries.Values)
-        {
-            if (entryScope.Covers(scope) && entryScope.Specificity > bestSpecificity)
-            {
+        foreach (var (entryScope, credential) in _entries.Values) {
+            if (entryScope.Covers(scope) && entryScope.Specificity > bestSpecificity) {
                 best = credential;
                 bestSpecificity = entryScope.Specificity;
             }

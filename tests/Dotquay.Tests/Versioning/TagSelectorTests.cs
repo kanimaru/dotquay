@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Versioning;
 
-public class TagSelectorTests
-{
+public class TagSelectorTests {
     [Fact]
-    public void SelectHighestMatching_PicksHighestSatisfyingTag()
-    {
+    public void SelectHighestMatching_PicksHighestSatisfyingTag() {
         var refs = new[]
         {
             new GitRef("v1.5", "sha-a", GitRefKind.Tag),
@@ -25,8 +23,7 @@ public class TagSelectorTests
     }
 
     [Fact]
-    public void SelectHighestMatching_IgnoresBranchRefs()
-    {
+    public void SelectHighestMatching_IgnoresBranchRefs() {
         var refs = new[]
         {
             new GitRef("v9.9.9", "sha-branch-tricking-us", GitRefKind.Branch),
@@ -39,8 +36,7 @@ public class TagSelectorTests
     }
 
     [Fact]
-    public void SelectHighestMatching_SkipsUnparseableTagsWithoutThrowing()
-    {
+    public void SelectHighestMatching_SkipsUnparseableTagsWithoutThrowing() {
         var refs = new[]
         {
             new GitRef("not-a-version", "sha-a", GitRefKind.Tag),
@@ -55,8 +51,7 @@ public class TagSelectorTests
     }
 
     [Fact]
-    public void SelectHighestMatching_ReturnsNullWhenNothingMatches()
-    {
+    public void SelectHighestMatching_ReturnsNullWhenNothingMatches() {
         var refs = new[]
         {
             new GitRef("v9.0.0", "sha-a", GitRefKind.Tag),

@@ -5,15 +5,12 @@ namespace Dotquay.Core.Patch;
 /// an internal-consistency problem like a patch that no longer applies to its recorded base (as
 /// opposed to a normal 3-way merge conflict, which is data, not an exception — see
 /// <see cref="PatchMerger.Result"/>).</summary>
-public sealed class PatchException : Exception
-{
+public sealed class PatchException : Exception {
     public PatchException(string message)
-        : base(message)
-    {
+        : base(message) {
     }
 
     public PatchException(string message, Exception innerException)
-        : base(message, innerException)
-    {
+        : base(message, innerException) {
     }
 }

@@ -14,8 +14,7 @@ namespace Dotquay.Tests.Dotnet.SourceBuild;
 /// DESIGN-v0.26 §B: a package the project builds from source gets no PackageReference from any command, an
 /// existing one is removed (decision 1), and the lockfile, feeds and restore behave exactly as before.
 /// </summary>
-public class SourceBuiltInstallTests
-{
+public class SourceBuiltInstallTests {
     private const string ProjectDir = "project";
     private const string CsprojPath = "project/Game.csproj";
     private const string Package = "Acme.Core";
@@ -48,12 +47,10 @@ public class SourceBuiltInstallTests
     // --- the installer -------------------------------------------------------------------------------
 
     private static (DotnetInstaller Installer, InMemoryFileSystem FileSystem, FakeDotnetCliRunner Runner) BuildInstaller(
-        string csproj, bool withLibrary = true)
-    {
+        string csproj, bool withLibrary = true) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(CsprojPath, csproj);
-        if (withLibrary)
-        {
+        if (withLibrary) {
             fileSystem.WriteAllText("src/Acme.Core/Acme.Core.csproj", Library);
         }
 
@@ -62,8 +59,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Installer_SourceBuiltPackage_WritesNothing_ButStillRestoresAndLocks()
-    {
+    public async Task Installer_SourceBuiltPackage_WritesNothing_ButStillRestoresAndLocks() {
         var (installer, fileSystem, runner) = BuildInstaller(Consumer());
         var before = fileSystem.ReadAllText(CsprojPath);
 
@@ -78,8 +74,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Installer_SourceBuiltPackage_RemovesAnExistingDuplicate_AndKeepsTheProjectReference()
-    {
+    public async Task Installer_SourceBuiltPackage_RemovesAnExistingDuplicate_AndKeepsTheProjectReference() {
         var (installer, fileSystem, _) = BuildInstaller(Consumer(Duplicate));
 
         var outcome = await installer.InstallWithOutcomeAsync(ProjectDir, Package, "0.7.20", restore: false);
@@ -91,8 +86,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Installer_PlainInstallAsync_StillReturnsTheSameLockEntry()
-    {
+    public async Task Installer_PlainInstallAsync_StillReturnsTheSameLockEntry() {
         var (installer, _, _) = BuildInstaller(Consumer());
 
         var locked = await installer.InstallAsync(ProjectDir, Package, "0.7.20", restore: false);
@@ -102,8 +96,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Installer_ConditionalReference_StillWritesThePackageReference()
-    {
+    public async Task Installer_ConditionalReference_StillWritesThePackageReference() {
         var (installer, fileSystem, _) = BuildInstaller(Consumer(referenceAttributes: " Condition=\"'$(Configuration)' == 'Debug'\""));
 
         var outcome = await installer.InstallWithOutcomeAsync(ProjectDir, Package, "0.7.20", restore: false);
@@ -113,8 +106,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Installer_ReferencedProjectMissing_StillWritesThePackageReference()
-    {
+    public async Task Installer_ReferencedProjectMissing_StillWritesThePackageReference() {
         var (installer, fileSystem, _) = BuildInstaller(Consumer(), withLibrary: false);
 
         var outcome = await installer.InstallWithOutcomeAsync(ProjectDir, Package, "0.7.20", restore: false);
@@ -124,8 +116,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Installer_OtherPackages_AreUnaffected()
-    {
+    public async Task Installer_OtherPackages_AreUnaffected() {
         var (installer, fileSystem, _) = BuildInstaller(Consumer());
 
         var outcome = await installer.InstallWithOutcomeAsync(ProjectDir, "Newtonsoft.Json", "13.0.3", restore: false);
@@ -135,8 +126,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public void Describe_NamesTheReferenceAndTheSourceVersion_InBothForms()
-    {
+    public void Describe_NamesTheReferenceAndTheSourceVersion_InBothForms() {
         var provider = new SourceReference(Include, "src/Acme.Core/Acme.Core.csproj", null, new ProjectIdentity(Package, "0.7.50"));
 
         Assert.Equal(
@@ -149,8 +139,7 @@ public class SourceBuiltInstallTests
 
     // --- through the workflow ------------------------------------------------------------------------
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient NuGet) BuildWorkflow(string csproj)
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClient NuGet) BuildWorkflow(string csproj) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\n");
         fileSystem.WriteAllText(CsprojPath, csproj);
@@ -169,8 +158,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Add_SourceBuiltPackage_IsDeclaredAndLocked_ButNotReferenced()
-    {
+    public async Task Add_SourceBuiltPackage_IsDeclaredAndLocked_ButNotReferenced() {
         var (workflow, fileSystem, _) = BuildWorkflow(Consumer());
         var before = fileSystem.ReadAllText(CsprojPath);
 
@@ -183,8 +171,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Install_Twice_LeavesTheCsprojByteIdentical_AndSaysWhyEachTime()
-    {
+    public async Task Install_Twice_LeavesTheCsprojByteIdentical_AndSaysWhyEachTime() {
         var (workflow, fileSystem, _) = BuildWorkflow(Consumer());
         await workflow.DeclareDotnetAsync(ProjectDir, Package, "0.7.20");
         var before = fileSystem.ReadAllText(CsprojPath);
@@ -199,8 +186,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Install_RepairsADuplicateOnce_ThenReportsNothingRemoved()
-    {
+    public async Task Install_RepairsADuplicateOnce_ThenReportsNothingRemoved() {
         // vbeami's case: the PackageReference an older dotquay re-added beside the ProjectReference.
         var (workflow, fileSystem, _) = BuildWorkflow(Consumer());
         await workflow.DeclareDotnetAsync(ProjectDir, Package, "0.7.20");
@@ -215,8 +201,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Install_NotesReachTheJsonMessages_TheFieldThePluginShows()
-    {
+    public async Task Install_NotesReachTheJsonMessages_TheFieldThePluginShows() {
         var (workflow, _, _) = BuildWorkflow(Consumer());
         await workflow.DeclareDotnetAsync(ProjectDir, Package, "0.7.20");
 
@@ -227,8 +212,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Update_WithAVersionChange_ReportsTheSourceBuild_AndWritesNoReference()
-    {
+    public async Task Update_WithAVersionChange_ReportsTheSourceBuild_AndWritesNoReference() {
         var (workflow, fileSystem, nuGet) = BuildWorkflow(Consumer());
         await workflow.DeclareDotnetAsync(ProjectDir, Package, "^0.7.20");
         nuGet.VersionsByPackageId[Package] = ["0.7.20", "0.7.21"];
@@ -242,8 +226,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Update_WithNothingNew_LeavesTheCsprojAlone_AndHasNothingToReport()
-    {
+    public async Task Update_WithNothingNew_LeavesTheCsprojAlone_AndHasNothingToReport() {
         var (workflow, fileSystem, _) = BuildWorkflow(Consumer());
         await workflow.DeclareDotnetAsync(ProjectDir, Package, "0.7.20");
         var before = fileSystem.ReadAllText(CsprojPath);
@@ -255,8 +238,7 @@ public class SourceBuiltInstallTests
     }
 
     [Fact]
-    public async Task Remove_SourceBuiltPackage_NeverTouchesTheProjectReference()
-    {
+    public async Task Remove_SourceBuiltPackage_NeverTouchesTheProjectReference() {
         var (workflow, fileSystem, _) = BuildWorkflow(Consumer());
         await workflow.DeclareDotnetAsync(ProjectDir, Package, "0.7.20");
 

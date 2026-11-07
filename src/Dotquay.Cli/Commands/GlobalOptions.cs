@@ -13,10 +13,8 @@ namespace Dotquay.Cli.Commands;
 /// something a GUI can rely on portably. Defaulting to the current directory keeps every existing
 /// shell invocation byte-identical in behaviour.
 /// </remarks>
-internal static class GlobalOptions
-{
-    public static readonly Option<string?> ProjectDirectory = new("--project", "-C")
-    {
+internal static class GlobalOptions {
+    public static readonly Option<string?> ProjectDirectory = new("--project", "-C") {
         Description = "Project directory to operate on. Defaults to the current directory.",
         Recursive = true,
     };
@@ -31,16 +29,14 @@ internal static class GlobalOptions
     /// only: <c>--json</c> output and <c>dotquay mcp</c>'s stdout stay byte-identical with or without
     /// it.
     /// </remarks>
-    public static readonly Option<bool> Verbose = new("--verbose", "-v")
-    {
+    public static readonly Option<bool> Verbose = new("--verbose", "-v") {
         Description = "Log what dotquay is doing (git/dotnet commands, HTTP requests, steps, file operations) "
             + "to stderr for debugging. Also: DOTQUAY_VERBOSE=1.",
         Recursive = true,
     };
 
     /// <summary><see cref="Verbose"/> plus each subprocess's captured output and every file write.</summary>
-    public static readonly Option<bool> Trace = new("--trace")
-    {
+    public static readonly Option<bool> Trace = new("--trace") {
         Description = "Like --verbose, plus the output of every git/dotnet command and every file write. "
             + "Also: DOTQUAY_VERBOSE=trace.",
         Recursive = true,
@@ -48,8 +44,7 @@ internal static class GlobalOptions
 
     /// <summary>Always returns an absolute path: a relative <c>--project</c> resolved against a
     /// caller's unknown working directory is exactly the ambiguity this option exists to remove.</summary>
-    public static string Resolve(ParseResult parseResult)
-    {
+    public static string Resolve(ParseResult parseResult) {
         var value = parseResult.GetValue(ProjectDirectory);
         return string.IsNullOrWhiteSpace(value)
             ? Directory.GetCurrentDirectory()

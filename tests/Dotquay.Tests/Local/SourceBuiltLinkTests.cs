@@ -8,15 +8,13 @@ namespace Dotquay.Tests.Local;
 /// DESIGN-v0.26 §E, decision 3: a dotnet link is refused for a package the .csproj already builds from
 /// source, conditional or not, and nothing is written when it is.
 /// </summary>
-public class SourceBuiltLinkTests
-{
+public class SourceBuiltLinkTests {
     private const string ProjectDirectory = "project";
     private const string Package = "Acme.Core";
     private const string Checkout = "elsewhere/acme-core";
     private const string Include = @"..\src\Acme.Core\Acme.Core.csproj";
 
-    private static InMemoryFileSystem Build(string referenceAttributes = "", bool withProjectReference = true)
-    {
+    private static InMemoryFileSystem Build(string referenceAttributes = "", bool withProjectReference = true) {
         var fileSystem = new InMemoryFileSystem();
         var reference = withProjectReference
             ? $"""<ItemGroup><ProjectReference Include="{Include}"{referenceAttributes} /></ItemGroup>"""
@@ -33,8 +31,7 @@ public class SourceBuiltLinkTests
     }
 
     [Fact]
-    public void Link_PackageBuiltFromSource_IsRefused_NamingTheReference()
-    {
+    public void Link_PackageBuiltFromSource_IsRefused_NamingTheReference() {
         var fileSystem = Build();
 
         var ex = Assert.Throws<LocalLinkException>(() => new LocalLinks(fileSystem).SetDotnet(ProjectDirectory, Package, Checkout, analyzer: false));
@@ -45,8 +42,7 @@ public class SourceBuiltLinkTests
     }
 
     [Fact]
-    public void Link_PackageBuiltFromSourceConditionally_IsRefusedToo_AndSaysWhen()
-    {
+    public void Link_PackageBuiltFromSourceConditionally_IsRefusedToo_AndSaysWhen() {
         var fileSystem = Build(referenceAttributes: " Condition=\"'$(Configuration)' == 'Debug'\"");
 
         var ex = Assert.Throws<LocalLinkException>(() => new LocalLinks(fileSystem).SetDotnet(ProjectDirectory, Package, Checkout, analyzer: false));
@@ -55,8 +51,7 @@ public class SourceBuiltLinkTests
     }
 
     [Fact]
-    public void Link_RefusalComesBeforeThePathIsChecked()
-    {
+    public void Link_RefusalComesBeforeThePathIsChecked() {
         // No path makes this link safe, so a missing checkout must not be the error the user sees first.
         var fileSystem = Build();
 
@@ -66,8 +61,7 @@ public class SourceBuiltLinkTests
     }
 
     [Fact]
-    public void Link_OtherPackage_IsUnaffected()
-    {
+    public void Link_OtherPackage_IsUnaffected() {
         var fileSystem = Build();
         var links = new LocalLinks(fileSystem);
 
@@ -77,8 +71,7 @@ public class SourceBuiltLinkTests
     }
 
     [Fact]
-    public void Link_WithoutAProjectReference_WorksAsBefore()
-    {
+    public void Link_WithoutAProjectReference_WorksAsBefore() {
         var fileSystem = Build(withProjectReference: false);
         var links = new LocalLinks(fileSystem);
 

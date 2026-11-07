@@ -14,11 +14,9 @@ namespace Dotquay.Core.Dotnet;
 /// quietly resolving the package from a public feed instead is the substitution ordered resolution
 /// exists to prevent (SPEC.md §11.1).</para>
 /// </remarks>
-public sealed class NuGetSourceException : Exception
-{
+public sealed class NuGetSourceException : Exception {
     public NuGetSourceException(string sourceName, string sourceUrl, string message, Exception? innerException = null)
-        : base(message, innerException)
-    {
+        : base(message, innerException) {
         SourceName = sourceName;
         SourceUrl = sourceUrl;
     }

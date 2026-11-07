@@ -19,8 +19,7 @@ namespace Dotquay.Tests.Local;
 /// quietly using the published package — no error, no warning, wrong answer. That ordering is this
 /// feature's equivalent of the addon link's "never recurse through a directory link" rule.
 /// </remarks>
-public class LocalTargetsTests
-{
+public class LocalTargetsTests {
     private const string ProjectDirectory = "project";
     private const string GeneratorDirectory = "elsewhere/generator";
     private const string PackageId = "dev.kani.godot.generator";
@@ -36,8 +35,7 @@ public class LocalTargetsTests
         </Project>
         """;
 
-    private static InMemoryFileSystem Build()
-    {
+    private static InMemoryFileSystem Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "Game.csproj"), Csproj);
         fileSystem.WriteAllText(
@@ -48,8 +46,7 @@ public class LocalTargetsTests
     private static string OverlayPath(InMemoryFileSystem fileSystem) =>
         fileSystem.CombinePath(ProjectDirectory, LocalTargetsWriter.FileName);
 
-    private static IReadOnlyDictionary<string, DotnetLink> Linked(InMemoryFileSystem fileSystem, bool analyzer)
-    {
+    private static IReadOnlyDictionary<string, DotnetLink> Linked(InMemoryFileSystem fileSystem, bool analyzer) {
         var links = new LocalLinks(fileSystem);
         links.SetDotnet(ProjectDirectory, PackageId, GeneratorDirectory, analyzer);
         return links.ReadDotnet(ProjectDirectory);
@@ -58,8 +55,7 @@ public class LocalTargetsTests
     // ---- schema -----------------------------------------------------------
 
     [Fact]
-    public void SetDotnet_AFolder_StoresTheProjectFileInside()
-    {
+    public void SetDotnet_AFolder_StoresTheProjectFileInside() {
         var fileSystem = Build();
 
         var link = Linked(fileSystem, analyzer: true)[PackageId];
@@ -71,8 +67,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void SetDotnet_ACsprojDirectly_IsAlsoAccepted()
-    {
+    public void SetDotnet_ACsprojDirectly_IsAlsoAccepted() {
         var fileSystem = Build();
         var links = new LocalLinks(fileSystem);
 
@@ -82,8 +77,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void SetDotnet_SomethingThatIsNeither_IsRefused()
-    {
+    public void SetDotnet_SomethingThatIsNeither_IsRefused() {
         var fileSystem = Build();
         var links = new LocalLinks(fileSystem);
 
@@ -92,8 +86,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void ReadAll_AddonAndDotnetLinks_AreKeptApart()
-    {
+    public void ReadAll_AddonAndDotnetLinks_AreKeptApart() {
         var fileSystem = Build();
         fileSystem.WriteAllText(fileSystem.CombinePath("elsewhere/my-addon", "plugin.cfg"), "[plugin]");
 
@@ -109,8 +102,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void ReadAll_TheV06FlatShape_StillReadsAsAnAddonLink()
-    {
+    public void ReadAll_TheV06FlatShape_StillReadsAsAnAddonLink() {
         var fileSystem = Build();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, LocalLinks.FileName), """
             [link.my-addon]
@@ -126,8 +118,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void SetDotnet_ADottedPackageId_SurvivesARoundTrip()
-    {
+    public void SetDotnet_ADottedPackageId_SurvivesARoundTrip() {
         var fileSystem = Build();
         var links = new LocalLinks(fileSystem);
 
@@ -141,8 +132,7 @@ public class LocalTargetsTests
     // ---- the overlay ------------------------------------------------------
 
     [Fact]
-    public void Sync_WritesTheSwap()
-    {
+    public void Sync_WritesTheSwap() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -153,8 +143,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_AnAnalyzerLink_CarriesBothAttributes()
-    {
+    public void Sync_AnAnalyzerLink_CarriesBothAttributes() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -167,8 +156,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_APlainLibraryLink_CarriesNeither()
-    {
+    public void Sync_APlainLibraryLink_CarriesNeither() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: false));
@@ -180,8 +168,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_LeavesTheCommittedCsprojAlmostAlone()
-    {
+    public void Sync_LeavesTheCommittedCsprojAlmostAlone() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -194,8 +181,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheImportHook_ComesAfterThePackageReferences()
-    {
+    public void Sync_TheImportHook_ComesAfterThePackageReferences() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -213,8 +199,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Install_AfterLink_KeepsTheImportHookBelowTheNewPackageReference()
-    {
+    public void Install_AfterLink_KeepsTheImportHookBelowTheNewPackageReference() {
         // The other direction: link first, into a project with no PackageReference ItemGroup yet, then
         // install writes the reference. The writer's new ItemGroup must not land below the hook.
         var fileSystem = new InMemoryFileSystem();
@@ -242,8 +227,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_RunTwice_DoesNotDuplicateTheHook()
-    {
+    public void Sync_RunTwice_DoesNotDuplicateTheHook() {
         var fileSystem = Build();
         var links = Linked(fileSystem, analyzer: true);
 
@@ -255,8 +239,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_OverAnOverlayFromBeforeTheStagingTarget_ReplacesItWhole()
-    {
+    public void Sync_OverAnOverlayFromBeforeTheStagingTarget_ReplacesItWhole() {
         // Every command that reaches DependencyWorkflow.SyncLocalTargets (install, add, update, and
         // so link/unlink, which end in an install) rewrites the overlay wholesale. An existing user
         // therefore gets the staging target on their next such command, without relinking.
@@ -272,8 +255,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_NoLinks_DeletesTheOverlayButKeepsTheHook()
-    {
+    public void Sync_NoLinks_DeletesTheOverlayButKeepsTheHook() {
         var fileSystem = Build();
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
@@ -288,8 +270,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_NoLinksAndNoCsproj_IsANoOp()
-    {
+    public void Sync_NoLinksAndNoCsproj_IsANoOp() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), "");
 
@@ -317,8 +298,7 @@ public class LocalTargetsTests
                 .SelectMany(e => e.Attributes().Select(a => a.Value).Append(e.Value)));
 
     [Fact]
-    public void Sync_AnAnalyzerLink_CarriesTheStagingTarget()
-    {
+    public void Sync_AnAnalyzerLink_CarriesTheStagingTarget() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -333,8 +313,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_APlainLibraryLink_HasNoStagingTarget()
-    {
+    public void Sync_APlainLibraryLink_HasNoStagingTarget() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: false));
@@ -345,8 +324,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_OneAnalyzerAmongPlainLinks_StillEmitsExactlyOneTarget()
-    {
+    public void Sync_OneAnalyzerAmongPlainLinks_StillEmitsExactlyOneTarget() {
         var fileSystem = Build();
         var links = new LocalLinks(fileSystem);
         links.SetDotnet(ProjectDirectory, PackageId, GeneratorDirectory, analyzer: true);
@@ -360,8 +338,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheStagedCopy_KeepsTheAnalyzersOwnFileName()
-    {
+    public void Sync_TheStagedCopy_KeepsTheAnalyzersOwnFileName() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -376,8 +353,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheStagedCopy_TakesTheAnalyzersNeighboursWithIt()
-    {
+    public void Sync_TheStagedCopy_TakesTheAnalyzersNeighboursWithIt() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -390,8 +366,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_PackageAndSdkAnalyzers_AreLeftWhereTheyAre()
-    {
+    public void Sync_PackageAndSdkAnalyzers_AreLeftWhereTheyAre() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -404,8 +379,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheStagingTarget_SwapsTheAnalyzerItemForTheCopy()
-    {
+    public void Sync_TheStagingTarget_SwapsTheAnalyzerItemForTheCopy() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -418,8 +392,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheStageRoot_IsResolvedInsideTheTarget()
-    {
+    public void Sync_TheStageRoot_IsResolvedInsideTheTarget() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -434,8 +407,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_StaleStagedDirectories_AreSweptButNotTheCurrentOnes()
-    {
+    public void Sync_StaleStagedDirectories_AreSweptButNotTheCurrentOnes() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -449,8 +421,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheSweep_SaysNothingAboutADirectoryAHostStillHolds()
-    {
+    public void Sync_TheSweep_SaysNothingAboutADirectoryAHostStillHolds() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -475,8 +446,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_TheStagingTarget_StaysOutOfTheCommittedCsproj()
-    {
+    public void Sync_TheStagingTarget_StaysOutOfTheCommittedCsproj() {
         var fileSystem = Build();
 
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
@@ -489,8 +459,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public void Sync_UnlinkingTheAnalyzer_TakesTheStagingWithIt()
-    {
+    public void Sync_UnlinkingTheAnalyzer_TakesTheStagingWithIt() {
         var fileSystem = Build();
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
@@ -504,8 +473,7 @@ public class LocalTargetsTests
 
     // ---- doctor -----------------------------------------------------------
 
-    private static async Task<IReadOnlyList<DoctorIssue>> DoctorAsync(InMemoryFileSystem fileSystem)
-    {
+    private static async Task<IReadOnlyList<DoctorIssue>> DoctorAsync(InMemoryFileSystem fileSystem) {
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), $"""
             [dotnet."{PackageId}"]
             version = "1.0.0"
@@ -523,8 +491,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public async Task Doctor_ALinkWhoseProjectIsGone_IsReported()
-    {
+    public async Task Doctor_ALinkWhoseProjectIsGone_IsReported() {
         var fileSystem = Build();
         var link = Linked(fileSystem, analyzer: true)[PackageId];
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, new Dictionary<string, DotnetLink> { [PackageId] = link });
@@ -538,8 +505,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public async Task Doctor_AnOverlayNobodyImports_IsReported()
-    {
+    public async Task Doctor_AnOverlayNobodyImports_IsReported() {
         var fileSystem = Build();
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 
@@ -554,8 +520,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public async Task Doctor_AMalformedLocalFile_FailsLikeABrokenLockfile()
-    {
+    public async Task Doctor_AMalformedLocalFile_FailsLikeABrokenLockfile() {
         var fileSystem = Build();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, LocalLinks.FileName), "this is [ not toml\n");
 
@@ -569,8 +534,7 @@ public class LocalTargetsTests
     }
 
     [Fact]
-    public async Task Doctor_AHealthyLink_IsClean()
-    {
+    public async Task Doctor_AHealthyLink_IsClean() {
         var fileSystem = Build();
         LocalTargetsWriter.Sync(fileSystem, ProjectDirectory, Linked(fileSystem, analyzer: true));
 

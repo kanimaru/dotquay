@@ -15,8 +15,7 @@ namespace Dotquay.Mcp.Tools;
 /// <remarks>A pure manifest edit, same as <see cref="DotquayOverrideSetTool"/> — no follow-on resync.
 /// Clearing an override may resurface the conflict it was hiding; that's the point of an override
 /// being a decision the user can take back.</remarks>
-public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_override_clear";
 
     public override string Description =>
@@ -39,12 +38,10 @@ public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate ga
         """).RootElement;
 
     protected override ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var name = McpArgs.GetString(arguments, "name");
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
+        if (string.IsNullOrWhiteSpace(name)) {
             return ValueTask.FromResult(McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'name' is required: the override to remove."));
         }
 
@@ -55,8 +52,7 @@ public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate ga
             ? $"Removed [overrides.{result.Name}]. Call dotquay_update to apply the change."
             : $"[overrides.{result.Name}] didn't exist — nothing to do.";
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson

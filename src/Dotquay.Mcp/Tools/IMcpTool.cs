@@ -15,8 +15,7 @@ namespace Dotquay.Mcp.Tools;
 /// object <see cref="Tools.ToolRegistry"/> can enumerate and dispatch to by name — no attribute
 /// scanning, ever.
 /// </remarks>
-public interface IMcpTool
-{
+public interface IMcpTool {
     /// <summary>The wire name a client calls, e.g. <c>"dotquay_status"</c>.</summary>
     string Name { get; }
 

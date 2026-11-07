@@ -12,8 +12,7 @@ public sealed record StoredCredential(string Scope, string Username);
 
 /// <summary>Where a resolved credential came from. Reported by <c>doctor</c> so "which token is this
 /// actually using?" has an answer that isn't "read the source".</summary>
-public enum CredentialOrigin
-{
+public enum CredentialOrigin {
     /// <summary>No credential — the request goes out anonymous.</summary>
     None,
 
@@ -33,8 +32,7 @@ public enum CredentialOrigin
 }
 
 /// <summary>The outcome of a credential lookup: what to send, and where it came from.</summary>
-public sealed record CredentialLookup(Credential? Credential, CredentialOrigin Origin)
-{
+public sealed record CredentialLookup(Credential? Credential, CredentialOrigin Origin) {
     public static readonly CredentialLookup Anonymous = new(null, CredentialOrigin.None);
 
     public bool IsAuthenticated => Credential is not null;

@@ -18,13 +18,11 @@ namespace Dotquay.Tests.Resolve;
 /// nothing, anywhere, said a word. The resolution behaviour was correct (only the extracted subtree
 /// exists from a consumer's point of view); the silence was not. These tests pin the noise.
 /// </remarks>
-public class GraphWarningTests
-{
+public class GraphWarningTests {
     private const string LeafUrl = "https://example.com/leaf.git";
     private const string ChildUrl = "https://example.com/child.git";
 
-    private static (DependencyGraphResolver Resolver, FakeGitClient GitClient) Build()
-    {
+    private static (DependencyGraphResolver Resolver, FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         var cache = new RepoCache(fileSystem, gitClient, "cache");
@@ -43,11 +41,9 @@ public class GraphWarningTests
 
     /// <summary>The real-world layout: addon subtree at <c>godot/addons/leaf</c>, manifest one level
     /// up at <c>godot/dotquay.toml</c> where a consumer will never see it.</summary>
-    private static AddonSpec SetUpMisplacedManifest(FakeGitClient gitClient)
-    {
+    private static AddonSpec SetUpMisplacedManifest(FakeGitClient gitClient) {
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["godot/addons/leaf/plugin.cfg"] = "cfg",
             ["godot/dotquay.toml"] = $"""
                 [project]
@@ -68,14 +64,11 @@ public class GraphWarningTests
     /// <summary>Two addons that both declare the same analyzer package, with the asset metadata each
     /// one's author chose.</summary>
     private static AddonSpec[] SetUpTwoAddonsDeclaring(
-        FakeGitClient gitClient, string alphaPrivateAssets, string betaPrivateAssets)
-    {
+        FakeGitClient gitClient, string alphaPrivateAssets, string betaPrivateAssets) {
         foreach (var (name, url, privateAssets) in
-            new[] { ("alpha", AlphaUrl, alphaPrivateAssets), ("beta", BetaUrl, betaPrivateAssets) })
-        {
+            new[] { ("alpha", AlphaUrl, alphaPrivateAssets), ("beta", BetaUrl, betaPrivateAssets) }) {
             SetTags(gitClient, url, "v1.0.0");
-            gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string>
-            {
+            gitClient.FetchedFilesByUrl[url] = new Dictionary<string, string> {
                 [$"addons/{name}/plugin.cfg"] = "cfg",
                 [$"addons/{name}/dotquay.toml"] = $"""
                     [package]
@@ -96,8 +89,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_AddonsDisagreeingOnAssetMetadata_Warns()
-    {
+    public async Task AnalyzeGraphAsync_AddonsDisagreeingOnAssetMetadata_Warns() {
         var (resolver, gitClient) = Build();
         var specs = SetUpTwoAddonsDeclaring(gitClient, "\"all\"", "\"none\"");
 
@@ -113,8 +105,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_AddonsAgreeingOnAssetMetadata_IsSilent()
-    {
+    public async Task AnalyzeGraphAsync_AddonsAgreeingOnAssetMetadata_IsSilent() {
         var (resolver, gitClient) = Build();
         var specs = SetUpTwoAddonsDeclaring(gitClient, "\"none\"", "\"none\"");
 
@@ -126,8 +117,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_Warns()
-    {
+    public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_Warns() {
         var (resolver, gitClient) = Build();
         var spec = SetUpMisplacedManifest(gitClient);
 
@@ -139,8 +129,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_NamesBothPlaces()
-    {
+    public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_NamesBothPlaces() {
         var (resolver, gitClient) = Build();
         var spec = SetUpMisplacedManifest(gitClient);
 
@@ -153,8 +142,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_StillResolvesTheAddonAsALeaf()
-    {
+    public async Task AnalyzeGraphAsync_ManifestOutsideTheSubtree_StillResolvesTheAddonAsALeaf() {
         var (resolver, gitClient) = Build();
         var spec = SetUpMisplacedManifest(gitClient);
 
@@ -169,12 +157,10 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_TrailingSlashOnPath_DoesNotDefeatTheSubtreeCheck()
-    {
+    public async Task AnalyzeGraphAsync_TrailingSlashOnPath_DoesNotDefeatTheSubtreeCheck() {
         var (resolver, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
             ["addons/leaf/dotquay.toml"] = """
                 [package]
@@ -194,12 +180,10 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_ManifestInsideTheSubtreeWithNoPackageHeader_Warns()
-    {
+    public async Task AnalyzeGraphAsync_ManifestInsideTheSubtreeWithNoPackageHeader_Warns() {
         var (resolver, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
             // Moved into the right folder, but still a [project] manifest — the exact halfway state
             // someone lands in when they fix the location and not the header.
@@ -223,13 +207,11 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_ValidPackageManifest_WarnsAboutNothing()
-    {
+    public async Task AnalyzeGraphAsync_ValidPackageManifest_WarnsAboutNothing() {
         var (resolver, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
         SetTags(gitClient, ChildUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
             ["addons/leaf/dotquay.toml"] = $"""
                 [package]
@@ -253,12 +235,10 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_ThirdPartyAddonWithNoManifestAnywhere_WarnsAboutNothing()
-    {
+    public async Task AnalyzeGraphAsync_ThirdPartyAddonWithNoManifestAnywhere_WarnsAboutNothing() {
         var (resolver, gitClient) = Build();
         SetTags(gitClient, LeafUrl, "v1.0.0");
-        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[LeafUrl] = new Dictionary<string, string> {
             ["addons/leaf/plugin.cfg"] = "cfg",
         };
 
@@ -273,8 +253,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_CarriesWarningsToTheInstallPath()
-    {
+    public async Task ResolveGraphAsync_CarriesWarningsToTheInstallPath() {
         var (resolver, gitClient) = Build();
         var spec = SetUpMisplacedManifest(gitClient);
 
@@ -297,11 +276,9 @@ public class GraphWarningTests
     /// <summary>The real incident: vrm-addon moved its plugin into <c>addons/vrm</c> and turned its
     /// root into a project, while vbeami's package manifest kept declaring it with the path from
     /// before the move.</summary>
-    private static AddonSpec SetUpProjectRootDependency(FakeGitClient gitClient, string declaredPath = ".")
-    {
+    private static AddonSpec SetUpProjectRootDependency(FakeGitClient gitClient, string declaredPath = ".") {
         SetTags(gitClient, VbeamiUrl, "v0.7.22");
-        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string> {
             ["godot/addons/vbeami/plugin.cfg"] = "cfg",
             ["godot/addons/vbeami/dotquay.toml"] = $"""
                 [package]
@@ -315,8 +292,7 @@ public class GraphWarningTests
         };
 
         gitClient.BranchTips[(VrmUrl, "main")] = VrmSha;
-        gitClient.FetchedFilesByUrl[VrmUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[VrmUrl] = new Dictionary<string, string> {
             ["project.godot"] = "config_version=5",
             ["dotquay.toml"] = """
                 [project]
@@ -330,8 +306,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_Warns()
-    {
+    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_Warns() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient);
 
@@ -343,8 +318,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_NamesTheDeclaringManifestAndTheRealPath()
-    {
+    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_NamesTheDeclaringManifestAndTheRealPath() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient);
 
@@ -360,8 +334,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_OffersAnOverrideOnTheDeclaredBranch()
-    {
+    public async Task AnalyzeGraphAsync_TransitiveSubtreeIsAGodotProject_OffersAnOverrideOnTheDeclaredBranch() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient);
 
@@ -373,8 +346,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_SubtreeIsAGodotProject_DoesNotAlsoWarnAboutItsProjectManifest()
-    {
+    public async Task AnalyzeGraphAsync_SubtreeIsAGodotProject_DoesNotAlsoWarnAboutItsProjectManifest() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient);
 
@@ -387,8 +359,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_SubtreeIsAGodotProject_StillResolvesExactlyAsBefore()
-    {
+    public async Task AnalyzeGraphAsync_SubtreeIsAGodotProject_StillResolvesExactlyAsBefore() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient);
 
@@ -404,8 +375,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_RootAddonPointingAtAGodotProject_NamesTheProjectsOwnDeclaration()
-    {
+    public async Task AnalyzeGraphAsync_RootAddonPointingAtAGodotProject_NamesTheProjectsOwnDeclaration() {
         var (resolver, gitClient) = Build();
         SetUpProjectRootDependency(gitClient);
         var spec = new AddonSpec { Name = "vrm", Git = VrmUrl, Branch = "main", Path = "." };
@@ -417,8 +387,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task AnalyzeGraphAsync_DeclaredPathFixed_WarnsAboutNothing()
-    {
+    public async Task AnalyzeGraphAsync_DeclaredPathFixed_WarnsAboutNothing() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient, declaredPath: "addons/vrm");
 
@@ -434,8 +403,7 @@ public class GraphWarningTests
     }
 
     [Fact]
-    public async Task ResolveGraphAsync_SubtreeIsAGodotProject_CarriesTheWarningToTheInstallPath()
-    {
+    public async Task ResolveGraphAsync_SubtreeIsAGodotProject_CarriesTheWarningToTheInstallPath() {
         var (resolver, gitClient) = Build();
         var spec = SetUpProjectRootDependency(gitClient);
 

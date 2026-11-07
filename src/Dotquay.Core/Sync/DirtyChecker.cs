@@ -7,14 +7,11 @@ namespace Dotquay.Core.Sync;
 /// the on-disk content still matches what the lockfile recorded. A mismatch means hand-edits exist
 /// that aren't captured as a patch — refuse rather than silently destroy them.
 /// </summary>
-public static class DirtyChecker
-{
+public static class DirtyChecker {
     public sealed record Result(bool IsDirty, string? ActualContentHash);
 
-    public static Result Check(IFileSystem fileSystem, string installedPath, string? expectedContentHash)
-    {
-        if (!fileSystem.DirectoryExists(installedPath))
-        {
+    public static Result Check(IFileSystem fileSystem, string installedPath, string? expectedContentHash) {
+        if (!fileSystem.DirectoryExists(installedPath)) {
             // Nothing installed yet — not "dirty", just absent. The caller decides what an absent
             // destination means for the operation it's doing.
             return new Result(IsDirty: false, ActualContentHash: null);
@@ -22,8 +19,7 @@ public static class DirtyChecker
 
         var tree = ContentHasher.HashTree(fileSystem, installedPath);
 
-        if (expectedContentHash is null)
-        {
+        if (expectedContentHash is null) {
             // Something already occupies the destination but the lockfile has no prior record for
             // it (e.g. a same-named folder that predates dotquay managing it) — treat as dirty so
             // sync never silently clobbers content it didn't put there.

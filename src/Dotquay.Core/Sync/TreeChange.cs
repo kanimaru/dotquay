@@ -4,8 +4,7 @@ namespace Dotquay.Core.Sync;
 /// How the installed tree differs from the expected one at a single path, from the installed tree's
 /// point of view: <see cref="Added"/> means the file is on disk and not in the locked commit.
 /// </summary>
-public enum ChangeKind
-{
+public enum ChangeKind {
     Added,
     Removed,
     Changed,
@@ -20,8 +19,7 @@ public enum ChangeKind
 /// fixed strings that the editor plugin and any other <c>--json</c> consumer will switch on. Adding a
 /// member is a contract change, under the same rule as <see cref="Dotquay.Core.Workflows.DoctorIssueKind"/>.
 /// </remarks>
-public enum ChangeClass
-{
+public enum ChangeClass {
     /// <summary>
     /// A path <see cref="GodotArtifacts.IsArtifact"/> already excludes from the content hash.
     /// </summary>
@@ -62,8 +60,7 @@ public enum ChangeClass
 /// <summary>One differing path, and what kind of difference it is.</summary>
 /// <param name="Path">Relative to the addon folder, forward-slashed — the same normalisation
 /// <see cref="ContentHasher"/> hashes under, so the two always name a file the same way.</param>
-public sealed record TreeChange(string Path, ChangeKind Kind, ChangeClass Class)
-{
+public sealed record TreeChange(string Path, ChangeKind Kind, ChangeClass Class) {
     /// <summary>
     /// True when discarding this difference costs the user nothing.
     /// </summary>

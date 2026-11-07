@@ -8,15 +8,13 @@ namespace Dotquay.Tests.Doctor;
 /// a wildcard or typo matches nothing and the user is prompted forever without knowing why — which is
 /// exactly why <c>doctor</c> has to say something.
 /// </summary>
-public class TrustedHostCheckTests
-{
+public class TrustedHostCheckTests {
     [Theory]
     [InlineData("gitlab.kemomi.de")]
     [InlineData("https://gitlab.kemomi.de")]
     [InlineData("gitlab.kemomi.de:8443")]
     [InlineData("http://localhost:5000")]
-    public void DescribeTrustedHostProblem_UsableEntries_ReportNothing(string entry)
-    {
+    public void DescribeTrustedHostProblem_UsableEntries_ReportNothing(string entry) {
         Assert.Null(SourceAdopter.DescribeTrustedHostProblem(entry));
     }
 
@@ -24,8 +22,7 @@ public class TrustedHostCheckTests
     [InlineData("*.kemomi.de")]
     [InlineData("gitlab.*.de")]
     [InlineData("gitlab.kemomi.?e")]
-    public void DescribeTrustedHostProblem_Wildcard_SaysItTrustsNothing(string entry)
-    {
+    public void DescribeTrustedHostProblem_Wildcard_SaysItTrustsNothing(string entry) {
         var problem = SourceAdopter.DescribeTrustedHostProblem(entry);
 
         // The dangerous misreading is that this trusts a whole domain. It trusts nothing at all.
@@ -33,8 +30,7 @@ public class TrustedHostCheckTests
     }
 
     [Fact]
-    public void DescribeTrustedHostProblem_EntryWithAPath_SaysItTrustsTheWholeHost()
-    {
+    public void DescribeTrustedHostProblem_EntryWithAPath_SaysItTrustsTheWholeHost() {
         var problem = SourceAdopter.DescribeTrustedHostProblem("gitlab.kemomi.de/wild-alliance");
 
         // Broader than it reads: only the host is compared, so the path is decoration.
@@ -42,8 +38,7 @@ public class TrustedHostCheckTests
     }
 
     [Fact]
-    public void DescribeTrustedHostProblem_PlainHttp_IsFlagged()
-    {
+    public void DescribeTrustedHostProblem_PlainHttp_IsFlagged() {
         Assert.Contains(
             "cleartext", SourceAdopter.DescribeTrustedHostProblem("http://gitlab.kemomi.de")!, StringComparison.Ordinal);
     }
@@ -52,14 +47,12 @@ public class TrustedHostCheckTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("ssh://gitlab.kemomi.de")]
-    public void DescribeTrustedHostProblem_Unusable_IsReported(string entry)
-    {
+    public void DescribeTrustedHostProblem_Unusable_IsReported(string entry) {
         Assert.NotNull(SourceAdopter.DescribeTrustedHostProblem(entry));
     }
 
     [Fact]
-    public void DescribeTrustedHostProblem_LoopbackHttp_IsAllowed()
-    {
+    public void DescribeTrustedHostProblem_LoopbackHttp_IsAllowed() {
         // Local testing against a throwaway feed shouldn't be nagged about.
         Assert.Null(SourceAdopter.DescribeTrustedHostProblem("http://127.0.0.1:8971"));
     }

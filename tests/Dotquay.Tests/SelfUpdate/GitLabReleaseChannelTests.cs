@@ -19,16 +19,14 @@ namespace Dotquay.Tests.SelfUpdate;
 /// server below answers the way gitlab.kemomi.de was measured to on 2026-10-20 - anonymous 200 on a
 /// public project, 401 <c>{"message":"401 Unauthorized"}</c> for a bogus PRIVATE-TOKEN.
 /// </remarks>
-public class GitLabReleaseChannelTests
-{
+public class GitLabReleaseChannelTests {
     private const string Host = "gitlab.example";
     private const string ProjectApi = $"https://{Host}/api/v4/projects/128";
     private const string ValidToken = "glpat-valid";
     private const string StaleToken = "glpat-stale";
 
     [Fact]
-    public async Task A_refused_token_on_a_public_channel_falls_back_to_anonymous()
-    {
+    public async Task A_refused_token_on_a_public_channel_falls_back_to_anonymous() {
         var server = new FakeGitLab(isPublic: true);
         var channel = Channel(server, StaleToken);
 
@@ -40,8 +38,7 @@ public class GitLabReleaseChannelTests
     }
 
     [Fact]
-    public async Task After_a_fallback_the_refused_token_is_not_offered_again()
-    {
+    public async Task After_a_fallback_the_refused_token_is_not_offered_again() {
         var server = new FakeGitLab(isPublic: true);
         var channel = Channel(server, StaleToken);
 
@@ -56,8 +53,7 @@ public class GitLabReleaseChannelTests
     }
 
     [Fact]
-    public async Task A_fine_grained_token_missing_a_permission_falls_back_too()
-    {
+    public async Task A_fine_grained_token_missing_a_permission_falls_back_too() {
         // A real token without Release: Read gets 403, not 401 - and on a public project anonymous
         // access needs no permission at all.
         var server = new FakeGitLab(isPublic: true, forbidValidToken: true);
@@ -70,8 +66,7 @@ public class GitLabReleaseChannelTests
     }
 
     [Fact]
-    public async Task On_a_private_channel_the_refused_token_is_what_gets_reported()
-    {
+    public async Task On_a_private_channel_the_refused_token_is_what_gets_reported() {
         var server = new FakeGitLab(isPublic: false);
         var channel = Channel(server, StaleToken);
 
@@ -88,8 +83,7 @@ public class GitLabReleaseChannelTests
     }
 
     [Fact]
-    public async Task A_working_token_is_sent_on_every_request_and_never_retried()
-    {
+    public async Task A_working_token_is_sent_on_every_request_and_never_retried() {
         var server = new FakeGitLab(isPublic: false);
         var channel = Channel(server, ValidToken);
 
@@ -102,8 +96,7 @@ public class GitLabReleaseChannelTests
     }
 
     [Fact]
-    public async Task A_404_with_a_credential_is_not_retried_anonymously()
-    {
+    public async Task A_404_with_a_credential_is_not_retried_anonymously() {
         // Not about the credential, so an anonymous retry would only turn one answer into two.
         var server = new FakeGitLab(isPublic: false);
         var channel = Channel(server, ValidToken);
@@ -115,8 +108,7 @@ public class GitLabReleaseChannelTests
     }
 
     [Fact]
-    public async Task Without_a_stored_credential_a_public_channel_is_one_anonymous_request()
-    {
+    public async Task Without_a_stored_credential_a_public_channel_is_one_anonymous_request() {
         var server = new FakeGitLab(isPublic: true);
         var channel = new GitLabReleaseChannel(ProjectApi, TestCredentials.None(), new HttpClient(server));
 
@@ -134,15 +126,13 @@ public class GitLabReleaseChannelTests
     /// Just enough of a GitLab instance: one project's releases, the manifest CI uploads, and a
     /// binary - with GitLab's measured behaviour around tokens.
     /// </summary>
-    private sealed class FakeGitLab(bool isPublic, bool forbidValidToken = false) : HttpMessageHandler
-    {
+    private sealed class FakeGitLab(bool isPublic, bool forbidValidToken = false) : HttpMessageHandler {
         private const string ManifestUrl = $"https://{Host}/packages/dotquay/9.9.9/manifest.json";
         private const string BinaryUrl = $"https://{Host}/packages/dotquay/9.9.9/dotquay.exe";
 
         public List<(string Url, bool HadCredential)> Requests { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             var url = request.RequestUri!.ToString();
             var token = request.Headers.TryGetValues("PRIVATE-TOKEN", out var values) ? values.Single() : null;
             var hadCredential = token is not null || request.Headers.Authorization is not null;
@@ -150,25 +140,21 @@ public class GitLabReleaseChannelTests
 
             // GitLab authenticates whatever credential arrives before it looks at visibility, so
             // an unrecognised token is refused even on a project that needs none.
-            if (token is not null && token != ValidToken)
-            {
+            if (token is not null && token != ValidToken) {
                 return Answer(HttpStatusCode.Unauthorized, """{"message":"401 Unauthorized"}""");
             }
 
-            if (token == ValidToken && forbidValidToken)
-            {
+            if (token == ValidToken && forbidValidToken) {
                 return Answer(
                     HttpStatusCode.Forbidden,
                     """{"error":"insufficient_granular_scope","error_description":"requires [Release: Read]"}""");
             }
 
-            if (token is null && !isPublic)
-            {
+            if (token is null && !isPublic) {
                 return Answer(HttpStatusCode.NotFound, """{"message":"404 Project Not Found"}""");
             }
 
-            return url switch
-            {
+            return url switch {
                 $"{ProjectApi}/releases?per_page=1" => Answer(
                     HttpStatusCode.OK,
                     $$$"""[{"tag_name":"v9.9.9","assets":{"links":[{"name":"manifest.json","url":"{{{ManifestUrl}}}"}]}}]"""),
@@ -181,8 +167,7 @@ public class GitLabReleaseChannelTests
         }
 
         private static Task<HttpResponseMessage> Answer(HttpStatusCode status, string body) =>
-            Task.FromResult(new HttpResponseMessage(status)
-            {
+            Task.FromResult(new HttpResponseMessage(status) {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });
     }

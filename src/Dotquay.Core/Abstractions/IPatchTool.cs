@@ -7,8 +7,7 @@ namespace Dotquay.Core.Abstractions;
 /// merging, kept as its own interface rather than folded into <see cref="IGitClient"/> so that
 /// interface stays scoped to "remote git operations" (SPEC.md §12's original rationale for it).
 /// </summary>
-public interface IPatchTool
-{
+public interface IPatchTool {
     /// <summary>Diffs two directory trees and returns the unified diff text (empty string if
     /// identical) — captures a patch (SPEC.md §10 step 2: "diffs against the pristine cache copy").</summary>
     Task<string> DiffDirectoriesAsync(string baseDirectory, string oursDirectory, CancellationToken cancellationToken = default);

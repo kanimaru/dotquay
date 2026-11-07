@@ -13,12 +13,10 @@ namespace Dotquay.Tests.Support;
 /// fake can't answer either. Records both, so a test asserts on routing rather than on a client
 /// having been handed back at all.
 /// </remarks>
-public sealed class FakeNuGetClientFactory : INuGetClientFactory
-{
+public sealed class FakeNuGetClientFactory : INuGetClientFactory {
     private readonly FakeNuGetClient _defaultClient;
 
-    public FakeNuGetClientFactory(FakeNuGetClient? defaultClient = null)
-    {
+    public FakeNuGetClientFactory(FakeNuGetClient? defaultClient = null) {
         _defaultClient = defaultClient ?? new FakeNuGetClient();
     }
 
@@ -34,8 +32,7 @@ public sealed class FakeNuGetClientFactory : INuGetClientFactory
     /// unpinned lookups.</summary>
     public List<string?> RequestedPins { get; } = [];
 
-    public INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null)
-    {
+    public INuGetClient Create(NuGetSourceSet sources, string? pinnedSourceName = null) {
         RequestedPins.Add(pinnedSourceName);
 
         var selected = sources.Resolve(pinnedSourceName);

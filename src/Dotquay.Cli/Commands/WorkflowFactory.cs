@@ -9,14 +9,12 @@ namespace Dotquay.Cli.Commands;
 /// <summary>Builds a <see cref="DependencyWorkflow"/> wired to the real filesystem, real git, and
 /// the shared <c>~/.dotquay/cache</c> (SPEC.md §9 step 1, decided OQ-5) — the one place CLI commands
 /// construct real (non-test-double) infrastructure, so every command wires it the same way.</summary>
-internal static class WorkflowFactory
-{
+internal static class WorkflowFactory {
     public static DependencyWorkflow Create(
         ISourceApproval? sourceApproval = null,
         IGeneratorAssetDecision? generatorAssetDecision = null,
         ISubtreeChoice? subtreeChoice = null) =>
-        new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root())
-        {
+        new(new SystemFileSystem(), new ProcessGitClient(), CachePaths.Root()) {
             SourceApproval = sourceApproval ?? DenyAllSourceApproval.Instance,
             GeneratorAssetDecision = generatorAssetDecision ?? ShareGeneratorDecision.Instance,
             SubtreeChoice = subtreeChoice ?? DeclineSubtreeChoice.Instance,
@@ -53,8 +51,7 @@ internal static class WorkflowFactory
         bool allowSourceAdoption = false,
         IReadOnlyList<string>? preApprovedSourceUrls = null,
         IGeneratorAssetDecision? generatorAssetDecision = null,
-        ISubtreeChoice? subtreeChoice = null)
-    {
+        ISubtreeChoice? subtreeChoice = null) {
         var reporter = ConsoleProgressReporter.Create(json);
         var approval = allowSourceAdoption
             ? SourceApprovalFor(json, preApprovedSourceUrls)
@@ -101,12 +98,10 @@ internal static class WorkflowFactory
             : Create(),
          NullDisposable.Instance);
 
-    private sealed class NullDisposable : IDisposable
-    {
+    private sealed class NullDisposable : IDisposable {
         public static readonly NullDisposable Instance = new();
 
-        public void Dispose()
-        {
+        public void Dispose() {
         }
     }
 

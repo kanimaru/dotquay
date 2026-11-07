@@ -15,13 +15,11 @@ namespace Dotquay.Tests.Sync;
 /// work, so every uncertain case must land on <see cref="ChangeClass.Content"/>. The reverse mistake
 /// only costs the reader a look.
 /// </remarks>
-public class ChangeClassifierTests
-{
+public class ChangeClassifierTests {
     private static byte[] Bytes(string text) => Encoding.UTF8.GetBytes(text);
 
     [Fact]
-    public void Classify_OnlyTheUidValueChanged_IsUidOnly()
-    {
+    public void Classify_OnlyTheUidValueChanged_IsUidOnly() {
         var expected = Bytes("""[ext_resource type="Script" uid="uid://bxwpwbdv4fm02" path="res://addons/x/x.gd"]""");
         var actual = Bytes("""[ext_resource type="Script" uid="uid://c7k2p9qq1a0zz" path="res://addons/x/x.gd"]""");
 
@@ -34,8 +32,7 @@ public class ChangeClassifierTests
     /// path change benign — the same prefix trap that sank the project-wide UID rewrite proposal.
     /// </summary>
     [Fact]
-    public void Classify_UidAndSomethingElseChanged_IsContent()
-    {
+    public void Classify_UidAndSomethingElseChanged_IsContent() {
         var expected = Bytes("""[ext_resource uid="uid://abc" path="res://addons/x/old.gd"]""");
         var actual = Bytes("""[ext_resource uid="uid://abc1" path="res://addons/x/new.gd"]""");
 
@@ -43,8 +40,7 @@ public class ChangeClassifierTests
     }
 
     [Fact]
-    public void Classify_OnlyLineEndingsChanged_IsLineEndingsOnly()
-    {
+    public void Classify_OnlyLineEndingsChanged_IsLineEndingsOnly() {
         var expected = Bytes("extends Node\nfunc _ready():\n\tpass\n");
         var actual = Bytes("extends Node\r\nfunc _ready():\r\n\tpass\r\n");
 
@@ -124,8 +120,7 @@ public class ChangeClassifierTests
     /// "added" is never benign unless the path itself is editor output.
     /// </summary>
     [Fact]
-    public void ClassifyByPath_SeparatesAddedArtifactsFromAddedContent()
-    {
+    public void ClassifyByPath_SeparatesAddedArtifactsFromAddedContent() {
         Assert.Equal(ChangeClass.Content, ChangeClassifier.ClassifyByPath("my-notes.gd"));
         Assert.Equal(ChangeClass.EditorArtifact, ChangeClassifier.ClassifyByPath("my-notes.gd.uid"));
     }
@@ -133,8 +128,7 @@ public class ChangeClassifierTests
     // -- TreeComparer -----------------------------------------------------------------------
 
     [Fact]
-    public void Compare_ReportsAddedRemovedAndChanged()
-    {
+    public void Compare_ReportsAddedRemovedAndChanged() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("expected/kept.gd", "same");
         fileSystem.WriteAllText("expected/edited.gd", "before");
@@ -156,8 +150,7 @@ public class ChangeClassifierTests
     /// dropped the one real edit in favour of forty artifact files would be worse than no list at all.
     /// </summary>
     [Fact]
-    public void Compare_PutsRealContentChangesFirst()
-    {
+    public void Compare_PutsRealContentChangesFirst() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("expected/a.gd.uid", "uid://aaa");
         fileSystem.WriteAllText("expected/z.gd", "before");
@@ -172,8 +165,7 @@ public class ChangeClassifierTests
     }
 
     [Fact]
-    public void Compare_IdenticalTrees_ReportNothing()
-    {
+    public void Compare_IdenticalTrees_ReportNothing() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("expected/a.gd", "same");
         fileSystem.WriteAllText("actual/a.gd", "same");

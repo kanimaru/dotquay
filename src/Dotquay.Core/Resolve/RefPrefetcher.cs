@@ -28,8 +28,7 @@ namespace Dotquay.Core.Resolve;
 /// whose addons all live on one host would otherwise open them all at once.
 /// </para>
 /// </remarks>
-internal sealed class RefPrefetcher : IAsyncDisposable
-{
+internal sealed class RefPrefetcher : IAsyncDisposable {
     internal const int DefaultMaxConcurrency = 4;
 
     private readonly AddonResolver _resolver;
@@ -38,8 +37,7 @@ internal sealed class RefPrefetcher : IAsyncDisposable
     private readonly HashSet<(string Git, AddonSourceKind Kind, string? Branch)> _started = [];
     private readonly List<Task> _inFlight = [];
 
-    internal RefPrefetcher(AddonResolver resolver, CancellationToken cancellationToken, int maxConcurrency = DefaultMaxConcurrency)
-    {
+    internal RefPrefetcher(AddonResolver resolver, CancellationToken cancellationToken, int maxConcurrency = DefaultMaxConcurrency) {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrency, 1);
 
         _resolver = resolver;
@@ -50,19 +48,16 @@ internal sealed class RefPrefetcher : IAsyncDisposable
     /// <summary>Starts resolving <paramref name="spec"/> in the background, unless it needs no remote
     /// lookup or the same lookup was already started. Never blocks and never throws.</summary>
     /// <remarks>Called only from the walk's own (single) logical thread, so the bookkeeping needs no lock.</remarks>
-    internal void Warm(AddonSpec spec)
-    {
+    internal void Warm(AddonSpec spec) {
         // A rev pin is answered from the manifest alone; there is nothing to warm.
-        if (spec.SourceKind == AddonSourceKind.Rev)
-        {
+        if (spec.SourceKind == AddonSourceKind.Rev) {
             return;
         }
 
         // Keyed on the remote query, not the spec: two version constraints on one repository share one
         // ls-remote, and warming it twice would only hold a second slot for a memo hit.
         var query = (spec.Git, spec.SourceKind, spec.SourceKind == AddonSourceKind.Branch ? spec.Branch : null);
-        if (!_started.Add(query))
-        {
+        if (!_started.Add(query)) {
             return;
         }
 
@@ -71,19 +66,14 @@ internal sealed class RefPrefetcher : IAsyncDisposable
         _inFlight.Add(Task.Run(() => WarmOneAsync(spec), CancellationToken.None));
     }
 
-    private async Task WarmOneAsync(AddonSpec spec)
-    {
-        try
-        {
+    private async Task WarmOneAsync(AddonSpec spec) {
+        try {
             await _slots.WaitAsync(_cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
+        } catch (OperationCanceledException) {
             return;
         }
 
-        try
-        {
+        try {
             DiagnosticLog.Write(DiagnosticLevel.Trace, "resolve", $"prefetching {spec.Name} ({spec.Git})");
             await _resolver.ResolveAsync(spec, _cancellationToken).ConfigureAwait(false);
         }
@@ -91,17 +81,14 @@ internal sealed class RefPrefetcher : IAsyncDisposable
         catch (Exception)
 #pragma warning restore CA1031
         {
-        }
-        finally
-        {
+        } finally {
             _slots.Release();
         }
     }
 
     /// <summary>Waits for every warm-up still running, so no git process started here outlives the
     /// resolution that asked for it. The warm-ups never throw, so neither does this.</summary>
-    public async ValueTask DisposeAsync()
-    {
+    public async ValueTask DisposeAsync() {
         await Task.WhenAll(_inFlight).ConfigureAwait(false);
         _slots.Dispose();
     }

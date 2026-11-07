@@ -15,19 +15,16 @@ namespace Dotquay.Tests.Workflows;
 /// one-click fix possible at all, and getting it wrong would silently repoint an addon at another
 /// repository.
 /// </remarks>
-public class OverrideWorkflowTests
-{
+public class OverrideWorkflowTests {
     private const string ProjectDirectory = "project";
     private const string CoreUrl = "https://example.com/core.git";
     private const string ForkUrl = "https://example.com/core-fork.git";
 
-    private static (OverrideWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string manifest, string? lockfile = null)
-    {
+    private static (OverrideWorkflow Workflow, InMemoryFileSystem FileSystem) Build(string manifest, string? lockfile = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), manifest);
 
-        if (lockfile is not null)
-        {
+        if (lockfile is not null) {
             fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
         }
 
@@ -47,8 +44,7 @@ public class OverrideWorkflowTests
         """;
 
     [Fact]
-    public void Set_WritesAnOverridesEntry()
-    {
+    public void Set_WritesAnOverridesEntry() {
         var (workflow, fileSystem) = Build(ManifestWithCore);
 
         var result = workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
@@ -59,8 +55,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_LeavesTheOriginalAddonsEntryAlone()
-    {
+    public void Set_LeavesTheOriginalAddonsEntryAlone() {
         var (workflow, fileSystem) = Build(ManifestWithCore);
 
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
@@ -73,8 +68,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_InheritsTheGitUrlFromTheManifest()
-    {
+    public void Set_InheritsTheGitUrlFromTheManifest() {
         var (workflow, _) = Build(ManifestWithCore);
 
         var result = workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
@@ -83,8 +77,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_InheritsTheGitUrlFromTheLockfileForATransitiveAddon()
-    {
+    public void Set_InheritsTheGitUrlFromTheLockfileForATransitiveAddon() {
         // A transitive addon has no [addons.*] entry of its own, so the lockfile is the only local
         // record of which repository the name means — and it's exactly the case a conflict picker
         // hits, since conflicts usually involve a shared dependency nobody declared directly.
@@ -104,8 +97,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_ExplicitGitWins()
-    {
+    public void Set_ExplicitGitWins() {
         var (workflow, _) = Build(ManifestWithCore);
 
         // The one conflict kind where the repository itself is the disagreement (SPEC.md §8) needs
@@ -116,8 +108,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_UnknownNameWithNoGitUrl_Throws()
-    {
+    public void Set_UnknownNameWithNoGitUrl_Throws() {
         var (workflow, _) = Build(ManifestWithCore);
 
         var exception = Assert.Throws<WorkflowException>(
@@ -127,8 +118,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_BranchAndRevKinds_WriteTheMatchingField()
-    {
+    public void Set_BranchAndRevKinds_WriteTheMatchingField() {
         var (workflow, fileSystem) = Build(ManifestWithCore);
 
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Branch, "godot4");
@@ -143,8 +133,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_TheSameOverrideTwice_ReportsUnchanged()
-    {
+    public void Set_TheSameOverrideTwice_ReportsUnchanged() {
         var (workflow, _) = Build(ManifestWithCore);
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
 
@@ -156,8 +145,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_ADifferentValue_ReportsReplaced()
-    {
+    public void Set_ADifferentValue_ReportsReplaced() {
         var (workflow, _) = Build(ManifestWithCore);
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
 
@@ -167,16 +155,14 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_EmptyValue_Throws()
-    {
+    public void Set_EmptyValue_Throws() {
         var (workflow, _) = Build(ManifestWithCore);
 
         Assert.Throws<WorkflowException>(() => workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "  "));
     }
 
     [Fact]
-    public void Set_DoesNotWriteARedundantDefaultPath()
-    {
+    public void Set_DoesNotWriteARedundantDefaultPath() {
         var (workflow, fileSystem) = Build(ManifestWithCore);
 
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
@@ -187,8 +173,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_InheritsAnExplicitPath()
-    {
+    public void Set_InheritsAnExplicitPath() {
         var manifest = $"""
             [addons.core]
             git = "{CoreUrl}"
@@ -206,8 +191,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Clear_RemovesTheEntry()
-    {
+    public void Clear_RemovesTheEntry() {
         var (workflow, fileSystem) = Build(ManifestWithCore);
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
 
@@ -219,8 +203,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Clear_WhenThereIsNoOverride_ReportsUnchanged()
-    {
+    public void Clear_WhenThereIsNoOverride_ReportsUnchanged() {
         var (workflow, _) = Build(ManifestWithCore);
 
         var result = workflow.Clear(ProjectDirectory, "core");
@@ -229,8 +212,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void List_ReturnsWhatWasWritten()
-    {
+    public void List_ReturnsWhatWasWritten() {
         var (workflow, _) = Build(ManifestWithCore);
         workflow.Set(ProjectDirectory, "core", AddonSourceKind.Version, "~1.4");
 
@@ -242,8 +224,7 @@ public class OverrideWorkflowTests
     }
 
     [Fact]
-    public void Set_WithNoManifest_Throws()
-    {
+    public void Set_WithNoManifest_Throws() {
         var fileSystem = new InMemoryFileSystem();
         var workflow = new OverrideWorkflow(fileSystem);
 

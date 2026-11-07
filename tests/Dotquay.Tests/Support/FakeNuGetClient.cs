@@ -4,10 +4,8 @@ namespace Dotquay.Tests.Support;
 
 /// <summary>Configurable <see cref="INuGetClient"/> test double — no real network call needed to
 /// test NuGet version selection (mirrors <see cref="FakeGitClient"/>'s role for the git side).</summary>
-public sealed class FakeNuGetClient : INuGetClient
-{
-    public FakeNuGetClient(string? sourceName = null)
-    {
+public sealed class FakeNuGetClient : INuGetClient {
+    public FakeNuGetClient(string? sourceName = null) {
         SourceName = sourceName;
     }
 
@@ -23,16 +21,13 @@ public sealed class FakeNuGetClient : INuGetClient
     /// to a public feed.</summary>
     public HashSet<string> UnauthorizedPackageIds { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public FakeNuGetClient With(string packageId, params string[] versions)
-    {
+    public FakeNuGetClient With(string packageId, params string[] versions) {
         VersionsByPackageId[packageId] = versions;
         return this;
     }
 
-    public Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default)
-    {
-        if (UnauthorizedPackageIds.Contains(packageId))
-        {
+    public Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default) {
+        if (UnauthorizedPackageIds.Contains(packageId)) {
             throw new Dotquay.Core.Dotnet.NuGetAuthenticationException(
                 SourceName ?? "nuget.org", "https://example.invalid/index.json", $"401 for '{packageId}'.");
         }
@@ -66,8 +61,7 @@ public sealed class FakeNuGetClient : INuGetClient
             ? PackageShape.Unknown
             : new PackageShape(DevelopmentDependencyPackageIds.Contains(packageId)));
 
-    public Task VerifySourceAsync(CancellationToken cancellationToken = default)
-    {
+    public Task VerifySourceAsync(CancellationToken cancellationToken = default) {
         VerifyCount++;
 
         return VerifyFailure is null ? Task.CompletedTask : Task.FromException(VerifyFailure);

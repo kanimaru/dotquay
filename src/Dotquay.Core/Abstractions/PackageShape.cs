@@ -18,8 +18,7 @@ namespace Dotquay.Core.Abstractions;
 /// <param name="IsDevelopmentDependency">The author declared this a build-time-only package — an
 /// analyzer, a source generator, a build-props package. Null when the nuspec could not be read at all,
 /// which is not an error: it means "no signal", and dotquay stays quiet rather than guessing.</param>
-public sealed record PackageShape(bool? IsDevelopmentDependency)
-{
+public sealed record PackageShape(bool? IsDevelopmentDependency) {
     /// <summary>Nothing learned — an unreadable or absent nuspec. Distinct from
     /// <c>IsDevelopmentDependency: false</c>, which is the author positively not claiming it.</summary>
     public static readonly PackageShape Unknown = new((bool?)null);

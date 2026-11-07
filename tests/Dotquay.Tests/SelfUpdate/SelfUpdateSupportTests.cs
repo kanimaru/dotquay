@@ -4,8 +4,7 @@ using Xunit;
 
 namespace Dotquay.Tests.SelfUpdate;
 
-public class VersionOrderTests
-{
+public class VersionOrderTests {
     [Theory]
     [InlineData("0.18.0", "0.17.9", true)]
     [InlineData("0.17.0", "0.17.0", false)]
@@ -16,8 +15,7 @@ public class VersionOrderTests
         Assert.Equal(newer, VersionOrder.IsNewer(candidate, current));
 
     [Fact]
-    public void A_merge_request_build_is_behind_every_release()
-    {
+    public void A_merge_request_build_is_behind_every_release() {
         // CI stamps 0.0.0-ci-<sha> onto builds that are not releases. Someone running one must be
         // told about the release, not the other way round.
         Assert.True(VersionOrder.IsNewer("0.17.0", "0.0.0-ci-9f2c1ab"));
@@ -25,8 +23,7 @@ public class VersionOrderTests
     }
 
     [Fact]
-    public void A_local_build_ahead_of_the_last_release_is_not_offered_that_release()
-    {
+    public void A_local_build_ahead_of_the_last_release_is_not_offered_that_release() {
         // Dotquay.Cli.csproj derives 0.21.2-dev.N for a build N commits past v0.21.1. It must not be
         // told 0.21.1 is available (the stale hard-coded 0.18.0 did exactly that), but must be told
         // about 0.21.2 when the work it contains ships.
@@ -35,19 +32,16 @@ public class VersionOrderTests
     }
 
     [Fact]
-    public void An_unparseable_version_still_orders_rather_than_throwing()
-    {
+    public void An_unparseable_version_still_orders_rather_than_throwing() {
         // Reached from the background update check, which must never be able to fail a command.
         var exception = Record.Exception(() => VersionOrder.IsNewer("not-a-version", "also-not"));
         Assert.Null(exception);
     }
 }
 
-public class ExecutableSwapperTests
-{
+public class ExecutableSwapperTests {
     [Fact]
-    public void A_windows_binary_keeps_its_exe_extension_through_the_swap()
-    {
+    public void A_windows_binary_keeps_its_exe_extension_through_the_swap() {
         // Windows will not start a file without .exe, and the staged download is run with --version
         // before it is trusted - so the extension has to survive the naming scheme, not just the
         // final rename.
@@ -63,8 +57,7 @@ public class ExecutableSwapperTests
     }
 
     [Fact]
-    public void A_staged_download_a_failed_update_left_behind_is_swept()
-    {
+    public void A_staged_download_a_failed_update_left_behind_is_swept() {
         // Not tidiness. A staged binary is run before it is trusted, and Windows keeps an
         // executable mapped for a moment after the process exits - long enough that deleting it
         // right there answers "access is denied". Observed against a real published binary, so the
@@ -82,8 +75,7 @@ public class ExecutableSwapperTests
     }
 
     [Fact]
-    public void Retired_binaries_are_ordered_by_version_not_by_timestamp()
-    {
+    public void Retired_binaries_are_ordered_by_version_not_by_timestamp() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("/opt/bin/dotquay", "current");
         fileSystem.WriteAllText("/opt/bin/dotquay.old-0.9.0", "nine");
@@ -98,13 +90,11 @@ public class ExecutableSwapperTests
     }
 }
 
-public class UpdateCheckCacheTests
-{
+public class UpdateCheckCacheTests {
     private const string Channel = "https://gitlab.example/api/v4/projects/1";
 
     [Fact]
-    public void A_missing_cache_is_stale_so_the_first_run_checks()
-    {
+    public void A_missing_cache_is_stale_so_the_first_run_checks() {
         var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader());
 
         Assert.True(cache.IsStale(Channel, TimeSpan.FromHours(24)));
@@ -112,8 +102,7 @@ public class UpdateCheckCacheTests
     }
 
     [Fact]
-    public void A_fresh_answer_is_read_back_and_not_re_checked()
-    {
+    public void A_fresh_answer_is_read_back_and_not_re_checked() {
         var clock = new FakeTimeProvider(DateTimeOffset.Parse("2026-09-11T10:00:00Z"));
         var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader(), clock);
 
@@ -128,8 +117,7 @@ public class UpdateCheckCacheTests
     }
 
     [Fact]
-    public void An_answer_from_another_channel_is_not_an_answer()
-    {
+    public void An_answer_from_another_channel_is_not_an_answer() {
         var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader());
         cache.Write(Channel, "0.18.0");
 
@@ -138,8 +126,7 @@ public class UpdateCheckCacheTests
     }
 
     [Fact]
-    public void A_corrupt_cache_means_no_notice_rather_than_a_failed_command()
-    {
+    public void A_corrupt_cache_means_no_notice_rather_than_a_failed_command() {
         var fileSystem = new InMemoryFileSystem();
         var cache = new UpdateCheckCache(fileSystem, new FakeEnvironmentReader());
         fileSystem.WriteAllText("/home/kani/.dotquay/update-check.json", "{ this is not json");
@@ -148,8 +135,7 @@ public class UpdateCheckCacheTests
     }
 
     [Fact]
-    public void With_no_home_directory_the_cache_is_simply_absent()
-    {
+    public void With_no_home_directory_the_cache_is_simply_absent() {
         var cache = new UpdateCheckCache(new InMemoryFileSystem(), new FakeEnvironmentReader(homeDirectory: null));
 
         cache.Write(Channel, "0.18.0");
@@ -159,11 +145,9 @@ public class UpdateCheckCacheTests
     }
 }
 
-public class TomlUserConfigStoreTests
-{
+public class TomlUserConfigStoreTests {
     [Fact]
-    public void With_no_config_file_the_built_in_defaults_apply()
-    {
+    public void With_no_config_file_the_built_in_defaults_apply() {
         var settings = new TomlUserConfigStore(new InMemoryFileSystem(), new FakeEnvironmentReader()).Read();
 
         Assert.Equal(UpdateSettings.DefaultChannelUrl, settings.ChannelUrl);
@@ -172,8 +156,7 @@ public class TomlUserConfigStoreTests
     }
 
     [Fact]
-    public void The_file_is_read()
-    {
+    public void The_file_is_read() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("/home/kani/.dotquay/config.toml", """
             [update]
@@ -190,8 +173,7 @@ public class TomlUserConfigStoreTests
     }
 
     [Fact]
-    public void The_environment_beats_the_file()
-    {
+    public void The_environment_beats_the_file() {
         // CI sets variables; a CI image should not have to write a config file to stop a tool from
         // reaching the network.
         var fileSystem = new InMemoryFileSystem();
@@ -212,8 +194,7 @@ public class TomlUserConfigStoreTests
     }
 
     [Fact]
-    public void Notify_off_round_trips_through_the_file()
-    {
+    public void Notify_off_round_trips_through_the_file() {
         var fileSystem = new InMemoryFileSystem();
         var store = new TomlUserConfigStore(fileSystem, new FakeEnvironmentReader());
 
@@ -225,8 +206,7 @@ public class TomlUserConfigStoreTests
     }
 
     [Fact]
-    public void Notify_preserves_a_custom_channel()
-    {
+    public void Notify_preserves_a_custom_channel() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("/home/kani/.dotquay/config.toml", """
             [update]
@@ -241,8 +221,7 @@ public class TomlUserConfigStoreTests
     }
 
     [Fact]
-    public void The_config_file_is_plain_ascii()
-    {
+    public void The_config_file_is_plain_ascii() {
         // Same reasoning as the credential store's: this file gets opened in whatever editor or
         // shell is to hand, and a stray em-dash renders as mojibake in anything reading it as ANSI.
         var fileSystem = new InMemoryFileSystem();
@@ -255,12 +234,10 @@ public class TomlUserConfigStoreTests
 
 /// <summary>A <see cref="TimeProvider"/> the tests drive by hand, so the cache's staleness rule is
 /// asserted rather than waited for.</summary>
-public sealed class FakeTimeProvider : TimeProvider
-{
+public sealed class FakeTimeProvider : TimeProvider {
     private DateTimeOffset _now;
 
-    public FakeTimeProvider(DateTimeOffset now)
-    {
+    public FakeTimeProvider(DateTimeOffset now) {
         _now = now;
     }
 

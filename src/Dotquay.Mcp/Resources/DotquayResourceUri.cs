@@ -13,8 +13,7 @@ namespace Dotquay.Mcp.Resources;
 /// <c>dotquay:///</c> prefix and the next literal <c>/</c> is the encoded project path and is never
 /// inspected further, so a colon or backslash inside it can never be mistaken for URI syntax.
 /// </remarks>
-public static class DotquayResourceUri
-{
+public static class DotquayResourceUri {
     private const string Prefix = "dotquay:///";
 
     public static string Manifest(string projectDirectory) => Build(projectDirectory, "manifest");
@@ -36,35 +35,29 @@ public static class DotquayResourceUri
     /// <remarks>Returns false for anything that isn't one of ours, rather than throwing — an
     /// unrecognized URI is <see cref="ResourceRegistry"/>'s problem to report as a missing resource,
     /// not this parser's to crash on.</remarks>
-    public static bool TryParse(string uri, out string projectDirectory, out IReadOnlyList<string> segments)
-    {
+    public static bool TryParse(string uri, out string projectDirectory, out IReadOnlyList<string> segments) {
         projectDirectory = "";
         segments = [];
 
-        if (!uri.StartsWith(Prefix, StringComparison.Ordinal))
-        {
+        if (!uri.StartsWith(Prefix, StringComparison.Ordinal)) {
             return false;
         }
 
         var rest = uri[Prefix.Length..];
         var slash = rest.IndexOf('/');
 
-        if (slash < 0)
-        {
+        if (slash < 0) {
             return false;
         }
 
-        try
-        {
+        try {
             projectDirectory = Uri.UnescapeDataString(rest[..slash]);
             segments = rest[(slash + 1)..]
                 .Split('/', StringSplitOptions.RemoveEmptyEntries)
                 .Select(Uri.UnescapeDataString)
                 .ToList();
             return segments.Count > 0;
-        }
-        catch (FormatException)
-        {
+        } catch (FormatException) {
             return false;
         }
     }

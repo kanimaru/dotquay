@@ -19,8 +19,7 @@ namespace Dotquay.Core.SelfUpdate;
 /// source-generated path that needs no reflection under NativeAOT, and written as hand-built ASCII
 /// for the same reason that one is: this file gets opened in whatever editor is to hand.</para>
 /// </remarks>
-public sealed class TomlUserConfigStore
-{
+public sealed class TomlUserConfigStore {
     public const string FileName = "config.toml";
 
     private const string UpdateSection = "update";
@@ -29,8 +28,7 @@ public sealed class TomlUserConfigStore
     private readonly IEnvironmentReader _environment;
     private readonly string? _path;
 
-    public TomlUserConfigStore(IFileSystem fileSystem, IEnvironmentReader environment, string? path = null)
-    {
+    public TomlUserConfigStore(IFileSystem fileSystem, IEnvironmentReader environment, string? path = null) {
         _fileSystem = fileSystem;
         _environment = environment;
         _path = path ?? DefaultPath(environment, fileSystem);
@@ -48,17 +46,14 @@ public sealed class TomlUserConfigStore
 
     /// <summary>File first, then environment on top. A malformed file is reported rather than
     /// silently ignored: a setting that quietly does nothing is worse than one that complains.</summary>
-    public UpdateSettings Read()
-    {
+    public UpdateSettings Read() {
         var settings = ReadFile();
 
-        if (_environment.GetVariable(UpdateSettings.ChannelVariable) is { Length: > 0 } channel)
-        {
+        if (_environment.GetVariable(UpdateSettings.ChannelVariable) is { Length: > 0 } channel) {
             settings = settings with { ChannelUrl = channel.TrimEnd('/') };
         }
 
-        if (_environment.GetVariable(UpdateSettings.NoCheckVariable) is { Length: > 0 })
-        {
+        if (_environment.GetVariable(UpdateSettings.NoCheckVariable) is { Length: > 0 }) {
             settings = settings with { NoticeEnabled = false };
         }
 
@@ -67,10 +62,8 @@ public sealed class TomlUserConfigStore
 
     /// <summary>Backs <c>dotquay self notify on|off</c>. Rewrites the file rather than editing it in
     /// place: dotquay owns it, and every key it can hold is written here.</summary>
-    public void SetNoticeEnabled(bool enabled)
-    {
-        if (_path is null)
-        {
+    public void SetNoticeEnabled(bool enabled) {
+        if (_path is null) {
             throw new WorkflowException(
                 "Could not determine your home directory, so there is nowhere to store settings. "
                 + $"Set {UpdateSettings.NoCheckVariable}=1 in your environment instead.");
@@ -80,25 +73,19 @@ public sealed class TomlUserConfigStore
         Write(current with { NoticeEnabled = enabled });
     }
 
-    private UpdateSettings ReadFile()
-    {
-        if (_path is null || !_fileSystem.FileExists(_path))
-        {
+    private UpdateSettings ReadFile() {
+        if (_path is null || !_fileSystem.FileExists(_path)) {
             return UpdateSettings.Defaults;
         }
 
         TomlTable table;
-        try
-        {
+        try {
             table = DotquayToml.Parse(_fileSystem.ReadAllText(_path), _path);
-        }
-        catch (TomlException ex)
-        {
+        } catch (TomlException ex) {
             throw new UserConfigFileException($"{_path}: invalid TOML.{Environment.NewLine}{ex.Message}", ex);
         }
 
-        if (!table.TryGetValue(UpdateSection, out var raw) || raw is not TomlTable update)
-        {
+        if (!table.TryGetValue(UpdateSection, out var raw) || raw is not TomlTable update) {
             return UpdateSettings.Defaults;
         }
 
@@ -112,8 +99,7 @@ public sealed class TomlUserConfigStore
                 : UpdateSettings.DefaultIntervalHours);
     }
 
-    private void Write(UpdateSettings settings)
-    {
+    private void Write(UpdateSettings settings) {
         var builder = new System.Text.StringBuilder();
         builder.AppendLine("# dotquay settings - written by 'dotquay self notify'.");
         builder.AppendLine("# Per-user, never per-project: which dotquay you run is a property of this machine.");

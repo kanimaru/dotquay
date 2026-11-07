@@ -6,8 +6,7 @@ using Dotquay.Core.Abstractions;
 namespace Dotquay.Core.Doctor;
 
 /// <summary>What <c>known_hosts</c> says about one host.</summary>
-public enum KnownHostStatus
-{
+public enum KnownHostStatus {
     /// <summary>No entry matches. The first SSH fetch will fail with "Host key verification
     /// failed" unless something else (an <c>ssh_config</c> setting, an agent-forwarded
     /// configuration) supplies trust.</summary>
@@ -42,8 +41,7 @@ public enum KnownHostStatus
 /// would make <c>doctor</c> the thing people learn to ignore.
 /// </para>
 /// </remarks>
-public static class KnownHostsReader
-{
+public static class KnownHostsReader {
     private const string HashedPrefix = "|1|";
 
     /// <summary>
@@ -66,18 +64,15 @@ public static class KnownHostsReader
     /// stripped-down ones, so a Windows machine could be told its known_hosts lived in
     /// <c>/etc/ssh</c>.</param>
     public static IReadOnlyList<string> DefaultPaths(
-        IEnvironmentReader environment, IFileSystem fileSystem, bool isWindows)
-    {
+        IEnvironmentReader environment, IFileSystem fileSystem, bool isWindows) {
         var paths = new List<string>();
 
-        if (environment.HomeDirectory is { Length: > 0 } home)
-        {
+        if (environment.HomeDirectory is { Length: > 0 } home) {
             paths.Add(fileSystem.CombinePath(home, ".ssh", "known_hosts"));
             paths.Add(fileSystem.CombinePath(home, ".ssh", "known_hosts2"));
         }
 
-        if (!isWindows)
-        {
+        if (!isWindows) {
             paths.Add("/etc/ssh/ssh_known_hosts");
             return paths;
         }
@@ -103,23 +98,19 @@ public static class KnownHostsReader
     /// by a stale entry in the user's.
     /// </remarks>
     public static KnownHostStatus Lookup(
-        IFileSystem fileSystem, IEnumerable<string> paths, string host, int? port = null)
-    {
+        IFileSystem fileSystem, IEnumerable<string> paths, string host, int? port = null) {
         var target = port is null or 22
             ? host
             : $"[{host}]:{port.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
         var status = KnownHostStatus.NotFound;
 
-        foreach (var path in paths)
-        {
-            if (!fileSystem.FileExists(path))
-            {
+        foreach (var path in paths) {
+            if (!fileSystem.FileExists(path)) {
                 continue;
             }
 
-            switch (LookupIn(fileSystem.ReadAllText(path), target))
-            {
+            switch (LookupIn(fileSystem.ReadAllText(path), target)) {
                 case KnownHostStatus.Revoked:
                     return KnownHostStatus.Revoked;
                 case KnownHostStatus.Trusted:
@@ -133,8 +124,7 @@ public static class KnownHostsReader
 
     /// <summary>Scans one file's contents. Separated from the I/O so the format's corners can be
     /// tested as text.</summary>
-    public static KnownHostStatus LookupIn(string knownHostsContent, string target)
-    {
+    public static KnownHostStatus LookupIn(string knownHostsContent, string target) {
         var status = KnownHostStatus.NotFound;
 
         // A byte-order mark would otherwise become part of the first entry's hostname, silently
@@ -142,21 +132,17 @@ public static class KnownHostsReader
         // 'ssh-keyscan host >> known_hosts' -- the exact command everyone reaches for -- prepends one.
         var content = knownHostsContent.TrimStart('\uFEFF', '\uFFFE');
 
-        foreach (var rawLine in content.Split('\n'))
-        {
+        foreach (var rawLine in content.Split('\n')) {
             var line = rawLine.Trim();
 
-            if (line.Length == 0 || line[0] == '#')
-            {
+            if (line.Length == 0 || line[0] == '#') {
                 continue;
             }
 
             var marker = string.Empty;
-            if (line[0] == '@')
-            {
+            if (line[0] == '@') {
                 var space = line.IndexOfAny([' ', '\t']);
-                if (space < 0)
-                {
+                if (space < 0) {
                     continue;
                 }
 
@@ -167,14 +153,12 @@ public static class KnownHostsReader
             var patternsEnd = line.IndexOfAny([' ', '\t']);
             var patterns = patternsEnd < 0 ? line : line[..patternsEnd];
 
-            if (!MatchesAnyPattern(patterns, target))
-            {
+            if (!MatchesAnyPattern(patterns, target)) {
                 continue;
             }
 
             // Keep scanning after a match: a later @revoked line for the same host must still win.
-            if (marker == "@revoked")
-            {
+            if (marker == "@revoked") {
                 return KnownHostStatus.Revoked;
             }
 
@@ -184,24 +168,19 @@ public static class KnownHostsReader
         return status;
     }
 
-    private static bool MatchesAnyPattern(string patternList, string target)
-    {
-        if (patternList.StartsWith(HashedPrefix, StringComparison.Ordinal))
-        {
+    private static bool MatchesAnyPattern(string patternList, string target) {
+        if (patternList.StartsWith(HashedPrefix, StringComparison.Ordinal)) {
             return MatchesHashed(patternList, target);
         }
 
         var matched = false;
 
-        foreach (var pattern in patternList.Split(',', StringSplitOptions.RemoveEmptyEntries))
-        {
+        foreach (var pattern in patternList.Split(',', StringSplitOptions.RemoveEmptyEntries)) {
             // A negation anywhere in the list vetoes the whole line, even if another pattern in the
             // same list matched -- that is what makes "*.example.com,!secret.example.com" mean what
             // it reads as.
-            if (pattern[0] == '!')
-            {
-                if (Matches(pattern[1..], target))
-                {
+            if (pattern[0] == '!') {
+                if (Matches(pattern[1..], target)) {
                     return false;
                 }
 
@@ -224,37 +203,30 @@ public static class KnownHostsReader
     /// everywhere it is most likely to run. A hashed entry cannot carry a wildcard by construction,
     /// which is why this is an exact comparison and not a pattern match.
     /// </remarks>
-    private static bool MatchesHashed(string entry, string target)
-    {
+    private static bool MatchesHashed(string entry, string target) {
         var parts = entry.Split('|');
 
         // "" , "1", salt, hash -- the leading empty element comes from the leading '|'.
-        if (parts.Length != 4)
-        {
+        if (parts.Length != 4) {
             return false;
         }
 
-        try
-        {
+        try {
             var salt = Convert.FromBase64String(parts[2]);
             var expected = Convert.FromBase64String(parts[3]);
 
             var actual = HMACSHA1.HashData(salt, Encoding.UTF8.GetBytes(target));
 
             return CryptographicOperations.FixedTimeEquals(actual, expected);
-        }
-        catch (FormatException)
-        {
+        } catch (FormatException) {
             // A hand-mangled line. Not this check's business to report, and certainly not a reason to
             // fail the command that asked.
             return false;
         }
     }
 
-    private static bool Matches(string pattern, string target)
-    {
-        if (!pattern.Contains('*', StringComparison.Ordinal) && !pattern.Contains('?', StringComparison.Ordinal))
-        {
+    private static bool Matches(string pattern, string target) {
+        if (!pattern.Contains('*', StringComparison.Ordinal) && !pattern.Contains('?', StringComparison.Ordinal)) {
             // Hostnames are case-insensitive; a bracketed [host]:port form still compares fine this
             // way because the port digits have no case.
             return string.Equals(pattern, target, StringComparison.OrdinalIgnoreCase);

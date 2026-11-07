@@ -4,14 +4,11 @@ using Dotquay.Core.Workflows;
 
 namespace Dotquay.Cli.Commands;
 
-internal static class RemoveCommand
-{
+internal static class RemoveCommand {
     private const string CommandName = "remove";
 
-    public static Command Build()
-    {
-        var nameArgument = new Argument<string>("name")
-        {
+    public static Command Build() {
+        var nameArgument = new Argument<string>("name") {
             Description = "The addon or dotnet dependency name to remove.",
         };
 
@@ -23,20 +20,16 @@ internal static class RemoveCommand
             jsonOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var name = parseResult.GetValue(nameArgument)!;
             var json = parseResult.GetValue(jsonOption);
             var workflow = WorkflowFactory.Create();
 
-            try
-            {
+            try {
                 var removal = await workflow.RemoveAsync(GlobalOptions.Resolve(parseResult), name, cancellationToken);
 
-                if (json)
-                {
-                    JsonOutput.WriteOperation(CommandName, new OperationJson
-                    {
+                if (json) {
+                    JsonOutput.WriteOperation(CommandName, new OperationJson {
                         Changes =
                         [
                             new ChangeJson
@@ -53,9 +46,7 @@ internal static class RemoveCommand
 
                 ConsoleOutput.WriteLine(removal.KeptForAddons ? ConsoleColor.Yellow : ConsoleColor.Green, removal.Describe(name));
                 return 0;
-            }
-            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
-            {
+            } catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex)) {
                 return JsonOutput.Fail(json, CommandName, ex);
             }
         });

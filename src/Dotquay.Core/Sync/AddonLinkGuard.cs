@@ -4,8 +4,7 @@ using Dotquay.Core.Local;
 namespace Dotquay.Core.Sync;
 
 /// <summary>What <c>addons/&lt;folder&gt;</c> currently is, relative to what the project declares.</summary>
-public enum AddonLinkState
-{
+public enum AddonLinkState {
     /// <summary>A real folder (or nothing yet). dotquay owns it and may write it.</summary>
     NotLinked,
 
@@ -23,8 +22,7 @@ public enum AddonLinkState
 }
 
 /// <summary>The classification plus the two paths that produced it, so a message can name both.</summary>
-public sealed record AddonLinkVerdict(AddonLinkState State, string? ActualTarget, string? DeclaredTarget)
-{
+public sealed record AddonLinkVerdict(AddonLinkState State, string? ActualTarget, string? DeclaredTarget) {
     /// <summary>True when writing addon content to this destination would leave the folder dotquay owns.</summary>
     public bool ForbidsWriting =>
         State is AddonLinkState.TargetMismatch or AddonLinkState.Undeclared or AddonLinkState.TargetMissing;
@@ -50,30 +48,25 @@ public sealed record AddonLinkVerdict(AddonLinkState State, string? ActualTarget
 /// "is this folder ours", not two implementations that drift.
 /// </para>
 /// </summary>
-public static class AddonLinkGuard
-{
+public static class AddonLinkGuard {
     /// <summary>
     /// Classify <paramref name="destinationPath"/> against <paramref name="declared"/> (the link this
     /// project declares for the addon, or null when it declares none).
     /// </summary>
-    public static AddonLinkVerdict Inspect(IFileSystem fileSystem, string destinationPath, LocalLink? declared)
-    {
+    public static AddonLinkVerdict Inspect(IFileSystem fileSystem, string destinationPath, LocalLink? declared) {
         var actual = fileSystem.ResolveDirectoryLinkTarget(destinationPath);
 
-        if (actual is null)
-        {
+        if (actual is null) {
             // Not a link. A declaration without a link on disk is not a problem: that is simply an
             // addon that has not been installed since it was linked, and installing is what fixes it.
             return new AddonLinkVerdict(AddonLinkState.NotLinked, null, declared?.Path);
         }
 
-        if (declared is null)
-        {
+        if (declared is null) {
             return new AddonLinkVerdict(AddonLinkState.Undeclared, actual, null);
         }
 
-        if (!fileSystem.DirectoryExists(declared.Path))
-        {
+        if (!fileSystem.DirectoryExists(declared.Path)) {
             return new AddonLinkVerdict(AddonLinkState.TargetMissing, actual, declared.Path);
         }
 
@@ -99,10 +92,8 @@ public static class AddonLinkGuard
     /// The refusal, naming both statements and both ways out. Either can be the stale one and
     /// dotquay cannot tell which, so it reports what it found and stops rather than picking.
     /// </summary>
-    public static string Explain(string name, string folder, string incomingVersion, AddonLinkVerdict verdict)
-    {
-        var second = verdict.State switch
-        {
+    public static string Explain(string name, string folder, string incomingVersion, AddonLinkVerdict verdict) {
+        var second = verdict.State switch {
             AddonLinkState.Undeclared =>
                 $"but {LocalLinks.FileName} declares no link for '{name}'.",
             AddonLinkState.TargetMissing =>

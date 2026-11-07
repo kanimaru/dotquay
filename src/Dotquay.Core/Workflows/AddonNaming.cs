@@ -4,8 +4,7 @@ using Dotquay.Core.Manifest;
 namespace Dotquay.Core.Workflows;
 
 /// <summary>Where the manifest key <c>add</c> chose for a git addon came from.</summary>
-public enum AddonNameSource
-{
+public enum AddonNameSource {
     /// <summary>The caller named it outright (<c>--name</c>).</summary>
     Explicit,
 
@@ -23,8 +22,7 @@ public enum AddonNameSource
 /// <param name="Name">The <c>[addons.&lt;name&gt;]</c> key.</param>
 /// <param name="Source">Which rule produced it.</param>
 /// <param name="DisplacedBy">For a fallback, the URL-derived name that was already taken.</param>
-public sealed record AddonNameChoice(string Name, AddonNameSource Source, string? DisplacedBy = null)
-{
+public sealed record AddonNameChoice(string Name, AddonNameSource Source, string? DisplacedBy = null) {
     /// <summary>True when the name is neither what the user typed as <c>--name</c> nor what the URL
     /// alone gives — worth one line of output, since nobody asked for it by that name.</summary>
     public bool IsFallback => Source is AddonNameSource.InstallAs or AddonNameSource.PathLeaf;
@@ -56,43 +54,36 @@ public sealed record AddonNameChoice(string Name, AddonNameSource Source, string
 /// <para>Pure — it reads only the manifest's addon table — so <c>add</c> and <c>add --preview</c> share
 /// it verbatim and can never disagree about the name.</para>
 /// </remarks>
-public static class AddonNaming
-{
+public static class AddonNaming {
     /// <summary>Chooses the manifest key, or throws <see cref="WorkflowException"/> naming the flag that fixes it.</summary>
     public static AddonNameChoice Choose(
         string gitUrl,
         AddonAddOptions options,
         IReadOnlyDictionary<string, AddonSpec> declared,
-        string manifestPath)
-    {
+        string manifestPath) {
         ArgumentNullException.ThrowIfNull(gitUrl);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(declared);
 
-        if (options.Name is { } explicitName)
-        {
+        if (options.Name is { } explicitName) {
             return ChooseExplicit(explicitName, declared, manifestPath);
         }
 
         var urlName = DeriveFromUrl(gitUrl);
 
-        if (!declared.TryGetValue(urlName, out var existing))
-        {
+        if (!declared.TryGetValue(urlName, out var existing)) {
             return new AddonNameChoice(urlName, AddonNameSource.Url);
         }
 
-        if (IsSameAddon(existing, gitUrl, options.Path))
-        {
+        if (IsSameAddon(existing, gitUrl, options.Path)) {
             throw new WorkflowException(
                 $"'{urlName}' is already declared in {manifestPath}. Use 'dotquay update {urlName}' instead.");
         }
 
         var candidates = FallbackCandidates(options, urlName).ToList();
 
-        foreach (var (candidate, source) in candidates)
-        {
-            if (!declared.ContainsKey(candidate))
-            {
+        foreach (var (candidate, source) in candidates) {
+            if (!declared.ContainsKey(candidate)) {
                 return new AddonNameChoice(candidate, source, DisplacedBy: urlName);
             }
         }
@@ -108,8 +99,7 @@ public static class AddonNaming
 
     /// <summary>Derives a manifest key from a git URL, e.g.
     /// <c>"https://github.com/nathanhoad/godot_dialogue_manager.git"</c> -> <c>"godot_dialogue_manager"</c>.</summary>
-    public static string DeriveFromUrl(string gitUrl)
-    {
+    public static string DeriveFromUrl(string gitUrl) {
         ArgumentNullException.ThrowIfNull(gitUrl);
 
         var trimmed = gitUrl.TrimEnd('/');
@@ -119,10 +109,8 @@ public static class AddonNaming
     }
 
     /// <summary>The last segment of a subtree path, or null for the repo root (<c>"."</c>) or no path.</summary>
-    public static string? PathLeaf(string? subtreePath)
-    {
-        if (subtreePath is null)
-        {
+    public static string? PathLeaf(string? subtreePath) {
+        if (subtreePath is null) {
             return null;
         }
 
@@ -140,18 +128,15 @@ public static class AddonNaming
         ManifestReader.IsSafeFolderName(name) && !name.Contains('.', StringComparison.Ordinal);
 
     private static AddonNameChoice ChooseExplicit(
-        string name, IReadOnlyDictionary<string, AddonSpec> declared, string manifestPath)
-    {
-        if (!IsValidName(name))
-        {
+        string name, IReadOnlyDictionary<string, AddonSpec> declared, string manifestPath) {
+        if (!IsValidName(name)) {
             throw new WorkflowException(
                 $"--name \"{name}\" is not a usable addon name. It must be a single plain folder name — no "
                 + "slashes, dots or drive letters — because it becomes the [addons.<name>] key and, without "
                 + "--install-as, the folder under addons/.");
         }
 
-        if (declared.ContainsKey(name))
-        {
+        if (declared.ContainsKey(name)) {
             throw new WorkflowException(
                 $"'{name}' is already declared in {manifestPath}. Pick a different --name, or use "
                 + $"'dotquay update {name}' if it is the same addon.");
@@ -161,17 +146,14 @@ public static class AddonNaming
     }
 
     private static IEnumerable<(string Name, AddonNameSource Source)> FallbackCandidates(
-        AddonAddOptions options, string urlName)
-    {
+        AddonAddOptions options, string urlName) {
         var seen = new HashSet<string>(StringComparer.Ordinal) { urlName };
 
-        if (options.InstallAs is { } installAs && IsValidName(installAs) && seen.Add(installAs))
-        {
+        if (options.InstallAs is { } installAs && IsValidName(installAs) && seen.Add(installAs)) {
             yield return (installAs, AddonNameSource.InstallAs);
         }
 
-        if (PathLeaf(options.Path) is { } leaf && IsValidName(leaf) && seen.Add(leaf))
-        {
+        if (PathLeaf(options.Path) is { } leaf && IsValidName(leaf) && seen.Add(leaf)) {
             yield return (leaf, AddonNameSource.PathLeaf);
         }
     }
@@ -180,10 +162,8 @@ public static class AddonNaming
     /// Same repository and same subtree. A request naming no subtree means "the addon I already have
     /// from this repo", so it counts as the same — the accidental re-add the refusal exists for.
     /// </summary>
-    private static bool IsSameAddon(AddonSpec existing, string gitUrl, string? requestedPath)
-    {
-        if (!SameRepository(existing.Git, gitUrl))
-        {
+    private static bool IsSameAddon(AddonSpec existing, string gitUrl, string? requestedPath) {
+        if (!SameRepository(existing.Git, gitUrl)) {
             return false;
         }
 
@@ -199,8 +179,7 @@ public static class AddonNaming
             ? a!.SameRepositoryAs(b!)
             : string.Equals(left.TrimEnd('/'), right.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
 
-    private static string NormalizeSubtree(string path)
-    {
+    private static string NormalizeSubtree(string path) {
         var trimmed = path.Replace('\\', '/').Trim('/');
         return trimmed.Length == 0 ? "." : trimmed;
     }

@@ -15,8 +15,7 @@ namespace Dotquay.Mcp.Guards;
 /// siblings in the same chain and under the same test discipline, per the design doc's own framing of
 /// the three as <see cref="IWriteGuard"/>'s initial members; its real job is <see cref="Resolve"/>.
 /// </remarks>
-public sealed class GeneratorPrivacyPolicy : IWritePolicy
-{
+public sealed class GeneratorPrivacyPolicy : IWritePolicy {
     public string Name => "generator_privacy";
 
     public ValueTask<WriteGuardVerdict> EvaluateAsync(WriteGuardContext context, CancellationToken cancellationToken) =>

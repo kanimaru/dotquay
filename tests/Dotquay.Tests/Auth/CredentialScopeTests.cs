@@ -3,11 +3,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Auth;
 
-public class CredentialScopeTests
-{
+public class CredentialScopeTests {
     [Fact]
-    public void Parse_BareHost_HasNoPathAndIsAssumedSecure()
-    {
+    public void Parse_BareHost_HasNoPathAndIsAssumedSecure() {
         var scope = CredentialScope.Parse("gitlab.example.com");
 
         Assert.Equal("gitlab.example.com", scope.Host);
@@ -17,8 +15,7 @@ public class CredentialScopeTests
     }
 
     [Fact]
-    public void Parse_FullUrl_KeepsPathWithoutSurroundingSlashes()
-    {
+    public void Parse_FullUrl_KeepsPathWithoutSurroundingSlashes() {
         var scope = CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/123/packages/nuget/index.json");
 
         Assert.Equal("gitlab.example.com", scope.Host);
@@ -26,8 +23,7 @@ public class CredentialScopeTests
     }
 
     [Fact]
-    public void Parse_HostIsLowercasedButPathIsNot()
-    {
+    public void Parse_HostIsLowercasedButPathIsNot() {
         var scope = CredentialScope.Parse("https://GitLab.Example.COM/Kani/Addon");
 
         Assert.Equal("gitlab.example.com", scope.Host);
@@ -35,15 +31,13 @@ public class CredentialScopeTests
     }
 
     [Fact]
-    public void Parse_DefaultPortIsOmittedButExplicitOneIsKept()
-    {
+    public void Parse_DefaultPortIsOmittedButExplicitOneIsKept() {
         Assert.Equal("example.com", CredentialScope.Parse("https://example.com:443/x").Host);
         Assert.Equal("example.com:8443", CredentialScope.Parse("https://example.com:8443/x").Host);
     }
 
     [Fact]
-    public void Parse_PlainHttpIsNotSecure_ButLoopbackIs()
-    {
+    public void Parse_PlainHttpIsNotSecure_ButLoopbackIs() {
         Assert.False(CredentialScope.Parse("http://gitlab.example.com").IsSecure);
         Assert.True(CredentialScope.Parse("http://localhost:5000/feed").IsSecure);
         Assert.True(CredentialScope.Parse("http://127.0.0.1:5000/feed").IsSecure);
@@ -52,8 +46,7 @@ public class CredentialScopeTests
     [Theory]
     [InlineData("ssh://git@gitlab.example.com/kani/addon.git")]
     [InlineData("git://example.com/repo.git")]
-    public void TryParse_NonHttpSchemes_AreRejectedWithAnExplanation(string url)
-    {
+    public void TryParse_NonHttpSchemes_AreRejectedWithAnExplanation(string url) {
         Assert.False(CredentialScope.TryParse(url, out _, out var error));
         Assert.Contains("SSH", error, StringComparison.Ordinal);
     }
@@ -61,15 +54,13 @@ public class CredentialScopeTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void TryParse_Blank_IsRejected(string input)
-    {
+    public void TryParse_Blank_IsRejected(string input) {
         Assert.False(CredentialScope.TryParse(input, out _, out var error));
         Assert.NotNull(error);
     }
 
     [Fact]
-    public void Covers_HostWideScope_CoversEveryPathOnThatHost()
-    {
+    public void Covers_HostWideScope_CoversEveryPathOnThatHost() {
         var host = CredentialScope.Parse("gitlab.example.com");
 
         Assert.True(host.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4/projects/1")));
@@ -77,8 +68,7 @@ public class CredentialScopeTests
     }
 
     [Fact]
-    public void Covers_DifferentHost_IsNeverCovered()
-    {
+    public void Covers_DifferentHost_IsNeverCovered() {
         var host = CredentialScope.Parse("gitlab.example.com");
 
         Assert.False(host.Covers(CredentialScope.Parse("https://github.com/kani/addon")));
@@ -86,8 +76,7 @@ public class CredentialScopeTests
     }
 
     [Fact]
-    public void Covers_PathPrefixOnlyMatchesAtASegmentBoundary()
-    {
+    public void Covers_PathPrefixOnlyMatchesAtASegmentBoundary() {
         var scope = CredentialScope.Parse("gitlab.example.com/api/v4");
 
         Assert.True(scope.Covers(CredentialScope.Parse("https://gitlab.example.com/api/v4")));
@@ -100,8 +89,7 @@ public class CredentialScopeTests
     }
 
     [Fact]
-    public void Specificity_OrdersHostWideBelowPathScoped()
-    {
+    public void Specificity_OrdersHostWideBelowPathScoped() {
         Assert.True(
             CredentialScope.Parse("gitlab.example.com/api/v4/projects/123").Specificity
             > CredentialScope.Parse("gitlab.example.com").Specificity);

@@ -16,8 +16,7 @@ namespace Dotquay.Tests.Workflows;
 /// and that command then failed with "not declared in dotquay.toml". The graph view offers the same
 /// Remove on an orphan package node, so both routes depend on this.
 /// </remarks>
-public class RemoveOrphanedDotnetTests
-{
+public class RemoveOrphanedDotnetTests {
     private const string ProjectDirectory = "project";
     private const string RootUrl = "https://example.com/root.git";
 
@@ -70,8 +69,7 @@ public class RemoveOrphanedDotnetTests
         version = "3.*"
         """;
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build()
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), ProjectManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), Lockfile);
@@ -91,8 +89,7 @@ public class RemoveOrphanedDotnetTests
     }
 
     [Fact]
-    public async Task RemoveAsync_OrphanPackage_DropsTheLockEntryAndThePackageReference()
-    {
+    public async Task RemoveAsync_OrphanPackage_DropsTheLockEntryAndThePackageReference() {
         var (workflow, fileSystem) = Build();
 
         var removal = await workflow.RemoveAsync(ProjectDirectory, "Ghost.Package");
@@ -110,8 +107,7 @@ public class RemoveOrphanedDotnetTests
     }
 
     [Fact]
-    public async Task RemoveAsync_OrphanPackage_LeavesTheManifestAlone()
-    {
+    public async Task RemoveAsync_OrphanPackage_LeavesTheManifestAlone() {
         var (workflow, fileSystem) = Build();
         var manifestPath = fileSystem.CombinePath(ProjectDirectory, "dotquay.toml");
 
@@ -122,8 +118,7 @@ public class RemoveOrphanedDotnetTests
     }
 
     [Fact]
-    public async Task RemoveAsync_PackageAReachableAddonDeclares_IsRefusedAndNamesTheAddon()
-    {
+    public async Task RemoveAsync_PackageAReachableAddonDeclares_IsRefusedAndNamesTheAddon() {
         var (workflow, fileSystem) = Build();
         var lockPath = fileSystem.CombinePath(ProjectDirectory, "dotquay.lock");
 
@@ -136,8 +131,7 @@ public class RemoveOrphanedDotnetTests
     }
 
     [Fact]
-    public async Task RemoveAsync_NameNeitherDeclaredNorLocked_StillSaysNotDeclared()
-    {
+    public async Task RemoveAsync_NameNeitherDeclaredNorLocked_StillSaysNotDeclared() {
         var (workflow, _) = Build();
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(() => workflow.RemoveAsync(ProjectDirectory, "Nope"));

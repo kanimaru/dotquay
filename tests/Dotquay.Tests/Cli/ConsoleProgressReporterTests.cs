@@ -21,41 +21,33 @@ namespace Dotquay.Tests.Cli;
 /// </remarks>
 [Collection(nameof(ConsoleProgressReporterTests))]
 [CollectionDefinition(nameof(ConsoleProgressReporterTests), DisableParallelization = true)]
-public class ConsoleProgressReporterTests
-{
-    private static void WithCapturedError(Action<ConsoleProgressReporter, StringWriter> body)
-    {
+public class ConsoleProgressReporterTests {
+    private static void WithCapturedError(Action<ConsoleProgressReporter, StringWriter> body) {
         var original = Console.Error;
         var captured = new StringWriter();
 
         using var reporter = ConsoleProgressReporter.CreateForTests();
 
-        try
-        {
+        try {
             Console.SetError(captured);
             body(reporter, captured);
-        }
-        finally
-        {
+        } finally {
             Console.SetError(original);
         }
     }
 
     [Fact]
-    public void Report_DrawsTheStep() => WithCapturedError((reporter, captured) =>
-    {
+    public void Report_DrawsTheStep() => WithCapturedError((reporter, captured) => {
         reporter.Report(new ProgressUpdate("fetching vbeami"));
 
         Assert.Contains("fetching vbeami", captured.ToString());
     });
 
     [Fact]
-    public void Pause_ClearsTheLineAndStopsDrawing() => WithCapturedError((reporter, captured) =>
-    {
+    public void Pause_ClearsTheLineAndStopsDrawing() => WithCapturedError((reporter, captured) => {
         reporter.Report(new ProgressUpdate("checking where 'SproutyDialogs' lives"));
 
-        using (ConsoleProgressReporter.Pause())
-        {
+        using (ConsoleProgressReporter.Pause()) {
             var afterPause = captured.ToString().Length;
 
             // The line is not merely abandoned, it is wiped: a question printed over a half-erased
@@ -68,12 +60,10 @@ public class ConsoleProgressReporterTests
     });
 
     [Fact]
-    public void Resume_PicksUpTheCurrentStep() => WithCapturedError((reporter, captured) =>
-    {
+    public void Resume_PicksUpTheCurrentStep() => WithCapturedError((reporter, captured) => {
         reporter.Report(new ProgressUpdate("checking where 'SproutyDialogs' lives"));
 
-        using (ConsoleProgressReporter.Pause())
-        {
+        using (ConsoleProgressReporter.Pause()) {
             // Recorded while quiet, so what comes back is where the work actually is rather than
             // where it was when the question was asked.
             reporter.Report(new ProgressUpdate("resolving the dependency graph"));
@@ -88,14 +78,11 @@ public class ConsoleProgressReporterTests
 
     [Fact]
     public void Pause_Nested_StaysQuietUntilTheOuterScopeCloses() =>
-        WithCapturedError((reporter, captured) =>
-        {
+        WithCapturedError((reporter, captured) => {
             reporter.Report(new ProgressUpdate("fetching"));
 
-            using (ConsoleProgressReporter.Pause())
-            {
-                using (ConsoleProgressReporter.Pause())
-                {
+            using (ConsoleProgressReporter.Pause()) {
+                using (ConsoleProgressReporter.Pause()) {
                 }
 
                 var afterInner = captured.ToString().Length;
@@ -106,16 +93,14 @@ public class ConsoleProgressReporterTests
         });
 
     [Fact]
-    public void Pause_WithNothingDrawing_IsSafe()
-    {
+    public void Pause_WithNothingDrawing_IsSafe() {
         // --json, CI, redirected stderr: Create hands back the null reporter, so there is no active
         // one to find. Every prompt opens a scope unconditionally, so this is the common path.
         using var scope = ConsoleProgressReporter.Pause();
     }
 
     [Fact]
-    public void Pause_AfterDisposal_IsSafe()
-    {
+    public void Pause_AfterDisposal_IsSafe() {
         var reporter = ConsoleProgressReporter.CreateForTests();
         reporter.Dispose();
 

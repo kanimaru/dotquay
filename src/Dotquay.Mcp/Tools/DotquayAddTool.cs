@@ -25,8 +25,7 @@ namespace Dotquay.Mcp.Tools;
 /// addon occupying its folder without a matching lock entry) that this tool does not expose, matching
 /// the table's own argument list.
 /// </remarks>
-public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_add";
 
     public override string Description =>
@@ -70,25 +69,21 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var gitUrl = McpArgs.GetString(arguments, "git_url");
 
-        if (string.IsNullOrWhiteSpace(gitUrl))
-        {
+        if (string.IsNullOrWhiteSpace(gitUrl)) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, "'git_url' is required: the repository URL to add.");
         }
 
-        if (McpArgs.GetString(arguments, "nuget_source") is not null)
-        {
+        if (McpArgs.GetString(arguments, "nuget_source") is not null) {
             return McpToolResults.Failure(
                 Name, JsonErrorKind.Workflow,
                 $"'nuget_source' names a NuGet feed, but '{gitUrl}' is a git URL added by this tool. NuGet feeds "
                 + "only apply to dotquay_add_dotnet.");
         }
 
-        var options = new AddonAddOptions
-        {
+        var options = new AddonAddOptions {
             Version = McpArgs.GetString(arguments, "version"),
             Branch = McpArgs.GetString(arguments, "branch"),
             Rev = McpArgs.GetString(arguments, "rev"),
@@ -97,20 +92,16 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
             Name = McpArgs.GetString(arguments, "name"),
         };
 
-        try
-        {
+        try {
             options.Validate();
-        }
-        catch (WorkflowException ex)
-        {
+        } catch (WorkflowException ex) {
             return McpToolResults.Failure(Name, JsonErrorKind.Workflow, ex.Message);
         }
 
         var approvedSourceUrls = McpArgs.GetStringArray(arguments, "approved_source_urls");
         var keepGeneratorPrivate = McpArgs.GetBool(arguments, "keep_generator_private");
 
-        var guardContext = new WriteGuardContext
-        {
+        var guardContext = new WriteGuardContext {
             ProjectDirectory = projectDirectory,
             InspectionWorkflow = McpInfrastructure.CreateWorkflow(),
             AddPreview = new AddSourcePreviewRequest(gitUrl, options),
@@ -119,8 +110,7 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
 
         var verdict = await WriteGuard.Default.EvaluateAsync(guardContext, cancellationToken);
 
-        if (verdict is WriteGuardRefusal refusal)
-        {
+        if (verdict is WriteGuardRefusal refusal) {
             return McpToolResults.FromRefusal(Name, refusal);
         }
 
@@ -141,8 +131,7 @@ public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpT
             + $"version range. Add it with branch: \"<name>\" to track a branch instead, or call dotquay_update "
             + $"later to move to a newer commit.";
 
-        var payload = new OperationJson
-        {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson

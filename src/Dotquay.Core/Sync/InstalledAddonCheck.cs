@@ -38,14 +38,11 @@ namespace Dotquay.Core.Sync;
 /// where they are is what the full path's carry-over tries to approximate anyway.
 /// </para>
 /// </remarks>
-public static class InstalledAddonCheck
-{
-    public static bool IsAlreadyInPlace(IFileSystem fileSystem, ProjectLayout layout, ResolvedAddon resolved, LockedAddon? previous)
-    {
+public static class InstalledAddonCheck {
+    public static bool IsAlreadyInPlace(IFileSystem fileSystem, ProjectLayout layout, ResolvedAddon resolved, LockedAddon? previous) {
         if (previous?.ContentHash is null
             || previous.PatchHash is not null
-            || previous.PatchBaseSha is not null)
-        {
+            || previous.PatchBaseSha is not null) {
             return false;
         }
 
@@ -53,21 +50,18 @@ public static class InstalledAddonCheck
             || !string.Equals(previous.Git, resolved.Git, StringComparison.Ordinal)
             || !string.Equals(previous.Resolved, resolved.ResolvedSha, StringComparison.Ordinal)
             || !string.Equals(previous.Path, resolved.Path, StringComparison.Ordinal)
-            || !string.Equals(previous.Folder, resolved.InstallAs, StringComparison.Ordinal))
-        {
+            || !string.Equals(previous.Folder, resolved.InstallAs, StringComparison.Ordinal)) {
             return false;
         }
 
-        if (fileSystem.FileExists(layout.ConflictMarkerPath(fileSystem, resolved.Name)))
-        {
+        if (fileSystem.FileExists(layout.ConflictMarkerPath(fileSystem, resolved.Name))) {
             return false;
         }
 
         var destination = InstallPaths.For(fileSystem, layout.ProjectDirectory, resolved);
 
         // DirtyChecker calls a missing folder "not dirty" - right for its purpose, wrong for this one.
-        if (!fileSystem.DirectoryExists(destination) || fileSystem.ResolveDirectoryLinkTarget(destination) is not null)
-        {
+        if (!fileSystem.DirectoryExists(destination) || fileSystem.ResolveDirectoryLinkTarget(destination) is not null) {
             return false;
         }
 

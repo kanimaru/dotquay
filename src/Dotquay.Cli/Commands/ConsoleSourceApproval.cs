@@ -10,15 +10,13 @@ namespace Dotquay.Cli.Commands;
 /// plugin, <c>install</c> — uses <see cref="DenyAllSourceApproval"/>, so a run that cannot ask a
 /// human never adopts on their behalf.
 /// </remarks>
-internal sealed class ConsoleSourceApproval : ISourceApproval
-{
+internal sealed class ConsoleSourceApproval : ISourceApproval {
     /// <summary>The prompt, or <see cref="DenyAllSourceApproval"/> when there is no one to ask —
     /// <c>--json</c>, or redirected input, which covers CI and the plugin.</summary>
     public static ISourceApproval For(bool json) =>
         json || Console.IsInputRedirected ? DenyAllSourceApproval.Instance : new ConsoleSourceApproval();
 
-    public bool Approve(SourceAdoptionRequest request)
-    {
+    public bool Approve(SourceAdoptionRequest request) {
         // Raised mid-resolve, with the spinner sitting on the current line and still repainting.
         // Without this the question is written onto the spinner's row and then scribbled over while
         // the user reads it — which, for a question about trusting somebody else's feed, is the
@@ -32,8 +30,7 @@ internal sealed class ConsoleSourceApproval : ISourceApproval
 
         // Naming the packages turns an abstract "trust this URL?" into a concrete question about
         // something the user actually asked for.
-        if (request.PackageIds.Count > 0)
-        {
+        if (request.PackageIds.Count > 0) {
             Console.WriteLine($"  for: {string.Join(", ", request.PackageIds)}");
         }
 

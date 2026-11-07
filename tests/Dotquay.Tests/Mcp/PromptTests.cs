@@ -8,8 +8,7 @@ namespace Dotquay.Tests.Mcp;
 /// Design doc §7: the three canned prompt workflows list correctly, render their placeholders, and
 /// validate their required arguments.
 /// </summary>
-public sealed class PromptTests : IAsyncDisposable
-{
+public sealed class PromptTests : IAsyncDisposable {
     private readonly string _projectDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-prompt-test-").FullName;
     private McpTestHarness? _harness;
 
@@ -17,8 +16,7 @@ public sealed class PromptTests : IAsyncDisposable
         _harness ??= await McpTestHarness.StartAsync([_projectDirectory]);
 
     [Fact]
-    public async Task Prompts_list_returns_exactly_the_three_designed_prompts()
-    {
+    public async Task Prompts_list_returns_exactly_the_three_designed_prompts() {
         var harness = await HarnessAsync();
 
         var prompts = await harness.Client.ListPromptsAsync();
@@ -34,8 +32,7 @@ public sealed class PromptTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Diagnose_modified_substitutes_the_addon_name_into_its_rendered_text()
-    {
+    public async Task Diagnose_modified_substitutes_the_addon_name_into_its_rendered_text() {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.GetPromptAsync(
@@ -48,8 +45,7 @@ public sealed class PromptTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Diagnose_modified_without_the_required_name_argument_fails_instead_of_rendering_a_blank_prompt()
-    {
+    public async Task Diagnose_modified_without_the_required_name_argument_fails_instead_of_rendering_a_blank_prompt() {
         var harness = await HarnessAsync();
 
         await Assert.ThrowsAnyAsync<McpException>(() =>
@@ -57,8 +53,7 @@ public sealed class PromptTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Add_addon_substitutes_the_git_url_into_its_rendered_text()
-    {
+    public async Task Add_addon_substitutes_the_git_url_into_its_rendered_text() {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.GetPromptAsync(
@@ -70,8 +65,7 @@ public sealed class PromptTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Add_addon_without_the_required_git_url_argument_fails()
-    {
+    public async Task Add_addon_without_the_required_git_url_argument_fails() {
         var harness = await HarnessAsync();
 
         await Assert.ThrowsAnyAsync<McpException>(() =>
@@ -79,8 +73,7 @@ public sealed class PromptTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Upgrade_safely_takes_no_arguments_and_renders_its_static_text()
-    {
+    public async Task Upgrade_safely_takes_no_arguments_and_renders_its_static_text() {
         var harness = await HarnessAsync();
 
         var result = await harness.Client.GetPromptAsync("dotquay_upgrade_safely", new Dictionary<string, object?>());
@@ -91,18 +84,15 @@ public sealed class PromptTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Getting_an_unknown_prompt_fails_cleanly()
-    {
+    public async Task Getting_an_unknown_prompt_fails_cleanly() {
         var harness = await HarnessAsync();
 
         await Assert.ThrowsAnyAsync<McpException>(() =>
             harness.Client.GetPromptAsync("dotquay_does_not_exist", new Dictionary<string, object?>()).AsTask());
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        if (_harness is not null)
-        {
+    public async ValueTask DisposeAsync() {
+        if (_harness is not null) {
             await _harness.DisposeAsync();
         }
 

@@ -16,15 +16,12 @@ namespace Dotquay.Tests.Mcp;
 /// (docs/DESIGN-v0.18-MCP.md §9) — is what closes that last gap; this test is the fast, always-on
 /// regression guard for everything short of it.
 /// </remarks>
-public sealed class StdoutPurityTests
-{
+public sealed class StdoutPurityTests {
     [Fact]
-    public async Task A_full_session_writes_nothing_to_real_stdout()
-    {
+    public async Task A_full_session_writes_nothing_to_real_stdout() {
         var projectDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-stdout-test-").FullName;
 
-        try
-        {
+        try {
             await using var harness = await McpTestHarness.StartAsync([projectDirectory]);
 
             // Touches every handler category once: tools/list, a failing tools/call (no manifest),
@@ -36,9 +33,7 @@ public sealed class StdoutPurityTests
             await harness.Client.ListResourcesAsync();
 
             Assert.Equal(string.Empty, harness.CapturedStdout);
-        }
-        finally
-        {
+        } finally {
             Directory.Delete(projectDirectory, recursive: true);
         }
     }

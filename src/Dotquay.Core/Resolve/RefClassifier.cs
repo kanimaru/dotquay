@@ -18,28 +18,23 @@ public sealed record ClassifiedRef(AddonSourceKind Kind, string Value);
 /// enough to matter — <c>1.0</c> is a plausible branch name and <c>release</c> is a plausible tag — so
 /// this asks git rather than pattern-matching, and reports what it found when it can't decide.
 /// </remarks>
-public sealed class RefClassifier
-{
+public sealed class RefClassifier {
     private readonly IGitClient _gitClient;
 
-    public RefClassifier(IGitClient gitClient)
-    {
+    public RefClassifier(IGitClient gitClient) {
         _gitClient = gitClient;
     }
 
-    public async Task<ClassifiedRef> ClassifyAsync(string gitUrl, string reference, CancellationToken cancellationToken = default)
-    {
+    public async Task<ClassifiedRef> ClassifyAsync(string gitUrl, string reference, CancellationToken cancellationToken = default) {
         var trimmed = reference.Trim();
 
-        if (trimmed.Length == 0)
-        {
+        if (trimmed.Length == 0) {
             throw new AddonResolutionException("An empty ref was given after '#'.");
         }
 
         // A full SHA is unambiguous and, unlike a branch or tag, need not still exist as a named ref —
         // pinning to a commit reachable only from history is a legitimate thing to ask for.
-        if (LooksLikeFullSha(trimmed))
-        {
+        if (LooksLikeFullSha(trimmed)) {
             return new ClassifiedRef(AddonSourceKind.Rev, trimmed);
         }
 
@@ -48,14 +43,12 @@ public sealed class RefClassifier
         // Branch before tag: when a repository has both a `main` branch and a `main` tag, the branch
         // is overwhelmingly what someone typing "#main" meant.
         var branch = refs.FirstOrDefault(r => r.Kind == GitRefKind.Branch && r.Name == trimmed);
-        if (branch is not null)
-        {
+        if (branch is not null) {
             return new ClassifiedRef(AddonSourceKind.Branch, trimmed);
         }
 
         var tag = refs.FirstOrDefault(r => r.Kind == GitRefKind.Tag && r.Name == trimmed);
-        if (tag is not null)
-        {
+        if (tag is not null) {
             // An exact tag, not a range. Someone naming one specific tag asked for that tag; widening
             // it to "~2.5" would silently install something they didn't type.
             return new ClassifiedRef(AddonSourceKind.Version, trimmed);
@@ -63,8 +56,7 @@ public sealed class RefClassifier
 
         // Not a named ref. A short hex string is almost certainly an abbreviated commit — accept it as
         // a rev rather than refusing, since `git` itself resolves those happily.
-        if (LooksLikeShortSha(trimmed))
-        {
+        if (LooksLikeShortSha(trimmed)) {
             return new ClassifiedRef(AddonSourceKind.Rev, trimmed);
         }
 
@@ -73,24 +65,20 @@ public sealed class RefClassifier
             + DescribeAvailable(refs));
     }
 
-    private static string DescribeAvailable(IReadOnlyList<GitRef> refs)
-    {
+    private static string DescribeAvailable(IReadOnlyList<GitRef> refs) {
         var branches = refs.Where(r => r.Kind == GitRefKind.Branch).Select(r => r.Name).Take(5).ToList();
         var tags = refs.Where(r => r.Kind == GitRefKind.Tag).Select(r => r.Name).TakeLast(5).ToList();
 
-        if (branches.Count == 0 && tags.Count == 0)
-        {
+        if (branches.Count == 0 && tags.Count == 0) {
             return "That repository reports no branches or tags at all.";
         }
 
         var parts = new List<string>();
-        if (branches.Count > 0)
-        {
+        if (branches.Count > 0) {
             parts.Add($"branches: {string.Join(", ", branches)}");
         }
 
-        if (tags.Count > 0)
-        {
+        if (tags.Count > 0) {
             parts.Add($"recent tags: {string.Join(", ", tags)}");
         }
 

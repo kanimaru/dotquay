@@ -7,8 +7,7 @@ namespace Dotquay.Core.Sync;
 /// the "addon is not at repo root" problem without submodules (SPEC.md §9 step 2). Binary-safe:
 /// copies bytes, never round-trips file contents through text encoding.
 /// </summary>
-public static class SubtreeExtractor
-{
+public static class SubtreeExtractor {
     /// <summary>Never copied into staging — git's own metadata and dotquay's cache bookkeeping,
     /// not part of the addon itself.</summary>
     private static readonly string[] ExcludedTopLevelSegments = [".git", ".dotquay-fetch-complete"];
@@ -33,21 +32,17 @@ public static class SubtreeExtractor
     /// error still fires and dotquay still never infers a layout it wasn't told (SPEC.md §7.1, OQ-2).
     /// </para>
     /// </remarks>
-    public static string ResolveSubtreePath(IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath)
-    {
-        if (relativeSubtreePath is "." or "")
-        {
+    public static string ResolveSubtreePath(IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath) {
+        if (relativeSubtreePath is "." or "") {
             return relativeSubtreePath;
         }
 
         var current = cachedRepoPath;
         var resolved = new List<string>();
 
-        foreach (var segment in relativeSubtreePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries))
-        {
+        foreach (var segment in relativeSubtreePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries)) {
             var actual = ActualDirectoryName(fileSystem, current, segment);
-            if (actual is null)
-            {
+            if (actual is null) {
                 return relativeSubtreePath;
             }
 
@@ -60,24 +55,19 @@ public static class SubtreeExtractor
 
     /// <summary>The real name of <paramref name="segment"/> inside <paramref name="parent"/>, or null
     /// when nothing there matches it even case-insensitively.</summary>
-    private static string? ActualDirectoryName(IFileSystem fileSystem, string parent, string segment)
-    {
-        if (!fileSystem.DirectoryExists(parent))
-        {
+    private static string? ActualDirectoryName(IFileSystem fileSystem, string parent, string segment) {
+        if (!fileSystem.DirectoryExists(parent)) {
             return null;
         }
 
-        foreach (var directory in fileSystem.EnumerateDirectories(parent))
-        {
+        foreach (var directory in fileSystem.EnumerateDirectories(parent)) {
             var name = directory.TrimEnd('/', '\\');
             var separator = name.LastIndexOfAny(['/', '\\']);
-            if (separator >= 0)
-            {
+            if (separator >= 0) {
                 name = name[(separator + 1)..];
             }
 
-            if (string.Equals(name, segment, StringComparison.OrdinalIgnoreCase))
-            {
+            if (string.Equals(name, segment, StringComparison.OrdinalIgnoreCase)) {
                 return name;
             }
         }
@@ -85,14 +75,12 @@ public static class SubtreeExtractor
         return null;
     }
 
-    public static void Extract(IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath, string stagingPath)
-    {
+    public static void Extract(IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath, string stagingPath) {
         var sourceRoot = relativeSubtreePath is "." or ""
             ? cachedRepoPath
             : fileSystem.CombinePath(cachedRepoPath, relativeSubtreePath);
 
-        if (!fileSystem.DirectoryExists(sourceRoot))
-        {
+        if (!fileSystem.DirectoryExists(sourceRoot)) {
             throw new SyncException(DescribeMissingSubtree(fileSystem, cachedRepoPath, relativeSubtreePath));
         }
 
@@ -107,12 +95,10 @@ public static class SubtreeExtractor
         // are added to a directory it's still walking).
         var sourceFiles = fileSystem.EnumerateFiles(sourceRoot, recursive: true).ToList();
 
-        foreach (var file in sourceFiles)
-        {
+        foreach (var file in sourceFiles) {
             var relative = NormalizeRelative(file, sourceRoot);
 
-            if (IsExcluded(relative))
-            {
+            if (IsExcluded(relative)) {
                 continue;
             }
 
@@ -121,8 +107,7 @@ public static class SubtreeExtractor
             copiedAnyFile = true;
         }
 
-        if (!copiedAnyFile)
-        {
+        if (!copiedAnyFile) {
             throw new SyncException(
                 $"Configured path '{relativeSubtreePath}' exists but is empty (after excluding git metadata) in the fetched repository at {cachedRepoPath}.");
         }
@@ -148,22 +133,19 @@ public static class SubtreeExtractor
     /// </para>
     /// </remarks>
     private static string DescribeMissingSubtree(
-        IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath)
-    {
+        IFileSystem fileSystem, string cachedRepoPath, string relativeSubtreePath) {
         var message =
             $"Configured path '{relativeSubtreePath}' does not exist in the fetched repository at {cachedRepoPath}.";
 
         var finding = SubtreeCandidates.Find(fileSystem, cachedRepoPath, relativeSubtreePath);
 
-        if (finding is null || !finding.HasCandidates)
-        {
+        if (finding is null || !finding.HasCandidates) {
             return message;
         }
 
         message += $" But {finding.DescribeWhereTheAddonIs()}.";
 
-        if (finding.Suggestion is null)
-        {
+        if (finding.Suggestion is null) {
             return message;
         }
 
@@ -180,14 +162,12 @@ public static class SubtreeExtractor
             + $"{finding.Suggestion.Path}') if another addon does.";
     }
 
-    private static bool IsExcluded(string relativePath)
-    {
+    private static bool IsExcluded(string relativePath) {
         var firstSegment = relativePath.Split(['/', '\\'], 2)[0];
         return ExcludedTopLevelSegments.Contains(firstSegment, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static string NormalizeRelative(string filePath, string sourceRoot)
-    {
+    private static string NormalizeRelative(string filePath, string sourceRoot) {
         var relative = filePath[sourceRoot.Length..].TrimStart('/', '\\');
         return relative.Replace('\\', '/');
     }

@@ -13,13 +13,11 @@ namespace Dotquay.Tests.Doctor;
 /// if an addon's uids changed" — so a scan that also reported the project's references to its own
 /// files, or matched one uid inside another, would bury the answer in noise and get ignored.
 /// </remarks>
-public class UidReferenceScannerTests
-{
+public class UidReferenceScannerTests {
     private const string Project = "project";
     private const string Addons = "project/addons";
 
-    private static InMemoryFileSystem WithAddonScript(string uid = "uid://bxwpwbdv4fm02")
-    {
+    private static InMemoryFileSystem WithAddonScript(string uid = "uid://bxwpwbdv4fm02") {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Addons}/r3/frame.cs", "class Frame {}");
         fileSystem.WriteAllText($"{Addons}/r3/frame.cs.uid", uid);
@@ -27,8 +25,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_CodeLoadingAnAddonResourceByUid_IsReported()
-    {
+    public void Scan_CodeLoadingAnAddonResourceByUid_IsReported() {
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Project}/game/boot.gd", "var f = load(\"uid://bxwpwbdv4fm02\")");
 
@@ -42,8 +39,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_UidDeclaredByAnImportSidecar_IsAlsoResolved()
-    {
+    public void Scan_UidDeclaredByAnImportSidecar_IsAlsoResolved() {
         // Assets record their uid inside the .import file rather than in a .uid sidecar.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Addons}/gut/icon.png", "binary");
@@ -54,8 +50,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_SceneFiles_AreNotReported()
-    {
+    public void Scan_SceneFiles_AreNotReported() {
         // A .tscn records a path beside every uid, so Godot falls back to it and repairs the uid on
         // the next save. Reporting these would flag every scene in every project.
         var fileSystem = WithAddonScript();
@@ -67,8 +62,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_ReferenceToTheProjectsOwnResource_IsNotReported()
-    {
+    public void Scan_ReferenceToTheProjectsOwnResource_IsNotReported() {
         // dotquay never touches the project's own files, so their uids are stable by construction.
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Project}/game/player.gd", "class_name Player");
@@ -79,8 +73,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_CodeInsideAnAddon_IsNotReported()
-    {
+    public void Scan_CodeInsideAnAddon_IsNotReported() {
         // An addon referencing its own resources moves in lockstep with the uids it names, and it is
         // the author's file, not the user's, so there is nothing here for them to act on.
         var fileSystem = WithAddonScript();
@@ -90,8 +83,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_AUidThatIsAPrefixOfAnother_IsNotConfused()
-    {
+    public void Scan_AUidThatIsAPrefixOfAnother_IsNotConfused() {
         // uid://abc is a prefix of uid://abc1. Substring matching would report a reference to a
         // resource the code never mentions — a false alarm on the check whose only value is precision.
         var fileSystem = new InMemoryFileSystem();
@@ -103,8 +95,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_GodotCacheFolder_IsSkipped()
-    {
+    public void Scan_GodotCacheFolder_IsSkipped() {
         // .godot holds uids in bulk and is regenerated wholesale; scanning it would report thousands
         // of "references" nobody wrote.
         var fileSystem = WithAddonScript();
@@ -117,8 +108,7 @@ public class UidReferenceScannerTests
     [InlineData(".dotquay/staging/r3/plugin.gd")]
     [InlineData(".git/hooks/pre-commit.gd")]
     [InlineData("tools/.cache/boot.gd")]
-    public void Scan_HiddenFolders_AreSkipped(string relative)
-    {
+    public void Scan_HiddenFolders_AreSkipped(string relative) {
         // Godot skips every file and folder whose name starts with a dot, so code there is never
         // loaded and cannot break. .dotquay/staging is the case that mattered: an extracted copy of an
         // addon, whose own uid references were reported as the project's.
@@ -129,8 +119,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_FolderWithGdignore_IsSkipped()
-    {
+    public void Scan_FolderWithGdignore_IsSkipped() {
         // A .gdignore hides its folder and everything below it from Godot, just like a leading dot.
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Project}/vendor/.gdignore", "");
@@ -140,8 +129,7 @@ public class UidReferenceScannerTests
     }
 
     [Fact]
-    public void Scan_SiblingOfAGdignoredFolder_IsStillReported()
-    {
+    public void Scan_SiblingOfAGdignoredFolder_IsStillReported() {
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Project}/vendor/.gdignore", "");
         fileSystem.WriteAllText($"{Project}/game/boot.gd", "load(\"uid://bxwpwbdv4fm02\")");
@@ -154,8 +142,7 @@ public class UidReferenceScannerTests
         Assert.Empty(UidReferenceScanner.Scan(new InMemoryFileSystem(), Project, Addons));
 
     [Fact]
-    public void Scan_FindsEveryReferenceInOneFile()
-    {
+    public void Scan_FindsEveryReferenceInOneFile() {
         var fileSystem = WithAddonScript();
         fileSystem.WriteAllText($"{Addons}/r3/other.cs", "class Other {}");
         fileSystem.WriteAllText($"{Addons}/r3/other.cs.uid", "uid://second999");

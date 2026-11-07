@@ -31,8 +31,7 @@ namespace Dotquay.Core.Sync;
 /// pinned by the commit SHA, which is untouched.
 /// </para>
 /// </remarks>
-public static class ContentHasher
-{
+public static class ContentHasher {
     /// <summary>
     /// How many leading bytes decide whether a file is text. Git's own rule: a NUL in the first 8000
     /// bytes makes a file binary, and binary files are never line-ending converted — by git or here.
@@ -72,8 +71,7 @@ public static class ContentHasher
     /// The canonical hash and every older form, in one pass over the tree: each file is read once, and the
     /// extra work is hashing the (small) text files in their other line-ending forms.
     /// </summary>
-    public static TreeHashes HashTree(IFileSystem fileSystem, string path)
-    {
+    public static TreeHashes HashTree(IFileSystem fileSystem, string path) {
         var relativePaths = fileSystem.EnumerateFiles(path, recursive: true)
             .Select(file => NormalizeRelative(file, path))
             .OrderBy(relative => relative, StringComparer.Ordinal)
@@ -90,10 +88,8 @@ public static class ContentHasher
             (LineEndings.Crlf, true, IncrementalHash.CreateHash(HashAlgorithmName.SHA256)),
         };
 
-        try
-        {
-            foreach (var relative in relativePaths)
-            {
+        try {
+            foreach (var relative in relativePaths) {
                 var bytes = fileSystem.ReadAllBytes(fileSystem.CombinePath(path, relative));
                 var isArtifact = GodotArtifacts.IsArtifact(relative);
                 var name = Encoding.UTF8.GetBytes(relative);
@@ -105,17 +101,14 @@ public static class ContentHasher
                 var lf = isText ? SHA256.HashData(ToLf(bytes)) : asWritten;
                 var crlf = isText ? SHA256.HashData(ToCrlf(bytes)) : asWritten;
 
-                foreach (var (endings, includeArtifacts, hash) in forms)
-                {
-                    if (isArtifact && !includeArtifacts)
-                    {
+                foreach (var (endings, includeArtifacts, hash) in forms) {
+                    if (isArtifact && !includeArtifacts) {
                         continue;
                     }
 
                     hash.AppendData(name);
                     hash.AppendData([0]); // separator: prevents "ab" + "c" colliding with "a" + "bc"
-                    hash.AppendData(endings switch
-                    {
+                    hash.AppendData(endings switch {
                         LineEndings.Lf => lf,
                         LineEndings.Crlf => crlf,
                         _ => asWritten,
@@ -128,18 +121,14 @@ public static class ContentHasher
                 .ToList();
 
             return new TreeHashes(all[0], all.Distinct(StringComparer.Ordinal).ToList());
-        }
-        finally
-        {
-            foreach (var (_, _, hash) in forms)
-            {
+        } finally {
+            foreach (var (_, _, hash) in forms) {
                 hash.Dispose();
             }
         }
     }
 
-    private enum LineEndings
-    {
+    private enum LineEndings {
         /// <summary>Exactly the bytes on disk.</summary>
         AsWritten,
         /// <summary>Text files with every line ending as LF.</summary>
@@ -148,8 +137,7 @@ public static class ContentHasher
         Crlf,
     }
 
-    private static string HashAsWrittenIncludingArtifacts(IFileSystem fileSystem, string path)
-    {
+    private static string HashAsWrittenIncludingArtifacts(IFileSystem fileSystem, string path) {
         var relativePaths = fileSystem.EnumerateFiles(path, recursive: true)
             .Select(file => NormalizeRelative(file, path))
             .OrderBy(relative => relative, StringComparer.Ordinal)
@@ -157,8 +145,7 @@ public static class ContentHasher
 
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        foreach (var relative in relativePaths)
-        {
+        foreach (var relative in relativePaths) {
             hash.AppendData(Encoding.UTF8.GetBytes(relative));
             hash.AppendData([0]);
             hash.AppendData(SHA256.HashData(fileSystem.ReadAllBytes(fileSystem.CombinePath(path, relative))));
@@ -168,26 +155,21 @@ public static class ContentHasher
     }
 
     /// <summary>Git's rule for "is this text": no NUL byte in the first 8000.</summary>
-    private static bool IsText(byte[] bytes)
-    {
+    private static bool IsText(byte[] bytes) {
         var probe = Math.Min(bytes.Length, BinaryProbeBytes);
         return bytes.AsSpan(0, probe).IndexOf((byte)0) < 0;
     }
 
     /// <summary>CRLF becomes LF. A lone CR is left alone: it is not a line ending git rewrites.</summary>
-    private static byte[] ToLf(byte[] bytes)
-    {
-        if (bytes.AsSpan().IndexOf((byte)'\r') < 0)
-        {
+    private static byte[] ToLf(byte[] bytes) {
+        if (bytes.AsSpan().IndexOf((byte)'\r') < 0) {
             return bytes; // the common case on Linux and macOS: nothing to do, nothing allocated
         }
 
         var result = new byte[bytes.Length];
         var length = 0;
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (bytes[i] == (byte)'\r' && i + 1 < bytes.Length && bytes[i + 1] == (byte)'\n')
-            {
+        for (var i = 0; i < bytes.Length; i++) {
+            if (bytes[i] == (byte)'\r' && i + 1 < bytes.Length && bytes[i + 1] == (byte)'\n') {
                 continue; // drop the CR of a CRLF pair
             }
 
@@ -198,21 +180,17 @@ public static class ContentHasher
     }
 
     /// <summary>Every line ending becomes CRLF (through LF first, so a mixed file ends up uniform).</summary>
-    private static byte[] ToCrlf(byte[] bytes)
-    {
+    private static byte[] ToCrlf(byte[] bytes) {
         var lf = ToLf(bytes);
         var newlines = lf.AsSpan().Count((byte)'\n');
-        if (newlines == 0)
-        {
+        if (newlines == 0) {
             return lf;
         }
 
         var result = new byte[lf.Length + newlines];
         var length = 0;
-        foreach (var b in lf)
-        {
-            if (b == (byte)'\n')
-            {
+        foreach (var b in lf) {
+            if (b == (byte)'\n') {
                 result[length++] = (byte)'\r';
             }
 
@@ -222,8 +200,7 @@ public static class ContentHasher
         return result;
     }
 
-    private static string NormalizeRelative(string filePath, string root)
-    {
+    private static string NormalizeRelative(string filePath, string root) {
         var relative = filePath[root.Length..].TrimStart('/', '\\');
         return relative.Replace('\\', '/');
     }

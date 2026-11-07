@@ -23,29 +23,25 @@ namespace Dotquay.Core.Workflows;
 /// statement.
 /// </para>
 /// </remarks>
-public sealed partial class DependencyWorkflow
-{
+public sealed partial class DependencyWorkflow {
     public async Task<DotnetDeclaration> DeclareDotnetAsync(
         string projectDirectory,
         string packageId,
         string? version = null,
         string? pinnedSourceName = null,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
         var (lockfile, _) = ReadOrCreateLockfile(projectDirectory);
         var locked = lockfile.Dotnet.FirstOrDefault(d => d.Name == packageId);
         var declared = manifest.Dotnet.GetValueOrDefault(packageId);
         var sourceBuilt = new List<SourceBuiltPackage>();
 
-        if (declared is null && locked is null)
-        {
+        if (declared is null && locked is null) {
             var added = await AddDotnetCoreAsync(projectDirectory, packageId, version, pinnedSourceName, sourceBuilt, cancellationToken);
             return new DotnetDeclaration(added, DotnetDeclarationOutcome.Added, PreviousResolved: null) { SourceBuilt = sourceBuilt };
         }
 
-        if (version is null && declared is not null)
-        {
+        if (version is null && declared is not null) {
             throw new WorkflowException(
                 $"'{packageId}' is already declared in {manifestPath}. Use 'dotquay update {packageId}' for the "
                 + $"newest version its range allows, or 'dotquay add {packageId} --version <version>' to change it.");
@@ -55,8 +51,7 @@ public sealed partial class DependencyWorkflow
             && locked is not null
             && declared.Version == version
             && locked.Resolved == version
-            && (pinnedSourceName is null || pinnedSourceName == declared.Source))
-        {
+            && (pinnedSourceName is null || pinnedSourceName == declared.Source)) {
             return new DotnetDeclaration(locked, DotnetDeclarationOutcome.Unchanged, locked.Resolved);
         }
 
@@ -93,8 +88,7 @@ public sealed partial class DependencyWorkflow
         string? sourceName,
         PackageAssets assets,
         ICollection<SourceBuiltPackage> sourceBuilt,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var (manifest, manifestPath) = ReadManifestOrThrow(projectDirectory);
         var sourceSet = manifest.SourceSet();
         ThrowIfUnknownSource(sourceSet, sourceName);
@@ -116,12 +110,9 @@ public sealed partial class DependencyWorkflow
                 projectDirectory, packageId, version, manifest, lockfile.Dotnet, restore: true, resolvedSource,
                 cancellationToken, assets, previouslyWritten: previous?.Assets, sourceBuilt: sourceBuilt));
 
-        WriteManifest(manifestPath, manifest with
-        {
-            Dotnet = new Dictionary<string, DotnetSpec>(manifest.Dotnet)
-            {
-                [packageId] = new DotnetSpec
-                {
+        WriteManifest(manifestPath, manifest with {
+            Dotnet = new Dictionary<string, DotnetSpec>(manifest.Dotnet) {
+                [packageId] = new DotnetSpec {
                     Name = packageId,
                     Version = requestedVersion ?? CompatibleRange(version),
                     Source = sourceName,
@@ -141,10 +132,8 @@ public sealed partial class DependencyWorkflow
 
     /// <summary>Refuses a feed name the manifest doesn't declare, before any network call, phrased for
     /// the <c>--source</c> flag the user actually typed.</summary>
-    private static void ThrowIfUnknownSource(NuGetSourceSet sourceSet, string? sourceName)
-    {
-        if (sourceName is null || sourceSet.ByName(sourceName) is not null)
-        {
+    private static void ThrowIfUnknownSource(NuGetSourceSet sourceSet, string? sourceName) {
+        if (sourceName is null || sourceSet.ByName(sourceName) is not null) {
             return;
         }
 

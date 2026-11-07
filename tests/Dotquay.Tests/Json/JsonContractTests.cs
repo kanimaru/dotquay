@@ -18,16 +18,14 @@ namespace Dotquay.Tests.Json;
 /// (<c>src/Dotquay.Godot/tests/</c>) asserts the same shape from the other side; this file is what
 /// stops the C# side drifting away from it silently.
 /// </remarks>
-public class JsonContractTests
-{
+public class JsonContractTests {
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     private static string WriteGraph(GraphJson payload) =>
         DotquayJson.Write(JsonEnvelope<GraphJson>.Success("graph", payload));
 
     [Fact]
-    public void Envelope_CarriesTheFieldsAConsumerBranchesOn()
-    {
+    public void Envelope_CarriesTheFieldsAConsumerBranchesOn() {
         var root = Parse(WriteGraph(new GraphJson { Source = "lockfile", ProjectDirectory = "/p" }));
 
         Assert.Equal(JsonEnvelope<GraphJson>.CurrentSchema, root.GetProperty("schema").GetInt32());
@@ -40,10 +38,8 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void GraphDotnetEntry_CarriesOriginRequiredByAndSource()
-    {
-        var payload = new GraphJson
-        {
+    public void GraphDotnetEntry_CarriesOriginRequiredByAndSource() {
+        var payload = new GraphJson {
             Source = "lockfile",
             ProjectDirectory = "/p",
             Dotnet =
@@ -70,8 +66,7 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void FailureEnvelope_HasNullDataAndATypedError()
-    {
+    public void FailureEnvelope_HasNullDataAndATypedError() {
         var json = DotquayJson.Write(JsonEnvelope<OperationJson>.Failure(
             "graph", new JsonError(JsonErrorKind.NoManifest, "No dotquay.toml found.")));
 
@@ -84,10 +79,8 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void Properties_AreEmittedAsSnakeCase()
-    {
-        var payload = new GraphJson
-        {
+    public void Properties_AreEmittedAsSnakeCase() {
+        var payload = new GraphJson {
             Source = "lockfile",
             ProjectDirectory = "/p",
             Addons = [new GraphNodeJson { Name = "a", Git = "g", Path = "addons/a", Folder = "a", Origin = "root", IsOverridden = true }],
@@ -104,10 +97,8 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void OptionalFields_AreEmittedAsNullRatherThanOmitted()
-    {
-        var payload = new GraphJson
-        {
+    public void OptionalFields_AreEmittedAsNullRatherThanOmitted() {
+        var payload = new GraphJson {
             Source = "lockfile",
             ProjectDirectory = "/p",
             Addons = [new GraphNodeJson { Name = "a", Git = "g", Path = "addons/a", Folder = "a", Origin = "root" }],
@@ -162,8 +153,7 @@ public class JsonContractTests
     /// covers members somebody remembered to list, which is the same thing being forgotten twice.
     /// </remarks>
     [Fact]
-    public void EveryDoctorIssueKind_HasAWireName()
-    {
+    public void EveryDoctorIssueKind_HasAWireName() {
         var unmapped = Enum.GetValues<DoctorIssueKind>()
             .Where(kind => JsonMapper.ToWire(kind) == "unknown")
             .ToList();
@@ -177,16 +167,14 @@ public class JsonContractTests
     [InlineData(GraphConflictKind.NoCommonVersion, "no_common_version")]
     [InlineData(GraphConflictKind.InvalidConstraint, "invalid_constraint")]
     [InlineData(GraphConflictKind.DisagreeingInstallFolders, "disagreeing_install_folders")]
-    public void ConflictKind_MapsToASnakeCaseName(GraphConflictKind kind, string expected)
-    {
+    public void ConflictKind_MapsToASnakeCaseName(GraphConflictKind kind, string expected) {
         var conflict = new GraphConflict("core", kind, "message", [], []);
 
         Assert.Equal(expected, JsonMapper.ToJson(conflict).Kind);
     }
 
     [Fact]
-    public void Conflict_CarriesItsRequirementsAndCandidates()
-    {
+    public void Conflict_CarriesItsRequirementsAndCandidates() {
         var conflict = new GraphConflict(
             "core",
             GraphConflictKind.NoCommonVersion,
@@ -194,8 +182,7 @@ public class JsonContractTests
             [new GraphRequirement("a", AddonSourceKind.Version, "~1", "https://example.com/core.git")],
             [new GraphCandidate(AddonSourceKind.Version, "v1.9.0", "https://example.com/core.git", "abc", ["a", "b"], SatisfiesAll: true)]);
 
-        var payload = new GraphJson
-        {
+        var payload = new GraphJson {
             Source = "resolved",
             ProjectDirectory = "/p",
             Conflicts = [JsonMapper.ToJson(conflict)],
@@ -216,8 +203,7 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void ProjectRequirer_IsSpelledTheWayTheResolverSpellsIt()
-    {
+    public void ProjectRequirer_IsSpelledTheWayTheResolverSpellsIt() {
         var requirement = new GraphRequirement(
             GraphConflict.ProjectRequirerName, AddonSourceKind.Version, "~1", "https://example.com/core.git");
 
@@ -227,16 +213,14 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void ShortSha_IsSevenCharacters()
-    {
+    public void ShortSha_IsSevenCharacters() {
         Assert.Equal("abcdef1", JsonMapper.ShortSha("abcdef1234567890"));
         Assert.Equal("abc", JsonMapper.ShortSha("abc"));
         Assert.Null(JsonMapper.ShortSha(null));
     }
 
     [Fact]
-    public void EveryPayloadType_Serializes()
-    {
+    public void EveryPayloadType_Serializes() {
         // Source generation registers one closed generic per payload (see DotquayJsonContext); a
         // missing registration compiles and only fails at runtime, inside the published AOT binary.
         // Touching all six here turns that into a test failure instead of a field bug report.
@@ -249,10 +233,8 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void OperationPayload_UsesTheDocumentedActionVocabulary()
-    {
-        var payload = new OperationJson
-        {
+    public void OperationPayload_UsesTheDocumentedActionVocabulary() {
+        var payload = new OperationJson {
             Changes =
             [
                 new ChangeJson { Name = "a", Kind = JsonMapper.ChangeKind.Addon, Action = JsonMapper.ChangeAction.Added, To = "v1.0.0" },
@@ -272,8 +254,7 @@ public class JsonContractTests
     }
 
     [Fact]
-    public void Warnings_SurviveIntoTheEnvelope()
-    {
+    public void Warnings_SurviveIntoTheEnvelope() {
         var json = DotquayJson.Write(
             JsonEnvelope<OperationJson>.Success("add", new OperationJson(), ["no tags found — pinned to a commit"]));
 

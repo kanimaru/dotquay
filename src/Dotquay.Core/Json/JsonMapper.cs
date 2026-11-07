@@ -13,12 +13,9 @@ namespace Dotquay.Core.Json;
 /// change by editing this file — a renamed C# enum member is a compile error here, not a silent break
 /// in the Godot plugin.
 /// </summary>
-public static class JsonMapper
-{
-    public static GraphJson ToJson(GraphReport report) => new()
-    {
-        Source = report.Source switch
-        {
+public static class JsonMapper {
+    public static GraphJson ToJson(GraphReport report) => new() {
+        Source = report.Source switch {
             GraphSource.Lockfile => "lockfile",
             GraphSource.Resolved => "resolved",
             _ => "unknown",
@@ -33,8 +30,7 @@ public static class JsonMapper
         HasConflicts = report.Conflicts.Count > 0,
     };
 
-    public static GraphNodeJson ToJson(GraphNode node) => new()
-    {
+    public static GraphNodeJson ToJson(GraphNode node) => new() {
         Name = node.Name,
         Git = node.Git,
         Version = node.Version,
@@ -55,8 +51,7 @@ public static class JsonMapper
     public static RequirementJson ToJson(GraphRequirement requirement) =>
         new(requirement.Requirer, ToWire(requirement.Kind), requirement.Constraint, requirement.Git);
 
-    public static CandidateJson ToJson(GraphCandidate candidate) => new()
-    {
+    public static CandidateJson ToJson(GraphCandidate candidate) => new() {
         Kind = ToWire(candidate.Kind),
         Value = candidate.Value,
         Git = candidate.Git,
@@ -66,11 +61,9 @@ public static class JsonMapper
         InstallAs = candidate.InstallAs,
     };
 
-    public static ConflictJson ToJson(GraphConflict conflict) => new()
-    {
+    public static ConflictJson ToJson(GraphConflict conflict) => new() {
         Name = conflict.AddonName,
-        Kind = conflict.Kind switch
-        {
+        Kind = conflict.Kind switch {
             GraphConflictKind.DifferentGitUrls => "different_git_urls",
             GraphConflictKind.DisjointPins => "disjoint_pins",
             GraphConflictKind.NoCommonVersion => "no_common_version",
@@ -83,8 +76,7 @@ public static class JsonMapper
         Candidates = conflict.Candidates.Select(ToJson).ToList(),
     };
 
-    public static DotnetJson ToJson(GraphDotnetNode node) => new()
-    {
+    public static DotnetJson ToJson(GraphDotnetNode node) => new() {
         Name = node.Name,
         Constraint = node.Constraint,
         Resolved = node.Resolved,
@@ -100,12 +92,10 @@ public static class JsonMapper
     /// already was exactly that. Shared by <c>add --json</c> and the MCP tool so both report one
     /// outcome the same way.
     /// </summary>
-    public static ChangeJson ToChange(Workflows.DotnetDeclaration declaration) => new()
-    {
+    public static ChangeJson ToChange(Workflows.DotnetDeclaration declaration) => new() {
         Name = declaration.Locked.Name,
         Kind = ChangeKind.Dotnet,
-        Action = declaration.Outcome switch
-        {
+        Action = declaration.Outcome switch {
             Workflows.DotnetDeclarationOutcome.Added => ChangeAction.Added,
             Workflows.DotnetDeclarationOutcome.Unchanged => ChangeAction.Unchanged,
             _ => ChangeAction.Updated,
@@ -116,20 +106,17 @@ public static class JsonMapper
 
     /// <summary>One mapping for both node kinds, so an addon and a package can never disagree about
     /// what "orphan" is called on the wire.</summary>
-    public static string ToWire(GraphNodeOrigin origin) => origin switch
-    {
+    public static string ToWire(GraphNodeOrigin origin) => origin switch {
         GraphNodeOrigin.Root => "root",
         GraphNodeOrigin.Transitive => "transitive",
         GraphNodeOrigin.Orphan => "orphan",
         _ => "unknown",
     };
 
-    public static ListJson ToListJson(IReadOnlyList<LockedAddon> addons, IReadOnlyList<LockedDotnet> dotnet) => new()
-    {
+    public static ListJson ToListJson(IReadOnlyList<LockedAddon> addons, IReadOnlyList<LockedDotnet> dotnet) => new() {
         Addons = addons
             .OrderBy(a => a.Name, StringComparer.Ordinal)
-            .Select(a => new ListAddonJson
-            {
+            .Select(a => new ListAddonJson {
                 Name = a.Name,
                 Version = a.Version,
                 Resolved = a.Resolved,
@@ -140,8 +127,7 @@ public static class JsonMapper
             .ToList(),
         Dotnet = dotnet
             .OrderBy(d => d.Name, StringComparer.Ordinal)
-            .Select(d => new DotnetJson
-            {
+            .Select(d => new DotnetJson {
                 Name = d.Name,
                 Constraint = null,
                 Resolved = d.Resolved,
@@ -154,8 +140,7 @@ public static class JsonMapper
             .ToList(),
     };
 
-    public static StatusJson ToJson(StatusResult status) => new()
-    {
+    public static StatusJson ToJson(StatusResult status) => new() {
         Addons = status.Addons.Select(a => new StatusEntryJson(a.Name, ToWire(a.Kind), ToJson(a.Explanation))).ToList(),
         // A linked addon counts as clean: it is exactly where its owner put it, and nothing about it
         // needs fixing (SPEC.md §7.4).
@@ -163,8 +148,7 @@ public static class JsonMapper
             a => a.Kind is AddonStatusKind.Clean or AddonStatusKind.PatchedAsExpected or AddonStatusKind.Linked),
     };
 
-    public static OutdatedJson ToJson(OutdatedResult outdated)
-    {
+    public static OutdatedJson ToJson(OutdatedResult outdated) {
         var addons = outdated.Addons
             .Select(a => new OutdatedEntryJson(a.Name, a.CurrentDisplay, a.LatestDisplay, a.IsOutdated))
             .ToList();
@@ -172,21 +156,18 @@ public static class JsonMapper
             .Select(d => new OutdatedEntryJson(d.Name, d.CurrentVersion, d.LatestVersion, d.IsOutdated))
             .ToList();
 
-        return new OutdatedJson
-        {
+        return new OutdatedJson {
             Addons = addons,
             Dotnet = dotnet,
             OutdatedCount = addons.Count(a => a.IsOutdated) + dotnet.Count(d => d.IsOutdated),
         };
     }
 
-    public static DoctorJson ToJson(DoctorResult doctor) => new()
-    {
+    public static DoctorJson ToJson(DoctorResult doctor) => new() {
         Issues = doctor.Issues.Select(i => new DoctorIssueJson(
             ToWire(i.Kind), i.Message, i.UidFix?.File, i.UidFix?.Uid, i.UidFix?.ResPath)).ToList(),
         Healthy = doctor.Issues.Count == 0,
-        Trust = new DoctorTrustJson
-        {
+        Trust = new DoctorTrustJson {
             TrustedHosts = doctor.Trust.TrustedHosts,
             AdoptedSources = doctor.Trust.AdoptedSources
                 .Select(s => new DoctorAdoptedSourceJson(s.Name, s.Url, s.DeclaredByAddon))
@@ -194,11 +175,9 @@ public static class JsonMapper
         },
     };
 
-    public static OperationJson ToJson(UpdateResult update, IReadOnlyList<string>? messages = null) => new()
-    {
+    public static OperationJson ToJson(UpdateResult update, IReadOnlyList<string>? messages = null) => new() {
         Changes = update.Addons
-            .Select(a => new ChangeJson
-            {
+            .Select(a => new ChangeJson {
                 Name = a.Name,
                 Kind = ChangeKind.Addon,
                 Action = a.PreviousResolved is null ? ChangeAction.Added
@@ -207,8 +186,7 @@ public static class JsonMapper
                 From = ShortSha(a.PreviousResolved),
                 To = a.Locked.Version ?? ShortSha(a.Locked.Resolved),
             })
-            .Concat(update.Dotnet.Select(d => new ChangeJson
-            {
+            .Concat(update.Dotnet.Select(d => new ChangeJson {
                 Name = d.Name,
                 Kind = ChangeKind.Dotnet,
                 Action = d.PreviousResolved is null ? ChangeAction.Added
@@ -221,19 +199,16 @@ public static class JsonMapper
         Messages = messages ?? update.SourceBuildNotes,
     };
 
-    public static OperationJson ToJson(InstallResult install, IReadOnlyList<string>? messages = null) => new()
-    {
+    public static OperationJson ToJson(InstallResult install, IReadOnlyList<string>? messages = null) => new() {
         Changes = install.Addons
-            .Select(a => new ChangeJson
-            {
+            .Select(a => new ChangeJson {
                 Name = a.Name,
                 Kind = ChangeKind.Addon,
                 Action = ChangeAction.Installed,
                 From = null,
                 To = a.Version ?? ShortSha(a.Resolved),
             })
-            .Concat(install.Dotnet.Select(d => new ChangeJson
-            {
+            .Concat(install.Dotnet.Select(d => new ChangeJson {
                 Name = d.Name,
                 Kind = ChangeKind.Dotnet,
                 Action = ChangeAction.Installed,
@@ -253,13 +228,11 @@ public static class JsonMapper
     /// not facts the resolver discovered, and a UI that recomputed them could disagree with one that
     /// read them.
     /// </remarks>
-    public static AddPreviewJson ToJson(AddPreview preview) => new()
-    {
+    public static AddPreviewJson ToJson(AddPreview preview) => new() {
         Name = preview.Name,
         Git = preview.Git,
         Addons = preview.Addons
-            .Select(a => new PreviewAddonJson
-            {
+            .Select(a => new PreviewAddonJson {
                 Name = a.Name,
                 Git = a.Git,
                 Version = a.Version,
@@ -272,8 +245,7 @@ public static class JsonMapper
             })
             .ToList(),
         Dotnet = preview.Dotnet
-            .Select(d => new PreviewDotnetJson
-            {
+            .Select(d => new PreviewDotnetJson {
                 Name = d.Name,
                 Constraint = d.Constraint,
                 DeclaredByAddon = d.DeclaredByAddon,
@@ -288,8 +260,7 @@ public static class JsonMapper
         NeedsSubtreeConfirmation = preview.Subtree is not null,
     };
 
-    private static SubtreeJson ToJson(SubtreeSuggestion suggestion) => new()
-    {
+    private static SubtreeJson ToJson(SubtreeSuggestion suggestion) => new() {
         GuessedPath = suggestion.GuessedPath,
         Path = suggestion.Path,
         Folder = suggestion.Folder,
@@ -297,8 +268,7 @@ public static class JsonMapper
         Explanation = suggestion.Explanation,
     };
 
-    private static PreviewSourceJson ToJson(PreviewSource source) => new()
-    {
+    private static PreviewSourceJson ToJson(PreviewSource source) => new() {
         Name = source.Name,
         Url = source.Url,
         DeclaredByAddon = source.DeclaredByAddon,
@@ -307,8 +277,7 @@ public static class JsonMapper
         PackageIds = source.PackageIds,
     };
 
-    public static string ToWire(AddonSourceKind kind) => kind switch
-    {
+    public static string ToWire(AddonSourceKind kind) => kind switch {
         AddonSourceKind.Version => "version",
         AddonSourceKind.Branch => "branch",
         AddonSourceKind.Rev => "rev",
@@ -319,11 +288,9 @@ public static class JsonMapper
     /// than an empty one a consumer would have to distinguish from "explained, nothing found".</summary>
     public static StatusExplanationJson? ToJson(AddonExplanation? explanation) => explanation is null
         ? null
-        : new StatusExplanationJson
-        {
+        : new StatusExplanationJson {
             Verdict = ToWire(explanation.Verdict),
-            Counts = new StatusChangeCountsJson
-            {
+            Counts = new StatusChangeCountsJson {
                 Content = explanation.Counts.Content,
                 UidOnly = explanation.Counts.UidOnly,
                 WhitespaceOnly = explanation.Counts.WhitespaceOnly,
@@ -339,8 +306,7 @@ public static class JsonMapper
             PatchCouldNotBeApplied = explanation.PatchCouldNotBeApplied,
         };
 
-    public static string ToWire(ExplainVerdict verdict) => verdict switch
-    {
+    public static string ToWire(ExplainVerdict verdict) => verdict switch {
         ExplainVerdict.SafeToForce => "safe_to_force",
         ExplainVerdict.ReviewNeeded => "review_needed",
         ExplainVerdict.Unavailable => "unavailable",
@@ -350,16 +316,14 @@ public static class JsonMapper
     /// <summary>Fully qualified: this type already nests a <c>ChangeKind</c> holding the wire
     /// constants for <see cref="ChangeJson"/>, which is a different thing entirely and wins name
     /// resolution here.</summary>
-    public static string ToWire(Sync.ChangeKind kind) => kind switch
-    {
+    public static string ToWire(Sync.ChangeKind kind) => kind switch {
         Sync.ChangeKind.Added => "added",
         Sync.ChangeKind.Removed => "removed",
         Sync.ChangeKind.Changed => "changed",
         _ => "unknown",
     };
 
-    public static string ToWire(Sync.ChangeClass @class) => @class switch
-    {
+    public static string ToWire(Sync.ChangeClass @class) => @class switch {
         Sync.ChangeClass.EditorArtifact => "editor_artifact",
         Sync.ChangeClass.LineEndingsOnly => "line_endings_only",
         Sync.ChangeClass.UidOnly => "uid_only",
@@ -368,8 +332,7 @@ public static class JsonMapper
         _ => "unknown",
     };
 
-    public static string ToWire(AddonStatusKind status) => status switch
-    {
+    public static string ToWire(AddonStatusKind status) => status switch {
         AddonStatusKind.Clean => "clean",
         // Deliberately "patched", not "patched_as_expected": the wire name is what a UI shows on a
         // badge, and the C# name's emphasis reads as an apology in that context.
@@ -380,8 +343,7 @@ public static class JsonMapper
         _ => "unknown",
     };
 
-    public static string ToWire(DoctorIssueKind kind) => kind switch
-    {
+    public static string ToWire(DoctorIssueKind kind) => kind switch {
         DoctorIssueKind.GitNotOnPath => "git_not_on_path",
         DoctorIssueKind.DanglingLockfileEntry => "dangling_lockfile_entry",
         DoctorIssueKind.PluginCfgVersionDrift => "plugin_cfg_version_drift",
@@ -411,15 +373,13 @@ public static class JsonMapper
         sha is null ? null : sha.Length > 7 ? sha[..7] : sha;
 
     /// <summary>Wire values for <see cref="ChangeJson.Kind"/>.</summary>
-    public static class ChangeKind
-    {
+    public static class ChangeKind {
         public const string Addon = "addon";
         public const string Dotnet = "dotnet";
     }
 
     /// <summary>Wire values for <see cref="ChangeJson.Action"/>.</summary>
-    public static class ChangeAction
-    {
+    public static class ChangeAction {
         public const string Added = "added";
         public const string Updated = "updated";
         public const string Removed = "removed";

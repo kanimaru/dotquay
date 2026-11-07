@@ -3,10 +3,8 @@ using Xunit;
 
 namespace Dotquay.Tests.Versioning;
 
-public class VersionConstraintTests
-{
-    private static AddonVersion Version(string tag)
-    {
+public class VersionConstraintTests {
+    private static AddonVersion Version(string tag) {
         var ok = AddonVersion.TryParse(tag, out var version);
         Assert.True(ok);
         return version!;
@@ -18,8 +16,7 @@ public class VersionConstraintTests
     [InlineData("2.44.99", true)]
     [InlineData("2.45.0", false)]
     [InlineData("2.43.9", false)]
-    public void TildeThreeComponent_MatchesOnlyWithinMinorRange(string candidate, bool expected)
-    {
+    public void TildeThreeComponent_MatchesOnlyWithinMinorRange(string candidate, bool expected) {
         VersionConstraint.TryParse("~2.44", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
@@ -30,8 +27,7 @@ public class VersionConstraintTests
     [InlineData("1.2.99", true)]
     [InlineData("1.3.0", false)] // Cargo semantics: ~1.2.3 bumps minor, not patch
     [InlineData("1.2.2", false)]
-    public void TildeExplicitPatch_BumpsMinorNotPatch(string candidate, bool expected)
-    {
+    public void TildeExplicitPatch_BumpsMinorNotPatch(string candidate, bool expected) {
         VersionConstraint.TryParse("~1.2.3", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
@@ -42,16 +38,14 @@ public class VersionConstraintTests
     [InlineData("1.99.99", true)]
     [InlineData("2.0.0", false)]
     [InlineData("0.9.0", false)]
-    public void TildeMajorOnly_MatchesWholeMajorRange(string candidate, bool expected)
-    {
+    public void TildeMajorOnly_MatchesWholeMajorRange(string candidate, bool expected) {
         VersionConstraint.TryParse("~1", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
     }
 
     [Fact]
-    public void Tilde_ExcludesPrereleaseEvenIfComponentsMatch()
-    {
+    public void Tilde_ExcludesPrereleaseEvenIfComponentsMatch() {
         VersionConstraint.TryParse("~2.44", out var constraint);
 
         Assert.False(constraint!.IsSatisfiedBy(Version("2.44.0-rc1")));
@@ -62,8 +56,7 @@ public class VersionConstraintTests
     [InlineData("2.44.0", false)]
     [InlineData("2.44.2", false)]
     [InlineData("2.44.1-rc1", false)]
-    public void ExactConstraint_MatchesOnlyThatVersion(string candidate, bool expected)
-    {
+    public void ExactConstraint_MatchesOnlyThatVersion(string candidate, bool expected) {
         VersionConstraint.TryParse("2.44.1", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
@@ -77,8 +70,7 @@ public class VersionConstraintTests
     [InlineData("<x")]
     [InlineData("1.2.3.4.5")]
     [InlineData("[1.0,2.0)")] // NuGet interval notation is not part of the language (DESIGN-v0.21 §3)
-    public void TryParse_RejectsUnparseableConstraint(string text)
-    {
+    public void TryParse_RejectsUnparseableConstraint(string text) {
         var ok = VersionConstraint.TryParse(text, out var constraint);
 
         Assert.False(ok);
@@ -114,18 +106,15 @@ public class VersionConstraintTests
     [InlineData(">1.2", "1.3.0", null, "1.2.9")]
     [InlineData("<=1.2", "0.0.0", "1.3.0", null)]
     [InlineData("v1.2.3", "1.2.3", "1.2.4", "1.2.2")]
-    public void Grammar_MatchesTheDesignTable(string text, string lowest, string? aboveMiss, string? belowMiss)
-    {
+    public void Grammar_MatchesTheDesignTable(string text, string lowest, string? aboveMiss, string? belowMiss) {
         Assert.True(VersionConstraint.TryParse(text, out var constraint), $"'{text}' should parse");
 
         Assert.True(constraint!.IsSatisfiedBy(Version(lowest)), $"'{text}' should accept {lowest}");
-        if (aboveMiss is not null)
-        {
+        if (aboveMiss is not null) {
             Assert.False(constraint.IsSatisfiedBy(Version(aboveMiss)), $"'{text}' should refuse {aboveMiss}");
         }
 
-        if (belowMiss is not null)
-        {
+        if (belowMiss is not null) {
             Assert.False(constraint.IsSatisfiedBy(Version(belowMiss)), $"'{text}' should refuse {belowMiss}");
         }
     }
@@ -134,8 +123,7 @@ public class VersionConstraintTests
     [InlineData("*")]
     [InlineData("x")]
     [InlineData("")]
-    public void AnyVersion_AcceptsEveryReleaseButNoPrerelease(string text)
-    {
+    public void AnyVersion_AcceptsEveryReleaseButNoPrerelease(string text) {
         Assert.True(VersionConstraint.TryParse(text, out var constraint));
 
         Assert.True(constraint!.IsSatisfiedBy(Version("0.0.1")));
@@ -148,8 +136,7 @@ public class VersionConstraintTests
     [InlineData("2.3.1", true)]
     [InlineData("3.0.0", false)]
     [InlineData("1.3.9", false)]
-    public void Or_AcceptsEitherAlternative(string candidate, bool expected)
-    {
+    public void Or_AcceptsEitherAlternative(string candidate, bool expected) {
         VersionConstraint.TryParse("~1.4 || ^2.0", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
@@ -159,8 +146,7 @@ public class VersionConstraintTests
     [InlineData("0.11.0.3", true)]
     [InlineData("0.11.0", false)]
     [InlineData("0.11.0.4", false)]
-    public void FourComponentExact_MatchesOnlyThatVersion(string candidate, bool expected)
-    {
+    public void FourComponentExact_MatchesOnlyThatVersion(string candidate, bool expected) {
         VersionConstraint.TryParse("0.11.0.3", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
@@ -170,16 +156,14 @@ public class VersionConstraintTests
     [InlineData("0.11.0.3", true)]
     [InlineData("0.11.9.1", true)]
     [InlineData("0.12.0.0", false)]
-    public void TildeOnFourComponents_NeverBumpsTheFourth(string candidate, bool expected)
-    {
+    public void TildeOnFourComponents_NeverBumpsTheFourth(string candidate, bool expected) {
         VersionConstraint.TryParse("~0.11.0.3", out var constraint);
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
     }
 
     [Fact]
-    public void ExactThreeComponents_MatchesTheSameVersionWithAZeroFourth()
-    {
+    public void ExactThreeComponents_MatchesTheSameVersionWithAZeroFourth() {
         VersionConstraint.TryParse("1.2.3", out var constraint);
 
         Assert.True(constraint!.IsSatisfiedBy(Version("1.2.3.0")));
@@ -199,8 +183,7 @@ public class VersionConstraintTests
     [InlineData("5.1.0-rc1", "5.1.0-rc5", false)]
     [InlineData("5.1.0-rc1", "5.1.0", false)]
     [InlineData(">=5.1.0-rc.2", "5.1.0-rc.10", true)] // numeric identifiers compare as numbers
-    public void Prerelease_OnlyWhenTheRangeNamesOneOfTheSameVersion(string text, string candidate, bool expected)
-    {
+    public void Prerelease_OnlyWhenTheRangeNamesOneOfTheSameVersion(string text, string candidate, bool expected) {
         Assert.True(VersionConstraint.TryParse(text, out var constraint));
 
         Assert.Equal(expected, constraint!.IsSatisfiedBy(Version(candidate)));
@@ -211,8 +194,7 @@ public class VersionConstraintTests
     [InlineData("3.0.9", true)]
     [InlineData("3.1.0", false)]
     [InlineData("2.9.0", false)]
-    public void Intersect_AcceptsOnlyWhatBothAccept(string candidate, bool expected)
-    {
+    public void Intersect_AcceptsOnlyWhatBothAccept(string candidate, bool expected) {
         VersionConstraint.TryParse("^3.0", out var left);
         VersionConstraint.TryParse("~3.0 || ~2.9", out var right);
 

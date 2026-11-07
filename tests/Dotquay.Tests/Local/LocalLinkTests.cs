@@ -23,27 +23,23 @@ namespace Dotquay.Tests.Local;
 /// uncommitted work. Nothing else in dotquay can lose data that isn't recoverable from git.
 /// </para>
 /// </remarks>
-public class LocalLinkTests
-{
+public class LocalLinkTests {
     private const string ProjectDirectory = "project";
     private const string SourceDirectory = "elsewhere/my-addon";
     private const string RepoUrl = "https://example.com/my-addon.git";
 
     private static string Sha => new('a', 40);
 
-    private static InMemoryFileSystem BuildFileSystemWithSource()
-    {
+    private static InMemoryFileSystem BuildFileSystemWithSource() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(SourceDirectory, "plugin.cfg"), "[plugin]");
         fileSystem.WriteAllText(fileSystem.CombinePath(SourceDirectory, "thing.gd"), "# live edit");
         return fileSystem;
     }
 
-    private static AddonInstaller BuildInstaller(InMemoryFileSystem fileSystem)
-    {
+    private static AddonInstaller BuildInstaller(InMemoryFileSystem fileSystem) {
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["plugin.cfg"] = "[plugin]",
             ["thing.gd"] = "# committed version",
         };
@@ -65,8 +61,7 @@ public class LocalLinkTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void Read_NoFile_IsEmpty()
-    {
+    public void Read_NoFile_IsEmpty() {
         var links = new LocalLinks(new InMemoryFileSystem());
 
         // The overwhelmingly common case. Not having links is not a condition worth reporting.
@@ -74,8 +69,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void SetThenRead_RoundTrips()
-    {
+    public void SetThenRead_RoundTrips() {
         var fileSystem = BuildFileSystemWithSource();
         var links = new LocalLinks(fileSystem);
 
@@ -87,8 +81,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void Set_RejectsAPathThatIsNotADirectory()
-    {
+    public void Set_RejectsAPathThatIsNotADirectory() {
         var links = new LocalLinks(new InMemoryFileSystem());
 
         var exception = Assert.Throws<LocalLinkException>(() => links.Set(ProjectDirectory, "my-addon", "nope/missing"));
@@ -96,8 +89,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void Remove_LastLink_DeletesTheFile()
-    {
+    public void Remove_LastLink_DeletesTheFile() {
         var fileSystem = BuildFileSystemWithSource();
         var links = new LocalLinks(fileSystem);
         links.Set(ProjectDirectory, "my-addon", SourceDirectory);
@@ -109,16 +101,14 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void Remove_SomethingNotLinked_ReportsNoChange()
-    {
+    public void Remove_SomethingNotLinked_ReportsNoChange() {
         var links = new LocalLinks(new InMemoryFileSystem());
 
         Assert.False(links.Remove(ProjectDirectory, "my-addon"));
     }
 
     [Fact]
-    public void Read_MalformedFile_Throws()
-    {
+    public void Read_MalformedFile_Throws() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, LocalLinks.FileName), "[link.my-addon]\n");
 
@@ -133,8 +123,7 @@ public class LocalLinkTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task InstallAsync_WithALink_PointsAtTheSource()
-    {
+    public async Task InstallAsync_WithALink_PointsAtTheSource() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
 
@@ -146,8 +135,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithALink_StillLocksTheUpstreamCommit()
-    {
+    public async Task InstallAsync_WithALink_StillLocksTheUpstreamCommit() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
 
@@ -161,8 +149,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithALink_DoesNotHashTheWorkingCopy()
-    {
+    public async Task InstallAsync_WithALink_DoesNotHashTheWorkingCopy() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
 
@@ -174,8 +161,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithALinkToANeverFetchedCommit_DoesNotFetchJustToDateIt()
-    {
+    public async Task InstallAsync_WithALinkToANeverFetchedCommit_DoesNotFetchJustToDateIt() {
         var fileSystem = BuildFileSystemWithSource();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
@@ -191,8 +177,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithALinkToACachedCommit_DatesItByTheCommit()
-    {
+    public async Task InstallAsync_WithALinkToACachedCommit_DatesItByTheCommit() {
         var fileSystem = BuildFileSystemWithSource();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
         gitClient.CommitDates[Sha] = new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
@@ -206,8 +191,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_LinkingOverAModifiedAddon_Refuses()
-    {
+    public async Task InstallAsync_LinkingOverAModifiedAddon_Refuses() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
@@ -220,8 +204,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_LinkToAMissingFolder_SaysSo()
-    {
+    public async Task InstallAsync_LinkToAMissingFolder_SaysSo() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
 
@@ -246,8 +229,7 @@ public class LocalLinkTests
 
     /// <summary>Installs for real and then links — how an addon normally comes to be linked, and the
     /// only way its lockfile entry ends up carrying a content hash there is to go stale.</summary>
-    private static async Task<(LockedAddon Installed, LockedAddon Linked)> InstalledThenLinkedAsync(AddonInstaller installer)
-    {
+    private static async Task<(LockedAddon Installed, LockedAddon Linked)> InstalledThenLinkedAsync(AddonInstaller installer) {
         var installed = await installer.InstallAsync(
             Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
@@ -259,8 +241,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_UpdatingThroughALink_HoldsTheCommitVersionAndHashTogether()
-    {
+    public async Task InstallAsync_UpdatingThroughALink_HoldsTheCommitVersionAndHashTogether() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var (_, linked) = await InstalledThenLinkedAsync(installer);
@@ -280,8 +261,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_UpdatingThroughALink_KeepsAHashThatBelongsToTheCommitItNames()
-    {
+    public async Task InstallAsync_UpdatingThroughALink_KeepsAHashThatBelongsToTheCommitItNames() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var (installed, linked) = await InstalledThenLinkedAsync(installer);
@@ -298,8 +278,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_LinkingSomethingNeverLockedBefore_StillRecordsTheResolvedCommit()
-    {
+    public async Task InstallAsync_LinkingSomethingNeverLockedBefore_StillRecordsTheResolvedCommit() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
 
@@ -316,8 +295,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_RenamingALinkWhoseUpstreamHasMoved_StillMovesTheFolder()
-    {
+    public async Task InstallAsync_RenamingALinkWhoseUpstreamHasMoved_StillMovesTheFolder() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var (_, linked) = await InstalledThenLinkedAsync(installer);
@@ -340,8 +318,7 @@ public class LocalLinkTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task InstallAsync_OverALinkThisProjectNoLongerDeclares_RefusesAndChangesNothing()
-    {
+    public async Task InstallAsync_OverALinkThisProjectNoLongerDeclares_RefusesAndChangesNothing() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
@@ -364,8 +341,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_OverALinkThisProjectNoLongerDeclares_RefusesEvenUnderForce()
-    {
+    public async Task InstallAsync_OverALinkThisProjectNoLongerDeclares_RefusesEvenUnderForce() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
@@ -380,8 +356,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_AfterTheLinkIsRemoved_InstallsARealCopyAndLeavesTheCheckoutAlone()
-    {
+    public async Task InstallAsync_AfterTheLinkIsRemoved_InstallsARealCopyAndLeavesTheCheckoutAlone() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
@@ -401,8 +376,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task RemoveAddonLink_DropsTheDeclarationAndTheLinkButNotTheCheckout()
-    {
+    public async Task RemoveAddonLink_DropsTheDeclarationAndTheLinkButNotTheCheckout() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
@@ -426,8 +400,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void RemoveAddonLink_WithAnUndeclaredJunction_IsStillTheWayOut()
-    {
+    public void RemoveAddonLink_WithAnUndeclaredJunction_IsStillTheWayOut() {
         var fileSystem = BuildFileSystemWithSource();
         fileSystem.CreateDirectoryLink(InstalledPath(fileSystem), SourceDirectory);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), $"""
@@ -450,8 +423,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void RemoveAddonLink_WithNoLinkAndNoDeclaration_ReportsNothingToDo()
-    {
+    public void RemoveAddonLink_WithNoLinkAndNoDeclaration_ReportsNothingToDo() {
         var fileSystem = BuildFileSystemWithSource();
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), BuildInstaller(fileSystem));
 
@@ -463,8 +435,7 @@ public class LocalLinkTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void DeleteDirectory_OnALink_RemovesOnlyTheLink()
-    {
+    public void DeleteDirectory_OnALink_RemovesOnlyTheLink() {
         var fileSystem = BuildFileSystemWithSource();
         fileSystem.CreateDirectoryLink(InstalledPath(fileSystem), SourceDirectory);
 
@@ -478,8 +449,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public void DeleteDirectory_OnARealFolder_StillDeletesRecursively()
-    {
+    public void DeleteDirectory_OnARealFolder_StillDeletesRecursively() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("real/nested/deep.txt", "x");
 
@@ -490,8 +460,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_RenamingALinkedAddon_RemovesTheOldLink()
-    {
+    public async Task InstallAsync_RenamingALinkedAddon_RemovesTheOldLink() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var link = new LocalLink("my-addon", SourceDirectory);
@@ -507,8 +476,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_RenamingALinkedAddon_LeavesTheSourceUntouched()
-    {
+    public async Task InstallAsync_RenamingALinkedAddon_LeavesTheSourceUntouched() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var link = new LocalLink("my-addon", SourceDirectory);
@@ -523,8 +491,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_RenamingALinkedAddon_DoesNotCallTheCheckoutHandEdits()
-    {
+    public async Task InstallAsync_RenamingALinkedAddon_DoesNotCallTheCheckoutHandEdits() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var link = new LocalLink("my-addon", SourceDirectory);
@@ -542,8 +509,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task InstallAsync_UnlinkingAndRenamingAtOnce_RemovesTheOldLink()
-    {
+    public async Task InstallAsync_UnlinkingAndRenamingAtOnce_RemovesTheOldLink() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         var previous = await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
@@ -560,8 +526,7 @@ public class LocalLinkTests
     }
 
     [Fact]
-    public async Task RemoveAsync_ALinkedAddon_LeavesTheSourceUntouched()
-    {
+    public async Task RemoveAsync_ALinkedAddon_LeavesTheSourceUntouched() {
         var fileSystem = BuildFileSystemWithSource();
         var installer = BuildInstaller(fileSystem);
         await installer.InstallAsync(Resolved(), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false, new LocalLink("my-addon", SourceDirectory));
@@ -592,14 +557,16 @@ public class LocalLinkTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void Evaluate_ALinkedAddon_ReportsLinked()
-    {
+    public void Evaluate_ALinkedAddon_ReportsLinked() {
         var fileSystem = BuildFileSystemWithSource();
         fileSystem.CreateDirectoryLink(InstalledPath(fileSystem), SourceDirectory);
 
-        var locked = new LockedAddon
-        {
-            Name = "my-addon", Git = RepoUrl, Resolved = Sha, Path = ".", ContentHash = "sha256:whatever",
+        var locked = new LockedAddon {
+            Name = "my-addon",
+            Git = RepoUrl,
+            Resolved = Sha,
+            Path = ".",
+            ContentHash = "sha256:whatever",
         };
 
         // Not "modified": a link's contents are a live working copy, so it would never match the

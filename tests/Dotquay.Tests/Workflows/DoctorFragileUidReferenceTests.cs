@@ -15,12 +15,10 @@ namespace Dotquay.Tests.Workflows;
 /// carries the scanner's three facts through onto the issue instead of discarding them once the
 /// message is built.
 /// </remarks>
-public class DoctorFragileUidReferenceTests
-{
+public class DoctorFragileUidReferenceTests {
     private const string ProjectDirectory = "project";
 
-    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem)
-    {
+    private static async Task<IReadOnlyList<DoctorIssue>> RunAsync(InMemoryFileSystem fileSystem) {
         var workflow = new DependencyWorkflow(fileSystem, new FakeGitClient(), cacheRoot: "cache");
         var result = await workflow.DoctorAsync(ProjectDirectory);
 
@@ -28,8 +26,7 @@ public class DoctorFragileUidReferenceTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ABareUidReferenceIntoAnAddon_CarriesTheFixData()
-    {
+    public async Task DoctorAsync_ABareUidReferenceIntoAnAddon_CarriesTheFixData() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs", "class Frame {}");
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs.uid", "uid://bxwpwbdv4fm02");
@@ -47,8 +44,7 @@ public class DoctorFragileUidReferenceTests
     }
 
     [Fact]
-    public async Task DoctorAsync_ABareUidReference_SurfacesTheFixDataOnTheWire()
-    {
+    public async Task DoctorAsync_ABareUidReference_SurfacesTheFixDataOnTheWire() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs", "class Frame {}");
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/r3/frame.cs.uid", "uid://bxwpwbdv4fm02");
@@ -67,8 +63,7 @@ public class DoctorFragileUidReferenceTests
     }
 
     [Fact]
-    public async Task DoctorAsync_EveryOtherIssueKind_SurfacesNoFixDataOnTheWire()
-    {
+    public async Task DoctorAsync_EveryOtherIssueKind_SurfacesNoFixDataOnTheWire() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/orphan/plugin.cfg", "[plugin]");
 
@@ -83,8 +78,7 @@ public class DoctorFragileUidReferenceTests
     }
 
     [Fact]
-    public async Task DoctorAsync_EveryOtherIssueKind_CarriesNoUidFix()
-    {
+    public async Task DoctorAsync_EveryOtherIssueKind_CarriesNoUidFix() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDirectory}/addons/orphan/plugin.cfg", "[plugin]");
 

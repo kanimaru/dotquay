@@ -2,8 +2,7 @@ namespace Dotquay.Core.Manifest;
 
 /// <summary>Which of the three mutually-exclusive source kinds an <see cref="AddonSpec"/> uses
 /// (SPEC.md §7.1: "each [addons.*] entry names exactly one of version, branch, or rev").</summary>
-public enum AddonSourceKind
-{
+public enum AddonSourceKind {
     Version,
     Branch,
     Rev,
@@ -11,8 +10,7 @@ public enum AddonSourceKind
 
 /// <summary>One <c>[addons.&lt;name&gt;]</c> or <c>[overrides.&lt;name&gt;]</c> entry from a
 /// <c>dotquay.toml</c> (SPEC.md §7.1).</summary>
-public sealed record AddonSpec
-{
+public sealed record AddonSpec {
     public required string Name { get; init; }
 
     public required string Git { get; init; }

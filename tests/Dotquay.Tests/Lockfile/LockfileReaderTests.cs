@@ -3,13 +3,11 @@ using Xunit;
 
 namespace Dotquay.Tests.Lockfile;
 
-public class LockfileReaderTests
-{
+public class LockfileReaderTests {
     private const string FullSha = "abcdefabcdefabcdefabcdefabcdefabcdefabcd"; // 40 hex chars
 
     [Fact]
-    public void Read_ParsesAddonAndDotnetEntries()
-    {
+    public void Read_ParsesAddonAndDotnetEntries() {
         var toml = $"""
             [[addon]]
             name = "dialogue_manager"
@@ -45,8 +43,7 @@ public class LockfileReaderTests
     }
 
     [Fact]
-    public void Read_RejectsResolvedThatIsNotAFullCommitSha()
-    {
+    public void Read_RejectsResolvedThatIsNotAFullCommitSha() {
         const string toml = """
             [[addon]]
             name = "bad"
@@ -60,8 +57,7 @@ public class LockfileReaderTests
     }
 
     [Fact]
-    public void Read_RejectsMissingRequiredKey()
-    {
+    public void Read_RejectsMissingRequiredKey() {
         var toml = $"""
             [[addon]]
             name = "bad"
@@ -74,8 +70,7 @@ public class LockfileReaderTests
     }
 
     [Fact]
-    public void Read_ToleratesMissingSections()
-    {
+    public void Read_ToleratesMissingSections() {
         var lockfile = LockfileReader.Read("");
 
         Assert.Empty(lockfile.Addons);

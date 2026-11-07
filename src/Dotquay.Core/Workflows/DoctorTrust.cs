@@ -14,8 +14,7 @@ namespace Dotquay.Core.Workflows;
 /// <param name="AdoptedSources">Feeds that came from an addon rather than from the project.</param>
 public sealed record DoctorTrust(
     IReadOnlyList<string> TrustedHosts,
-    IReadOnlyList<DoctorAdoptedSource> AdoptedSources)
-{
+    IReadOnlyList<DoctorAdoptedSource> AdoptedSources) {
     public static readonly DoctorTrust Empty = new([], []);
 
     /// <summary>Whether there is anything to show. Nothing is printed for a project that never opted

@@ -19,8 +19,7 @@ namespace Dotquay.Tests.Workflows;
 /// <see cref="AddonStatusEvaluator"/> path plain <c>status</c> uses; only the attached
 /// <see cref="AddonExplanation"/> is new.
 /// </remarks>
-public class ExplainModifiedTests
-{
+public class ExplainModifiedTests {
     private const string RepoUrl = "https://example.com/dialogue_manager.git";
     private const string ProjectDir = "project";
     private const string AddonDir = $"{ProjectDir}/addons/dialogue_manager";
@@ -30,14 +29,12 @@ public class ExplainModifiedTests
 
     private const string ScriptLf = "extends Node\nfunc _ready():\n\tpass\n";
 
-    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build()
-    {
+    private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient) Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", "[project]\ngodot = \"4.3\"\n");
 
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg",
             ["addons/dialogue_manager/main.tscn"] = SceneWithUid,
             ["addons/dialogue_manager/x.gd"] = ScriptLf,
@@ -47,15 +44,13 @@ public class ExplainModifiedTests
         return (new DependencyWorkflow(fileSystem, gitClient, "cache"), fileSystem, gitClient);
     }
 
-    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient)> InstalledAsync()
-    {
+    private static async Task<(DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeGitClient GitClient)> InstalledAsync() {
         var built = Build();
         await built.Workflow.AddAsync(ProjectDir, RepoUrl);
         return built;
     }
 
-    private static AddonExplanation ExplanationOf(StatusResult result)
-    {
+    private static AddonExplanation ExplanationOf(StatusResult result) {
         var addon = Assert.Single(result.Addons);
         Assert.Equal(AddonStatusKind.Modified, addon.Kind);
         return Assert.IsType<AddonExplanation>(addon.Explanation);
@@ -63,8 +58,7 @@ public class ExplainModifiedTests
 
     /// <summary>The plain path stays exactly what it was: local, offline, and unexplained.</summary>
     [Fact]
-    public async Task StatusAsync_WithoutExplain_AttachesNothing()
-    {
+    public async Task StatusAsync_WithoutExplain_AttachesNothing() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/hand-edit.gd", "surprise");
 
@@ -76,8 +70,7 @@ public class ExplainModifiedTests
     }
 
     [Fact]
-    public async Task StatusAsync_CleanAddon_IsNotExplained()
-    {
+    public async Task StatusAsync_CleanAddon_IsNotExplained() {
         var (workflow, _, _) = await InstalledAsync();
 
         var result = await workflow.StatusAsync(ProjectDir, explain: true);
@@ -89,8 +82,7 @@ public class ExplainModifiedTests
 
     /// <summary>The case the whole feature exists for: a file the user would lose, named.</summary>
     [Fact]
-    public async Task StatusAsync_AddedFile_NamesItAndRefusesToCallForcingSafe()
-    {
+    public async Task StatusAsync_AddedFile_NamesItAndRefusesToCallForcingSafe() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -106,8 +98,7 @@ public class ExplainModifiedTests
     }
 
     [Fact]
-    public async Task StatusAsync_EditedFile_IsReportedAsChangedContent()
-    {
+    public async Task StatusAsync_EditedFile_IsReportedAsChangedContent() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
 
@@ -125,8 +116,7 @@ public class ExplainModifiedTests
     /// forcing is safe and the command should say so outright.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_GodotRewroteAUid_SaysForcingIsSafe()
-    {
+    public async Task StatusAsync_GodotRewroteAUid_SaysForcingIsSafe() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
 
@@ -145,8 +135,7 @@ public class ExplainModifiedTests
     /// nothing to explain. See docs/DESIGN-v0.23-LINE-ENDINGS.md.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_LineEndingsOnly_IsCleanNotModified()
-    {
+    public async Task StatusAsync_LineEndingsOnly_IsCleanNotModified() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/x.gd", ScriptLf.Replace("\n", "\r\n"));
 
@@ -162,8 +151,7 @@ public class ExplainModifiedTests
     /// matters.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_LineEndingChurnBesideARealEdit_IsStillClassifiedPerFile()
-    {
+    public async Task StatusAsync_LineEndingChurnBesideARealEdit_IsStillClassifiedPerFile() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/x.gd", ScriptLf.Replace("\n", "\r\n"));
         fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
@@ -180,8 +168,7 @@ public class ExplainModifiedTests
     /// change present, never the majority.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_OneRealEditAmongBenignChurn_StillNeedsReview()
-    {
+    public async Task StatusAsync_OneRealEditAmongBenignChurn_StillNeedsReview() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
         fileSystem.WriteAllText($"{AddonDir}/plugin.cfg", "cfg, but edited");
@@ -201,8 +188,7 @@ public class ExplainModifiedTests
     /// already computed before any of this ran, and the other addons are still explainable.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_BaselineCannotBeReconstructed_ReportsUnavailable()
-    {
+    public async Task StatusAsync_BaselineCannotBeReconstructed_ReportsUnavailable() {
         var (workflow, fileSystem, gitClient) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -224,8 +210,7 @@ public class ExplainModifiedTests
     /// trains a reader to skip the line that matters.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_UnpatchedAddon_DoesNotClaimAPatchIsMissing()
-    {
+    public async Task StatusAsync_UnpatchedAddon_DoesNotClaimAPatchIsMissing() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -241,15 +226,13 @@ public class ExplainModifiedTests
     /// than present them as the user's unexplained hand-edits.
     /// </summary>
     [Fact]
-    public async Task StatusAsync_DeclaredPatchFileMissing_SaysTheComparisonIsIncomplete()
-    {
+    public async Task StatusAsync_DeclaredPatchFileMissing_SaysTheComparisonIsIncomplete() {
         var (workflow, fileSystem, _) = await InstalledAsync();
 
         var lockfile = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
         fileSystem.WriteAllText(
             $"{ProjectDir}/dotquay.lock",
-            LockfileWriter.Serialize(lockfile with
-            {
+            LockfileWriter.Serialize(lockfile with {
                 Addons = lockfile.Addons
                     .Select(a => a with { PatchHash = "sha256:deadbeef", PatchBaseSha = a.Resolved })
                     .ToList(),
@@ -265,8 +248,7 @@ public class ExplainModifiedTests
 
     /// <summary>Scratch is scratch: the diff copy must not survive into the project.</summary>
     [Fact]
-    public async Task StatusAsync_LeavesNoStagingBehind()
-    {
+    public async Task StatusAsync_LeavesNoStagingBehind() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -278,8 +260,7 @@ public class ExplainModifiedTests
     // -- wire contract ----------------------------------------------------------------------
 
     [Fact]
-    public async Task ToJson_UnexplainedStatus_OmitsTheExplanationEntirely()
-    {
+    public async Task ToJson_UnexplainedStatus_OmitsTheExplanationEntirely() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/my-notes.gd", "hours of work");
 
@@ -291,8 +272,7 @@ public class ExplainModifiedTests
     }
 
     [Fact]
-    public async Task ToJson_ExplainedStatus_UsesTheDocumentedWireStrings()
-    {
+    public async Task ToJson_ExplainedStatus_UsesTheDocumentedWireStrings() {
         var (workflow, fileSystem, _) = await InstalledAsync();
         fileSystem.WriteAllText($"{AddonDir}/main.tscn", SceneWithUid.Replace("bxwpwbdv4fm02", "c7k2p9qq1a0zz"));
 
@@ -317,8 +297,7 @@ public class ExplainModifiedTests
     /// Adding an explanation must not have introduced a sixth.
     /// </summary>
     [Fact]
-    public void ToWire_StatusKinds_AreUnchangedByThisFeature()
-    {
+    public void ToWire_StatusKinds_AreUnchangedByThisFeature() {
         Assert.Equal("clean", JsonMapper.ToWire(AddonStatusKind.Clean));
         Assert.Equal("patched", JsonMapper.ToWire(AddonStatusKind.PatchedAsExpected));
         Assert.Equal("modified", JsonMapper.ToWire(AddonStatusKind.Modified));

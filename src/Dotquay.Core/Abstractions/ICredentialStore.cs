@@ -13,8 +13,7 @@ namespace Dotquay.Core.Abstractions;
 /// callers behind this seam means a DPAPI/libsecret/Keychain backend can replace it later without
 /// touching a single call site.
 /// </remarks>
-public interface ICredentialStore
-{
+public interface ICredentialStore {
     /// <summary>The credential covering <paramref name="scope"/>, or null. When several entries match,
     /// the most specific wins (SPEC.md §11.2) — a per-project token beats a host-wide one.</summary>
     Credential? Find(CredentialScope scope);

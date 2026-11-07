@@ -3,11 +3,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Manifest;
 
-public class ManifestReaderTests
-{
+public class ManifestReaderTests {
     [Fact]
-    public void ReadProject_ParsesGitVersionBranchAndRevSources()
-    {
+    public void ReadProject_ParsesGitVersionBranchAndRevSources() {
         const string toml = """
             [project]
             godot = "4.3"
@@ -72,15 +70,13 @@ public class ManifestReaderTests
         version = "1.0"
         branch = "main"
         """)]
-    public void ReadProject_RejectsAddonsWithoutExactlyOneSource(string toml)
-    {
+    public void ReadProject_RejectsAddonsWithoutExactlyOneSource(string toml) {
         var ex = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject(toml));
         Assert.Contains("exactly one of", ex.Message);
     }
 
     [Fact]
-    public void ReadProject_RejectsMissingGitKey()
-    {
+    public void ReadProject_RejectsMissingGitKey() {
         const string toml = """
             [addons.bad]
             version = "1.0"
@@ -91,15 +87,13 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_RejectsMalformedToml()
-    {
+    public void ReadProject_RejectsMalformedToml() {
         const string toml = "this is not valid toml [[[";
         Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject(toml));
     }
 
     [Fact]
-    public void ReadProject_ToleratesMissingOptionalSections()
-    {
+    public void ReadProject_ToleratesMissingOptionalSections() {
         var manifest = ManifestReader.ReadProject("");
 
         Assert.Empty(manifest.NuGetSources);
@@ -110,8 +104,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_IgnoresTheRetiredGodotKey()
-    {
+    public void ReadProject_IgnoresTheRetiredGodotKey() {
         // [project] godot was removed after v0.5 (nothing ever read it), but manifests in the wild
         // still carry it and dotquay.toml is a file people hand-edit — an unknown key must not be a
         // parse error.
@@ -127,8 +120,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_NamedSources_KeepDeclarationOrder()
-    {
+    public void ReadProject_NamedSources_KeepDeclarationOrder() {
         // Order is the resolution rule (SPEC.md §11.1), so it is read out of the file rather than
         // out of a dictionary whose enumeration order is unspecified.
         var manifest = ManifestReader.ReadProject("""
@@ -143,8 +135,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_LegacyKeyPlusExplicitDefault_IsAnErrorRatherThanASilentPrecedenceRule()
-    {
+    public void ReadProject_LegacyKeyPlusExplicitDefault_IsAnErrorRatherThanASilentPrecedenceRule() {
         var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
             [project]
             nuget_source = "https://a.example.com/index.json"
@@ -157,8 +148,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_InvalidSourceName_IsRejectedAtParseTime()
-    {
+    public void ReadProject_InvalidSourceName_IsRejectedAtParseTime() {
         // The name becomes part of an environment variable name and a NuGet.Config key, so it can't
         // be arbitrary.
         Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
@@ -168,8 +158,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_SourceMissingUrl_SaysWhichKeyIsMissing()
-    {
+    public void ReadProject_SourceMissingUrl_SaysWhichKeyIsMissing() {
         var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
             [nuget.sources.core]
             """));
@@ -178,8 +167,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_SourceMapping_DefaultsTrueAndCanBeTurnedOff()
-    {
+    public void ReadProject_SourceMapping_DefaultsTrueAndCanBeTurnedOff() {
         Assert.False(ManifestReader.ReadProject("""
             [nuget]
             source_mapping = false
@@ -187,8 +175,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_DotnetSourcePin_IsReadAsAPin()
-    {
+    public void ReadProject_DotnetSourcePin_IsReadAsAPin() {
         var manifest = ManifestReader.ReadProject("""
             [nuget.sources.core]
             url = "https://private.example.com/core/index.json"
@@ -202,8 +189,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_DotnetSourceAsATable_IsAPackageIdSegmentNotAPin()
-    {
+    public void ReadProject_DotnetSourceAsATable_IsAPackageIdSegmentNotAPin() {
         // Told apart by TOML type: a string 'source' is a feed pin, a *table* named 'source' is part
         // of a dotted package ID. A key can't be both in TOML, so the two never collide.
         var manifest = ManifestReader.ReadProject("""
@@ -216,8 +202,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_PinNamingAnUndeclaredSource_ListsTheOnesThatExist()
-    {
+    public void ReadProject_PinNamingAnUndeclaredSource_ListsTheOnesThatExist() {
         var exception = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject("""
             [nuget.sources.core]
             url = "https://private.example.com/core/index.json"
@@ -231,8 +216,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadProject_PinNamingNuGetOrg_IsAllowedWithoutDeclaringIt()
-    {
+    public void ReadProject_PinNamingNuGetOrg_IsAllowedWithoutDeclaringIt() {
         // nuget.org is appended to every source set implicitly, so pinning to it must not require
         // writing it out first.
         var manifest = ManifestReader.ReadProject("""
@@ -245,8 +229,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadPackage_RequiresPackageHeader()
-    {
+    public void ReadPackage_RequiresPackageHeader() {
         const string toml = """
             [addons.core]
             git = "https://example.com/core"
@@ -258,8 +241,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadPackage_ParsesNameAndVersion()
-    {
+    public void ReadPackage_ParsesNameAndVersion() {
         const string toml = """
             [package]
             name = "kani_dialogue_tools"
@@ -278,8 +260,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadPackage_VersionIsOptional()
-    {
+    public void ReadPackage_VersionIsOptional() {
         // Nothing reads it: the git tag decides resolution and plugin.cfg is what doctor checks for
         // drift. Requiring it made a third place to bump, which is a third place to forget.
         var package = ManifestReader.ReadPackage("""
@@ -297,8 +278,7 @@ public class ManifestReaderTests
     }
 
     [Fact]
-    public void ReadPackage_StillRequiresName()
-    {
+    public void ReadPackage_StillRequiresName() {
         var ex = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadPackage("""
             [package]
             version = "1.2.0"

@@ -8,8 +8,7 @@ namespace Dotquay.Tests.Dotnet.SourceBuild;
 /// DESIGN-v0.26 §A: when a ProjectReference counts as building a package. Every doubt must resolve to "no
 /// provider", because "no provider" is today's behaviour and the only safe default.
 /// </summary>
-public class SourceProvidedPackagesTests
-{
+public class SourceProvidedPackagesTests {
     private const string Csproj = "game/Game.csproj";
 
     private static string Library(string properties = "") => $"""
@@ -30,12 +29,10 @@ public class SourceProvidedPackagesTests
         </Project>
         """;
 
-    private static InMemoryFileSystem WithConsumer(string items, params (string Path, string Content)[] projects)
-    {
+    private static InMemoryFileSystem WithConsumer(string items, params (string Path, string Content)[] projects) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(Csproj, Consumer(items));
-        foreach (var (path, content) in projects)
-        {
+        foreach (var (path, content) in projects) {
             fileSystem.WriteAllText(path, content);
         }
 
@@ -54,40 +51,35 @@ public class SourceProvidedPackagesTests
     [InlineData("/home/kani/vbeami/godot/VBeami.csproj", "../src/Core.csproj", "/home/kani/vbeami/src/Core.csproj")]
     [InlineData("game/Game.csproj", @"D:\elsewhere\X.csproj", "D:/elsewhere/X.csproj")]
     [InlineData("/game/Game.csproj", "../../../X.csproj", "/X.csproj")]
-    public void RelativeProjectPath_ResolvesLexically(string from, string include, string expected)
-    {
+    public void RelativeProjectPath_ResolvesLexically(string from, string include, string expected) {
         Assert.Equal(expected, RelativeProjectPath.Resolve(from, include));
     }
 
     // --- identity --------------------------------------------------------------------------------------
 
     [Fact]
-    public void Identity_PackageIdWins()
-    {
+    public void Identity_PackageIdWins() {
         var fileSystem = WithConsumer("", ("lib/Lib.csproj", Library("<AssemblyName>Other</AssemblyName><PackageId>Acme.Lib</PackageId>")));
 
         Assert.Equal("Acme.Lib", ProjectIdentity.Read(fileSystem, "lib/Lib.csproj").PackageId);
     }
 
     [Fact]
-    public void Identity_FallsBackToAssemblyName()
-    {
+    public void Identity_FallsBackToAssemblyName() {
         var fileSystem = WithConsumer("", ("lib/Lib.csproj", Library("<AssemblyName>Acme.Lib</AssemblyName>")));
 
         Assert.Equal("Acme.Lib", ProjectIdentity.Read(fileSystem, "lib/Lib.csproj").PackageId);
     }
 
     [Fact]
-    public void Identity_FallsBackToTheFileName()
-    {
+    public void Identity_FallsBackToTheFileName() {
         var fileSystem = WithConsumer("", ("lib/Acme.Lib.csproj", Library()));
 
         Assert.Equal("Acme.Lib", ProjectIdentity.Read(fileSystem, "lib/Acme.Lib.csproj").PackageId);
     }
 
     [Fact]
-    public void Identity_LaterDefinitionOverridesEarlier_AsInMsbuild()
-    {
+    public void Identity_LaterDefinitionOverridesEarlier_AsInMsbuild() {
         var fileSystem = WithConsumer("", ("lib/Lib.csproj", """
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup><PackageId>First</PackageId></PropertyGroup>
@@ -99,8 +91,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void Identity_EmptyValue_BehavesAsUnset()
-    {
+    public void Identity_EmptyValue_BehavesAsUnset() {
         var fileSystem = WithConsumer("", ("lib/Acme.Lib.csproj", Library("<PackageId></PackageId>")));
 
         Assert.Equal("Acme.Lib", ProjectIdentity.Read(fileSystem, "lib/Acme.Lib.csproj").PackageId);
@@ -110,8 +101,7 @@ public class SourceProvidedPackagesTests
     [InlineData("<PackageId>$(RootNamespace).Core</PackageId>")]
     [InlineData("<PackageId Condition=\"'$(Configuration)' == 'Release'\">Acme.Lib</PackageId>")]
     [InlineData("<AssemblyName>$(MSBuildProjectName)</AssemblyName>")]
-    public void Identity_ThatNeedsMsbuild_IsUnknown_NotAGuess(string properties)
-    {
+    public void Identity_ThatNeedsMsbuild_IsUnknown_NotAGuess(string properties) {
         // The file is named Acme.Lib.csproj, so falling through to the file name would "match" - which is
         // exactly the guess this must not make when a property is set but cannot be read.
         var fileSystem = WithConsumer("", ("lib/Acme.Lib.csproj", Library(properties)));
@@ -120,8 +110,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void Identity_ConditionalPropertyGroup_IsUnknown()
-    {
+    public void Identity_ConditionalPropertyGroup_IsUnknown() {
         var fileSystem = WithConsumer("", ("lib/Acme.Lib.csproj", """
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup Condition="'$(Configuration)' == 'Debug'"><PackageId>Acme.Lib.Debug</PackageId></PropertyGroup>
@@ -132,8 +121,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void Identity_PropertyInsideChoose_IsUnknown()
-    {
+    public void Identity_PropertyInsideChoose_IsUnknown() {
         var fileSystem = WithConsumer("", ("lib/Acme.Lib.csproj", """
             <Project Sdk="Microsoft.NET.Sdk">
               <Choose>
@@ -152,16 +140,14 @@ public class SourceProvidedPackagesTests
     [InlineData("<VersionPrefix>1.2.3</VersionPrefix><VersionSuffix>beta.1</VersionSuffix>", "1.2.3-beta.1")]
     [InlineData("<Version>$(BaseVersion).1</Version>", null)]
     [InlineData("", null)]
-    public void Identity_Version(string properties, string? expected)
-    {
+    public void Identity_Version(string properties, string? expected) {
         var fileSystem = WithConsumer("", ("lib/Lib.csproj", Library(properties)));
 
         Assert.Equal(expected, ProjectIdentity.Read(fileSystem, "lib/Lib.csproj").Version);
     }
 
     [Fact]
-    public void Identity_UnreadableProject_IsUnknown()
-    {
+    public void Identity_UnreadableProject_IsUnknown() {
         var fileSystem = WithConsumer("", ("lib/Lib.csproj", "<Project><PropertyGroup>"));
 
         Assert.Equal(ProjectIdentity.Unknown, ProjectIdentity.Read(fileSystem, "lib/Lib.csproj"));
@@ -171,8 +157,7 @@ public class SourceProvidedPackagesTests
     // --- finding the provider --------------------------------------------------------------------------
 
     [Fact]
-    public void FindProvider_UnconditionalReference_ToTheSamePackage_IsTheProvider()
-    {
+    public void FindProvider_UnconditionalReference_ToTheSamePackage_IsTheProvider() {
         var fileSystem = WithConsumer(
             """<ItemGroup><ProjectReference Include="..\src\VBeami.Core\VBeami.Core.csproj" /></ItemGroup>""",
             ("src/VBeami.Core/VBeami.Core.csproj", Library("<PackageId>VBeami.Core</PackageId><Version>0.7.50</Version>")));
@@ -187,8 +172,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void FindProvider_MatchesPackageIdCaseInsensitively_LikeNuGet()
-    {
+    public void FindProvider_MatchesPackageIdCaseInsensitively_LikeNuGet() {
         var fileSystem = WithConsumer(
             """<ItemGroup><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup>""",
             ("lib/Acme.Lib.csproj", Library()));
@@ -197,8 +181,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void FindProvider_ReferenceToADifferentPackage_IsNotAProvider()
-    {
+    public void FindProvider_ReferenceToADifferentPackage_IsNotAProvider() {
         var fileSystem = WithConsumer(
             """<ItemGroup><ProjectReference Include="../lib/Acme.Twitch.csproj" /></ItemGroup>""",
             ("lib/Acme.Twitch.csproj", Library()));
@@ -211,8 +194,7 @@ public class SourceProvidedPackagesTests
     [InlineData("""<ItemGroup Condition="'$(Configuration)' == 'Debug'"><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup>""")]
     [InlineData("""<Choose><When Condition="'$(X)' == '1'"><ItemGroup><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup></When></Choose>""")]
     [InlineData("""<Choose><When Condition="'$(X)' == '1'" /><Otherwise><ItemGroup><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup></Otherwise></Choose>""")]
-    public void FindProvider_ConditionalReference_IsNotTheProvider_ButIsStillReported(string items)
-    {
+    public void FindProvider_ConditionalReference_IsNotTheProvider_ButIsStillReported(string items) {
         // Debug-only source would leave Release with no reference at all if the package were skipped.
         var fileSystem = WithConsumer(items, ("lib/Acme.Lib.csproj", Library()));
 
@@ -227,8 +209,7 @@ public class SourceProvidedPackagesTests
     [InlineData("../lib/*.csproj")]
     [InlineData("$(LibRoot)/Acme.Lib.csproj")]
     [InlineData("@(Libraries)")]
-    public void FindProvider_UnevaluableInclude_IsNotAProvider(string include)
-    {
+    public void FindProvider_UnevaluableInclude_IsNotAProvider(string include) {
         var fileSystem = WithConsumer(
             $"""<ItemGroup><ProjectReference Include="{include}" /></ItemGroup>""",
             ("lib/Acme.Lib.csproj", Library()));
@@ -237,8 +218,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void FindProvider_MissingTarget_IsNotAProvider()
-    {
+    public void FindProvider_MissingTarget_IsNotAProvider() {
         // Named like the package, so a file-name guess would match: the target has to exist and be read.
         var fileSystem = WithConsumer("""<ItemGroup><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup>""");
 
@@ -246,8 +226,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void FindProvider_SemicolonSeparatedIncludes_AreEachConsidered()
-    {
+    public void FindProvider_SemicolonSeparatedIncludes_AreEachConsidered() {
         var fileSystem = WithConsumer(
             """<ItemGroup><ProjectReference Include="../lib/Acme.Twitch.csproj;../lib/Acme.Lib.csproj" /></ItemGroup>""",
             ("lib/Acme.Twitch.csproj", Library()),
@@ -257,8 +236,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void FindProvider_ReferenceTheFileRemovesAgain_IsNotAProvider()
-    {
+    public void FindProvider_ReferenceTheFileRemovesAgain_IsNotAProvider() {
         var fileSystem = WithConsumer(
             """
             <ItemGroup><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup>
@@ -270,8 +248,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void ReadAll_UnreadableOrMissingConsumer_HasNoReferences()
-    {
+    public void ReadAll_UnreadableOrMissingConsumer_HasNoReferences() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(Csproj, "<Project>");
 
@@ -280,8 +257,7 @@ public class SourceProvidedPackagesTests
     }
 
     [Fact]
-    public void ReadAll_DoesNotWriteAnything()
-    {
+    public void ReadAll_DoesNotWriteAnything() {
         var fileSystem = WithConsumer(
             """<ItemGroup><ProjectReference Include="../lib/Acme.Lib.csproj" /></ItemGroup>""",
             ("lib/Acme.Lib.csproj", Library()));

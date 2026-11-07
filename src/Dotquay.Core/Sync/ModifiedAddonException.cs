@@ -10,14 +10,12 @@ namespace Dotquay.Core.Sync;
 /// says which folder it refused over and leaves the explaining to
 /// <see cref="Workflows.DependencyWorkflow"/>, which already knows how (<c>status --explain</c>).
 /// </remarks>
-public sealed class ModifiedAddonException : SyncException
-{
+public sealed class ModifiedAddonException : SyncException {
     /// <summary>The installed folder whose content differs, as <see cref="InstallPaths"/> spells it.</summary>
     public string ModifiedPath { get; }
 
     public ModifiedAddonException(string message, string modifiedPath)
-        : base(message)
-    {
+        : base(message) {
         ModifiedPath = modifiedPath;
     }
 }

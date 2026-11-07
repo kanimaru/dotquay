@@ -12,15 +12,13 @@ namespace Dotquay.Core.Workflows;
 /// two copies of "which file, what message, read or create" is precisely the kind of drift that ends
 /// with the CLI and the editor plugin disagreeing about whether a project is initialised.
 /// </summary>
-public sealed class ProjectFileStore
-{
+public sealed class ProjectFileStore {
     public const string ManifestFileName = "dotquay.toml";
     public const string LockfileFileName = "dotquay.lock";
 
     private readonly IFileSystem _fileSystem;
 
-    public ProjectFileStore(IFileSystem fileSystem)
-    {
+    public ProjectFileStore(IFileSystem fileSystem) {
         _fileSystem = fileSystem;
     }
 
@@ -30,11 +28,9 @@ public sealed class ProjectFileStore
 
     public bool HasManifest(string projectDirectory) => _fileSystem.FileExists(ManifestPath(projectDirectory));
 
-    public (ProjectManifest Manifest, string Path) ReadManifestOrThrow(string projectDirectory)
-    {
+    public (ProjectManifest Manifest, string Path) ReadManifestOrThrow(string projectDirectory) {
         var path = ManifestPath(projectDirectory);
-        if (!_fileSystem.FileExists(path))
-        {
+        if (!_fileSystem.FileExists(path)) {
             throw new WorkflowException($"No {ManifestFileName} found in {projectDirectory}. Run 'dotquay init' first.");
         }
 
@@ -43,8 +39,7 @@ public sealed class ProjectFileStore
 
     /// <summary>A missing lockfile is not an error for read-only and additive operations — an
     /// initialised-but-never-installed project simply has nothing locked yet.</summary>
-    public (DotquayLockfile Lockfile, string Path) ReadOrCreateLockfile(string projectDirectory)
-    {
+    public (DotquayLockfile Lockfile, string Path) ReadOrCreateLockfile(string projectDirectory) {
         var path = LockfilePath(projectDirectory);
         return _fileSystem.FileExists(path)
             ? (LockfileReader.Read(_fileSystem.ReadAllText(path), path), path)
@@ -53,11 +48,9 @@ public sealed class ProjectFileStore
 
     /// <summary>For <c>install</c>, where "no lockfile" means the reproducibility contract can't be
     /// honoured at all (SPEC.md §5) rather than "nothing to do".</summary>
-    public (DotquayLockfile Lockfile, string Path) ReadLockfileOrThrow(string projectDirectory)
-    {
+    public (DotquayLockfile Lockfile, string Path) ReadLockfileOrThrow(string projectDirectory) {
         var path = LockfilePath(projectDirectory);
-        if (!_fileSystem.FileExists(path))
-        {
+        if (!_fileSystem.FileExists(path)) {
             throw new WorkflowException($"No {LockfileFileName} found in {projectDirectory}. Run 'dotquay add' first.");
         }
 

@@ -21,19 +21,16 @@ namespace Dotquay.Tests.Sync;
 /// public contract rather than a preference, and it routinely differs from both the repo name and the
 /// manifest key.
 /// </remarks>
-public class InstallAsTests
-{
+public class InstallAsTests {
     private const string ProjectDirectory = "project";
     private const string RepoUrl = "https://example.com/mtoon-shader.git";
 
     private static string Sha => new('a', 40);
 
-    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem) Build()
-    {
+    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem) Build() {
         var fileSystem = new InMemoryFileSystem();
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
-        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[RepoUrl] = new Dictionary<string, string> {
             ["mtoon.gdshader"] = "shader_type spatial;",
             ["plugin.cfg"] = "[plugin]\nname=\"MToon\"\nversion=\"1.0.0\"\nscript=\"x.gd\"",
         };
@@ -48,8 +45,7 @@ public class InstallAsTests
         new("mtoon-shader", RepoUrl, Sha, DisplayVersion: null, Path: ".", InstallAs: installAs);
 
     [Fact]
-    public async Task InstallAsync_WithoutInstallAs_UsesTheAddonName()
-    {
+    public async Task InstallAsync_WithoutInstallAs_UsesTheAddonName() {
         var (installer, fileSystem) = Build();
 
         await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
@@ -59,8 +55,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_WithInstallAs_UsesThatFolder()
-    {
+    public async Task InstallAsync_WithInstallAs_UsesThatFolder() {
         var (installer, fileSystem) = Build();
 
         await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
@@ -71,8 +66,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_RecordsTheFolderInTheLockfile()
-    {
+    public async Task InstallAsync_RecordsTheFolderInTheLockfile() {
         var (installer, _) = Build();
 
         var locked = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
@@ -85,8 +79,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_KeepsNameAndFolderDistinct()
-    {
+    public async Task InstallAsync_KeepsNameAndFolderDistinct() {
         var (installer, _) = Build();
 
         var locked = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
@@ -98,8 +91,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_ChangingTheFolder_MovesTheAddon()
-    {
+    public async Task InstallAsync_ChangingTheFolder_MovesTheAddon() {
         var (installer, fileSystem) = Build();
         var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
@@ -113,8 +105,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_ChangingTheFolder_RefusesToDiscardHandEdits()
-    {
+    public async Task InstallAsync_ChangingTheFolder_RefusesToDiscardHandEdits() {
         var (installer, fileSystem) = Build();
         var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
@@ -133,8 +124,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_ChangingTheFolder_LeavesEverythingAloneWhenItRefuses()
-    {
+    public async Task InstallAsync_ChangingTheFolder_LeavesEverythingAloneWhenItRefuses() {
         var (installer, fileSystem) = Build();
         var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
         fileSystem.WriteAllText(
@@ -152,8 +142,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_ChangingTheFolder_WithForce_DiscardsThem()
-    {
+    public async Task InstallAsync_ChangingTheFolder_WithForce_DiscardsThem() {
         var (installer, fileSystem) = Build();
         var previous = await installer.InstallAsync(Resolved(installAs: null), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
         fileSystem.WriteAllText(
@@ -166,8 +155,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public async Task InstallAsync_ReinstallingIntoTheSameFolder_IsNotTreatedAsARename()
-    {
+    public async Task InstallAsync_ReinstallingIntoTheSameFolder_IsNotTreatedAsARename() {
         var (installer, fileSystem) = Build();
         var previous = await installer.InstallAsync(Resolved("Godot-MToon-Shader"), ProjectLayout.WithoutPatches(ProjectDirectory), previous: null, force: false);
 
@@ -186,8 +174,7 @@ public class InstallAsTests
     [InlineData("nested/folder")]
     [InlineData("C:\\Windows")]
     [InlineData("")]
-    public void ManifestReader_RejectsAnUnsafeInstallAs(string folder)
-    {
+    public void ManifestReader_RejectsAnUnsafeInstallAs(string folder) {
         var text = $"""
             [addons.evil]
             git = "https://example.com/evil.git"
@@ -203,8 +190,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public void ManifestReader_AcceptsAnOrdinaryFolderName()
-    {
+    public void ManifestReader_AcceptsAnOrdinaryFolderName() {
         var manifest = ManifestReader.ReadProject("""
             [addons.mtoon-shader]
             git = "https://example.com/mtoon-shader.git"
@@ -217,16 +203,14 @@ public class InstallAsTests
     }
 
     [Fact]
-    public void AddonSpec_FolderDefaultsToTheName()
-    {
+    public void AddonSpec_FolderDefaultsToTheName() {
         var spec = new AddonSpec { Name = "mtoon-shader", Git = RepoUrl, Version = "~1.0" };
 
         Assert.Equal("mtoon-shader", spec.EffectiveFolder);
     }
 
     [Fact]
-    public void Manifest_RoundTripsInstallAs()
-    {
+    public void Manifest_RoundTripsInstallAs() {
         var original = ManifestReader.ReadProject("""
             [addons.mtoon-shader]
             git = "https://example.com/mtoon-shader.git"
@@ -240,10 +224,8 @@ public class InstallAsTests
     }
 
     [Fact]
-    public void Lockfile_RoundTripsTheFolder()
-    {
-        var lockfile = new DotquayLockfile
-        {
+    public void Lockfile_RoundTripsTheFolder() {
+        var lockfile = new DotquayLockfile {
             Addons =
             [
                 new LockedAddon
@@ -259,10 +241,8 @@ public class InstallAsTests
     }
 
     [Fact]
-    public void Lockfile_OmitsTheFolderWhenItMatchesTheName()
-    {
-        var lockfile = new DotquayLockfile
-        {
+    public void Lockfile_OmitsTheFolderWhenItMatchesTheName() {
+        var lockfile = new DotquayLockfile {
             Addons = [new LockedAddon { Name = "leaf", Git = RepoUrl, Resolved = Sha, Path = "addons/leaf", Folder = "leaf" }],
         };
 
@@ -271,11 +251,13 @@ public class InstallAsTests
     }
 
     [Fact]
-    public void LockedAddon_CopyingWithAChange_KeepsTheFolder()
-    {
-        var locked = new LockedAddon
-        {
-            Name = "mtoon-shader", Git = RepoUrl, Resolved = Sha, Path = ".", Folder = "Godot-MToon-Shader",
+    public void LockedAddon_CopyingWithAChange_KeepsTheFolder() {
+        var locked = new LockedAddon {
+            Name = "mtoon-shader",
+            Git = RepoUrl,
+            Resolved = Sha,
+            Path = ".",
+            Folder = "Godot-MToon-Shader",
         };
 
         var copied = locked with { Dependencies = ["other"] };
@@ -289,8 +271,7 @@ public class InstallAsTests
     }
 
     [Fact]
-    public void Lockfile_WrittenBeforeThisFeature_StillReadsCorrectly()
-    {
+    public void Lockfile_WrittenBeforeThisFeature_StillReadsCorrectly() {
         var parsed = LockfileReader.Read($"""
             [[addon]]
             name = "leaf"

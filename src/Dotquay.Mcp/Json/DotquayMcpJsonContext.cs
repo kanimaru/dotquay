@@ -37,15 +37,13 @@ namespace Dotquay.Mcp.Json;
 [JsonSerializable(typeof(JsonEnvelope<OperationJson>))]
 [JsonSerializable(typeof(McpRefusalJson<ForceConfirmationDetailJson>))]
 [JsonSerializable(typeof(McpRefusalJson<SourceApprovalDetailJson>))]
-public sealed partial class DotquayMcpJsonContext : JsonSerializerContext
-{
+public sealed partial class DotquayMcpJsonContext : JsonSerializerContext {
 }
 
 /// <summary>The write side of the contract — one entry point per payload type so no tool has to pick
 /// the right <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo{T}"/> itself (picking
 /// the wrong one is exactly how an AOT serialization bug gets shipped).</summary>
-public static class DotquayMcpJson
-{
+public static class DotquayMcpJson {
     public static string Write(JsonEnvelope<StatusJson> envelope) =>
         JsonSerializer.Serialize(envelope, DotquayMcpJsonContext.Default.JsonEnvelopeStatusJson);
 

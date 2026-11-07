@@ -20,17 +20,14 @@ namespace Dotquay.Tests.Mcp;
 /// so approving the feed never requires actually resolving anything from it — the point of this test
 /// is the write guard's refuse/approve decision, not NuGet resolution.
 /// </remarks>
-public sealed class WriteToolsRealProcessTests
-{
+public sealed class WriteToolsRealProcessTests {
     [Fact]
-    public async Task Add_walks_a_real_feed_refusal_and_approval_loop_then_update_walks_a_real_confirm_discard_loop()
-    {
+    public async Task Add_walks_a_real_feed_refusal_and_approval_loop_then_update_walks_a_real_confirm_discard_loop() {
         var cliExe = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE")
             ?? Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe" : "dotquay");
         Assert.True(File.Exists(cliExe), $"Expected {cliExe} to exist (either DOTQUAY_TEST_CLI_EXE, or alongside the test binaries via the ProjectReference on Dotquay.Cli).");
 
-        if (!IsGitAvailable())
-        {
+        if (!IsGitAvailable()) {
             // This test needs a real git to create and tag a real local repository; every other MCP
             // test in this suite runs against fakes and does not need this skip.
             return;
@@ -45,12 +42,10 @@ public sealed class WriteToolsRealProcessTests
         // real ~/.dotquay/cache (and no real credentials or config are read).
         var homeDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-write-home-").FullName;
 
-        try
-        {
+        try {
             await RunOneShotAsync(cliExe, homeDirectory, ["init", "--json", "--project", projectDirectory]);
 
-            var startInfo = new ProcessStartInfo(cliExe)
-            {
+            var startInfo = new ProcessStartInfo(cliExe) {
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -71,15 +66,12 @@ public sealed class WriteToolsRealProcessTests
             server.ErrorDataReceived += (_, _) => { };
             server.BeginErrorReadLine();
 
-            try
-            {
-                await SendAsync(server.StandardInput, new
-                {
+            try {
+                await SendAsync(server.StandardInput, new {
                     jsonrpc = "2.0",
                     id = 1,
                     method = "initialize",
-                    @params = new
-                    {
+                    @params = new {
                         protocolVersion = "2025-06-18",
                         capabilities = new { },
                         clientInfo = new { name = "write-tools-regression-test", version = "0.0.1" },
@@ -130,21 +122,14 @@ public sealed class WriteToolsRealProcessTests
                     new { project = projectDirectory, force = true, confirm_discard = new[] { addonName } });
 
                 Assert.False(forced.IsError);
-            }
-            finally
-            {
-                try
-                {
+            } finally {
+                try {
                     server.Kill(entireProcessTree: true);
-                }
-                catch
-                {
+                } catch {
                     // Best-effort: the assertions above already reported anything worth reporting.
                 }
             }
-        }
-        finally
-        {
+        } finally {
             // Best-effort cleanup: git leaves object files read-only under Windows, and
             // Directory.Delete(recursive: true) throws UnauthorizedAccessException on those before it
             // deletes anything else. Clearing ReadOnly first (and swallowing any remaining failure)
@@ -155,34 +140,26 @@ public sealed class WriteToolsRealProcessTests
         }
     }
 
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (!Directory.Exists(path))
-            {
+    private static void TryDeleteDirectory(string path) {
+        try {
+            if (!Directory.Exists(path)) {
                 return;
             }
 
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-            {
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)) {
                 var attributes = File.GetAttributes(file);
-                if ((attributes & FileAttributes.ReadOnly) != 0)
-                {
+                if ((attributes & FileAttributes.ReadOnly) != 0) {
                     File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
                 }
             }
 
             Directory.Delete(path, recursive: true);
-        }
-        catch
-        {
+        } catch {
             // Best-effort: see the comment at the call site.
         }
     }
 
-    private static string CreateAddonRepo(string feedUrl)
-    {
+    private static string CreateAddonRepo(string feedUrl) {
         var dir = Directory.CreateTempSubdirectory("dotquay-addon-repo-").FullName;
         var addonPath = Path.Combine(dir, "addons", "widget");
         Directory.CreateDirectory(addonPath);
@@ -208,12 +185,9 @@ public sealed class WriteToolsRealProcessTests
         return dir;
     }
 
-    private static bool IsGitAvailable()
-    {
-        try
-        {
-            using var process = Process.Start(new ProcessStartInfo("git", "--version")
-            {
+    private static bool IsGitAvailable() {
+        try {
+            using var process = Process.Start(new ProcessStartInfo("git", "--version") {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -221,25 +195,20 @@ public sealed class WriteToolsRealProcessTests
             });
             process!.WaitForExit(5000);
             return process.ExitCode == 0;
-        }
-        catch
-        {
+        } catch {
             return false;
         }
     }
 
-    private static void RunGit(string workingDirectory, params string[] args)
-    {
-        var startInfo = new ProcessStartInfo("git")
-        {
+    private static void RunGit(string workingDirectory, params string[] args) {
+        var startInfo = new ProcessStartInfo("git") {
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 
@@ -250,10 +219,8 @@ public sealed class WriteToolsRealProcessTests
 
     private readonly record struct ToolCallResult(bool IsError, JsonElement Content);
 
-    private static async Task<ToolCallResult> CallToolAsync(Process server, int id, string name, object arguments)
-    {
-        await SendAsync(server.StandardInput, new
-        {
+    private static async Task<ToolCallResult> CallToolAsync(Process server, int id, string name, object arguments) {
+        await SendAsync(server.StandardInput, new {
             jsonrpc = "2.0",
             id,
             method = "tools/call",
@@ -268,8 +235,7 @@ public sealed class WriteToolsRealProcessTests
         return new ToolCallResult(isError, structuredContent);
     }
 
-    private static async Task SendAsync(StreamWriter stdin, object message)
-    {
+    private static async Task SendAsync(StreamWriter stdin, object message) {
         var json = JsonSerializer.Serialize(message);
         await stdin.WriteAsync(json + "\n");
         await stdin.FlushAsync();
@@ -277,50 +243,40 @@ public sealed class WriteToolsRealProcessTests
 
     /// <summary>Reads lines until one with the expected <c>id</c> arrives, tolerating notifications
     /// (which carry no <c>id</c>) interleaved before it.</summary>
-    private static async Task<JsonDocument> ReadResponseAsync(StreamReader stdout, int expectedId)
-    {
+    private static async Task<JsonDocument> ReadResponseAsync(StreamReader stdout, int expectedId) {
         using var overallTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
-        while (true)
-        {
+        while (true) {
             string? line;
-            try
-            {
+            try {
                 line = await stdout.ReadLineAsync(overallTimeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
+            } catch (OperationCanceledException) {
                 Assert.Fail($"No response with id {expectedId} arrived on the MCP server's stdout within 30s.");
                 throw; // Unreachable.
             }
 
-            if (line is null)
-            {
+            if (line is null) {
                 Assert.Fail($"Server closed stdout before a response with id {expectedId} arrived.");
             }
 
             var document = JsonDocument.Parse(line);
 
             if (document.RootElement.TryGetProperty("id", out var idElement) && idElement.ValueKind == JsonValueKind.Number
-                && idElement.GetInt32() == expectedId)
-            {
+                && idElement.GetInt32() == expectedId) {
                 return document;
             }
         }
     }
 
-    private static async Task RunOneShotAsync(string exePath, string homeDirectory, string[] args)
-    {
-        var startInfo = new ProcessStartInfo(exePath)
-        {
+    private static async Task RunOneShotAsync(string exePath, string homeDirectory, string[] args) {
+        var startInfo = new ProcessStartInfo(exePath) {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
         startInfo.Environment[SystemEnvironmentReader.HomeOverrideVariable] = homeDirectory;
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 

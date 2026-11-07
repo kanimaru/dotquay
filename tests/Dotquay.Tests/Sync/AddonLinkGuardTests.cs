@@ -15,21 +15,18 @@ namespace Dotquay.Tests.Sync;
 /// watches, and looks to its owner like edits they made themselves. The suite that ran on the day
 /// that happened was 900 tests green — none of which asked what the destination actually was.
 /// </remarks>
-public class AddonLinkGuardTests
-{
+public class AddonLinkGuardTests {
     private const string Destination = "project/addons/my-addon";
     private const string Checkout = "elsewhere/my-addon";
 
-    private static InMemoryFileSystem WithCheckout()
-    {
+    private static InMemoryFileSystem WithCheckout() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(Checkout, "thing.gd"), "# live edit");
         return fileSystem;
     }
 
     [Fact]
-    public void Inspect_APlainFolder_IsOursToWrite()
-    {
+    public void Inspect_APlainFolder_IsOursToWrite() {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectory(Destination);
 
@@ -40,8 +37,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Inspect_ADeclarationWithNoLinkOnDisk_IsStillOursToWrite()
-    {
+    public void Inspect_ADeclarationWithNoLinkOnDisk_IsStillOursToWrite() {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectory(Destination);
 
@@ -54,8 +50,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Inspect_ALinkMatchingTheDeclaration_IsLinked()
-    {
+    public void Inspect_ALinkMatchingTheDeclaration_IsLinked() {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectoryLink(Destination, Checkout);
 
@@ -66,8 +61,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Inspect_ALinkPointingSomewhereElse_ForbidsWriting()
-    {
+    public void Inspect_ALinkPointingSomewhereElse_ForbidsWriting() {
         var fileSystem = WithCheckout();
         fileSystem.WriteAllText("somewhere-else/thing.gd", "# a different checkout");
         fileSystem.CreateDirectoryLink(Destination, "somewhere-else");
@@ -79,8 +73,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Inspect_ALinkNothingDeclares_ForbidsWriting()
-    {
+    public void Inspect_ALinkNothingDeclares_ForbidsWriting() {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectoryLink(Destination, Checkout);
 
@@ -91,8 +84,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Inspect_ADeclarationPointingAtNothing_ForbidsWriting()
-    {
+    public void Inspect_ADeclarationPointingAtNothing_ForbidsWriting() {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectoryLink(Destination, Checkout);
 
@@ -105,8 +97,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Inspect_TheSameFolderSpelledDifferently_StillMatches()
-    {
+    public void Inspect_TheSameFolderSpelledDifferently_StillMatches() {
         var fileSystem = WithCheckout();
         fileSystem.CreateDirectoryLink(Destination, Checkout);
 
@@ -120,8 +111,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void SamePath_DiffersOnlyByCase_MatchesOnWindowsAndNotElsewhere()
-    {
+    public void SamePath_DiffersOnlyByCase_MatchesOnWindowsAndNotElsewhere() {
         var fileSystem = WithCheckout();
 
         // Asserted on the comparison itself rather than through Inspect, because the in-memory
@@ -134,8 +124,7 @@ public class AddonLinkGuardTests
     }
 
     [Fact]
-    public void Explain_NamesBothStatementsAndBothWaysOut()
-    {
+    public void Explain_NamesBothStatementsAndBothWaysOut() {
         var fileSystem = WithCheckout();
         fileSystem.WriteAllText("somewhere-else/thing.gd", "# a different checkout");
         fileSystem.CreateDirectoryLink(Destination, "somewhere-else");
@@ -158,8 +147,7 @@ public class AddonLinkGuardTests
     /// call path could route around it. This one is the only door content goes through.
     /// </summary>
     [Fact]
-    public void SwapAndHash_OntoALink_IsRefusedAsADotquayBug()
-    {
+    public void SwapAndHash_OntoALink_IsRefusedAsADotquayBug() {
         var fileSystem = WithCheckout();
         fileSystem.WriteAllText("staging/thing.gd", "# incoming version");
         fileSystem.CreateDirectoryLink(Destination, Checkout);

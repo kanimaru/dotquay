@@ -7,8 +7,7 @@ namespace Dotquay.Core.Abstractions;
 /// "shell out to the real tool" philosophy as <see cref="IGitClient"/>). Kept behind an interface so
 /// the dotnet sync path is testable without actually invoking the SDK or touching the network.
 /// </summary>
-public interface IDotnetCliRunner
-{
+public interface IDotnetCliRunner {
     /// <summary>Runs <c>dotnet restore &lt;csprojPath&gt;</c>. Throws if it exits non-zero.
     /// <paramref name="environmentVariables"/>, when given, are set on the child process only —
     /// everything else it inherits from dotquay's own environment is untouched. Used to pass

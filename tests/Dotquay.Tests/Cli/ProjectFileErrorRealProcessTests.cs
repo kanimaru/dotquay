@@ -17,8 +17,7 @@ namespace Dotquay.Tests.Cli;
 /// stack trace on stderr and nothing on stdout. No in-process test of a command's code sees that
 /// handler. Set <c>DOTQUAY_TEST_CLI_EXE</c> to run the same assertions against a NativeAOT publish.
 /// </remarks>
-public sealed class ProjectFileErrorRealProcessTests
-{
+public sealed class ProjectFileErrorRealProcessTests {
     private const string BrokenToml = "this is [ not toml\n";
 
     public static TheoryData<string, string[]> JsonCases => new()
@@ -37,10 +36,8 @@ public sealed class ProjectFileErrorRealProcessTests
 
     [Theory]
     [MemberData(nameof(JsonCases))]
-    public async Task Json_reports_a_malformed_project_file_as_one_envelope(string file, string[] command)
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Json_reports_a_malformed_project_file_as_one_envelope(string file, string[] command) {
+        await WithProjectAsync(async (cli, project) => {
             File.WriteAllText(Path.Combine(project, file), BrokenToml);
 
             var (exitCode, stdout, stderr) = await RunAsync(cli, [.. command, "--project", project]);
@@ -66,10 +63,8 @@ public sealed class ProjectFileErrorRealProcessTests
     [Theory]
     [InlineData("dotquay.lock", "status")]
     [InlineData("dotquay.toml", "doctor")]
-    public async Task Plain_output_is_the_message_not_a_stack_trace(string file, string command)
-    {
-        await WithProjectAsync(async (cli, project) =>
-        {
+    public async Task Plain_output_is_the_message_not_a_stack_trace(string file, string command) {
+        await WithProjectAsync(async (cli, project) => {
             File.WriteAllText(Path.Combine(project, file), BrokenToml);
 
             var (exitCode, stdout, stderr) = await RunAsync(cli, [command, "--project", project]);
@@ -88,8 +83,7 @@ public sealed class ProjectFileErrorRealProcessTests
     /// <c>.dotquay</c> (cache, credentials, config) is never the developer's real one.</summary>
     private sealed record CliUnderTest(string Exe, string Home);
 
-    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body)
-    {
+    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body) {
         var exe = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
             ? overridden
             : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe" : "dotquay");
@@ -99,8 +93,7 @@ public sealed class ProjectFileErrorRealProcessTests
         var project = Directory.CreateTempSubdirectory("dotquay-parse-error-test-").FullName;
         var home = Directory.CreateTempSubdirectory("dotquay-parse-error-home-").FullName;
         var cli = new CliUnderTest(exe, home);
-        try
-        {
+        try {
             var (initExit, _, initErr) = await RunAsync(cli, ["init", "--json", "--project", project]);
             Assert.True(initExit == 0, initErr);
 
@@ -110,30 +103,22 @@ public sealed class ProjectFileErrorRealProcessTests
             Assert.True(updateExit == 0, updateErr);
 
             await body(cli, project);
-        }
-        finally
-        {
+        } finally {
             TryDelete(project);
             TryDelete(home);
         }
     }
 
-    private static void TryDelete(string directory)
-    {
-        try
-        {
+    private static void TryDelete(string directory) {
+        try {
             Directory.Delete(directory, recursive: true);
-        }
-        catch (IOException)
-        {
+        } catch (IOException) {
             // Best-effort cleanup.
         }
     }
 
-    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(CliUnderTest cli, string[] args)
-    {
-        var startInfo = new ProcessStartInfo(cli.Exe)
-        {
+    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(CliUnderTest cli, string[] args) {
+        var startInfo = new ProcessStartInfo(cli.Exe) {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -141,8 +126,7 @@ public sealed class ProjectFileErrorRealProcessTests
             CreateNoWindow = true,
         };
 
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 

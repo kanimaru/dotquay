@@ -20,17 +20,13 @@ namespace Dotquay.Core.Diagnostics;
 /// so that - and only the scheme - is said.
 /// </para>
 /// </remarks>
-public sealed class DiagnosticHttpHandler : DelegatingHandler
-{
+public sealed class DiagnosticHttpHandler : DelegatingHandler {
     public DiagnosticHttpHandler(HttpMessageHandler innerHandler)
-        : base(innerHandler)
-    {
+        : base(innerHandler) {
     }
 
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        if (!DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose))
-        {
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+        if (!DiagnosticLog.IsEnabled(DiagnosticLevel.Verbose)) {
             return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
@@ -38,8 +34,7 @@ public sealed class DiagnosticHttpHandler : DelegatingHandler
         var credential = DescribeCredential(request);
         var started = Stopwatch.GetTimestamp();
 
-        try
-        {
+        try {
             var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
             var elapsed = DiagnosticLog.FormatDuration(Stopwatch.GetElapsedTime(started));
             DiagnosticLog.Write(
@@ -47,9 +42,7 @@ public sealed class DiagnosticHttpHandler : DelegatingHandler
                 "http",
                 $"{target}{credential} -> {(int)response.StatusCode} {response.ReasonPhrase} after {elapsed}");
             return response;
-        }
-        catch (Exception ex)
-        {
+        } catch (Exception ex) {
             var elapsed = DiagnosticLog.FormatDuration(Stopwatch.GetElapsedTime(started));
             DiagnosticLog.Write(
                 DiagnosticLevel.Verbose,
@@ -59,10 +52,8 @@ public sealed class DiagnosticHttpHandler : DelegatingHandler
         }
     }
 
-    private static string DescribeCredential(HttpRequestMessage request)
-    {
-        if (request.Headers.Authorization is { } authorization)
-        {
+    private static string DescribeCredential(HttpRequestMessage request) {
+        if (request.Headers.Authorization is { } authorization) {
             return $" [auth: {authorization.Scheme}]";
         }
 
@@ -74,8 +65,7 @@ public sealed class DiagnosticHttpHandler : DelegatingHandler
 }
 
 /// <summary>Builds the <see cref="HttpClient"/> every Core HTTP caller defaults to.</summary>
-public static class DiagnosticHttp
-{
+public static class DiagnosticHttp {
     /// <summary>
     /// Behaves exactly like <c>new HttpClient()</c> - same <see cref="HttpClientHandler"/>, same
     /// system proxy, same defaults - with <see cref="DiagnosticHttpHandler"/> in front, which is a

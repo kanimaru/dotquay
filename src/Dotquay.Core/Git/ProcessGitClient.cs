@@ -16,25 +16,21 @@ namespace Dotquay.Core.Git;
 /// existing SSH agent or Git Credential Manager still answers first and dotquay only fills the gap
 /// (SPEC.md §11.2).
 /// </remarks>
-public sealed class ProcessGitClient : IGitClient
-{
+public sealed class ProcessGitClient : IGitClient {
     private readonly IReadOnlyDictionary<string, string> _childEnvironment;
     private readonly LfsResolver _lfs;
 
     /// <param name="childEnvironment">Extra variables for every git child process. Null builds the
     /// real one from <see cref="Environment.ProcessPath"/> — the AOT-safe way to find dotquay's own
     /// binary, since <c>Assembly.Location</c> is empty in a published NativeAOT image.</param>
-    public ProcessGitClient(IReadOnlyDictionary<string, string>? childEnvironment = null)
-    {
+    public ProcessGitClient(IReadOnlyDictionary<string, string>? childEnvironment = null) {
         _childEnvironment = childEnvironment ?? GitEnvironment.Build(Environment.ProcessPath, new SystemEnvironmentReader());
         _lfs = new LfsResolver((directory, args, token) => RunGitAsync(directory, args, token));
     }
 
-    public async Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default)
-    {
+    public async Task<IReadOnlyList<GitRef>> ListRemoteRefsAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--tags", "--heads", repositoryUrl], cancellationToken);
-        if (result.ExitCode != 0)
-        {
+        if (result.ExitCode != 0) {
             throw Failure(
                 GitErrorClassifier.DescribeRemoteFailure($"git ls-remote failed for {repositoryUrl}", repositoryUrl, result.StdErr),
                 result.StdErr);
@@ -43,11 +39,9 @@ public sealed class ProcessGitClient : IGitClient
         return ParseRefs(result.StdOut);
     }
 
-    public async Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default)
-    {
+    public async Task<string> ResolveBranchTipAsync(string repositoryUrl, string branch, CancellationToken cancellationToken = default) {
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--heads", repositoryUrl, branch], cancellationToken);
-        if (result.ExitCode != 0)
-        {
+        if (result.ExitCode != 0) {
             throw Failure(
                 GitErrorClassifier.DescribeRemoteFailure(
                     $"git ls-remote failed for {repositoryUrl} branch '{branch}'", repositoryUrl, result.StdErr),
@@ -56,19 +50,16 @@ public sealed class ProcessGitClient : IGitClient
 
         var refs = ParseRefs(result.StdOut);
         var match = refs.FirstOrDefault(r => r.Kind == GitRefKind.Branch && r.Name == branch);
-        if (match is null)
-        {
+        if (match is null) {
             throw new GitCommandException($"Branch '{branch}' not found on {repositoryUrl}.");
         }
 
         return match.CommitSha;
     }
 
-    public async Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default)
-    {
+    public async Task<string> ResolveDefaultBranchAsync(string repositoryUrl, CancellationToken cancellationToken = default) {
         var result = await RunGitAsync(workingDirectory: null, ["ls-remote", "--symref", repositoryUrl, "HEAD"], cancellationToken);
-        if (result.ExitCode != 0)
-        {
+        if (result.ExitCode != 0) {
             throw Failure($"git ls-remote --symref failed for {repositoryUrl}: {result.StdErr.Trim()}", result.StdErr);
         }
 
@@ -77,8 +68,7 @@ public sealed class ProcessGitClient : IGitClient
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault(line => line.StartsWith("ref: refs/heads/", StringComparison.Ordinal));
 
-        if (firstLine is null)
-        {
+        if (firstLine is null) {
             throw new GitCommandException($"Could not determine the default branch for {repositoryUrl} (no symref in ls-remote output).");
         }
 
@@ -91,8 +81,7 @@ public sealed class ProcessGitClient : IGitClient
         string repositoryUrl,
         string commitSha,
         string destinationPath,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         Directory.CreateDirectory(destinationPath);
 
         await RunGitOrThrowAsync(destinationPath, ["init", "--quiet"], cancellationToken, "git init");
@@ -102,11 +91,9 @@ public sealed class ProcessGitClient : IGitClient
         // Fall back to a full fetch only when the server refuses to shallow-fetch that exact commit
         // (older/self-hosted servers without uploadpack.allowReachableSHA1InWant).
         var shallow = await RunGitAsync(destinationPath, ["fetch", "--quiet", "--depth", "1", "origin", commitSha], cancellationToken);
-        if (shallow.ExitCode != 0)
-        {
+        if (shallow.ExitCode != 0) {
             var full = await RunGitAsync(destinationPath, ["fetch", "--quiet", "origin"], cancellationToken);
-            if (full.ExitCode != 0)
-            {
+            if (full.ExitCode != 0) {
                 throw Failure(
                     GitErrorClassifier.DescribeFetchFailure(repositoryUrl, commitSha, shallow.StdErr, full.StdErr),
                     full.StdErr + shallow.StdErr);
@@ -121,8 +108,7 @@ public sealed class ProcessGitClient : IGitClient
     }
 
     public async Task<DateTimeOffset?> GetCommitDateAsync(
-        string checkoutPath, string commitSha, CancellationToken cancellationToken = default)
-    {
+        string checkoutPath, string commitSha, CancellationToken cancellationToken = default) {
         // %ct is the committer date as Unix seconds: no time zone or locale to parse. A shallow
         // fetch still holds the commit object itself, so this works on every cache entry.
         var result = await RunGitAsync(checkoutPath, ["show", "--no-patch", "--format=%ct", commitSha], cancellationToken);
@@ -135,19 +121,15 @@ public sealed class ProcessGitClient : IGitClient
     public Task EnsureFilesResolvedAsync(string checkoutPath, CancellationToken cancellationToken = default)
         => _lfs.EnsureResolvedAsync(checkoutPath, "origin", cancellationToken);
 
-    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
+    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) {
+        try {
             // RunGitAsync itself throws GitCommandException when the process can't even start
             // (Win32Exception — "git" not found on PATH at all); a non-zero exit from a `git`
             // that DID start is vanishingly unlikely for `--version`, but treated the same way
             // either way, "not available" is "not available".
             var result = await RunGitAsync(workingDirectory: null, ["--version"], cancellationToken);
             return result.ExitCode == 0;
-        }
-        catch (GitCommandException)
-        {
+        } catch (GitCommandException) {
             return false;
         }
     }
@@ -158,21 +140,17 @@ public sealed class ProcessGitClient : IGitClient
     /// it tags — and the peeled commit SHA is what callers actually want, so it always wins over
     /// the tag object's own SHA when both are present for the same name.
     /// </summary>
-    internal static IReadOnlyList<GitRef> ParseRefs(string lsRemoteOutput)
-    {
+    internal static IReadOnlyList<GitRef> ParseRefs(string lsRemoteOutput) {
         var byName = new Dictionary<string, (string Sha, GitRefKind Kind)>(StringComparer.Ordinal);
 
-        foreach (var rawLine in lsRemoteOutput.Split('\n'))
-        {
+        foreach (var rawLine in lsRemoteOutput.Split('\n')) {
             var line = rawLine.Trim();
-            if (line.Length == 0)
-            {
+            if (line.Length == 0) {
                 continue;
             }
 
             var tabIndex = line.IndexOf('\t');
-            if (tabIndex < 0)
-            {
+            if (tabIndex < 0) {
                 continue;
             }
 
@@ -180,30 +158,23 @@ public sealed class ProcessGitClient : IGitClient
             var refName = line[(tabIndex + 1)..];
 
             var isPeeled = refName.EndsWith("^{}", StringComparison.Ordinal);
-            if (isPeeled)
-            {
+            if (isPeeled) {
                 refName = refName[..^3];
             }
 
             string shortName;
             GitRefKind kind;
-            if (refName.StartsWith("refs/tags/", StringComparison.Ordinal))
-            {
+            if (refName.StartsWith("refs/tags/", StringComparison.Ordinal)) {
                 shortName = refName["refs/tags/".Length..];
                 kind = GitRefKind.Tag;
-            }
-            else if (refName.StartsWith("refs/heads/", StringComparison.Ordinal))
-            {
+            } else if (refName.StartsWith("refs/heads/", StringComparison.Ordinal)) {
                 shortName = refName["refs/heads/".Length..];
                 kind = GitRefKind.Branch;
-            }
-            else
-            {
+            } else {
                 continue;
             }
 
-            if (isPeeled || !byName.ContainsKey(shortName))
-            {
+            if (isPeeled || !byName.ContainsKey(shortName)) {
                 byName[shortName] = (sha, kind);
             }
         }
@@ -217,20 +188,16 @@ public sealed class ProcessGitClient : IGitClient
         new(message, GitErrorClassifier.LooksLikeAuthenticationFailure(stderr));
 
     private async Task RunGitOrThrowAsync(
-        string? workingDirectory, string[] args, CancellationToken cancellationToken, string description)
-    {
+        string? workingDirectory, string[] args, CancellationToken cancellationToken, string description) {
         var result = await RunGitAsync(workingDirectory, args, cancellationToken);
-        if (result.ExitCode != 0)
-        {
+        if (result.ExitCode != 0) {
             throw Failure($"{description} failed: {result.StdErr.Trim()}", result.StdErr);
         }
     }
 
     private async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
-        string? workingDirectory, string[] args, CancellationToken cancellationToken)
-    {
-        var startInfo = new ProcessStartInfo("git")
-        {
+        string? workingDirectory, string[] args, CancellationToken cancellationToken) {
+        var startInfo = new ProcessStartInfo("git") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             // Redirected even though git never reads it: leaving this false makes the child inherit
@@ -244,33 +211,27 @@ public sealed class ProcessGitClient : IGitClient
             CreateNoWindow = true,
         };
 
-        foreach (var arg in args)
-        {
+        foreach (var arg in args) {
             startInfo.ArgumentList.Add(arg);
         }
 
         // Set on the child only. dotquay's own process environment is never mutated — several git
         // invocations can be in flight at once, and process-global state shared between them is the
         // bug class IEnvironmentReader exists to avoid.
-        foreach (var (name, value) in _childEnvironment)
-        {
+        foreach (var (name, value) in _childEnvironment) {
             startInfo.Environment[name] = value;
         }
 
-        if (workingDirectory is not null)
-        {
+        if (workingDirectory is not null) {
             startInfo.WorkingDirectory = workingDirectory;
         }
 
         using var process = new Process { StartInfo = startInfo };
         var trace = ProcessTrace.Start("git", args, workingDirectory);
 
-        try
-        {
+        try {
             process.Start();
-        }
-        catch (Win32Exception ex)
-        {
+        } catch (Win32Exception ex) {
             trace.Failed(ex);
             throw new GitCommandException("Could not start 'git'. Is it installed and on PATH?", ex);
         }
@@ -280,12 +241,9 @@ public sealed class ProcessGitClient : IGitClient
         var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        try
-        {
+        try {
             await process.WaitForExitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException ex)
-        {
+        } catch (OperationCanceledException ex) {
             trace.Failed(ex);
             throw;
         }

@@ -5,8 +5,7 @@ namespace Dotquay.Core.Workflows;
 
 /// <summary>What <see cref="DependencyWorkflow.DeclareDotnetAsync"/> did with a package ID
 /// (DESIGN-v0.19 §7a.1).</summary>
-public enum DotnetDeclarationOutcome
-{
+public enum DotnetDeclarationOutcome {
     /// <summary>The project didn't know the package; it is now declared, locked and referenced.</summary>
     Added,
 
@@ -27,8 +26,7 @@ public enum DotnetDeclarationOutcome
 /// <param name="Outcome">Which of the three declaration cases applied.</param>
 /// <param name="PreviousResolved">The version locked before this call, or null when nothing was
 /// locked. Reported as <c>changes[].from</c>.</param>
-public sealed record DotnetDeclaration(LockedDotnet Locked, DotnetDeclarationOutcome Outcome, string? PreviousResolved)
-{
+public sealed record DotnetDeclaration(LockedDotnet Locked, DotnetDeclarationOutcome Outcome, string? PreviousResolved) {
     /// <summary>Set when the project builds the package from source, so its <c>.csproj</c> got no
     /// <c>PackageReference</c> (docs/DESIGN-v0.26-SOURCE-BUILT-PACKAGES.md).</summary>
     public IReadOnlyList<SourceBuiltPackage> SourceBuilt { get; init; } = [];
@@ -40,13 +38,11 @@ public sealed record DotnetDeclaration(LockedDotnet Locked, DotnetDeclarationOut
 
     /// <summary>A one-line human summary, shared by the CLI and the MCP tool so both say the same
     /// thing about the same outcome.</summary>
-    public string Describe(string? pinnedSourceName)
-    {
+    public string Describe(string? pinnedSourceName) {
         var pinnedTo = pinnedSourceName is null ? "" : $", pinned to '{pinnedSourceName}'";
         var kept = Locked.Assets.Private is null ? "" : ", kept private to this project";
 
-        return Outcome switch
-        {
+        return Outcome switch {
             DotnetDeclarationOutcome.Pinned =>
                 $"Pinned '{Locked.Name}' to {Locked.Resolved} in your dotquay.toml (was {PreviousResolved ?? "unlocked"}, "
                 + $"chosen by an addon){pinnedTo}{kept}. Your entry now wins over the addon's; remove it to hand the "

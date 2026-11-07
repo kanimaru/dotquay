@@ -20,8 +20,7 @@ namespace Dotquay.Tests.Workflows;
 /// be too late — so the no-write property is tested as its own fact rather than assumed from reading
 /// the implementation.
 /// </remarks>
-public class AddPreviewTests
-{
+public class AddPreviewTests {
     private const string ProjectDir = "project";
     private const string VbeamiUrl = "https://gitlab.example.com/wild-alliance/vbeami.git";
     private const string CoreUrl = "https://gitlab.example.com/wild-alliance/vbeami_core.git";
@@ -58,15 +57,13 @@ public class AddPreviewTests
         version = "~1"
         """;
 
-    private sealed class Fixture
-    {
+    private sealed class Fixture {
         public required DependencyWorkflow Workflow { get; init; }
 
         public required InMemoryFileSystem FileSystem { get; init; }
     }
 
-    private static Fixture Build(string projectManifest, ISourceApproval? approval = null)
-    {
+    private static Fixture Build(string projectManifest, ISourceApproval? approval = null) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(ManifestPath, projectManifest);
         fileSystem.WriteAllText($"{ProjectDir}/Game.csproj", CsprojText);
@@ -74,15 +71,13 @@ public class AddPreviewTests
         var gitClient = new FakeGitClient { FileSystemForFetchedContent = fileSystem };
 
         gitClient.RemoteRefsByUrl[VbeamiUrl] = [new GitRef("v1.0.0", new string('b', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[VbeamiUrl] = new Dictionary<string, string> {
             ["addons/vbeami/plugin.cfg"] = "vbeami",
             ["addons/vbeami/dotquay.toml"] = VbeamiPackageManifest,
         };
 
         gitClient.RemoteRefsByUrl[CoreUrl] = [new GitRef("v1.1.0", new string('c', 40), GitRefKind.Tag)];
-        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string>
-        {
+        gitClient.FetchedFilesByUrl[CoreUrl] = new Dictionary<string, string> {
             ["addons/vbeami_core/plugin.cfg"] = "vbeami_core",
         };
 
@@ -94,8 +89,7 @@ public class AddPreviewTests
 
         var workflow = new DependencyWorkflow(
             fileSystem, gitClient, factory, addonInstaller,
-            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None()))
-        {
+            new DotnetInstaller(fileSystem, new FakeDotnetCliRunner(), TestCredentials.None())) {
             SourceApproval = approval ?? DenyAllSourceApproval.Instance,
         };
 
@@ -118,8 +112,7 @@ public class AddPreviewTests
     // -- the no-write guarantee ------------------------------------------------------------------
 
     [Fact]
-    public async Task PreviewAddAsync_WritesNothing()
-    {
+    public async Task PreviewAddAsync_WritesNothing() {
         var fixture = Build(EmptyProject);
         var manifestBefore = fixture.FileSystem.ReadAllText(ManifestPath);
 
@@ -137,8 +130,7 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task PreviewAddAsync_TrustedHost_StillWritesNothing()
-    {
+    public async Task PreviewAddAsync_TrustedHost_StillWritesNothing() {
         // The dangerous case: adoption would succeed, so the code path that persists it is live.
         var fixture = Build(TrustingProject);
         var manifestBefore = fixture.FileSystem.ReadAllText(ManifestPath);
@@ -153,8 +145,7 @@ public class AddPreviewTests
     // -- what the dialog shows ------------------------------------------------------------------
 
     [Fact]
-    public async Task PreviewAddAsync_ReportsTheTransitiveAddonsTheUserDidNotAskFor()
-    {
+    public async Task PreviewAddAsync_ReportsTheTransitiveAddonsTheUserDidNotAskFor() {
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl);
 
         Assert.Equal("vbeami", preview.Name);
@@ -170,20 +161,17 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task PreviewAddAsync_NothingIsLockedYet_SoEveryAddonIsNewWithNoPreviousCommit()
-    {
+    public async Task PreviewAddAsync_NothingIsLockedYet_SoEveryAddonIsNewWithNoPreviousCommit() {
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl);
 
-        Assert.All(preview.Addons, addon =>
-        {
+        Assert.All(preview.Addons, addon => {
             Assert.True(addon.IsNew);
             Assert.Null(addon.PreviousResolved);
         });
     }
 
     [Fact]
-    public async Task PreviewAddAsync_ReportsTheNuGetPackagesTheAddonBringsIn()
-    {
+    public async Task PreviewAddAsync_ReportsTheNuGetPackagesTheAddonBringsIn() {
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl);
 
         var package = Assert.Single(preview.Dotnet);
@@ -197,8 +185,7 @@ public class AddPreviewTests
     // -- feed adoption ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task PreviewAddAsync_UntrustedFeed_NeedsApprovalAndNamesTheStakes()
-    {
+    public async Task PreviewAddAsync_UntrustedFeed_NeedsApprovalAndNamesTheStakes() {
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl);
 
         Assert.Empty(preview.SourcesToAdopt);
@@ -214,8 +201,7 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task PreviewAddAsync_TrustedHost_IsReportedAsAutomaticRatherThanAsAChoice()
-    {
+    public async Task PreviewAddAsync_TrustedHost_IsReportedAsAutomaticRatherThanAsAChoice() {
         var preview = await Build(TrustingProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl);
 
         Assert.Empty(preview.SourcesNeedingApproval);
@@ -229,8 +215,7 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task PreviewAddAsync_PreApprovedUrl_MovesTheFeedOutOfTheApprovalList()
-    {
+    public async Task PreviewAddAsync_PreApprovedUrl_MovesTheFeedOutOfTheApprovalList() {
         // The second preview, after the user ticks the box: it must agree with what the real add is
         // about to do, or the dialog would still be showing an unanswered question.
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(
@@ -246,8 +231,7 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task PreviewAddAsync_PreApprovingSomeOtherUrl_LeavesThisFeedNeedingApproval()
-    {
+    public async Task PreviewAddAsync_PreApprovingSomeOtherUrl_LeavesThisFeedNeedingApproval() {
         var preview = await Build(EmptyProject).Workflow.PreviewAddAsync(
             ProjectDir, VbeamiUrl, options: null,
             preApprovedSourceUrls: ["https://gitlab.example.com/api/v4/groups/999/-/packages/nuget/index.json"]);
@@ -259,8 +243,7 @@ public class AddPreviewTests
     // -- the pre-approval completing a real add --------------------------------------------------
 
     [Fact]
-    public async Task AddAsync_WithPreApprovedFeed_AdoptsItWithoutAnyApprover()
-    {
+    public async Task AddAsync_WithPreApprovedFeed_AdoptsItWithoutAnyApprover() {
         // PreApprovedSourceApproval stands in for the console prompt the editor plugin cannot answer.
         var fixture = Build(EmptyProject, new PreApprovedSourceApproval([FeedUrl]));
 
@@ -274,8 +257,7 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task AddAsync_FeedNotPreApproved_FailsAndSaysHowToProceed()
-    {
+    public async Task AddAsync_FeedNotPreApproved_FailsAndSaysHowToProceed() {
         var fixture = Build(EmptyProject, PreApprovedSourceApproval.For(["https://elsewhere.example.com/index.json"]));
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
@@ -288,8 +270,7 @@ public class AddPreviewTests
     // -- refusals the preview must reproduce -----------------------------------------------------
 
     [Fact]
-    public async Task PreviewAddAsync_AddonAlreadyDeclared_FailsTheSameWayAddDoes()
-    {
+    public async Task PreviewAddAsync_AddonAlreadyDeclared_FailsTheSameWayAddDoes() {
         var fixture = Build($"""
             [project]
             godot = "4.3"
@@ -311,8 +292,7 @@ public class AddPreviewTests
     // -- the wire contract ------------------------------------------------------------------------
 
     [Fact]
-    public async Task ToJson_Preview_SetsTheConvenienceFlagsAUiBranchesOn()
-    {
+    public async Task ToJson_Preview_SetsTheConvenienceFlagsAUiBranchesOn() {
         var pending = JsonMapper.ToJson(await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
 
         Assert.True(pending.NeedsApproval);
@@ -326,8 +306,7 @@ public class AddPreviewTests
     }
 
     [Fact]
-    public async Task ToJson_Preview_SerializesUnderTheSnakeCaseKeysThePluginReads()
-    {
+    public async Task ToJson_Preview_SerializesUnderTheSnakeCaseKeysThePluginReads() {
         var payload = JsonMapper.ToJson(await Build(EmptyProject).Workflow.PreviewAddAsync(ProjectDir, VbeamiUrl));
         var json = DotquayJson.Write(JsonEnvelope<AddPreviewJson>.Success("add", payload));
 
@@ -347,8 +326,7 @@ public class AddPreviewTests
 /// <summary>
 /// The whitelist that carries a preview's approvals into the add that follows it.
 /// </summary>
-public class PreApprovedSourceApprovalTests
-{
+public class PreApprovedSourceApprovalTests {
     private const string FeedUrl = "https://gitlab.example.com/api/v4/groups/7/-/packages/nuget/index.json";
 
     private static SourceAdoptionRequest Request(string url) =>
@@ -363,8 +341,7 @@ public class PreApprovedSourceApprovalTests
         Assert.False(new PreApprovedSourceApproval([FeedUrl]).Approve(Request("https://evil.example.com/index.json")));
 
     [Fact]
-    public void Approve_CaseDiffersOnly_IsStillApproved()
-    {
+    public void Approve_CaseDiffersOnly_IsStillApproved() {
         // Matched the same way SourceAdopter decides a feed is already known. Two notions of "the
         // same feed" is how this stops being a boundary.
         var approval = new PreApprovedSourceApproval([FeedUrl.ToUpperInvariant()]);
@@ -373,8 +350,7 @@ public class PreApprovedSourceApprovalTests
     }
 
     [Fact]
-    public void For_EmptyList_FallsBackToRefusingEverything()
-    {
+    public void For_EmptyList_FallsBackToRefusingEverything() {
         Assert.Same(DenyAllSourceApproval.Instance, PreApprovedSourceApproval.For([]));
         Assert.Same(DenyAllSourceApproval.Instance, PreApprovedSourceApproval.For(null));
     }

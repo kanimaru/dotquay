@@ -18,8 +18,7 @@ namespace Dotquay.Core.Manifest;
 /// reported via <see cref="UnknownTags"/> so a caller with a warnings channel can say so.
 /// </para>
 /// </remarks>
-public sealed record PackageAssets
-{
+public sealed record PackageAssets {
     /// <summary>The complete set MSBuild recognises, in canonical casing. `all` and `none` are
     /// included here but may only appear alone — see <see cref="FindMisuseOfAllOrNone"/>.</summary>
     public static readonly IReadOnlyList<string> KnownTags =
@@ -55,29 +54,22 @@ public sealed record PackageAssets
 
     /// <summary>Every declared tag this build does not recognise, across all three lists, de-duplicated.
     /// Empty for the normal case. Callers with a warnings channel report these; nothing rejects them.</summary>
-    public IReadOnlyList<string> UnknownTags
-    {
-        get
-        {
+    public IReadOnlyList<string> UnknownTags {
+        get {
             List<string>? unknown = null;
 
-            foreach (var list in new[] { Include, Exclude, Private })
-            {
-                if (list is null)
-                {
+            foreach (var list in new[] { Include, Exclude, Private }) {
+                if (list is null) {
                     continue;
                 }
 
-                foreach (var tag in list)
-                {
-                    if (IsKnown(tag))
-                    {
+                foreach (var tag in list) {
+                    if (IsKnown(tag)) {
                         continue;
                     }
 
                     unknown ??= [];
-                    if (!unknown.Contains(tag, StringComparer.OrdinalIgnoreCase))
-                    {
+                    if (!unknown.Contains(tag, StringComparer.OrdinalIgnoreCase)) {
                         unknown.Add(tag);
                     }
                 }
@@ -98,15 +90,12 @@ public sealed record PackageAssets
     /// <summary>
     /// Canonicalises every tag and drops duplicates, preserving declaration order.
     /// </summary>
-    public static IReadOnlyList<string> Normalize(IReadOnlyList<string> tags)
-    {
+    public static IReadOnlyList<string> Normalize(IReadOnlyList<string> tags) {
         var result = new List<string>(tags.Count);
 
-        foreach (var tag in tags)
-        {
+        foreach (var tag in tags) {
             var canonical = Canonicalize(tag.Trim());
-            if (canonical.Length > 0 && !result.Contains(canonical, StringComparer.OrdinalIgnoreCase))
-            {
+            if (canonical.Length > 0 && !result.Contains(canonical, StringComparer.OrdinalIgnoreCase)) {
                 result.Add(canonical);
             }
         }
@@ -123,10 +112,8 @@ public sealed record PackageAssets
     /// must appear by themselves". A list like <c>["all", "runtime"]</c> has no meaning MSBuild will
     /// honour, so this is a hard parse error rather than something to normalise into a guess.
     /// </remarks>
-    public static string? FindMisuseOfAllOrNone(IReadOnlyList<string> tags)
-    {
-        if (tags.Count < 2)
-        {
+    public static string? FindMisuseOfAllOrNone(IReadOnlyList<string> tags) {
+        if (tags.Count < 2) {
             return null;
         }
 
@@ -149,10 +136,8 @@ public sealed record PackageAssets
     /// <summary>Whether two declared lists mean the same thing — order-insensitive, case-insensitive,
     /// and treating null and empty alike. Used for drift detection, where a spelling difference is not
     /// a difference.</summary>
-    public static bool SameTags(IReadOnlyList<string>? left, IReadOnlyList<string>? right)
-    {
-        if (left is null || right is null)
-        {
+    public static bool SameTags(IReadOnlyList<string>? left, IReadOnlyList<string>? right) {
+        if (left is null || right is null) {
             return left is null && right is null;
         }
 

@@ -13,8 +13,7 @@ namespace Dotquay.Tests.Dotnet;
 /// service index that publishes its resources at different URLs than nuget.org's (GitLab shape,
 /// confirmed for real against the user's own private feed), and Basic-auth header attachment.
 /// </summary>
-public class NuGetV3ClientTests
-{
+public class NuGetV3ClientTests {
     private const string ServiceIndexUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
 
     private const string GitLabShapedServiceIndex = """
@@ -28,28 +27,23 @@ public class NuGetV3ClientTests
         }
         """;
 
-    private sealed class RecordingHandler : HttpMessageHandler
-    {
+    private sealed class RecordingHandler : HttpMessageHandler {
         private readonly Dictionary<string, (HttpStatusCode Status, string? Body)> _responsesByUrl;
         public List<HttpRequestMessage> Requests { get; } = [];
 
-        public RecordingHandler(Dictionary<string, (HttpStatusCode, string?)> responsesByUrl)
-        {
+        public RecordingHandler(Dictionary<string, (HttpStatusCode, string?)> responsesByUrl) {
             _responsesByUrl = responsesByUrl;
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             Requests.Add(request);
             var url = request.RequestUri!.ToString();
 
-            if (!_responsesByUrl.TryGetValue(url, out var canned))
-            {
+            if (!_responsesByUrl.TryGetValue(url, out var canned)) {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             }
 
-            var response = new HttpResponseMessage(canned.Item1)
-            {
+            var response = new HttpResponseMessage(canned.Item1) {
                 Content = canned.Item2 is null ? null : new StringContent(canned.Item2),
             };
             return Task.FromResult(response);
@@ -57,10 +51,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_DiscoversPackageBaseAddressFromServiceIndex_ThenQueriesIt()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_DiscoversPackageBaseAddressFromServiceIndex_ThenQueriesIt() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.internal/index.json"] =
                 (HttpStatusCode.OK, """{"versions":["1.0.0","2.1.0"]}"""),
@@ -73,10 +65,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_CachesDiscoveredResource_OnlyFetchesServiceIndexOnce()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_CachesDiscoveredResource_OnlyFetchesServiceIndexOnce() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.a/index.json"] = (HttpStatusCode.OK, """{"versions":["1.0.0"]}"""),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.b/index.json"] = (HttpStatusCode.OK, """{"versions":["1.0.0"]}"""),
@@ -90,10 +80,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_WithCredentials_SendsBasicAuthOnEveryRequest()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_WithCredentials_SendsBasicAuthOnEveryRequest() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.internal/index.json"] =
                 (HttpStatusCode.OK, """{"versions":["1.0.0"]}"""),
@@ -102,8 +90,7 @@ public class NuGetV3ClientTests
 
         await client.GetVersionsAsync("Acme.Internal");
 
-        Assert.All(handler.Requests, request =>
-        {
+        Assert.All(handler.Requests, request => {
             Assert.NotNull(request.Headers.Authorization);
             Assert.Equal("Basic", request.Headers.Authorization!.Scheme);
         });
@@ -113,10 +100,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_NoCredentials_SendsNoAuthorizationHeader()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_NoCredentials_SendsNoAuthorizationHeader() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.internal/index.json"] =
                 (HttpStatusCode.OK, """{"versions":["1.0.0"]}"""),
@@ -129,10 +114,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_PackageNotFound_ReturnsEmptyRatherThanThrowing()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_PackageNotFound_ReturnsEmptyRatherThanThrowing() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/does.not.exist/index.json"] = (HttpStatusCode.NotFound, null),
         });
@@ -144,10 +127,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_UnauthorizedOnThePackageQuery_ThrowsTypedAuthException()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_UnauthorizedOnThePackageQuery_ThrowsTypedAuthException() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.internal/index.json"] =
                 (HttpStatusCode.Unauthorized, null),
@@ -161,12 +142,10 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_UnauthorizedOnTheServiceIndex_ThrowsTypedAuthException()
-    {
+    public async Task GetVersionsAsync_UnauthorizedOnTheServiceIndex_ThrowsTypedAuthException() {
         // The one that usually fires in practice: on a private feed a bad or missing credential is
         // rejected at the service index, before any package lookup happens at all.
-        var handler = new RecordingHandler(new()
-        {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.Unauthorized, null),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -178,10 +157,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_Forbidden_IsTreatedAsAnAuthFailureToo()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_Forbidden_IsTreatedAsAnAuthFailureToo() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.Forbidden, null),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -190,10 +167,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_ReportsTheSourceName_ButNullForNuGetOrg()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_ReportsTheSourceName_ButNullForNuGetOrg() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, GitLabShapedServiceIndex),
             ["https://gitlab.example.com/api/v4/projects/1/packages/nuget/download/acme.internal/index.json"] =
                 (HttpStatusCode.OK, """{"versions":["1.0.0"]}"""),
@@ -206,13 +181,11 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_ServiceIndexNotFound_Unauthenticated_SuggestsLoggingIn()
-    {
+    public async Task GetVersionsAsync_ServiceIndexNotFound_Unauthenticated_SuggestsLoggingIn() {
         // The crash that shipped in the first cut: EnsureSuccessStatusCode's HttpRequestException was
         // caught by nothing and escaped as an unhandled exception — a stack trace on stderr and, with
         // --json, no envelope at all.
-        var handler = new RecordingHandler(new()
-        {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.NotFound, null),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -227,10 +200,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_ServiceIndexNotFound_Authenticated_BlamesTheUrlNotTheCredential()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_ServiceIndexNotFound_Authenticated_BlamesTheUrlNotTheCredential() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.NotFound, null),
         });
         var client = new NuGetV3Client(
@@ -245,12 +216,10 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_BadRequest_PointsAtTheUrlShape()
-    {
+    public async Task GetVersionsAsync_BadRequest_PointsAtTheUrlShape() {
         // A URL-encoded project path is accepted by most of GitLab's API but rejected by the NuGet
         // registry endpoint, which wants the numeric ID — observed as a 400, not a 404.
-        var handler = new RecordingHandler(new()
-        {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.BadRequest, null),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -261,10 +230,8 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_ServerError_ThrowsTypedSourceException()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_ServerError_ThrowsTypedSourceException() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.InternalServerError, null),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -275,8 +242,7 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_TransportFailure_ThrowsTypedSourceExceptionRatherThanHttpRequestException()
-    {
+    public async Task GetVersionsAsync_TransportFailure_ThrowsTypedSourceExceptionRatherThanHttpRequestException() {
         var client = new NuGetV3Client(
             "https://nonexistent.invalid/v3/index.json",
             httpClient: new HttpClient(new ThrowingHandler()),
@@ -288,17 +254,14 @@ public class NuGetV3ClientTests
     }
 
     /// <summary>Simulates DNS failure / refused connection / TLS error.</summary>
-    private sealed class ThrowingHandler : HttpMessageHandler
-    {
+    private sealed class ThrowingHandler : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             throw new HttpRequestException("No such host is known.");
     }
 
     [Fact]
-    public async Task GetVersionsAsync_ServiceIndexMissingPackageBaseAddress_Throws()
-    {
-        var handler = new RecordingHandler(new()
-        {
+    public async Task GetVersionsAsync_ServiceIndexMissingPackageBaseAddress_Throws() {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, """{"version":"3.0.0","resources":[]}"""),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -310,11 +273,9 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_ServiceIndexIsHtml_ThrowsTypedSourceException()
-    {
+    public async Task GetVersionsAsync_ServiceIndexIsHtml_ThrowsTypedSourceException() {
         // A sign-in page answering 200 with HTML is the realistic shape of this.
-        var handler = new RecordingHandler(new()
-        {
+        var handler = new RecordingHandler(new() {
             [ServiceIndexUrl] = (HttpStatusCode.OK, "<!DOCTYPE html><html><body>Sign in</body></html>"),
         });
         var client = new NuGetV3Client(ServiceIndexUrl, httpClient: new HttpClient(handler), sourceName: "core");
@@ -324,8 +285,7 @@ public class NuGetV3ClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_AgainstNuGetOrgShapedIndex_StillWorks()
-    {
+    public async Task GetVersionsAsync_AgainstNuGetOrgShapedIndex_StillWorks() {
         // nuget.org's own resource list is much longer, but the discovery logic only cares about
         // finding the one entry with @type == "PackageBaseAddress/3.0.0" — same code path as the
         // GitLab-shaped tests above, just proving the "public default" shape isn't special-cased.
@@ -338,8 +298,7 @@ public class NuGetV3ClientTests
               ]
             }
             """;
-        var handler = new RecordingHandler(new()
-        {
+        var handler = new RecordingHandler(new() {
             [NuGetV3Client.DefaultServiceIndexUrl] = (HttpStatusCode.OK, nuGetOrgShapedIndex),
             ["https://api.nuget.org/v3-flatcontainer/newtonsoft.json/index.json"] = (HttpStatusCode.OK, """{"versions":["13.0.3","13.0.4"]}"""),
         });

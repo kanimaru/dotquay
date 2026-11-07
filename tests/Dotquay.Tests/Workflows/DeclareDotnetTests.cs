@@ -20,8 +20,7 @@ namespace Dotquay.Tests.Workflows;
 /// <c>Newtonsoft.Json</c>, pinned to the <c>core</c> feed with private assets, so a change can prove it
 /// kept both.
 /// </remarks>
-public class DeclareDotnetTests
-{
+public class DeclareDotnetTests {
     private const string ProjectDirectory = "project";
     private const string RootUrl = "https://example.com/root.git";
 
@@ -88,8 +87,7 @@ public class DeclareDotnetTests
         """;
 
     private sealed record Fixture(
-        DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClientFactory Factory, FakeDotnetCliRunner Runner)
-    {
+        DependencyWorkflow Workflow, InMemoryFileSystem FileSystem, FakeNuGetClientFactory Factory, FakeDotnetCliRunner Runner) {
         public ProjectManifest ReadManifest() =>
             ManifestReader.ReadProject(FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "dotquay.toml")));
 
@@ -99,8 +97,7 @@ public class DeclareDotnetTests
         public string ReadCsproj() => FileSystem.ReadAllText(FileSystem.CombinePath(ProjectDirectory, "Game.csproj"));
     }
 
-    private static Fixture Build()
-    {
+    private static Fixture Build() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), Manifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), Lockfile);
@@ -127,8 +124,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task UnknownPackage_IsAdded()
-    {
+    public async Task UnknownPackage_IsAdded() {
         var fixture = Build();
 
         var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "Brand.New");
@@ -140,8 +136,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task DeclaredPackage_WithoutAVersion_IsRefusedAndNamesBothWaysForward()
-    {
+    public async Task DeclaredPackage_WithoutAVersion_IsRefusedAndNamesBothWaysForward() {
         var fixture = Build();
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
@@ -152,8 +147,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task DeclaredPackage_WithANewVersion_IsChangedEverywhere()
-    {
+    public async Task DeclaredPackage_WithANewVersion_IsChangedEverywhere() {
         var fixture = Build();
 
         var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "Newtonsoft.Json", "12.0.3");
@@ -167,8 +161,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task DeclaredPackage_Change_KeepsTheFeedPinAndAssetMetadata()
-    {
+    public async Task DeclaredPackage_Change_KeepsTheFeedPinAndAssetMetadata() {
         var fixture = Build();
 
         await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "Newtonsoft.Json", "12.0.3");
@@ -182,8 +175,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task DeclaredPackage_SameVersion_IsUnchangedAndTouchesNothing()
-    {
+    public async Task DeclaredPackage_SameVersion_IsUnchangedAndTouchesNothing() {
         var fixture = Build();
         var manifestBefore = fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory, "dotquay.toml"));
 
@@ -196,8 +188,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task AddonDeclaredPackage_WithAVersion_IsPinnedInTheProject()
-    {
+    public async Task AddonDeclaredPackage_WithAVersion_IsPinnedInTheProject() {
         var fixture = Build();
 
         var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
@@ -209,8 +200,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task AddonDeclaredPackage_Pin_InheritsTheAssetsDotquayAlreadyWrote()
-    {
+    public async Task AddonDeclaredPackage_Pin_InheritsTheAssetsDotquayAlreadyWrote() {
         var fixture = Build();
 
         var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
@@ -222,8 +212,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task AddonDeclaredPackage_Pin_KeepsTheLockfileOrder()
-    {
+    public async Task AddonDeclaredPackage_Pin_KeepsTheLockfileOrder() {
         var fixture = Build();
 
         await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
@@ -232,8 +221,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task LockedButUndeclared_WithoutAVersion_IsPinnedToTheLatestStable()
-    {
+    public async Task LockedButUndeclared_WithoutAVersion_IsPinnedToTheLatestStable() {
         var fixture = Build();
 
         var declaration = await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "Zed.Last");
@@ -244,8 +232,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task VersionThatDoesNotExist_IsRefusedAndWritesNothing()
-    {
+    public async Task VersionThatDoesNotExist_IsRefusedAndWritesNothing() {
         var fixture = Build();
         var lockBefore = fixture.FileSystem.ReadAllText(fixture.FileSystem.CombinePath(ProjectDirectory, "dotquay.lock"));
 
@@ -258,8 +245,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task UnknownSource_IsRefusedBeforeAnyFeedIsAsked()
-    {
+    public async Task UnknownSource_IsRefusedBeforeAnyFeedIsAsked() {
         var fixture = Build();
 
         var exception = await Assert.ThrowsAsync<WorkflowException>(
@@ -270,8 +256,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task RemovingAPin_KeepsWhatTheAddonStillNeeds()
-    {
+    public async Task RemovingAPin_KeepsWhatTheAddonStillNeeds() {
         var fixture = Build();
         await fixture.Workflow.DeclareDotnetAsync(ProjectDirectory, "VBeami.Core", "0.4.9");
 
@@ -288,8 +273,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public async Task RemovingAPackageNoAddonNeeds_StillRemovesItCompletely()
-    {
+    public async Task RemovingAPackageNoAddonNeeds_StillRemovesItCompletely() {
         var fixture = Build();
 
         var removal = await fixture.Workflow.RemoveAsync(ProjectDirectory, "Newtonsoft.Json");
@@ -305,8 +289,7 @@ public class DeclareDotnetTests
     [InlineData(DotnetDeclarationOutcome.Pinned, "updated", "0.4.7")]
     [InlineData(DotnetDeclarationOutcome.Changed, "updated", "0.4.7")]
     [InlineData(DotnetDeclarationOutcome.Unchanged, "unchanged", "0.4.7")]
-    public void ToChange_MapsEachOutcomeOntoTheWire(DotnetDeclarationOutcome outcome, string action, string? from)
-    {
+    public void ToChange_MapsEachOutcomeOntoTheWire(DotnetDeclarationOutcome outcome, string action, string? from) {
         var declaration = new DotnetDeclaration(
             new LockedDotnet { Name = "VBeami.Core", Resolved = "0.4.9" }, outcome, PreviousResolved: "0.4.7");
 
@@ -319,8 +302,7 @@ public class DeclareDotnetTests
     }
 
     [Fact]
-    public void Describe_APin_SaysHowToUndoIt()
-    {
+    public void Describe_APin_SaysHowToUndoIt() {
         var declaration = new DotnetDeclaration(
             new LockedDotnet { Name = "VBeami.Core", Resolved = "0.4.9" }, DotnetDeclarationOutcome.Pinned, "0.4.7");
 

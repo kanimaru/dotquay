@@ -4,11 +4,9 @@ using Xunit;
 
 namespace Dotquay.Tests.Sync;
 
-public class RepoCacheTests
-{
+public class RepoCacheTests {
     [Fact]
-    public async Task GetOrFetchAsync_FetchesOnFirstCall()
-    {
+    public async Task GetOrFetchAsync_FetchesOnFirstCall() {
         var fileSystem = new InMemoryFileSystem();
         var git = new FakeGitClient();
         var cache = new RepoCache(fileSystem, git, cacheRoot: "cache");
@@ -20,8 +18,7 @@ public class RepoCacheTests
     }
 
     [Fact]
-    public async Task GetOrFetchAsync_DoesNotRefetchOnCacheHit()
-    {
+    public async Task GetOrFetchAsync_DoesNotRefetchOnCacheHit() {
         var fileSystem = new InMemoryFileSystem();
         var git = new FakeGitClient();
         var cache = new RepoCache(fileSystem, git, cacheRoot: "cache");
@@ -33,8 +30,7 @@ public class RepoCacheTests
     }
 
     [Fact]
-    public async Task GetOrFetchAsync_RefetchesWhenPreviousFetchWasIncomplete()
-    {
+    public async Task GetOrFetchAsync_RefetchesWhenPreviousFetchWasIncomplete() {
         var fileSystem = new InMemoryFileSystem();
         var git = new FakeGitClient();
         var cache = new RepoCache(fileSystem, git, cacheRoot: "cache");
@@ -50,8 +46,7 @@ public class RepoCacheTests
     }
 
     [Fact]
-    public void GetCachePath_IsDeterministicAndDistinguishesRepos()
-    {
+    public void GetCachePath_IsDeterministicAndDistinguishesRepos() {
         var fileSystem = new InMemoryFileSystem();
         var git = new FakeGitClient();
         var cache = new RepoCache(fileSystem, git, cacheRoot: "cache");
@@ -65,8 +60,7 @@ public class RepoCacheTests
     }
 
     [Fact]
-    public void GetCachePath_UsesShortShaPrefix()
-    {
+    public void GetCachePath_UsesShortShaPrefix() {
         var fileSystem = new InMemoryFileSystem();
         var git = new FakeGitClient();
         var cache = new RepoCache(fileSystem, git, cacheRoot: "cache");

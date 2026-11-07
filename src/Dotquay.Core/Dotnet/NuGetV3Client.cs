@@ -34,8 +34,7 @@ namespace Dotquay.Core.Dotnet;
 /// registry, 2026-08-21) — no special-casing per provider.
 /// </para>
 /// </remarks>
-public sealed class NuGetV3Client : INuGetClient
-{
+public sealed class NuGetV3Client : INuGetClient {
     public const string DefaultServiceIndexUrl = "https://api.nuget.org/v3/index.json";
 
     private const string PackageBaseAddressResourceType = "PackageBaseAddress/3.0.0";
@@ -66,15 +65,13 @@ public sealed class NuGetV3Client : INuGetClient
         string? username = null,
         string? password = null,
         HttpClient? httpClient = null,
-        string? sourceName = null)
-    {
+        string? sourceName = null) {
         _serviceIndexUrl = serviceIndexUrl;
         _httpClient = httpClient ?? Diagnostics.DiagnosticHttp.CreateClient();
         _isPublicDefault = string.Equals(serviceIndexUrl, DefaultServiceIndexUrl, StringComparison.OrdinalIgnoreCase);
         _sourceName = sourceName ?? (_isPublicDefault ? Manifest.NuGetSourceSpec.PublicName : serviceIndexUrl);
 
-        if (username is not null && password is not null)
-        {
+        if (username is not null && password is not null) {
             var raw = Encoding.UTF8.GetBytes($"{username}:{password}");
             _authHeader = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(raw));
         }
@@ -82,16 +79,14 @@ public sealed class NuGetV3Client : INuGetClient
 
     /// <summary>Whatever order the feed returns — callers that care about ordering, like
     /// <see cref="NuGetVersionSelector"/>, sort explicitly rather than trusting the feed's order.</summary>
-    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default)
-    {
+    public async Task<NuGetVersionQuery> GetVersionsAsync(string packageId, CancellationToken cancellationToken = default) {
         var baseAddress = await GetPackageBaseAddressAsync(cancellationToken);
 
         // The flat-container-style resource requires the package ID lowercased in the URL
         // (case-insensitive package IDs, but the storage path itself is not).
         using var response = await SendAsync($"{baseAddress}{packageId.ToLowerInvariant()}/index.json", cancellationToken);
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
+        if (response.StatusCode == HttpStatusCode.NotFound) {
             return new NuGetVersionQuery([], ReportedSourceName);
         }
 
@@ -129,8 +124,7 @@ public sealed class NuGetV3Client : INuGetClient
     /// good document as empty. No reflection either way, which keeps this NativeAOT-safe.</para>
     /// </remarks>
     public async Task<PackageShape> GetPackageShapeAsync(
-        string packageId, string version, CancellationToken cancellationToken = default)
-    {
+        string packageId, string version, CancellationToken cancellationToken = default) {
         var baseAddress = await GetPackageBaseAddressAsync(cancellationToken);
         var id = packageId.ToLowerInvariant();
 
@@ -139,13 +133,11 @@ public sealed class NuGetV3Client : INuGetClient
 
         ThrowIfUnauthorized(response, $"reading the nuspec for '{packageId}'");
 
-        if (!response.IsSuccessStatusCode)
-        {
+        if (!response.IsSuccessStatusCode) {
             return PackageShape.Unknown;
         }
 
-        try
-        {
+        try {
             var document = XDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
 
             var declared = document.Descendants()
@@ -154,9 +146,7 @@ public sealed class NuGetV3Client : INuGetClient
             return declared is null
                 ? new PackageShape(IsDevelopmentDependency: false)
                 : new PackageShape(string.Equals(declared, "true", StringComparison.OrdinalIgnoreCase));
-        }
-        catch (System.Xml.XmlException)
-        {
+        } catch (System.Xml.XmlException) {
             return PackageShape.Unknown;
         }
     }
@@ -165,10 +155,8 @@ public sealed class NuGetV3Client : INuGetClient
     /// public feed — so a public-only project's lockfile stays byte-identical to pre-v0.7.</summary>
     private string? ReportedSourceName => _isPublicDefault ? null : _sourceName;
 
-    private async Task<string> GetPackageBaseAddressAsync(CancellationToken cancellationToken)
-    {
-        if (_packageBaseAddress is not null)
-        {
+    private async Task<string> GetPackageBaseAddressAsync(CancellationToken cancellationToken) {
+        if (_packageBaseAddress is not null) {
             return _packageBaseAddress;
         }
 
@@ -183,12 +171,9 @@ public sealed class NuGetV3Client : INuGetClient
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
         ServiceIndex? index;
-        try
-        {
+        try {
             index = await JsonSerializer.DeserializeAsync(stream, NuGetV3JsonContext.Default.ServiceIndex, cancellationToken);
-        }
-        catch (JsonException ex)
-        {
+        } catch (JsonException ex) {
             // A sign-in page, an HTML error, a proxy's interstitial — anything that answered 200 with
             // something that isn't a service index. Typed, because an unhandled JsonException would
             // reach the user as a stack trace and, under --json, as no envelope at all.
@@ -221,10 +206,8 @@ public sealed class NuGetV3Client : INuGetClient
     /// (SPEC.md §11.1). <see cref="HttpRequestException"/> carries the status code, but branching on
     /// it from the aggregator would mean reaching into this class's HTTP details from outside.
     /// </remarks>
-    private void ThrowIfUnauthorized(HttpResponseMessage response, string what)
-    {
-        if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
-        {
+    private void ThrowIfUnauthorized(HttpResponseMessage response, string what) {
+        if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)) {
             return;
         }
 
@@ -254,15 +237,12 @@ public sealed class NuGetV3Client : INuGetClient
     /// unauthenticated, "log in" is worth trying; authenticated, the credential was accepted this
     /// far and the URL is the likelier fault.</para>
     /// </remarks>
-    private void ThrowIfUnsuccessful(HttpResponseMessage response, string what)
-    {
-        if (response.IsSuccessStatusCode)
-        {
+    private void ThrowIfUnsuccessful(HttpResponseMessage response, string what) {
+        if (response.IsSuccessStatusCode) {
             return;
         }
 
-        var hint = response.StatusCode switch
-        {
+        var hint = response.StatusCode switch {
             HttpStatusCode.NotFound when _authHeader is null =>
                 "GitLab returns 404 both for a project that doesn't exist and for one you aren't allowed to see, "
                 + $"so this could be either. Check the URL, then try 'dotquay login {_serviceIndexUrl}'.",
@@ -285,20 +265,15 @@ public sealed class NuGetV3Client : INuGetClient
             $"NuGet source '{_sourceName}' answered {(int)response.StatusCode} {response.StatusCode} while {what}. {hint}");
     }
 
-    private async Task<HttpResponseMessage> SendAsync(string url, CancellationToken cancellationToken)
-    {
+    private async Task<HttpResponseMessage> SendAsync(string url, CancellationToken cancellationToken) {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (_authHeader is not null)
-        {
+        if (_authHeader is not null) {
             request.Headers.Authorization = _authHeader;
         }
 
-        try
-        {
+        try {
             return await _httpClient.SendAsync(request, cancellationToken);
-        }
-        catch (HttpRequestException ex)
-        {
+        } catch (HttpRequestException ex) {
             // DNS failure, refused connection, TLS problem. Same reasoning as the status check: a
             // transport error must not reach the user as an unhandled exception.
             throw new NuGetSourceException(
@@ -310,14 +285,12 @@ public sealed class NuGetV3Client : INuGetClient
 
 /// <summary>The subset of a V3 service index (<c>index.json</c>) this client needs: just enough of
 /// the <c>resources</c> array to find the <c>PackageBaseAddress/3.0.0</c> entry.</summary>
-internal sealed class ServiceIndex
-{
+internal sealed class ServiceIndex {
     [JsonPropertyName("resources")]
     public List<ServiceIndexResource> Resources { get; set; } = [];
 }
 
-internal sealed class ServiceIndexResource
-{
+internal sealed class ServiceIndexResource {
     [JsonPropertyName("@id")]
     public string Id { get; set; } = "";
 
@@ -326,8 +299,7 @@ internal sealed class ServiceIndexResource
 }
 
 /// <summary>The flat-container-style version index's only shape: <c>{"versions": ["1.0.0", ...]}</c>.</summary>
-internal sealed class FlatContainerIndex
-{
+internal sealed class FlatContainerIndex {
     [JsonPropertyName("versions")]
     public List<string> Versions { get; set; } = [];
 }
@@ -336,6 +308,5 @@ internal sealed class FlatContainerIndex
 /// anywhere in this client, which is the entire point of not using <c>NuGet.Protocol</c> here.</summary>
 [JsonSerializable(typeof(ServiceIndex))]
 [JsonSerializable(typeof(FlatContainerIndex))]
-internal sealed partial class NuGetV3JsonContext : JsonSerializerContext
-{
+internal sealed partial class NuGetV3JsonContext : JsonSerializerContext {
 }

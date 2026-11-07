@@ -10,16 +10,14 @@ namespace Dotquay.Tests.Dotnet;
 /// Covers ordered multi-feed search: first match wins, a miss falls through, and a feed that refuses
 /// to answer stops the search rather than deferring to a public one.
 /// </summary>
-public class MultiSourceNuGetClientTests
-{
+public class MultiSourceNuGetClientTests {
     private static MultiSourceNuGetClient Build(params (string Name, FakeNuGetClient Client)[] feeds) =>
         new(feeds
             .Select(feed => (new NuGetSourceSpec(feed.Name, $"https://{feed.Name}.example.com/index.json"), (INuGetClient)feed.Client))
             .ToList());
 
     [Fact]
-    public async Task GetVersionsAsync_FirstFeedWithThePackageWins_EvenIfALaterOneHasHigherVersions()
-    {
+    public async Task GetVersionsAsync_FirstFeedWithThePackageWins_EvenIfALaterOneHasHigherVersions() {
         var client = Build(
             ("core", new FakeNuGetClient("core").With("Acme.Internal", "1.0.0")),
             ("nuget.org", new FakeNuGetClient().With("Acme.Internal", "99.0.0")));
@@ -33,8 +31,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_PackageMissingFromTheFirstFeed_FallsThroughToTheNext()
-    {
+    public async Task GetVersionsAsync_PackageMissingFromTheFirstFeed_FallsThroughToTheNext() {
         var client = Build(
             ("core", new FakeNuGetClient("core")),
             ("tools", new FakeNuGetClient("tools").With("Acme.Internal", "2.0.0")));
@@ -46,8 +43,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_FoundNowhere_ReturnsEmpty()
-    {
+    public async Task GetVersionsAsync_FoundNowhere_ReturnsEmpty() {
         var client = Build(("core", new FakeNuGetClient("core")), ("tools", new FakeNuGetClient("tools")));
 
         Assert.False((await client.GetVersionsAsync("Acme.Internal")).Found);
@@ -59,8 +55,7 @@ public class MultiSourceNuGetClientTests
     /// that reads as though no source was ever declared.
     /// </summary>
     [Fact]
-    public async Task GetVersionsAsync_FoundNowhere_RecordsEveryFeedItChecked()
-    {
+    public async Task GetVersionsAsync_FoundNowhere_RecordsEveryFeedItChecked() {
         var client = Build(("core", new FakeNuGetClient("core")), ("tools", new FakeNuGetClient("tools")));
 
         var query = await client.GetVersionsAsync("Acme.Internal");
@@ -69,8 +64,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_FoundOnTheFirstFeed_DoesNotBotherRecordingCheckedSources()
-    {
+    public async Task GetVersionsAsync_FoundOnTheFirstFeed_DoesNotBotherRecordingCheckedSources() {
         var client = Build(("core", new FakeNuGetClient("core").With("Acme.Internal", "1.0.0")));
 
         var query = await client.GetVersionsAsync("Acme.Internal");
@@ -79,8 +73,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_AuthFailure_PropagatesInsteadOfFallingThrough()
-    {
+    public async Task GetVersionsAsync_AuthFailure_PropagatesInsteadOfFallingThrough() {
         var unauthorized = new FakeNuGetClient("core");
         unauthorized.UnauthorizedPackageIds.Add("Acme.Internal");
 
@@ -94,8 +87,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_PackageOnSeveralFeeds_WarnsAndStillUsesTheFirst()
-    {
+    public async Task GetVersionsAsync_PackageOnSeveralFeeds_WarnsAndStillUsesTheFirst() {
         var client = Build(
             ("core", new FakeNuGetClient("core").With("Acme.Internal", "1.0.0")),
             ("tools", new FakeNuGetClient("tools").With("Acme.Internal", "1.5.0")));
@@ -112,8 +104,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task GetVersionsAsync_SingleFeed_ProducesNoWarning()
-    {
+    public async Task GetVersionsAsync_SingleFeed_ProducesNoWarning() {
         var client = Build(("core", new FakeNuGetClient("core").With("Acme.Internal", "1.0.0")));
 
         await client.GetVersionsAsync("Acme.Internal");
@@ -122,8 +113,7 @@ public class MultiSourceNuGetClientTests
     }
 
     [Fact]
-    public async Task PackageExistsAsync_MirrorsGetVersions()
-    {
+    public async Task PackageExistsAsync_MirrorsGetVersions() {
         var client = Build(("core", new FakeNuGetClient("core").With("Acme.Internal", "1.0.0")));
 
         Assert.True(await client.PackageExistsAsync("Acme.Internal"));

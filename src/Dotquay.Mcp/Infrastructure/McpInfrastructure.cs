@@ -25,8 +25,7 @@ namespace Dotquay.Mcp.Infrastructure;
 /// long-running server is more likely than a one-shot CLI invocation to run somewhere with no
 /// <c>$HOME</c>, e.g. certain container setups).
 /// </remarks>
-public static class McpInfrastructure
-{
+public static class McpInfrastructure {
     public static string CacheRoot() => Path.Combine(
         new SystemEnvironmentReader().HomeDirectory ?? string.Empty, ".dotquay", "cache");
 
@@ -52,10 +51,8 @@ public static class McpInfrastructure
     /// the difference.
     /// </summary>
     public static DependencyWorkflow CreateWorkflow(
-        IProgressReporter? progress, ISourceApproval? sourceApproval, IGeneratorAssetDecision? generatorAssetDecision)
-    {
-        var workflow = new DependencyWorkflow(new SystemFileSystem(), new ProcessGitClient(), CacheRoot())
-        {
+        IProgressReporter? progress, ISourceApproval? sourceApproval, IGeneratorAssetDecision? generatorAssetDecision) {
+        var workflow = new DependencyWorkflow(new SystemFileSystem(), new ProcessGitClient(), CacheRoot()) {
             SourceApproval = sourceApproval ?? DenyAllSourceApproval.Instance,
             GeneratorAssetDecision = generatorAssetDecision ?? ShareGeneratorDecision.Instance,
         };
@@ -74,8 +71,7 @@ public static class McpInfrastructure
     public static SourceWorkflow CreateSources() =>
         new(new SystemFileSystem(), new NuGetV3ClientFactory(CreateCredentialResolver()));
 
-    public static CredentialResolver CreateCredentialResolver()
-    {
+    public static CredentialResolver CreateCredentialResolver() {
         var fileSystem = new SystemFileSystem();
         var environment = new SystemEnvironmentReader();
 

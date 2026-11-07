@@ -10,8 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay graph</c>: the dependency graph, who requires what, and where it
 /// conflicts (SPEC.md §8). See <c>Dotquay.Cli.Commands.GraphCommand</c>.</summary>
-public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
-{
+public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate) {
     public override string Name => "dotquay_graph";
 
     public override string Description =>
@@ -37,8 +36,7 @@ public sealed class DotquayGraphTool(IProjectScope scope, ProjectGate gate) : Mc
         """).RootElement;
 
     protected override async ValueTask<CallToolResult> ExecuteAsync(
-        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken)
-    {
+        string projectDirectory, IDictionary<string, JsonElement>? arguments, IProgressReporter progress, CancellationToken cancellationToken) {
         var resolve = McpArgs.GetBool(arguments, "resolve");
         var inspector = McpInfrastructure.CreateInspector();
 

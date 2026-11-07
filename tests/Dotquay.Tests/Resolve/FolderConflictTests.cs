@@ -16,8 +16,7 @@ namespace Dotquay.Tests.Resolve;
 /// time — Godot refuses to compile the script, and the error points at the innocent addon rather than
 /// at the folder that moved.
 /// </remarks>
-public class FolderConflictTests
-{
+public class FolderConflictTests {
     private const string CoreUrl = "https://example.com/core.git";
 
     private static AddonUnifier Build() => new(new FakeGitClient());
@@ -26,8 +25,7 @@ public class FolderConflictTests
         new(requirer, new AddonSpec { Name = "core", Git = CoreUrl, Rev = new string('a', 40), InstallAs = installAs });
 
     [Fact]
-    public async Task UnifyAsync_AgreeingFolders_Unify()
-    {
+    public async Task UnifyAsync_AgreeingFolders_Unify() {
         var outcome = await Build().UnifyAsync("core", [Wants("a", "Shared-Core"), Wants("b", "Shared-Core")]);
 
         Assert.True(outcome.IsResolved);
@@ -35,8 +33,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_OneSilentOneExplicitButEqual_Unify()
-    {
+    public async Task UnifyAsync_OneSilentOneExplicitButEqual_Unify() {
         // "core" and install_as = "core" are the same request written two ways; treating them as a
         // conflict would fire on a project that is entirely consistent.
         var outcome = await Build().UnifyAsync("core", [Wants("a", installAs: null), Wants("b", "core")]);
@@ -46,8 +43,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DifferentFolders_Conflict()
-    {
+    public async Task UnifyAsync_DifferentFolders_Conflict() {
         var outcome = await Build().UnifyAsync("core", [Wants("a", "Godot-MToon-Shader"), Wants("b", "mtoon")]);
 
         Assert.False(outcome.IsResolved);
@@ -55,8 +51,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DifferentFolders_ConflictsEvenWhenTheCommitAgrees()
-    {
+    public async Task UnifyAsync_DifferentFolders_ConflictsEvenWhenTheCommitAgrees() {
         var outcome = await Build().UnifyAsync("core", [Wants("a", "Godot-MToon-Shader"), Wants("b", "mtoon")]);
 
         // Both requirements name the identical rev. Agreement on the commit is not agreement on the
@@ -66,8 +61,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DifferentFolders_OffersEachFolderAsACandidate()
-    {
+    public async Task UnifyAsync_DifferentFolders_OffersEachFolderAsACandidate() {
         var outcome = await Build().UnifyAsync("core", [Wants("a", "Godot-MToon-Shader"), Wants("b", "mtoon")]);
 
         var folders = outcome.Conflict!.Candidates.Select(c => c.InstallAs).ToList();
@@ -76,8 +70,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DifferentFolders_SaysWhoWantsWhich()
-    {
+    public async Task UnifyAsync_DifferentFolders_SaysWhoWantsWhich() {
         var outcome = await Build().UnifyAsync(
             "core", [Wants("a", "Godot-MToon-Shader"), Wants("b", "mtoon"), Wants("c", "Godot-MToon-Shader")]);
 
@@ -88,8 +81,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_DifferentFolders_MessageNamesBothFolders()
-    {
+    public async Task UnifyAsync_DifferentFolders_MessageNamesBothFolders() {
         var outcome = await Build().UnifyAsync("core", [Wants("a", "Godot-MToon-Shader"), Wants("b", "mtoon")]);
 
         Assert.Contains("addons/Godot-MToon-Shader", outcome.Conflict!.Message);
@@ -98,8 +90,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_SingleRequirement_NeverConflictsOverItsFolder()
-    {
+    public async Task UnifyAsync_SingleRequirement_NeverConflictsOverItsFolder() {
         var outcome = await Build().UnifyAsync("core", [Wants("<project>", "Whatever-I-Like")]);
 
         Assert.True(outcome.IsResolved);
@@ -107,8 +98,7 @@ public class FolderConflictTests
     }
 
     [Fact]
-    public async Task UnifyAsync_FolderDisagreementIsReportedBeforeVersionDisagreement()
-    {
+    public async Task UnifyAsync_FolderDisagreementIsReportedBeforeVersionDisagreement() {
         var gitClient = new FakeGitClient();
         var unifier = new AddonUnifier(gitClient);
 

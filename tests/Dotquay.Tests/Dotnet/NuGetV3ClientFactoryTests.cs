@@ -17,16 +17,13 @@ namespace Dotquay.Tests.Dotnet;
 /// xunit runs one class's facts sequentially — and missing that it runs classes in parallel, against
 /// <c>DotnetInstallerTests</c>, which mutated the same two variables.
 /// </remarks>
-public class NuGetV3ClientFactoryTests
-{
+public class NuGetV3ClientFactoryTests {
     private const string SourceUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
     private const string SecondUrl = "https://gitlab.example.com/api/v4/projects/2/packages/nuget/index.json";
 
-    private static NuGetV3ClientFactory Factory(string? username = null, string? token = null)
-    {
+    private static NuGetV3ClientFactory Factory(string? username = null, string? token = null) {
         var environment = new FakeEnvironmentReader();
-        if (username is not null && token is not null)
-        {
+        if (username is not null && token is not null) {
             environment
                 .Set(CredentialResolver.GlobalUsernameVariable, username)
                 .Set(CredentialResolver.GlobalTokenVariable, token);
@@ -36,16 +33,14 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_NoDeclaredSources_StillSearchesNuGetOrg()
-    {
+    public void Create_NoDeclaredSources_StillSearchesNuGetOrg() {
         var client = Factory().Create(NuGetSourceSet.PublicOnly);
 
         Assert.IsType<MultiSourceNuGetClient>(client);
     }
 
     [Fact]
-    public void Create_DeclaredSources_AreSearchedInDeclarationOrderWithNuGetOrgLast()
-    {
+    public void Create_DeclaredSources_AreSearchedInDeclarationOrderWithNuGetOrgLast() {
         var sources = NuGetSourceSet.From(
             [new NuGetSourceSpec("core", SourceUrl), new NuGetSourceSpec("tools", SecondUrl)]);
 
@@ -57,8 +52,7 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_Pin_NarrowsTheSearchToThatOneSource()
-    {
+    public void Create_Pin_NarrowsTheSearchToThatOneSource() {
         var sources = NuGetSourceSet.From(
             [new NuGetSourceSpec("core", SourceUrl), new NuGetSourceSpec("tools", SecondUrl)]);
 
@@ -66,8 +60,7 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_UnknownPin_NamesTheSourcesThatDoExist()
-    {
+    public void Create_UnknownPin_NamesTheSourcesThatDoExist() {
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]);
 
         var exception = Assert.Throws<ManifestParseException>(() => sources.Resolve("typo"));
@@ -76,8 +69,7 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_SameSourceTwice_ReusesTheCachedPerSourceClient()
-    {
+    public void Create_SameSourceTwice_ReusesTheCachedPerSourceClient() {
         var factory = Factory();
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]);
 
@@ -92,8 +84,7 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_ExplicitlyDeclaredNuGetOrg_IsNotDuplicated()
-    {
+    public void Create_ExplicitlyDeclaredNuGetOrg_IsNotDuplicated() {
         var sources = NuGetSourceSet.From([new NuGetSourceSpec("public", NuGetSourceSpec.PublicUrl)]);
 
         Assert.Single(sources.All);
@@ -101,8 +92,7 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_CustomSource_DoesNotThrowWithoutCredentialsConfigured()
-    {
+    public void Create_CustomSource_DoesNotThrowWithoutCredentialsConfigured() {
         var client = Factory().Create(NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]));
 
         // Credential absence is only a problem once a request is made.
@@ -110,8 +100,7 @@ public class NuGetV3ClientFactoryTests
     }
 
     [Fact]
-    public void Create_WithCredentials_DoesNotThrow()
-    {
+    public void Create_WithCredentials_DoesNotThrow() {
         var client = Factory("kani", "glpat-secret")
             .Create(NuGetSourceSet.From([new NuGetSourceSpec("core", SourceUrl)]));
 

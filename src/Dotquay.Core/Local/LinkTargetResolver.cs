@@ -32,15 +32,13 @@ namespace Dotquay.Core.Local;
 /// spelling, so a differently-cased request cannot create a second link entry.
 /// </para>
 /// </remarks>
-public static class LinkTargetResolver
-{
+public static class LinkTargetResolver {
     /// <summary>
     /// The project's spelling of <paramref name="name"/> if it is a <c>[dotnet.*]</c> package this
     /// project declares or has adopted; null if it isn't, or if neither file can be read — in which
     /// case an addon link is the right default, as it was before v0.11.
     /// </summary>
-    public static string? ResolveDotnetPackageId(IFileSystem fileSystem, string projectDirectory, string name)
-    {
+    public static string? ResolveDotnetPackageId(IFileSystem fileSystem, string projectDirectory, string name) {
         var store = new ProjectFileStore(fileSystem);
 
         return FromManifest(fileSystem, store, projectDirectory, name)
@@ -48,22 +46,17 @@ public static class LinkTargetResolver
     }
 
     private static string? FromManifest(
-        IFileSystem fileSystem, ProjectFileStore store, string projectDirectory, string name)
-    {
+        IFileSystem fileSystem, ProjectFileStore store, string projectDirectory, string name) {
         var path = store.ManifestPath(projectDirectory);
-        if (!fileSystem.FileExists(path))
-        {
+        if (!fileSystem.FileExists(path)) {
             return null;
         }
 
-        try
-        {
+        try {
             return ManifestReader.ReadProject(fileSystem.ReadAllText(path), path)
                 .Dotnet.Keys
                 .FirstOrDefault(id => string.Equals(id, name, StringComparison.OrdinalIgnoreCase));
-        }
-        catch (ManifestParseException)
-        {
+        } catch (ManifestParseException) {
             // A broken manifest is a problem for the commands that need it. Refusing to classify
             // over it would be `link` inventing a prerequisite it doesn't actually have.
             return null;
@@ -71,23 +64,18 @@ public static class LinkTargetResolver
     }
 
     private static string? FromLockfile(
-        IFileSystem fileSystem, ProjectFileStore store, string projectDirectory, string name)
-    {
+        IFileSystem fileSystem, ProjectFileStore store, string projectDirectory, string name) {
         var path = store.LockfilePath(projectDirectory);
-        if (!fileSystem.FileExists(path))
-        {
+        if (!fileSystem.FileExists(path)) {
             return null;
         }
 
-        try
-        {
+        try {
             return LockfileReader.Read(fileSystem.ReadAllText(path), path)
                 .Dotnet
                 .Select(d => d.Name)
                 .FirstOrDefault(id => string.Equals(id, name, StringComparison.OrdinalIgnoreCase));
-        }
-        catch (LockfileParseException)
-        {
+        } catch (LockfileParseException) {
             return null;
         }
     }

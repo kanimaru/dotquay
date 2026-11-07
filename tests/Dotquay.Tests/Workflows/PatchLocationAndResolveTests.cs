@@ -8,14 +8,12 @@ namespace Dotquay.Tests.Workflows;
 /// <summary>
 /// Covers where patches live (SPEC.md §10) and the layout rules around them.
 /// </summary>
-public class PatchLocationTests
-{
+public class PatchLocationTests {
     private static ProjectManifest Manifest(string? patchesDir) =>
         new() { PatchesDirectory = patchesDir };
 
     [Fact]
-    public void For_NoSettingAndNoLegacyFolder_UsesTheHiddenDefault()
-    {
+    public void For_NoSettingAndNoLegacyFolder_UsesTheHiddenDefault() {
         var layout = ProjectLayout.For(new InMemoryFileSystem(), "project", Manifest(null));
 
         Assert.Equal(ProjectLayout.DefaultPatchesDirectory, layout.PatchesDirectory);
@@ -23,8 +21,7 @@ public class PatchLocationTests
     }
 
     [Fact]
-    public void For_ExistingLegacyFolder_KeepsUsingIt()
-    {
+    public void For_ExistingLegacyFolder_KeepsUsingIt() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/patches/thing.patch", "diff");
 
@@ -37,8 +34,7 @@ public class PatchLocationTests
     }
 
     [Fact]
-    public void For_ExplicitSetting_WinsOverBoth()
-    {
+    public void For_ExplicitSetting_WinsOverBoth() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/patches/thing.patch", "diff");
 
@@ -49,8 +45,7 @@ public class PatchLocationTests
     }
 
     [Fact]
-    public void PatchesPath_NormalisesSeparators()
-    {
+    public void PatchesPath_NormalisesSeparators() {
         var fileSystem = new InMemoryFileSystem();
         var layout = new ProjectLayout("project", ".dotquay/patches");
 
@@ -61,8 +56,7 @@ public class PatchLocationTests
     }
 
     [Fact]
-    public void Manifest_RoundTripsPatchesDir()
-    {
+    public void Manifest_RoundTripsPatchesDir() {
         var original = ManifestReader.ReadProject("""
             [project]
             patches_dir = "vendor/patches"
@@ -74,8 +68,7 @@ public class PatchLocationTests
     }
 
     [Fact]
-    public void For_NoManifestAtAll_StillWorks()
-    {
+    public void For_NoManifestAtAll_StillWorks() {
         // `patch` runs off the lockfile and disk; refusing to name a directory because dotquay.toml
         // is missing would be a rule with no purpose.
         var layout = ProjectLayout.For(new InMemoryFileSystem(), "project", manifest: null);

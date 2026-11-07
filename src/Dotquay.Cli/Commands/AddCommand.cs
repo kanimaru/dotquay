@@ -15,8 +15,7 @@ namespace Dotquay.Cli.Commands;
 /// common thing the tag-seeking default doesn't do, and it previously required hand-editing the
 /// manifest afterwards.
 /// </remarks>
-internal static class AddCommand
-{
+internal static class AddCommand {
     private const string CommandName = "add";
 
     /// <summary>
@@ -30,15 +29,12 @@ internal static class AddCommand
     /// </remarks>
     private const string PreviewCommandName = "add-preview";
 
-    public static Command Build()
-    {
-        var sourceArgument = new Argument<string>("source")
-        {
+    public static Command Build() {
+        var sourceArgument = new Argument<string>("source") {
             Description = "A git URL (optionally with #branch, #tag, or #commit) or a NuGet package ID.",
         };
 
-        var pathOption = new Option<string?>("--path")
-        {
+        var pathOption = new Option<string?>("--path") {
             Description = "Git sources only. Subtree to extract from the addon's repo, if it isn't at "
                 + "addons/<name> (e.g. the repo is named godot_dialogue_manager but the addon folder "
                 + "inside it is just dialogue_manager). Repos where the addon lives at the repo root: pass \".\". "
@@ -49,72 +45,61 @@ internal static class AddCommand
         // `--install_as` too: the manifest key and the MCP argument are both spelled install_as, so the
         // underscore is the spelling people carry over -- and refusing it only to suggest the hyphen
         // helps nobody.
-        var installAsOption = new Option<string?>("--install-as", "--install_as")
-        {
+        var installAsOption = new Option<string?>("--install-as", "--install_as") {
             Description = "Git sources only. Folder to install into under addons/, if it shouldn't be the "
                 + "addon's own name — some addons are preloaded by an exact path and must land under it.",
         };
 
-        var nameOption = new Option<string?>("--name")
-        {
+        var nameOption = new Option<string?>("--name") {
             Description = "Git sources only. The [addons.<name>] key to write instead of the repository's "
                 + "name. Rarely needed: when a repository ships several addons and its name is already "
                 + "taken, add names the next one after --install-as or the last segment of --path on its own.",
         };
 
-        var versionOption = new Option<string?>("--version")
-        {
+        var versionOption = new Option<string?>("--version") {
             Description = "Version constraint to add, the same language for git and NuGet: an exact version "
                 + "(\"1.2.3\"), \"^1.2\", \"~1.2\", \"1.2.*\", \">=1.2 <2\" or a prerelease (\"5.1.0-rc1\"). "
                 + "On a NuGet package the project already has, this pins or changes it. Defaults to \"~<latest>\" "
                 + "for git and \"^<latest>\" for NuGet.",
         };
 
-        var branchOption = new Option<string?>("--branch")
-        {
+        var branchOption = new Option<string?>("--branch") {
             Description = "Git sources only. Track a branch instead of a tag; the lockfile still pins the "
                 + "resolved commit, so teammates get exactly what you tested.",
         };
 
-        var revOption = new Option<string?>("--rev")
-        {
+        var revOption = new Option<string?>("--rev") {
             Description = "Git sources only. Pin to an exact commit.",
         };
 
-        var nuGetSourceOption = new Option<string?>("--source")
-        {
+        var nuGetSourceOption = new Option<string?>("--source") {
             Description = "Pin a NuGet package to one declared [nuget.sources.<name>] feed instead of searching "
                 + "them all in order. Only for NuGet packages; a git addon has no feed.",
         };
 
-        var keepGeneratorPrivateOption = new Option<bool>("--keep-generator-private")
-        {
+        var keepGeneratorPrivateOption = new Option<bool>("--keep-generator-private") {
             Description = "For a source generator: keep it out of anything that depends on this project. "
                 + "Answers the question `add` would otherwise ask, so scripts and CI never hit a prompt.",
         };
 
-        var shareGeneratorOption = new Option<bool>("--share-generator")
-        {
+        var shareGeneratorOption = new Option<bool>("--share-generator") {
             Description = "For a source generator: let projects depending on this one get it too. This is "
                 + "already NuGet's behaviour with no declaration, so this only suppresses the question.",
         };
 
-        var previewOption = new Option<bool>("--preview")
-        {
+        var previewOption = new Option<bool>("--preview") {
             Description = "Resolve what this add would do and report it without writing anything: the full "
                 + "transitive addon graph, the NuGet packages it brings in, and any feeds its addons "
                 + "would ask this project to trust. Git sources only.",
         };
 
-        var forceOption = new Option<bool>("--force")
-        {
+        var forceOption = new Option<bool>("--force") {
             Description = "Git sources only. Overwrite a folder that already exists but isn't in the lockfile "
                 + "(bypasses dirty detection, P0-6) — the escape hatch for an addon a previous, partially-failed "
                 + "add or update already installed correctly but never got to record.",
         };
 
-        var adoptSourceOption = new Option<string[]>("--adopt-source")
-        {
+        var adoptSourceOption = new Option<string[]>("--adopt-source") {
             Description = "Pre-approve an addon-declared NuGet feed by URL, as reported by --preview's "
                 + "sources_needing_approval. Repeatable. Approval applies to this run only and never "
                 + "widens [nuget] trusted_hosts.",
@@ -141,8 +126,7 @@ internal static class AddCommand
             jsonOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var source = parseResult.GetValue(sourceArgument)!;
             var json = parseResult.GetValue(jsonOption);
             var preview = parseResult.GetValue(previewOption);
@@ -156,8 +140,7 @@ internal static class AddCommand
             var keepGeneratorPrivate = parseResult.GetValue(keepGeneratorPrivateOption);
             var shareGenerator = parseResult.GetValue(shareGeneratorOption);
 
-            if (keepGeneratorPrivate && shareGenerator)
-            {
+            if (keepGeneratorPrivate && shareGenerator) {
                 return JsonOutput.Fail(
                     json, CommandName, Core.Json.JsonErrorKind.Workflow,
                     "--keep-generator-private and --share-generator are opposite answers to the same question. "
@@ -178,8 +161,7 @@ internal static class AddCommand
                     // a second seam (docs/DESIGN-v0.20-SUBTREE-GUESS.md §4).
                     subtreeChoice: ConsoleSubtreeChoice.For(json));
 
-            var options = new AddonAddOptions
-            {
+            var options = new AddonAddOptions {
                 Version = parseResult.GetValue(versionOption),
                 Branch = parseResult.GetValue(branchOption),
                 Rev = parseResult.GetValue(revOption),
@@ -190,12 +172,9 @@ internal static class AddCommand
                 NuGetSource = parseResult.GetValue(nuGetSourceOption),
             };
 
-            try
-            {
-                if (!LooksLikeGitUrl(source))
-                {
-                    if (preview)
-                    {
+            try {
+                if (!LooksLikeGitUrl(source)) {
+                    if (preview) {
                         // A NuGet add pulls in no addons and declares no feeds, so a preview of one
                         // would be a dialog with nothing in it. Saying so beats emitting an empty
                         // payload the caller has to recognise as meaningless.
@@ -210,15 +189,13 @@ internal static class AddCommand
 
                 // The mirror of AddDotnetAsync's git-only check. Same reasoning: silently ignoring a
                 // flag leaves the user to wonder why their pin had no effect.
-                if (options.NuGetSource is not null)
-                {
+                if (options.NuGetSource is not null) {
                     throw new WorkflowException(
                         $"--source names a NuGet feed, but '{source}' is a git URL. A git addon is fetched from "
                         + "the repository you named; NuGet feeds only apply to [dotnet] packages.");
                 }
 
-                if (keepGeneratorPrivate || shareGenerator)
-                {
+                if (keepGeneratorPrivate || shareGenerator) {
                     var flag = keepGeneratorPrivate ? "--keep-generator-private" : "--share-generator";
 
                     throw new WorkflowException(
@@ -228,24 +205,19 @@ internal static class AddCommand
 
                 var (gitUrl, reference) = SplitRef(source);
 
-                if (reference is not null)
-                {
+                if (reference is not null) {
                     options = await workflow.ResolveShorthandAsync(gitUrl, reference, options, cancellationToken);
                 }
 
                 return preview
                     ? await PreviewGitAsync(workflow, projectDirectory, gitUrl, options, adoptSources, json, progress, cancellationToken)
                     : await AddGitAsync(workflow, projectDirectory, gitUrl, options, json, progress, cancellationToken);
-            }
-            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
-            {
+            } catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex)) {
                 // Reported under the same name the success envelope would have used, so a consumer
                 // that routes results by command handles a preview's failure in the dialog that asked
                 // for it rather than in the panel's general log.
                 return JsonOutput.Fail(json, preview ? PreviewCommandName : CommandName, ex);
-            }
-            finally
-            {
+            } finally {
                 progress.Dispose();
             }
         });
@@ -261,8 +233,7 @@ internal static class AddCommand
     /// meaning in a git URL, so this can't collide with a real one — but a trailing bare <c>#</c> is a
     /// typo, not a request for an empty ref.
     /// </remarks>
-    private static (string GitUrl, string? Reference) SplitRef(string source)
-    {
+    private static (string GitUrl, string? Reference) SplitRef(string source) {
         var index = source.LastIndexOf('#');
         return index > 0 && index < source.Length - 1
             ? (source[..index], source[(index + 1)..])
@@ -276,8 +247,7 @@ internal static class AddCommand
         AddonAddOptions options,
         bool json,
         IDisposable progress,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var locked = await workflow.AddAsync(projectDirectory, gitUrl, options, cancellationToken);
         progress.Dispose();
 
@@ -301,12 +271,10 @@ internal static class AddCommand
             + $"version range. Add it with --branch <name> to track a branch instead, or run 'dotquay update "
             + $"{locked.Name}' later to move to a newer commit.";
 
-        if (json)
-        {
+        if (json) {
             JsonOutput.WriteOperation(
                 CommandName,
-                new OperationJson
-                {
+                new OperationJson {
                     Changes =
                     [
                         new ChangeJson
@@ -326,13 +294,11 @@ internal static class AddCommand
 
         ConsoleOutput.WriteLine(ConsoleColor.Green, summary);
 
-        if (renamed is not null)
-        {
+        if (renamed is not null) {
             ConsoleOutput.WriteLine(ConsoleColor.Yellow, renamed);
         }
 
-        if (untagged)
-        {
+        if (untagged) {
             ConsoleOutput.WriteLine(ConsoleColor.Yellow, hint);
         }
 
@@ -357,8 +323,7 @@ internal static class AddCommand
         IReadOnlyList<string> adoptSources,
         bool json,
         IDisposable progress,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var preview = await workflow.PreviewAddAsync(projectDirectory, gitUrl, options, adoptSources, cancellationToken);
         progress.Dispose();
 
@@ -368,8 +333,7 @@ internal static class AddCommand
         // path end up disagreeing about whether this preview is ready to run unattended.
         var exitCode = payload.NeedsApproval || payload.NeedsSubtreeConfirmation ? 2 : 0;
 
-        if (json)
-        {
+        if (json) {
             Console.WriteLine(DotquayJson.Write(
                 JsonEnvelope<AddPreviewJson>.Success(PreviewCommandName, payload, preview.Warnings)));
 
@@ -378,16 +342,14 @@ internal static class AddCommand
 
         PrintPreview(payload);
 
-        foreach (var warning in preview.Warnings)
-        {
+        foreach (var warning in preview.Warnings) {
             ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
         }
 
         return exitCode;
     }
 
-    private static void PrintPreview(AddPreviewJson preview)
-    {
+    private static void PrintPreview(AddPreviewJson preview) {
         Console.WriteLine($"Adding '{preview.Name}' from {preview.Git} would resolve to:");
         Console.WriteLine();
 
@@ -395,15 +357,13 @@ internal static class AddCommand
         // with the subtree can stop reading the graph.
         PrintPreviewSubtree(preview.Subtree);
 
-        foreach (var addon in preview.Addons)
-        {
+        foreach (var addon in preview.Addons) {
             var version = addon.Version ?? addon.ShortSha;
             var origin = addon.RequiredBy.Contains(ProjectRequirer)
                 ? ""
                 : $"  (required by {string.Join(", ", addon.RequiredBy)})";
 
-            var marker = addon switch
-            {
+            var marker = addon switch {
                 { IsNew: true, PreviousResolved: null } => "  +",
                 { IsNew: true } => "  ~",
                 _ => "   ",
@@ -411,16 +371,14 @@ internal static class AddCommand
 
             var line = $"{marker} {addon.Name}  {version}{origin}";
 
-            if (addon.Folder != addon.Name)
-            {
+            if (addon.Folder != addon.Name) {
                 line += $"  -> addons/{addon.Folder}";
             }
 
             ConsoleOutput.WriteLine(addon.IsNew ? ConsoleColor.Green : ConsoleColor.Gray, line);
         }
 
-        foreach (var package in preview.Dotnet.Where(d => d.IsNew))
-        {
+        foreach (var package in preview.Dotnet.Where(d => d.IsNew)) {
             var origin = package.DeclaredByAddon is null ? "" : $"  (required by {package.DeclaredByAddon})";
             ConsoleOutput.WriteLine(ConsoleColor.Green, $"  + {package.Name}  {package.Constraint ?? "latest"}  (NuGet){origin}");
         }
@@ -436,15 +394,13 @@ internal static class AddCommand
             preview.SourcesNeedingApproval,
             ConsoleColor.Yellow);
 
-        if (preview.NeedsApproval)
-        {
+        if (preview.NeedsApproval) {
             Console.WriteLine();
             Console.WriteLine("Re-run with --adopt-source <url> for each feed you accept, or add its host to "
                 + "[nuget] trusted_hosts in dotquay.toml.");
         }
 
-        if (preview.Subtree is { } subtree)
-        {
+        if (preview.Subtree is { } subtree) {
             Console.WriteLine();
             Console.WriteLine(
                 $"Re-run with --path {subtree.Path}{InstallAsFlag(preview.Name, subtree)} to accept the subtree "
@@ -462,10 +418,8 @@ internal static class AddCommand
     /// are being shown is a guess. The <c>explanation</c> is taken from the payload verbatim rather
     /// than rebuilt here — the editor plugin renders the same sentence from the same field.
     /// </remarks>
-    private static void PrintPreviewSubtree(SubtreeJson? subtree)
-    {
-        if (subtree is null)
-        {
+    private static void PrintPreviewSubtree(SubtreeJson? subtree) {
+        if (subtree is null) {
             return;
         }
 
@@ -486,29 +440,24 @@ internal static class AddCommand
     /// <param name="explainWhy">Only the automatic list needs a reason — for the other list, the
     /// reason is the heading.</param>
     private static void PrintPreviewSources(
-        string heading, IReadOnlyList<PreviewSourceJson> sources, ConsoleColor color, bool explainWhy = false)
-    {
-        if (sources.Count == 0)
-        {
+        string heading, IReadOnlyList<PreviewSourceJson> sources, ConsoleColor color, bool explainWhy = false) {
+        if (sources.Count == 0) {
             return;
         }
 
         Console.WriteLine();
         ConsoleOutput.WriteLine(color, heading);
 
-        foreach (var source in sources)
-        {
+        foreach (var source in sources) {
             var reason = !explainWhy ? "" : source.IsTrustedHost ? " (trusted host)" : " (pre-approved)";
             ConsoleOutput.WriteLine(color, $"  {source.Url}");
             ConsoleOutput.WriteLine(color, $"    declared by addon '{source.DeclaredByAddon}'{reason}");
 
-            if (source.Packages.Count > 0)
-            {
+            if (source.Packages.Count > 0) {
                 ConsoleOutput.WriteLine(color, $"    would own: {string.Join(", ", source.Packages)}");
             }
 
-            if (source.PackageIds.Count > 0)
-            {
+            if (source.PackageIds.Count > 0) {
                 ConsoleOutput.WriteLine(color, $"    needed for: {string.Join(", ", source.PackageIds)}");
             }
         }
@@ -525,8 +474,7 @@ internal static class AddCommand
         AddonAddOptions options,
         bool json,
         IDisposable progress,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         // Git-only options against a NuGet id are a misunderstanding worth naming, not something to
         // accept and quietly ignore — the user would be left wondering why their branch had no effect.
         var gitOnly = new (string Flag, bool Set)[]
@@ -539,8 +487,7 @@ internal static class AddCommand
             ("--force", options.Force),
         }.Where(o => o.Set).Select(o => o.Flag).ToList();
 
-        if (gitOnly.Count > 0)
-        {
+        if (gitOnly.Count > 0) {
             throw new WorkflowException(
                 $"{string.Join(" and ", gitOnly)} {(gitOnly.Count == 1 ? "applies" : "apply")} to git addons, but "
                 + $"'{packageId}' is a NuGet package. NuGet packages have no branches, commits, install folder, or "
@@ -555,10 +502,8 @@ internal static class AddCommand
 
         var summary = declaration.Describe(options.NuGetSource);
 
-        if (json)
-        {
-            JsonOutput.WriteOperation(CommandName, new OperationJson
-            {
+        if (json) {
+            JsonOutput.WriteOperation(CommandName, new OperationJson {
                 Changes = [JsonMapper.ToChange(declaration)],
                 Messages = declaration.Messages(options.NuGetSource),
             });
@@ -566,8 +511,7 @@ internal static class AddCommand
         }
 
         ConsoleOutput.WriteLine(ConsoleColor.Green, summary);
-        foreach (var note in declaration.SourceBuilt)
-        {
+        foreach (var note in declaration.SourceBuilt) {
             ConsoleOutput.WriteLine(ConsoleColor.Yellow, note.Describe());
         }
 
@@ -583,12 +527,11 @@ internal static class AddCommand
     /// and re-asking would turn a considered choice into a question the caller has to answer twice.
     /// </remarks>
     private static Core.Abstractions.IGeneratorAssetDecision GeneratorDecisionFor(
-        bool json, bool keepPrivate, bool share) => (keepPrivate, share) switch
-    {
-        (true, _) => Core.Abstractions.KeepGeneratorPrivateDecision.Instance,
-        (_, true) => Core.Abstractions.ShareGeneratorDecision.Instance,
-        _ => ConsoleGeneratorAssetDecision.For(json),
-    };
+        bool json, bool keepPrivate, bool share) => (keepPrivate, share) switch {
+            (true, _) => Core.Abstractions.KeepGeneratorPrivateDecision.Instance,
+            (_, true) => Core.Abstractions.ShareGeneratorDecision.Instance,
+            _ => ConsoleGeneratorAssetDecision.For(json),
+        };
 
     /// <summary>Distinguishes a git URL from a bare NuGet package ID (e.g. "Newtonsoft.Json").
     /// Package IDs don't contain "://" or start with an SSH-style "git@" — good enough to route

@@ -14,8 +14,7 @@ namespace Dotquay.Core.Auth;
 /// start; the cost is that a stale exported variable silently shadows a fresh <c>dotquay login</c>,
 /// which <c>login</c> warns about and <c>doctor</c> reports.
 /// </remarks>
-public sealed class CredentialResolver
-{
+public sealed class CredentialResolver {
     /// <summary>Pre-v0.7 variables, still honoured so no existing CI pipeline has to change.</summary>
     public const string GlobalUsernameVariable = "DOTQUAY_NUGET_USERNAME";
 
@@ -24,8 +23,7 @@ public sealed class CredentialResolver
     private readonly IEnvironmentReader _environment;
     private readonly ICredentialStore _store;
 
-    public CredentialResolver(IEnvironmentReader environment, ICredentialStore store)
-    {
+    public CredentialResolver(IEnvironmentReader environment, ICredentialStore store) {
         _environment = environment;
         _store = store;
     }
@@ -34,8 +32,7 @@ public sealed class CredentialResolver
     /// <c>DOTQUAY_NUGET_USERNAME_GITLAB_CORE</c>. Normalised to <c>[A-Z0-9_]</c> so the result is a
     /// name a POSIX shell can actually export, unlike the
     /// <c>NuGetPackageSourceCredentials_&lt;key&gt;</c> variable NuGet itself defines.</summary>
-    public static (string Username, string Token) SourceVariableNames(string sourceName)
-    {
+    public static (string Username, string Token) SourceVariableNames(string sourceName) {
         var suffix = new string(sourceName.Select(c => char.IsLetterOrDigit(c) ? char.ToUpperInvariant(c) : '_').ToArray());
         return ($"{GlobalUsernameVariable}_{suffix}", $"{GlobalTokenVariable}_{suffix}");
     }
@@ -44,19 +41,16 @@ public sealed class CredentialResolver
     /// Resolves the credential for a NuGet source: per-source environment, then the legacy global
     /// pair, then the stored file, then anonymous.
     /// </summary>
-    public CredentialLookup ForNuGetSource(string sourceName, string sourceUrl)
-    {
+    public CredentialLookup ForNuGetSource(string sourceName, string sourceUrl) {
         var (usernameVariable, tokenVariable) = SourceVariableNames(sourceName);
 
         var fromSourceEnvironment = FromEnvironment(usernameVariable, tokenVariable);
-        if (fromSourceEnvironment is not null)
-        {
+        if (fromSourceEnvironment is not null) {
             return Guard(fromSourceEnvironment, CredentialOrigin.SourceEnvironment, sourceUrl);
         }
 
         var fromGlobalEnvironment = FromEnvironment(GlobalUsernameVariable, GlobalTokenVariable);
-        if (fromGlobalEnvironment is not null)
-        {
+        if (fromGlobalEnvironment is not null) {
             return Guard(fromGlobalEnvironment, CredentialOrigin.GlobalEnvironment, sourceUrl);
         }
 
@@ -71,10 +65,8 @@ public sealed class CredentialResolver
     /// </summary>
     public CredentialLookup ForGitRepository(string repositoryUrl) => FromStore(repositoryUrl);
 
-    private CredentialLookup FromStore(string url)
-    {
-        if (!CredentialScope.TryParse(url, out var scope, out _))
-        {
+    private CredentialLookup FromStore(string url) {
+        if (!CredentialScope.TryParse(url, out var scope, out _)) {
             // An ssh:// or git@ remote lands here. Not an error: it simply has no stored credential,
             // and git's own key handling takes it from here.
             return CredentialLookup.Anonymous;
@@ -88,10 +80,8 @@ public sealed class CredentialResolver
 
     /// <summary>Withholds a credential bound for cleartext HTTP. Enforced here rather than at each
     /// call site so no caller can leak a token by forgetting to check.</summary>
-    private static CredentialLookup Guard(Credential credential, CredentialOrigin origin, string url)
-    {
-        if (CredentialScope.TryParse(url, out var scope, out _) && !scope.IsSecure)
-        {
+    private static CredentialLookup Guard(Credential credential, CredentialOrigin origin, string url) {
+        if (CredentialScope.TryParse(url, out var scope, out _) && !scope.IsSecure) {
             return new CredentialLookup(null, CredentialOrigin.WithheldInsecureTransport);
         }
 
@@ -102,8 +92,7 @@ public sealed class CredentialResolver
     /// reverse) falls through to the next source rather than being guessed at — the same rule the
     /// pre-v0.7 <c>NuGetCredentials</c> used, kept because a partially-set pair is far more likely to
     /// be a typo than an intention.</summary>
-    private Credential? FromEnvironment(string usernameVariable, string tokenVariable)
-    {
+    private Credential? FromEnvironment(string usernameVariable, string tokenVariable) {
         var username = _environment.GetVariable(usernameVariable);
         var token = _environment.GetVariable(tokenVariable);
 

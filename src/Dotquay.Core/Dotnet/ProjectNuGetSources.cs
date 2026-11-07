@@ -13,8 +13,7 @@ namespace Dotquay.Core.Dotnet;
 /// feeds are searched — the same separation that keeps <c>ManifestReader</c> the only thing that
 /// understands TOML.
 /// </remarks>
-public static class ProjectNuGetSources
-{
+public static class ProjectNuGetSources {
     /// <summary>The project's feeds in declared order, with nuget.org appended.</summary>
     public static NuGetSourceSet SourceSet(this ProjectManifest manifest) =>
         NuGetSourceSet.From(manifest.NuGetSources);
@@ -43,30 +42,24 @@ public static class ProjectNuGetSources
     /// declares, or that resolved from a different source. That is the case where an addon tries to
     /// take over a well-known package, and guessing which claimant wins is not dotquay's call.</exception>
     public static IReadOnlyDictionary<string, string> MappedPackages(
-        this ProjectManifest manifest, IReadOnlyList<LockedDotnet> lockedDotnet)
-    {
+        this ProjectManifest manifest, IReadOnlyList<LockedDotnet> lockedDotnet) {
         var mapped = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var locked in lockedDotnet.Where(d => d.Source is not null))
-        {
+        foreach (var locked in lockedDotnet.Where(d => d.Source is not null)) {
             mapped[locked.Name] = locked.Source!;
         }
 
         // Explicit project pins are applied last so they win over whatever the lockfile recorded —
         // a pin is a statement of intent, and the lockfile is a record of a past resolution.
-        foreach (var (packageId, sourceName) in manifest.PinnedPackages())
-        {
+        foreach (var (packageId, sourceName) in manifest.PinnedPackages()) {
             mapped[packageId] = sourceName;
         }
 
-        foreach (var source in manifest.NuGetSources.Where(s => s.Packages.Count > 0))
-        {
-            foreach (var pattern in source.Packages)
-            {
+        foreach (var source in manifest.NuGetSources.Where(s => s.Packages.Count > 0)) {
+            foreach (var pattern in source.Packages) {
                 if (source.DeclaredByAddon is not null
                     && mapped.TryGetValue(pattern, out var existing)
-                    && !string.Equals(existing, source.Name, StringComparison.Ordinal))
-                {
+                    && !string.Equals(existing, source.Name, StringComparison.Ordinal)) {
                     throw new DotnetSyncException(
                         $"NuGet source '{source.Name}' (adopted from addon '{source.DeclaredByAddon}') claims "
                         + $"package '{pattern}', which already resolves from '{existing}'. Refusing to let an "

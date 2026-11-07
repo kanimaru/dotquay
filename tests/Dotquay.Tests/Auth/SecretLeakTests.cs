@@ -18,8 +18,7 @@ namespace Dotquay.Tests.Auth;
 /// is a token in a repository's history — which is not something a code-review habit should be the
 /// only thing standing between the user and.
 /// </remarks>
-public class SecretLeakTests
-{
+public class SecretLeakTests {
     private const string Token = "glpat-SUPERSECRET-do-not-commit";
     private const string SourceUrl = "https://gitlab.example.com/api/v4/projects/1/packages/nuget/index.json";
 
@@ -30,8 +29,7 @@ public class SecretLeakTests
         """;
 
     [Fact]
-    public async Task InstallingWithCredentials_LeavesTheTokenInNoFileOnDisk()
-    {
+    public async Task InstallingWithCredentials_LeavesTheTokenInNoFileOnDisk() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText("project/Game.csproj", Csproj);
 
@@ -43,8 +41,7 @@ public class SecretLeakTests
         await installer.InstallAsync("project", "Acme.Internal", "1.0.0", sources, resolvedSourceName: "core");
 
         // Everything dotquay wrote, whatever it wrote.
-        foreach (var path in fileSystem.AllFilePaths())
-        {
+        foreach (var path in fileSystem.AllFilePaths()) {
             Assert.DoesNotContain(Token, fileSystem.ReadAllText(path), StringComparison.Ordinal);
         }
 
@@ -53,27 +50,22 @@ public class SecretLeakTests
     }
 
     [Fact]
-    public void SerializedManifestAndLockfile_NeverCarryACredentialField()
-    {
-        var manifest = new ProjectManifest
-        {
+    public void SerializedManifestAndLockfile_NeverCarryACredentialField() {
+        var manifest = new ProjectManifest {
             NuGetSources = [new NuGetSourceSpec("core", SourceUrl)],
-            Dotnet = new Dictionary<string, DotnetSpec>
-            {
+            Dotnet = new Dictionary<string, DotnetSpec> {
                 ["Acme.Internal"] = new DotnetSpec { Name = "Acme.Internal", Version = "1.0.0", Source = "core" },
             },
         };
 
-        var lockfile = new DotquayLockfile
-        {
+        var lockfile = new DotquayLockfile {
             Dotnet = [new LockedDotnet { Name = "Acme.Internal", Resolved = "1.0.0", Source = "core" }],
         };
 
         var manifestToml = ManifestWriter.Serialize(manifest);
         var lockfileToml = LockfileWriter.Serialize(lockfile);
 
-        foreach (var text in new[] { manifestToml, lockfileToml })
-        {
+        foreach (var text in new[] { manifestToml, lockfileToml }) {
             Assert.DoesNotContain("token", text, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("password", text, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("username", text, StringComparison.OrdinalIgnoreCase);
@@ -81,8 +73,7 @@ public class SecretLeakTests
     }
 
     [Fact]
-    public void ListedCredentials_ExposeNoPartOfTheToken()
-    {
+    public void ListedCredentials_ExposeNoPartOfTheToken() {
         var store = new InMemoryCredentialStore().Add("gitlab.example.com", "kani", Token);
 
         var listed = Assert.Single(store.List());
@@ -93,8 +84,7 @@ public class SecretLeakTests
     }
 
     [Fact]
-    public void CredentialExceptions_NeverEmbedTheToken()
-    {
+    public void CredentialExceptions_NeverEmbedTheToken() {
         var fileSystem = new InMemoryFileSystem();
         var store = new TomlCredentialStore(fileSystem, "/home/kani/.dotquay/credentials.toml");
         store.Set(CredentialScope.Parse("gitlab.example.com"), new Credential("kani", Token));

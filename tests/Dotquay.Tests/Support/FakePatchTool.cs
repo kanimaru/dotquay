@@ -9,12 +9,10 @@ namespace Dotquay.Tests.Support;
 /// writes a recognizable conflict marker) so tests can assert on <see cref="PatchMerger"/>'s own
 /// file-presence branching (add/delete/modify routing), not on diff3 algorithm fidelity — that's
 /// covered by real end-to-end verification against actual git.</summary>
-public sealed class FakePatchTool : IPatchTool
-{
+public sealed class FakePatchTool : IPatchTool {
     private readonly IFileSystem _fileSystem;
 
-    public FakePatchTool(IFileSystem fileSystem)
-    {
+    public FakePatchTool(IFileSystem fileSystem) {
         _fileSystem = fileSystem;
     }
 
@@ -48,37 +46,29 @@ public sealed class FakePatchTool : IPatchTool
     /// (clean) by default.</summary>
     public int DefaultConflictCount { get; set; }
 
-    public Task<string> DiffDirectoriesAsync(string baseDirectory, string oursDirectory, CancellationToken cancellationToken = default)
-    {
-        if (DiffFailures.Contains((baseDirectory, oursDirectory)))
-        {
+    public Task<string> DiffDirectoriesAsync(string baseDirectory, string oursDirectory, CancellationToken cancellationToken = default) {
+        if (DiffFailures.Contains((baseDirectory, oursDirectory))) {
             throw new PatchException($"simulated diff failure for {baseDirectory} vs {oursDirectory}");
         }
 
         return Task.FromResult(DiffResults.TryGetValue((baseDirectory, oursDirectory), out var diff) ? diff : "");
     }
 
-    public Task ApplyPatchAsync(string patchText, string targetDirectory, CancellationToken cancellationToken = default)
-    {
+    public Task ApplyPatchAsync(string patchText, string targetDirectory, CancellationToken cancellationToken = default) {
         ApplyCalls.Add((patchText, targetDirectory));
 
-        if (PatchesThatFailToApply.Contains(patchText))
-        {
+        if (PatchesThatFailToApply.Contains(patchText)) {
             throw new PatchException($"simulated apply failure for a patch targeting {targetDirectory}");
         }
 
-        if (FileChangesByPatchText.TryGetValue(patchText, out var changes))
-        {
-            foreach (var (relativePath, content) in changes)
-            {
+        if (FileChangesByPatchText.TryGetValue(patchText, out var changes)) {
+            foreach (var (relativePath, content) in changes) {
                 _fileSystem.WriteAllText(_fileSystem.CombinePath(targetDirectory, relativePath), content);
             }
         }
 
-        if (FileDeletionsByPatchText.TryGetValue(patchText, out var deletions))
-        {
-            foreach (var relativePath in deletions)
-            {
+        if (FileDeletionsByPatchText.TryGetValue(patchText, out var deletions)) {
+            foreach (var relativePath in deletions) {
                 _fileSystem.DeleteFile(_fileSystem.CombinePath(targetDirectory, relativePath));
             }
         }
@@ -86,20 +76,16 @@ public sealed class FakePatchTool : IPatchTool
         return Task.CompletedTask;
     }
 
-    public Task<int> MergeFileAsync(string currentPath, string basePath, string otherPath, CancellationToken cancellationToken = default)
-    {
+    public Task<int> MergeFileAsync(string currentPath, string basePath, string otherPath, CancellationToken cancellationToken = default) {
         var conflictCount = ConflictCountsByFiles.TryGetValue((currentPath, basePath, otherPath), out var configured)
             ? configured
             : DefaultConflictCount;
 
-        if (conflictCount == 0)
-        {
+        if (conflictCount == 0) {
             // Simulate a clean merge by taking "other" wholesale — good enough for orchestration
             // tests (see class remarks).
             _fileSystem.WriteAllBytes(currentPath, _fileSystem.ReadAllBytes(otherPath));
-        }
-        else
-        {
+        } else {
             _fileSystem.WriteAllText(
                 currentPath, $"<<<<<<< current\n=======\n>>>>>>> other ({conflictCount} conflict(s))\n");
         }

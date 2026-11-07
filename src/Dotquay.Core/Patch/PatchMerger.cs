@@ -30,23 +30,20 @@ namespace Dotquay.Core.Patch;
 /// <see cref="MergeFileOrRecordConflictAsync"/>.</item>
 /// </list>
 /// </remarks>
-public sealed class PatchMerger
-{
+public sealed class PatchMerger {
     private const string EmptyBaseFileName = ".dotquay-merge-empty-base";
 
     private readonly IFileSystem _fileSystem;
     private readonly IPatchTool _patchTool;
 
-    public PatchMerger(IFileSystem fileSystem, IPatchTool patchTool)
-    {
+    public PatchMerger(IFileSystem fileSystem, IPatchTool patchTool) {
         _fileSystem = fileSystem;
         _patchTool = patchTool;
     }
 
     public async Task<PatchMergeResult> MergeAsync(
         string baseDirectory, string oursDirectory, string theirsDirectory, string destinationDirectory,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         _fileSystem.DeleteDirectory(destinationDirectory);
         _fileSystem.CreateDirectory(destinationDirectory);
 
@@ -64,10 +61,8 @@ public sealed class PatchMerger
 
         var conflicts = new List<string>();
 
-        try
-        {
-            foreach (var relativePath in allPaths)
-            {
+        try {
+            foreach (var relativePath in allPaths) {
                 var inBase = basePaths.Contains(relativePath);
                 var inOurs = oursPaths.Contains(relativePath);
                 var inTheirs = theirsPaths.Contains(relativePath);
@@ -77,75 +72,48 @@ public sealed class PatchMerger
                 var theirsPath = _fileSystem.CombinePath(theirsDirectory, relativePath);
                 var destinationPath = _fileSystem.CombinePath(destinationDirectory, relativePath);
 
-                if (!inBase && inOurs && !inTheirs)
-                {
+                if (!inBase && inOurs && !inTheirs) {
                     CopyFile(oursPath, destinationPath);
-                }
-                else if (!inBase && !inOurs && inTheirs)
-                {
+                } else if (!inBase && !inOurs && inTheirs) {
                     CopyFile(theirsPath, destinationPath);
-                }
-                else if (!inBase && inOurs && inTheirs)
-                {
-                    if (BytesEqual(oursPath, theirsPath))
-                    {
+                } else if (!inBase && inOurs && inTheirs) {
+                    if (BytesEqual(oursPath, theirsPath)) {
                         CopyFile(oursPath, destinationPath);
-                    }
-                    else if (await MergeFileOrRecordConflictAsync(emptyBasePath, oursPath, theirsPath, destinationPath, cancellationToken))
-                    {
+                    } else if (await MergeFileOrRecordConflictAsync(emptyBasePath, oursPath, theirsPath, destinationPath, cancellationToken)) {
                         conflicts.Add(relativePath);
                     }
-                }
-                else if (inBase && !inOurs && inTheirs)
-                {
+                } else if (inBase && !inOurs && inTheirs) {
                     // Deleted by our patch. Clean if upstream left it alone; otherwise a
                     // delete/modify conflict — keep upstream's edit rather than silently losing it.
-                    if (!BytesEqual(basePath, theirsPath))
-                    {
+                    if (!BytesEqual(basePath, theirsPath)) {
                         CopyFile(theirsPath, destinationPath);
                         conflicts.Add(relativePath);
                     }
-                }
-                else if (inBase && inOurs && !inTheirs)
-                {
+                } else if (inBase && inOurs && !inTheirs) {
                     // Deleted upstream. Clean if our patch left it alone; otherwise a delete/modify
                     // conflict — keep our edit rather than silently losing it.
-                    if (!BytesEqual(basePath, oursPath))
-                    {
+                    if (!BytesEqual(basePath, oursPath)) {
                         CopyFile(oursPath, destinationPath);
                         conflicts.Add(relativePath);
                     }
-                }
-                else if (inBase && !inOurs && !inTheirs)
-                {
+                } else if (inBase && !inOurs && !inTheirs) {
                     // Deleted on both sides — both agree, nothing to write.
-                }
-                else
-                {
+                } else {
                     // Present in all three: the standard case.
-                    if (BytesEqual(oursPath, theirsPath))
-                    {
+                    if (BytesEqual(oursPath, theirsPath)) {
                         CopyFile(oursPath, destinationPath);
-                    }
-                    else if (BytesEqual(basePath, oursPath))
-                    {
+                    } else if (BytesEqual(basePath, oursPath)) {
                         // We never touched it — take upstream's change wholesale.
                         CopyFile(theirsPath, destinationPath);
-                    }
-                    else if (BytesEqual(basePath, theirsPath))
-                    {
+                    } else if (BytesEqual(basePath, theirsPath)) {
                         // Upstream never touched it — keep our patch's change wholesale.
                         CopyFile(oursPath, destinationPath);
-                    }
-                    else if (await MergeFileOrRecordConflictAsync(basePath, oursPath, theirsPath, destinationPath, cancellationToken))
-                    {
+                    } else if (await MergeFileOrRecordConflictAsync(basePath, oursPath, theirsPath, destinationPath, cancellationToken)) {
                         conflicts.Add(relativePath);
                     }
                 }
             }
-        }
-        finally
-        {
+        } finally {
             _fileSystem.DeleteFile(emptyBasePath);
         }
 
@@ -155,17 +123,14 @@ public sealed class PatchMerger
     /// <summary>Seeds <paramref name="destinationPath"/> with "ours", then merges "theirs" into it in
     /// place via <see cref="IPatchTool.MergeFileAsync"/>. Returns whether the merge conflicted.</summary>
     private async Task<bool> MergeFileOrRecordConflictAsync(
-        string basePath, string oursPath, string theirsPath, string destinationPath, CancellationToken cancellationToken)
-    {
+        string basePath, string oursPath, string theirsPath, string destinationPath, CancellationToken cancellationToken) {
         CopyFile(oursPath, destinationPath);
         var conflictCount = await _patchTool.MergeFileAsync(destinationPath, basePath, theirsPath, cancellationToken);
         return conflictCount > 0;
     }
 
-    private HashSet<string> RelativeFilesOf(string root)
-    {
-        if (!_fileSystem.DirectoryExists(root))
-        {
+    private HashSet<string> RelativeFilesOf(string root) {
+        if (!_fileSystem.DirectoryExists(root)) {
             return new HashSet<string>(StringComparer.Ordinal);
         }
 

@@ -3,14 +3,11 @@ using Dotquay.Core.Json;
 
 namespace Dotquay.Cli.Commands;
 
-internal static class InstallCommand
-{
+internal static class InstallCommand {
     private const string CommandName = "install";
 
-    public static Command Build()
-    {
-        var forceOption = new Option<bool>("--force")
-        {
+    public static Command Build() {
+        var forceOption = new Option<bool>("--force") {
             Description = "Overwrite a hand-modified addon instead of refusing (bypasses dirty detection, P0-6).",
         };
 
@@ -22,30 +19,25 @@ internal static class InstallCommand
             jsonOption,
         };
 
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
+        command.SetAction(async (parseResult, cancellationToken) => {
             var force = parseResult.GetValue(forceOption);
             var json = parseResult.GetValue(jsonOption);
             var (workflow, progress) = WorkflowFactory.CreateWithProgress(json);
 
-            try
-            {
+            try {
                 var result = await workflow.InstallAsync(GlobalOptions.Resolve(parseResult), force, cancellationToken);
                 progress.Dispose();
 
-                if (json)
-                {
+                if (json) {
                     JsonOutput.WriteOperation(CommandName, JsonMapper.ToJson(result));
                     return 0;
                 }
 
-                foreach (var addon in result.Addons.OrderBy(a => a.Name, StringComparer.Ordinal))
-                {
+                foreach (var addon in result.Addons.OrderBy(a => a.Name, StringComparer.Ordinal)) {
                     ConsoleOutput.WriteLine(ConsoleColor.Green, $"  {addon.Name} @ {addon.Version} ({ShortSha(addon.Resolved)})");
                 }
 
-                foreach (var dependency in result.Dotnet.OrderBy(d => d.Name, StringComparer.Ordinal))
-                {
+                foreach (var dependency in result.Dotnet.OrderBy(d => d.Name, StringComparer.Ordinal)) {
                     ConsoleOutput.WriteLine(ConsoleColor.Green, $"  {dependency.Name} @ {dependency.Resolved} (NuGet)");
                 }
 
@@ -53,18 +45,13 @@ internal static class InstallCommand
                     ConsoleColor.Green, $"Installed {result.Addons.Count} addon(s), {result.Dotnet.Count} dotnet package(s).");
 
                 // After the summary, like update's warnings: the result someone waits for comes first.
-                foreach (var note in result.SourceBuildNotes)
-                {
+                foreach (var note in result.SourceBuildNotes) {
                     ConsoleOutput.WriteLine(ConsoleColor.Yellow, note);
                 }
                 return 0;
-            }
-            catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex))
-            {
+            } catch (Exception ex) when (JsonOutput.IsExpectedFailure(ex)) {
                 return JsonOutput.Fail(json, CommandName, ex);
-            }
-            finally
-            {
+            } finally {
                 progress.Dispose();
             }
         });

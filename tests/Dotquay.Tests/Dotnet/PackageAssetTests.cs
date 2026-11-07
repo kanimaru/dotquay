@@ -15,8 +15,7 @@ namespace Dotquay.Tests.Dotnet;
 /// deliberately the opposite of the conventional analyzer wiring — so a fixture using the
 /// conventional <c>all</c> would pass while the case the feature exists for stayed broken.
 /// </remarks>
-public class PackageAssetTests
-{
+public class PackageAssetTests {
     private const string ProjectDirectory = "project";
 
     private const string GdUnitManifest = """
@@ -29,8 +28,7 @@ public class PackageAssetTests
     // ---- manifest reading -------------------------------------------------
 
     [Fact]
-    public void Read_TheGdUnitAnalyzerEntry_CarriesBothLists()
-    {
+    public void Read_TheGdUnitAnalyzerEntry_CarriesBothLists() {
         var spec = ManifestReader.ReadProject(GdUnitManifest).Dotnet["gdUnit4.analyzers"];
 
         Assert.Equal(["none"], spec.Assets.Private);
@@ -41,8 +39,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Read_TagCasing_IsCanonicalized()
-    {
+    public void Read_TagCasing_IsCanonicalized() {
         // gdUnit4's own README writes these lowercase; MSBuild does not care, but a stable spelling
         // means a hand-written file and a dotquay-written one compare equal instead of reading as
         // drift forever.
@@ -53,8 +50,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Read_UndeclaredLists_AreNullNotEmpty()
-    {
+    public void Read_UndeclaredLists_AreNullNotEmpty() {
         // Null is "dotquay has no opinion, leave the .csproj alone" — materially different from an
         // empty list, which would mean "write nothing here", and different again from NuGet's default.
         var spec = ManifestReader.ReadProject("""
@@ -69,8 +65,7 @@ public class PackageAssetTests
     [Theory]
     [InlineData("""include_assets = ["all", "runtime"]""", "all")]
     [InlineData("""private_assets = ["runtime", "none"]""", "none")]
-    public void Read_AllOrNoneMixedWithOtherTags_IsRejected(string line, string offender)
-    {
+    public void Read_AllOrNoneMixedWithOtherTags_IsRejected(string line, string offender) {
         // NuGet's rule: 'all' and 'none' must appear by themselves. A mixed list has no meaning
         // MSBuild will honour, so guessing one would be worse than refusing.
         var ex = Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject($"""
@@ -86,8 +81,7 @@ public class PackageAssetTests
     [InlineData("""private_assets = "none" """)]
     [InlineData("""private_assets = [1, 2]""")]
     [InlineData("""private_assets = []""")]
-    public void Read_StructurallyWrongValues_AreRejected(string line)
-    {
+    public void Read_StructurallyWrongValues_AreRejected(string line) {
         Assert.Throws<ManifestParseException>(() => ManifestReader.ReadProject($"""
             [dotnet."Some.Package"]
             version = "1.0.0"
@@ -96,8 +90,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Read_AnUnknownTag_IsKeptAndReportedRatherThanRejected()
-    {
+    public void Read_AnUnknownTag_IsKeptAndReportedRatherThanRejected() {
         // 'analyzer' (singular) is the realistic typo. Refusing it would also refuse any tag MSBuild
         // adds after this code was written, so it passes through and is surfaced as a warning.
         var spec = ManifestReader.ReadProject("""
@@ -111,16 +104,14 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Read_KnownTags_ProduceNoUnknownWarnings()
-    {
+    public void Read_KnownTags_ProduceNoUnknownWarnings() {
         var spec = ManifestReader.ReadProject(GdUnitManifest).Dotnet["gdUnit4.analyzers"];
 
         Assert.Empty(spec.Assets.UnknownTags);
     }
 
     [Fact]
-    public void Read_APackageNamedLikeAnAssetKey_IsStillAPackage()
-    {
+    public void Read_APackageNamedLikeAnAssetKey_IsStillAPackage() {
         // The disambiguation is by TOML type: a metadata key is an array, while a dotted package ID
         // segment is a table. One key cannot be both, which is the same rule 'source' relies on.
         var manifest = ManifestReader.ReadProject("""
@@ -133,8 +124,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Read_AssetKeysOnANonLeafTable_AreIgnored()
-    {
+    public void Read_AssetKeysOnANonLeafTable_AreIgnored() {
         // A table without a 'version' is a path segment, not a package. Its keys describe nothing.
         var manifest = ManifestReader.ReadProject("""
             [dotnet.Foo]
@@ -151,18 +141,13 @@ public class PackageAssetTests
     // ---- manifest writing -------------------------------------------------
 
     [Fact]
-    public void Serialize_ThenRead_RoundTripsEveryList()
-    {
-        var manifest = new ProjectManifest
-        {
-            Dotnet = new Dictionary<string, DotnetSpec>
-            {
-                ["gdUnit4.analyzers"] = new DotnetSpec
-                {
+    public void Serialize_ThenRead_RoundTripsEveryList() {
+        var manifest = new ProjectManifest {
+            Dotnet = new Dictionary<string, DotnetSpec> {
+                ["gdUnit4.analyzers"] = new DotnetSpec {
                     Name = "gdUnit4.analyzers",
                     Version = "1.0.0",
-                    Assets = new PackageAssets
-                    {
+                    Assets = new PackageAssets {
                         Include = ["runtime", "build"],
                         Exclude = ["compile"],
                         Private = ["none"],
@@ -178,12 +163,9 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Serialize_APackageWithNoAssets_WritesNoAssetKeys()
-    {
-        var manifest = new ProjectManifest
-        {
-            Dotnet = new Dictionary<string, DotnetSpec>
-            {
+    public void Serialize_APackageWithNoAssets_WritesNoAssetKeys() {
+        var manifest = new ProjectManifest {
+            Dotnet = new Dictionary<string, DotnetSpec> {
                 ["Newtonsoft.Json"] = new DotnetSpec { Name = "Newtonsoft.Json", Version = "13.0.*" },
             },
         };
@@ -194,10 +176,8 @@ public class PackageAssetTests
     // ---- lockfile ---------------------------------------------------------
 
     [Fact]
-    public void Lockfile_RoundTripsWhatDotquayWrote()
-    {
-        var lockfile = new DotquayLockfile
-        {
+    public void Lockfile_RoundTripsWhatDotquayWrote() {
+        var lockfile = new DotquayLockfile {
             Dotnet =
             [
                 new LockedDotnet
@@ -215,8 +195,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Lockfile_WrittenBeforeV010_ReadsAsNothingWritten()
-    {
+    public void Lockfile_WrittenBeforeV010_ReadsAsNothingWritten() {
         var lockfile = LockfileReader.Read("""
             [[dotnet]]
             name = "Newtonsoft.Json"
@@ -227,10 +206,8 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public void Lockfile_NothingWritten_ProducesNoAssetKeys()
-    {
-        var text = LockfileWriter.Serialize(new DotquayLockfile
-        {
+    public void Lockfile_NothingWritten_ProducesNoAssetKeys() {
+        var text = LockfileWriter.Serialize(new DotquayLockfile {
             Dotnet = [new LockedDotnet { Name = "Newtonsoft.Json", Resolved = "13.0.3" }],
         });
 
@@ -251,8 +228,7 @@ public class PackageAssetTests
         </Project>
         """;
 
-    private static async Task<IReadOnlyList<DoctorIssue>> DriftAsync(string csproj)
-    {
+    private static async Task<IReadOnlyList<DoctorIssue>> DriftAsync(string csproj) {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), GdUnitManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), """
@@ -269,8 +245,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public async Task Doctor_ACsprojMissingDeclaredMetadata_ReportsDrift()
-    {
+    public async Task Doctor_ACsprojMissingDeclaredMetadata_ReportsDrift() {
         // This is what a manifest edit followed by 'install' leaves behind: install replays the
         // lockfile by design, so the declaration lands nowhere until 'update' runs. Without this
         // check that is completely silent.
@@ -281,8 +256,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public async Task Doctor_ACsprojCarryingTheDeclaredMetadata_IsClean()
-    {
+    public async Task Doctor_ACsprojCarryingTheDeclaredMetadata_IsClean() {
         var issues = await DriftAsync("""
             <Project Sdk="Godot.NET.Sdk/4.3.0">
               <ItemGroup>
@@ -298,8 +272,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public async Task Doctor_MetadataWrittenAsAttributes_IsAlsoClean()
-    {
+    public async Task Doctor_MetadataWrittenAsAttributes_IsAlsoClean() {
         // Attribute form means the same thing to MSBuild, so it must mean the same thing here — or
         // doctor reports permanent drift on a file that is actually correct.
         var issues = await DriftAsync("""
@@ -316,8 +289,7 @@ public class PackageAssetTests
     }
 
     [Fact]
-    public async Task Doctor_AProjectWithNoCsproj_IsNotUnhealthy()
-    {
+    public async Task Doctor_AProjectWithNoCsproj_IsNotUnhealthy() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), GdUnitManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), """

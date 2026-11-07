@@ -7,8 +7,7 @@ namespace Dotquay.Core.Abstractions;
 /// and proxies for free). Kept behind an interface so the resolver and sync engine are testable
 /// without a network or a real git binary.
 /// </summary>
-public interface IGitClient
-{
+public interface IGitClient {
     /// <summary>
     /// Lists remote tags and branch heads without cloning. Backs <c>version</c>/<c>branch</c>
     /// resolution (SPEC.md §7.1) and <c>dotquay outdated</c> (SPEC.md §6, requirement P1-3).
@@ -67,8 +66,7 @@ public interface IGitClient
 /// <summary>One ref reported by <c>git ls-remote</c>.</summary>
 public sealed record GitRef(string Name, string CommitSha, GitRefKind Kind);
 
-public enum GitRefKind
-{
+public enum GitRefKind {
     Tag,
     Branch,
 }

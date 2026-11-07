@@ -15,8 +15,7 @@ namespace Dotquay.Tests.Workflows;
 /// feature started working — noise arriving exactly when things go right, which is the fastest way to
 /// train someone to ignore a check.
 /// </remarks>
-public class DoctorDanglingEntryTests
-{
+public class DoctorDanglingEntryTests {
     private const string ProjectDirectory = "project";
     private const string RootUrl = "https://example.com/root.git";
     private const string ChildUrl = "https://example.com/child.git";
@@ -29,15 +28,13 @@ public class DoctorDanglingEntryTests
         InMemoryFileSystem fileSystem,
         string projectManifest,
         string lockfile,
-        string? installedRootPackageManifest)
-    {
+        string? installedRootPackageManifest) {
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.toml"), projectManifest);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "dotquay.lock"), lockfile);
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "root", "plugin.cfg"), "cfg");
         fileSystem.WriteAllText(fileSystem.CombinePath(ProjectDirectory, "addons", "child", "plugin.cfg"), "cfg");
 
-        if (installedRootPackageManifest is not null)
-        {
+        if (installedRootPackageManifest is not null) {
             fileSystem.WriteAllText(
                 fileSystem.CombinePath(ProjectDirectory, "addons", "root", "dotquay.toml"), installedRootPackageManifest);
         }
@@ -88,8 +85,7 @@ public class DoctorDanglingEntryTests
         """;
 
     private static async Task<IReadOnlyList<DoctorIssue>> DanglingAsync(
-        string? installedRootPackageManifest, string? lockfileOverride = null)
-    {
+        string? installedRootPackageManifest, string? lockfileOverride = null) {
         var fileSystem = new InMemoryFileSystem();
         var workflow = Build(fileSystem, ProjectManifest, lockfileOverride ?? LockfileWith(), installedRootPackageManifest);
         var result = await workflow.DoctorAsync(ProjectDirectory);
@@ -98,8 +94,7 @@ public class DoctorDanglingEntryTests
     }
 
     [Fact]
-    public async Task DoctorAsync_TransitiveAddon_IsNotDangling()
-    {
+    public async Task DoctorAsync_TransitiveAddon_IsNotDangling() {
         var issues = await DanglingAsync(RootPackageManifest);
 
         // 'child' is in no manifest the project owns, but 'root' requires it — the lockfile's own
@@ -108,8 +103,7 @@ public class DoctorDanglingEntryTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonDeclaredNuGetPackage_IsNotDangling()
-    {
+    public async Task DoctorAsync_AddonDeclaredNuGetPackage_IsNotDangling() {
         var issues = await DanglingAsync(RootPackageManifest);
 
         // Unioned in from root's own package manifest (requirement P1-5). Read off disk, since the
@@ -118,16 +112,14 @@ public class DoctorDanglingEntryTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AGraphWithNothingStale_IsClean()
-    {
+    public async Task DoctorAsync_AGraphWithNothingStale_IsClean() {
         var issues = await DanglingAsync(RootPackageManifest);
 
         Assert.Empty(issues);
     }
 
     [Fact]
-    public async Task DoctorAsync_UnreachableAddon_IsStillReported()
-    {
+    public async Task DoctorAsync_UnreachableAddon_IsStillReported() {
         var lockfile = LockfileWith($"""
 
             [[addon]]
@@ -146,8 +138,7 @@ public class DoctorDanglingEntryTests
     }
 
     [Fact]
-    public async Task DoctorAsync_NuGetPackageNoAddonDeclares_IsStillReported()
-    {
+    public async Task DoctorAsync_NuGetPackageNoAddonDeclares_IsStillReported() {
         // root ships a package manifest, but it no longer mentions Newtonsoft.Json — so the locked
         // entry really is stale now.
         var issues = await DanglingAsync("""
@@ -161,8 +152,7 @@ public class DoctorDanglingEntryTests
     }
 
     [Fact]
-    public async Task DoctorAsync_AddonWithNoPackageManifest_DoesNotVouchForNuGetEntries()
-    {
+    public async Task DoctorAsync_AddonWithNoPackageManifest_DoesNotVouchForNuGetEntries() {
         var issues = await DanglingAsync(installedRootPackageManifest: null);
 
         // Nothing on disk claims Newtonsoft.Json is needed, so reporting it is the honest answer —

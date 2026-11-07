@@ -4,8 +4,7 @@ namespace Dotquay.Core.Manifest;
 /// as <see cref="ProjectManifest"/> plus a <c>[package]</c> header. Ships inside the addon's own
 /// folder next to <c>plugin.cfg</c>, so an addon repo is itself a valid dotquay project. Third-party
 /// addons without this file are leaf nodes in the dependency graph (SPEC.md §8).</summary>
-public sealed class PackageManifest
-{
+public sealed class PackageManifest {
     /// <summary>The package's own name. Required — it is the one piece of self-identification an
     /// addon carries, and the only way a manifest can later be checked against the name a consumer
     /// declared for it.</summary>

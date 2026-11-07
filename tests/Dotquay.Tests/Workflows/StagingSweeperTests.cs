@@ -12,16 +12,14 @@ namespace Dotquay.Tests.Workflows;
 /// leaves its staged tree for the user to edit until <c>patch --resolve</c> or <c>--abandon</c>.
 /// Everything else found there is left over from a run that failed or was killed.
 /// </remarks>
-public class StagingSweeperTests
-{
+public class StagingSweeperTests {
     private const string Project = "project";
     private const string Staging = "project/.dotquay/staging";
 
     private static ProjectLayout Layout => ProjectLayout.WithoutPatches(Project);
 
     [Fact]
-    public void Sweep_LeftoverTrees_AreDeleted()
-    {
+    public void Sweep_LeftoverTrees_AreDeleted() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Staging}/twitcher/plugin.gd", "extends EditorPlugin");
         fileSystem.WriteAllText($"{Staging}/graph-discovery/r3/dotquay.toml", "[package]");
@@ -35,8 +33,7 @@ public class StagingSweeperTests
     }
 
     [Fact]
-    public void Sweep_PendingPatchConflict_IsKept()
-    {
+    public void Sweep_PendingPatchConflict_IsKept() {
         // The user may be halfway through editing conflict markers in this tree.
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Staging}/gut/plugin.cfg", "<<<<<<< ours");
@@ -49,8 +46,7 @@ public class StagingSweeperTests
     }
 
     [Fact]
-    public void Sweep_ConflictMarkerOfAnotherAddon_DoesNotProtectThisOne()
-    {
+    public void Sweep_ConflictMarkerOfAnotherAddon_DoesNotProtectThisOne() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Staging}/gut/plugin.cfg", "<<<<<<< ours");
         fileSystem.WriteAllText($"{Staging}/gut.conflict", "2222\n");
@@ -63,8 +59,7 @@ public class StagingSweeperTests
     }
 
     [Fact]
-    public void Sweep_StrayFiles_AreDeleted()
-    {
+    public void Sweep_StrayFiles_AreDeleted() {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{Staging}/half-written.tmp", "x");
 

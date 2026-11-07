@@ -14,8 +14,7 @@ namespace Dotquay.Tests.SelfUpdate;
 /// response body, which the client discarded. An error message that sounds authoritative and is
 /// wrong costs more than one that says nothing.
 /// </remarks>
-public class GitLabErrorExplanationTests
-{
+public class GitLabErrorExplanationTests {
     private const string Host = "gitlab.example";
 
     private const string Granular =
@@ -23,8 +22,7 @@ public class GitLabErrorExplanationTests
         + "following project permissions: [Release: Read].";
 
     [Fact]
-    public void GitLabs_own_words_are_passed_through_verbatim()
-    {
+    public void GitLabs_own_words_are_passed_through_verbatim() {
         var message = GitLabErrorExplanation.Describe(
             HttpStatusCode.Forbidden, Granular, authenticated: true, Host, "looking up the newest release");
 
@@ -37,8 +35,7 @@ public class GitLabErrorExplanationTests
     }
 
     [Fact]
-    public void A_granular_refusal_points_at_a_permission_not_at_a_bad_token()
-    {
+    public void A_granular_refusal_points_at_a_permission_not_at_a_bad_token() {
         var message = GitLabErrorExplanation.Describe(
             HttpStatusCode.Forbidden, Granular, authenticated: true, Host, "looking up the newest release");
 
@@ -46,8 +43,7 @@ public class GitLabErrorExplanationTests
     }
 
     [Fact]
-    public void With_no_body_an_authenticated_refusal_offers_both_token_shapes()
-    {
+    public void With_no_body_an_authenticated_refusal_offers_both_token_shapes() {
         var message = GitLabErrorExplanation.Describe(
             HttpStatusCode.Forbidden, detail: null, authenticated: true, Host, "looking up the newest release");
 
@@ -56,8 +52,7 @@ public class GitLabErrorExplanationTests
     }
 
     [Fact]
-    public void Without_a_credential_both_readings_stay_on_the_table()
-    {
+    public void Without_a_credential_both_readings_stay_on_the_table() {
         var message = GitLabErrorExplanation.Describe(
             HttpStatusCode.NotFound, detail: null, authenticated: false, Host, "looking up the newest release");
 
@@ -71,8 +66,7 @@ public class GitLabErrorExplanationTests
     }
 
     [Fact]
-    public void With_a_credential_a_404_blames_the_url_not_the_login()
-    {
+    public void With_a_credential_a_404_blames_the_url_not_the_login() {
         // GitLab denies "does not exist" and "not allowed to see" identically, so a 404 is ambiguous
         // only while anonymous. With a credential accepted this far, telling someone to log in is
         // advice that cannot work.
@@ -94,8 +88,7 @@ public class GitLabErrorExplanationTests
         Assert.Equal(expected, GitLabErrorExplanation.IsAuthFailure(status, authenticated));
 
     [Fact]
-    public void GitLabs_bare_status_echo_does_not_crowd_out_the_advice()
-    {
+    public void GitLabs_bare_status_echo_does_not_crowd_out_the_advice() {
         // The literal message a second developer's PC printed. GitLab's body was
         // {"message":"401 Unauthorized"}, quoted as if it explained something, and the sentence
         // saying a stored credential had been sent and refused never appeared.
@@ -108,8 +101,7 @@ public class GitLabErrorExplanationTests
     }
 
     [Fact]
-    public void An_authenticated_401_blames_the_token_not_its_scopes()
-    {
+    public void An_authenticated_401_blames_the_token_not_its_scopes() {
         // 403 is what a real token lacking a permission gets; 401 means GitLab does not know the
         // token at all, so scope advice would be a confident wrong guess.
         var message = GitLabErrorExplanation.Describe(

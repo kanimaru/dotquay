@@ -1,8 +1,7 @@
 namespace Dotquay.Core.Lockfile;
 
 /// <summary>One resolved <c>[[dotnet]]</c> entry (SPEC.md §7.3).</summary>
-public sealed class LockedDotnet
-{
+public sealed class LockedDotnet {
     public required string Name { get; init; }
 
     public required string Resolved { get; init; }
@@ -43,8 +42,7 @@ public sealed class LockedDotnet
     /// <see cref="Lockfile.LockedAddon"/> learned the hard way: a hand-written copy of a class with
     /// init-only properties silently drops whichever property is added next.
     /// </remarks>
-    public LockedDotnet WithoutSource() => new()
-    {
+    public LockedDotnet WithoutSource() => new() {
         Name = Name,
         Resolved = Resolved,
         Source = null,

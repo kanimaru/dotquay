@@ -7,8 +7,7 @@ namespace Dotquay.Core.Diagnostics;
 /// Ordered on purpose: each level includes everything the levels below it say, so a check is always
 /// a single <c>&gt;=</c> comparison and there is no combination of levels to reason about.
 /// </remarks>
-public enum DiagnosticLevel
-{
+public enum DiagnosticLevel {
     /// <summary>Nothing. The default, and what every existing invocation keeps getting.</summary>
     Off = 0,
 

@@ -21,22 +21,17 @@ namespace Dotquay.Cli.Diagnostics;
 /// <c>--verbose</c> out of habit is asking for at least that much, not for less.
 /// </para>
 /// </remarks>
-internal static class DiagnosticSettings
-{
+internal static class DiagnosticSettings {
     public const string EnvironmentVariable = "DOTQUAY_VERBOSE";
 
-    public static DiagnosticLevel Resolve(ParseResult parseResult, string? environmentValue)
-    {
+    public static DiagnosticLevel Resolve(ParseResult parseResult, string? environmentValue) {
         bool verbose;
         bool trace;
 
-        try
-        {
+        try {
             verbose = parseResult.GetValue(GlobalOptions.Verbose);
             trace = parseResult.GetValue(GlobalOptions.Trace);
-        }
-        catch (InvalidOperationException)
-        {
+        } catch (InvalidOperationException) {
             // A command line that failed to parse still runs (to print its error); it just doesn't
             // get flag-driven diagnostics. The variable still applies.
             verbose = false;
@@ -46,8 +41,7 @@ internal static class DiagnosticSettings
         return Resolve(verbose, trace, environmentValue);
     }
 
-    public static DiagnosticLevel Resolve(bool verbose, bool trace, string? environmentValue)
-    {
+    public static DiagnosticLevel Resolve(bool verbose, bool trace, string? environmentValue) {
         var fromFlags = trace ? DiagnosticLevel.Trace
             : verbose ? DiagnosticLevel.Verbose
             : DiagnosticLevel.Off;
@@ -63,15 +57,12 @@ internal static class DiagnosticSettings
     /// <remarks>"Anything else" rather than an error: a person who set the variable to <c>yes</c>
     /// wants output, and refusing to start a package manager over the spelling of a debug switch
     /// helps nobody.</remarks>
-    internal static DiagnosticLevel ParseEnvironment(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
+    internal static DiagnosticLevel ParseEnvironment(string? value) {
+        if (string.IsNullOrWhiteSpace(value)) {
             return DiagnosticLevel.Off;
         }
 
-        return value.Trim().ToLowerInvariant() switch
-        {
+        return value.Trim().ToLowerInvariant() switch {
             "0" or "false" or "off" or "no" or "none" => DiagnosticLevel.Off,
             "2" or "trace" or "all" => DiagnosticLevel.Trace,
             _ => DiagnosticLevel.Verbose,
