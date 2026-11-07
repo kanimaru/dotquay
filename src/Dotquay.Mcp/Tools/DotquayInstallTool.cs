@@ -17,7 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// on principle: a command whose whole contract is "replay the lockfile" should never be one refactor
 /// away from acquiring a feed. Guarded by <see cref="ForceConfirmationPolicy"/> only.
 /// </remarks>
-public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayInstallTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_install";
 

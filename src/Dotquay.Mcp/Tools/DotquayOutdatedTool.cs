@@ -10,7 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay outdated</c>: checks for newer versions without cloning anything.
 /// See <c>Dotquay.Cli.Commands.OutdatedCommand</c>.</summary>
-public sealed class DotquayOutdatedTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayOutdatedTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_outdated";
 

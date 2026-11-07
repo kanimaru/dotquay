@@ -15,7 +15,7 @@ namespace Dotquay.Mcp.Tools;
 /// gone (<c>DependencyWorkflow.ResolvePatchAsync</c> refuses otherwise), so there is nothing left for
 /// a human to have been asked about — the conflict itself already stopped the update that led here.
 /// </remarks>
-public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayPatchResolveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_patch_resolve";
 

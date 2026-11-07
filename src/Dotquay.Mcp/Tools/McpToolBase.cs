@@ -7,8 +7,7 @@ using ModelContextProtocol.Server;
 namespace Dotquay.Mcp.Tools;
 
 /// <summary>
-/// Shared plumbing for every dotquay MCP tool: syncs client-supplied roots, resolves and
-/// scope-checks the <c>project</c> argument, serializes calls against that project through
+/// Shared plumbing for every dotquay MCP tool: resolves and scope-checks the <c>project</c> argument, serializes calls against that project through
 /// <see cref="ProjectGate"/>, and turns any exception into the same failure shape
 /// <c>Dotquay.Cli.Commands.JsonOutput.Fail</c> produces for the CLI.
 /// </summary>
@@ -17,7 +16,7 @@ namespace Dotquay.Mcp.Tools;
 /// an uncaught exception — the parts every one of the read and write tools would otherwise duplicate
 /// live here exactly once.
 /// </remarks>
-public abstract class McpToolBase(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : IMcpTool
+public abstract class McpToolBase(IProjectScope scope, ProjectGate gate) : IMcpTool
 {
     public abstract string Name { get; }
 
@@ -31,10 +30,6 @@ public abstract class McpToolBase(IProjectScope scope, ProjectGate gate, ClientR
 
         try
         {
-            // Before resolving `project`, so a client's roots (design doc §4.3) are already folded
-            // into `scope` by the time the very first call needs to check against them.
-            await rootsSync.EnsureSyncedAsync(context.Server, cancellationToken);
-
             var projectDirectory = scope.Resolve(McpArgs.GetString(arguments, "project"));
             var progress = new McpProgressReporter(context.Server, context.Params?.ProgressToken);
 

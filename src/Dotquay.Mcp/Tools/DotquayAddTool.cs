@@ -25,7 +25,7 @@ namespace Dotquay.Mcp.Tools;
 /// addon occupying its folder without a matching lock entry) that this tool does not expose, matching
 /// the table's own argument list.
 /// </remarks>
-public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayAddTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_add";
 

@@ -17,7 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// manifest on its own (reported as <c>unchanged</c>, not an error — the same "the state you asked for
 /// already exists" reasoning <c>InitCommand</c> uses).
 /// </remarks>
-public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayInitTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_init";
 

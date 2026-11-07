@@ -17,7 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// an explicit, single-addon decision an agent cannot reach by accident the way a bulk
 /// <c>update --force</c> could.
 /// </remarks>
-public sealed class DotquayPatchAbandonTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayPatchAbandonTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_patch_abandon";
 

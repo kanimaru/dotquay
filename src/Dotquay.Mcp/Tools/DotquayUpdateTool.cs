@@ -19,7 +19,7 @@ namespace Dotquay.Mcp.Tools;
 /// exception naming the addon and feed. <see cref="Guards.ForceConfirmationPolicy"/> is pre-checked,
 /// same as <see cref="DotquayInstallTool"/>.
 /// </remarks>
-public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayUpdateTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_update";
 

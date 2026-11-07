@@ -11,7 +11,7 @@ namespace Dotquay.Mcp.Tools;
 /// <summary>MCP mirror of <c>dotquay status</c>: diffs disk against <c>dotquay.lock</c> for one
 /// project (SPEC.md Â§7). See <c>Dotquay.Cli.Commands.StatusCommand</c> for the CLI's own copy of this
 /// call pattern.</summary>
-public sealed class DotquayStatusTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayStatusTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_status";
 

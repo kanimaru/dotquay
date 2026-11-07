@@ -23,7 +23,7 @@ namespace Dotquay.Mcp.Tools;
 /// <c>dotquay_update</c> (or <c>dotquay_install</c>) itself, which is also where the write guard's
 /// force/confirm_discard check belongs — a plain manifest edit never discards anything on its own.
 /// </remarks>
-public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayOverrideSetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_override_set";
 

@@ -10,7 +10,7 @@ namespace Dotquay.Mcp.Tools;
 
 /// <summary>MCP mirror of <c>dotquay list</c>: installed addons and NuGet packages, straight from the
 /// lockfile — instant, offline. See <c>Dotquay.Cli.Commands.ListCommand</c>.</summary>
-public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_list";
 

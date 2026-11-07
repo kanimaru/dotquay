@@ -108,7 +108,7 @@ public sealed class ErrorRedactionTests
     public void Mcp_request_log_masks_the_failure_line()
     {
         var writer = new StringWriter();
-        using var log = new RequestLog(writer, ownsWriter: false, new LoggingLevelState());
+        using var log = new RequestLog(writer, ownsWriter: false);
 
         log.WriteFailure("7", "tools/call", TimeSpan.FromMilliseconds(3), new InvalidOperationException($"failed for {SecretUrl}\nsecond line"));
 

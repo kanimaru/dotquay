@@ -15,7 +15,7 @@ namespace Dotquay.Mcp.Tools;
 /// <remarks>A pure manifest edit, same as <see cref="DotquayOverrideSetTool"/> — no follow-on resync.
 /// Clearing an override may resurface the conflict it was hiding; that's the point of an override
 /// being a decision the user can take back.</remarks>
-public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayOverrideClearTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_override_clear";
 

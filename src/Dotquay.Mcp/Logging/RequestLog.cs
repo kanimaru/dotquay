@@ -1,25 +1,19 @@
-using System.Text.Json;
 using Dotquay.Core.Diagnostics;
-using Dotquay.Mcp.Json;
-using ModelContextProtocol;
-using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 
 namespace Dotquay.Mcp.Logging;
 
 /// <summary>
 /// The local, plain-text request trace <c>--log &lt;file&gt;</c> writes (design doc §6): one line per
-/// request with its id, method, duration, and — on failure — the first line of the exception; plus,
-/// when the client asked for it via <c>logging/setLevel</c>, the matching <c>notifications/message</c>
-/// push.
+/// request with its id, method, duration, and — on failure — the first line of the exception.
 /// </summary>
 /// <remarks>
-/// Two destinations sharing one class rather than two: the local trace and the client-facing
-/// notification are triggered by the exact same event (a request that failed), so keeping them
-/// together means <see cref="RequestLoggingFilters"/> has exactly one thing to call on failure,
-/// instead of remembering to call both.
+/// This trace is the server's only log output. It goes to the <c>--log</c> file or, without one, to
+/// stderr — never to the client over MCP: the protocol's Logging feature (<c>logging/setLevel</c>,
+/// <c>notifications/message</c>) is deprecated as of specification version 2026-07-28 (SEP-2577),
+/// whose migration note is "log to stderr (stdio)". A failed request still reaches the client, as the
+/// error result of that request itself.
 /// </remarks>
-public sealed class RequestLog(TextWriter writer, bool ownsWriter, LoggingLevelState levelState) : IDisposable
+public sealed class RequestLog(TextWriter writer, bool ownsWriter) : IDisposable
 {
     private readonly object _lock = new();
 
@@ -31,37 +25,14 @@ public sealed class RequestLog(TextWriter writer, bool ownsWriter, LoggingLevelS
             $"{DateTimeOffset.UtcNow:O} id={requestId} method={method} duration_ms={duration.TotalMilliseconds:F1} "
             + $"error={FirstLine(exception.Message)}");
 
-    /// <summary>Pushes the failure to the client as <c>notifications/message</c> — only when it
-    /// already asked to see events at this severity via <c>logging/setLevel</c>; otherwise a no-op,
-    /// matching <c>McpProgressReporter</c>'s "pay nothing unless asked" rule.</summary>
-    public async Task NotifyClientAsync(McpServer server, Exception exception, CancellationToken cancellationToken)
+    /// <summary>Disposes the underlying writer only when this <see cref="RequestLog"/> owns it — the
+    /// stderr fallback (no <c>--log</c> file given) must never close <see cref="Console.Error"/> for
+    /// the rest of the process.</summary>
+    public void Dispose()
     {
-        if (!levelState.ShouldForward(LoggingLevel.Error))
+        if (ownsWriter)
         {
-            return;
-        }
-
-        try
-        {
-            await server.SendNotificationAsync(
-                NotificationMethods.LoggingMessageNotification,
-                new LoggingMessageNotificationParams
-                {
-                    Level = LoggingLevel.Error,
-                    Logger = "dotquay",
-                    // Source-generated, not JsonSerializer.SerializeToElement<string>(...) — that
-                    // overload is reflection-based and is exactly what the trimmer breaks under
-                    // NativeAOT (see DotquayMcpJsonContext's remarks on why `string` is registered
-                    // there).
-                    Data = JsonSerializer.SerializeToElement(FirstLine(exception.Message), DotquayMcpJsonContext.Default.String),
-                },
-                McpJsonUtilities.DefaultOptions,
-                cancellationToken);
-        }
-        catch
-        {
-            // A lost log notification is never a reason to fail the request it was describing — the
-            // same rule McpProgressReporter applies to a lost progress notification.
+            writer.Dispose();
         }
     }
 
@@ -74,19 +45,7 @@ public sealed class RequestLog(TextWriter writer, bool ownsWriter, LoggingLevelS
         }
     }
 
-    /// <summary>The first line of an exception message, credentials masked: it goes both to a local
-    /// file or stderr and, via <see cref="NotifyClientAsync"/>, into the client's - often an agent's -
-    /// context.</summary>
+    /// <summary>The first line of an exception message, credentials masked: the trace is often
+    /// shared in a bug report, and a git or registry error can carry a token in its URL.</summary>
     private static string FirstLine(string text) => SecretRedactor.Redact(text.Split('\n', 2)[0].TrimEnd('\r'));
-
-    /// <summary>Disposes the underlying writer only when this <see cref="RequestLog"/> owns it — the
-    /// stderr fallback (no <c>--log</c> file given) must never close <see cref="Console.Error"/> for
-    /// the rest of the process.</summary>
-    public void Dispose()
-    {
-        if (ownsWriter)
-        {
-            writer.Dispose();
-        }
-    }
 }

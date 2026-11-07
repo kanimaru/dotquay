@@ -18,7 +18,7 @@ namespace Dotquay.Mcp.Tools;
 /// "explained destruction" means here (Â§4.2's own reasoning): the agent can, and the
 /// <c>dotquay_diagnose_modified</c> prompt (Â§7, Phase 3) tells it to, run <c>dotquay_status</c> first.
 /// </remarks>
-public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayRemoveTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_remove";
 

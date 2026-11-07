@@ -17,7 +17,7 @@ namespace Dotquay.Mcp.Tools;
 /// (<c>OverrideCommand.ListOverrides</c>): an override entry already fits that shape (name, kind,
 /// from/to), so a second payload type would say nothing this one doesn't.
 /// </remarks>
-public sealed class DotquayOverrideListTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayOverrideListTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_override_list";
 

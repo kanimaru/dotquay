@@ -235,7 +235,8 @@ exists for the plugin (GlobalOptions.cs). What a call may *name* is decided by `
   adds them to the scope. A client that changes its roots sends `notifications/roots/list_changed`
   and the scope is re-read. This is the mechanism designed for exactly this, and it means Claude
   Code's "which folder am I working in" and dotquay's "which folder may I write to" are the same
-  answer with no configuration.
+  answer with no configuration. *Removed 2026-11-07: the MCP spec deprecates `roots` as of
+  2026-07-28 (SEP-2577), so the scope is `--project` or the working directory only (SPEC.md §20.1).*
 - `project` defaults to the *single* root when there is exactly one, and is required otherwise. An
   agent working across two Godot projects has to say which one — silently picking the first is how
   a lockfile ends up in the wrong repo.
@@ -323,7 +324,8 @@ addon swap is a single `MoveDirectory` (SPEC.md §9), cancellation cannot leave 
 first line of any exception) for debugging a client session after the fact; stderr gets the same
 lines when no file is given, because clients generally surface stderr in their own logs and it is not
 the wire. `notifications/message` carries `warning`-level and above to the client when it asked for
-them via `logging/setLevel`.
+them via `logging/setLevel`. *Removed 2026-11-07: the MCP spec deprecates Logging as of 2026-07-28
+(SEP-2577) in favour of stderr; only the `--log`/stderr trace remains (SPEC.md §20.4).*
 
 ## 7. Resources and prompts
 

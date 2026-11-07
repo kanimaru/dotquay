@@ -18,7 +18,7 @@ namespace Dotquay.Mcp.Tools;
 /// feed question to preview). <see cref="GeneratorPrivacyPolicy"/> still applies: the package itself
 /// might be the generator.
 /// </remarks>
-public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayAddDotnetTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_add_dotnet";
 

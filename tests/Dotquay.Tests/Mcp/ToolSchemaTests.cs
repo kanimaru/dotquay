@@ -15,18 +15,17 @@ public sealed class ToolSchemaTests
     {
         var scope = new ProjectScope([Directory.GetCurrentDirectory()]);
         var gate = new ProjectGate();
-        var rootsSync = new ClientRootsSync(scope);
 
         IMcpTool[] tools =
         [
-            new DotquayStatusTool(scope, gate, rootsSync),
-            new DotquayListTool(scope, gate, rootsSync),
-            new DotquayGraphTool(scope, gate, rootsSync),
-            new DotquayOutdatedTool(scope, gate, rootsSync),
-            new DotquayDoctorTool(scope, gate, rootsSync),
-            new DotquayAddPreviewTool(scope, gate, rootsSync),
-            new DotquaySourceListTool(scope, gate, rootsSync),
-            new DotquayOverrideListTool(scope, gate, rootsSync),
+            new DotquayStatusTool(scope, gate),
+            new DotquayListTool(scope, gate),
+            new DotquayGraphTool(scope, gate),
+            new DotquayOutdatedTool(scope, gate),
+            new DotquayDoctorTool(scope, gate),
+            new DotquayAddPreviewTool(scope, gate),
+            new DotquaySourceListTool(scope, gate),
+            new DotquayOverrideListTool(scope, gate),
         ];
 
         foreach (var tool in tools)

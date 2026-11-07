@@ -22,7 +22,7 @@ namespace Dotquay.Mcp.Tools;
 /// unambiguous where a shared parsing helper would otherwise have to be duplicated from
 /// <c>Dotquay.Cli</c> (internal there) for a convenience a structured caller doesn't need.
 /// </remarks>
-public sealed class DotquayAddPreviewTool(IProjectScope scope, ProjectGate gate, ClientRootsSync rootsSync) : McpToolBase(scope, gate, rootsSync)
+public sealed class DotquayAddPreviewTool(IProjectScope scope, ProjectGate gate) : McpToolBase(scope, gate)
 {
     public override string Name => "dotquay_add_preview";
 
