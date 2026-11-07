@@ -34,7 +34,7 @@ public class AddSourceMappingTests
         """;
 
     private static (DependencyWorkflow Workflow, InMemoryFileSystem FileSystem) Build(
-        string manifest, string feedName, string? lockfile = null)
+        string manifest, string? feedName, string? lockfile = null)
     {
         var fileSystem = new InMemoryFileSystem();
         fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml", manifest);

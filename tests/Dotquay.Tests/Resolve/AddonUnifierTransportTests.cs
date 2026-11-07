@@ -56,6 +56,7 @@ public class AddonUnifierTransportTests
         // so the outcome depends only on the graph, not on dictionary ordering luck.
         var outcome = await UnifyAsync("git@github.com:bitwes/gut.git", "https://github.com/bitwes/gut");
 
+        Assert.True(outcome.IsResolved);
         Assert.Equal("git@github.com:bitwes/gut.git", outcome.Resolved.Git);
     }
 

@@ -112,6 +112,18 @@ public class LfsResolverTests
     }
 
     [Fact]
+    public async Task AnActivationThatFails_StopsBeforePulling_WithGitsOwnReason()
+    {
+        var git = new ScriptedGit { PointerPaths = ["a.dll"], InstallExit = 1 };
+        var dir = TempCheckout("a.dll");
+
+        var ex = await Assert.ThrowsAsync<GitCommandException>(() => Resolver(git).EnsureResolvedAsync(dir, "origin"));
+
+        Assert.Contains("install failed", ex.Message);
+        Assert.DoesNotContain(git.Calls, c => c.StartsWith("lfs pull"));
+    }
+
+    [Fact]
     public async Task APullThatFails_SaysSoWithGitsOwnReason_AndFlagsAuthentication()
     {
         var git = new ScriptedGit
