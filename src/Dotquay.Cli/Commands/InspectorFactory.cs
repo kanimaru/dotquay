@@ -19,5 +19,5 @@ internal static class InspectorFactory
 internal static class CachePaths
 {
     public static string Root() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotquay", "cache");
+        new SystemEnvironmentReader().HomeDirectory ?? string.Empty, ".dotquay", "cache");
 }

@@ -705,7 +705,7 @@ This is deliberately *not* a full constraint solver. It works because only dotqu
 
 `addons/<name>/` is a **derived artifact owned by dotquay** — never merged, always replaced.
 
-1. Fetch into the global cache: `~/.dotquay/cache/<repo-hash>/<short-sha>/` (content-addressed; shared across projects). Cache paths use a short hash of the repo URL plus an abbreviated SHA to keep paths short on Windows (decided, was OQ-5). Shallow fetch is the baseline, not an optimization — full clone only as a fallback when the server refuses shallow fetch of a specific SHA (decided, was OQ-4).
+1. Fetch into the global cache: `~/.dotquay/cache/<repo-hash>/<short-sha>/` (content-addressed; shared across projects). Cache paths use a short hash of the repo URL plus an abbreviated SHA to keep paths short on Windows (decided, was OQ-5). Shallow fetch is the baseline, not an optimization — full clone only as a fallback when the server refuses shallow fetch of a specific SHA (decided, was OQ-4). `DOTQUAY_HOME`, when set, replaces the home directory for every `~/.dotquay` path (cache, credentials, config, update check); the real-process tests point it at a temp folder, since on Windows the profile comes from the shell's known folder and `USERPROFILE` does not move it.
 2. Extract the manifest's `path` subtree into a **staging folder** — this solves the "addon is not at repo root" problem without submodules.
 3. Apply patch if present (§10).
 4. Dirty check: hash the currently installed folder against the lockfile's `content_hash` (or `content_hash` + `patch_hash`). Mismatch → refuse with a message pointing at `dotquay patch` or `--force`.

@@ -28,7 +28,7 @@ namespace Dotquay.Mcp.Infrastructure;
 public static class McpInfrastructure
 {
     public static string CacheRoot() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotquay", "cache");
+        new SystemEnvironmentReader().HomeDirectory ?? string.Empty, ".dotquay", "cache");
 
     /// <summary>Every Phase 1 tool is read-only, so the workflow it builds never adopts an
     /// addon-declared NuGet feed (<see cref="DenyAllSourceApproval"/>) and never opts a source

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Dotquay.Core.IO;
 using Xunit;
 
 namespace Dotquay.Tests.Mcp;
@@ -40,9 +41,13 @@ public sealed class WriteToolsRealProcessTests
         var addonUrl = new Uri(addonRepo).AbsoluteUri;
         var projectDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-write-test-").FullName;
 
+        // The child's home, so the add's fetch lands in a temp cache rather than the developer's
+        // real ~/.dotquay/cache (and no real credentials or config are read).
+        var homeDirectory = Directory.CreateTempSubdirectory("dotquay-mcp-write-home-").FullName;
+
         try
         {
-            await RunOneShotAsync(cliExe, ["init", "--json", "--project", projectDirectory]);
+            await RunOneShotAsync(cliExe, homeDirectory, ["init", "--json", "--project", projectDirectory]);
 
             var startInfo = new ProcessStartInfo(cliExe)
             {
@@ -52,6 +57,7 @@ public sealed class WriteToolsRealProcessTests
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            startInfo.Environment[SystemEnvironmentReader.HomeOverrideVariable] = homeDirectory;
             startInfo.ArgumentList.Add("mcp");
             startInfo.ArgumentList.Add("--project");
             startInfo.ArgumentList.Add(projectDirectory);
@@ -145,6 +151,7 @@ public sealed class WriteToolsRealProcessTests
             // keeps a cleanup wrinkle from failing a test whose assertions already passed.
             TryDeleteDirectory(projectDirectory);
             TryDeleteDirectory(addonRepo);
+            TryDeleteDirectory(homeDirectory);
         }
     }
 
@@ -302,7 +309,7 @@ public sealed class WriteToolsRealProcessTests
         }
     }
 
-    private static async Task RunOneShotAsync(string exePath, string[] args)
+    private static async Task RunOneShotAsync(string exePath, string homeDirectory, string[] args)
     {
         var startInfo = new ProcessStartInfo(exePath)
         {
@@ -311,6 +318,7 @@ public sealed class WriteToolsRealProcessTests
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        startInfo.Environment[SystemEnvironmentReader.HomeOverrideVariable] = homeDirectory;
         foreach (var arg in args)
         {
             startInfo.ArgumentList.Add(arg);

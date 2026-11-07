@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Dotquay.Core.IO;
 using Xunit;
 
 namespace Dotquay.Tests.Cli;
@@ -79,15 +80,21 @@ public sealed class VerboseRealProcessTests
         Assert.Equal(JsonValueKind.Object, document.RootElement.ValueKind);
     }
 
-    private static async Task WithProjectAsync(Func<string, string, Task> body)
+    /// <summary>The apphost and the home it runs under: a temp folder, so the child's
+    /// <c>.dotquay</c> (cache, credentials, config) is never the developer's real one.</summary>
+    private sealed record CliUnderTest(string Exe, string Home);
+
+    private static async Task WithProjectAsync(Func<CliUnderTest, string, Task> body)
     {
-        var cli = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
+        var exe = Environment.GetEnvironmentVariable("DOTQUAY_TEST_CLI_EXE") is { Length: > 0 } overridden
             ? overridden
             : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "dotquay.exe" : "dotquay");
 
-        Assert.True(File.Exists(cli), $"Expected {cli} to exist (Dotquay.Tests references Dotquay.Cli).");
+        Assert.True(File.Exists(exe), $"Expected {exe} to exist (Dotquay.Tests references Dotquay.Cli).");
 
         var project = Directory.CreateTempSubdirectory("dotquay-verbose-test-").FullName;
+        var home = Directory.CreateTempSubdirectory("dotquay-verbose-home-").FullName;
+        var cli = new CliUnderTest(exe, home);
         try
         {
             var (initExit, _, initErr) = await RunAsync(cli, ["init", "--json", "--project", project]);
@@ -96,21 +103,27 @@ public sealed class VerboseRealProcessTests
         }
         finally
         {
-            try
-            {
-                Directory.Delete(project, recursive: true);
-            }
-            catch (IOException)
-            {
-                // Best-effort cleanup.
-            }
+            TryDelete(project);
+            TryDelete(home);
+        }
+    }
+
+    private static void TryDelete(string directory)
+    {
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+        catch (IOException)
+        {
+            // Best-effort cleanup.
         }
     }
 
     private static async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(
-        string cli, string[] args, params (string Name, string Value)[] environment)
+        CliUnderTest cli, string[] args, params (string Name, string Value)[] environment)
     {
-        var startInfo = new ProcessStartInfo(cli)
+        var startInfo = new ProcessStartInfo(cli.Exe)
         {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -128,6 +141,7 @@ public sealed class VerboseRealProcessTests
         // check, which would otherwise add network lines to stderr.
         startInfo.Environment.Remove("DOTQUAY_VERBOSE");
         startInfo.Environment["DOTQUAY_NO_UPDATE_CHECK"] = "1";
+        startInfo.Environment[SystemEnvironmentReader.HomeOverrideVariable] = cli.Home;
         foreach (var (name, value) in environment)
         {
             startInfo.Environment[name] = value;
