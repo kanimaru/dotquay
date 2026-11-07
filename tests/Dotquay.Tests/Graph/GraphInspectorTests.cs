@@ -98,7 +98,7 @@ public class GraphInspectorTests
         var report = inspector.Inspect(ProjectDirectory);
 
         Assert.Equal(3, report.Addons.Count);
-        Assert.Single(report.Addons.Where(a => a.Name == "core"));
+        Assert.Single(report.Addons, a => a.Name == "core");
     }
 
     [Fact]

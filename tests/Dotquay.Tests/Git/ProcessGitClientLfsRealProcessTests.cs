@@ -196,7 +196,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
     }
 
     [Fact]
-    public void ACheckoutThatWasLeftWithPlaceholders_IsRepairedWhenVerifiedLater()
+    public async Task ACheckoutThatWasLeftWithPlaceholders_IsRepairedWhenVerifiedLater()
     {
         // The cache path: an entry made by an older dotquay is verified in place on its next use.
         if (!LfsAvailable()) return; // git-lfs absent: there is nothing to exercise (same convention as the other real-process tests)
@@ -213,7 +213,7 @@ public sealed class ProcessGitClientLfsRealProcessTests : IDisposable
         var binary = Path.Combine(dest, "addons", "GDMP", "libs", "GDMP.windows.dll");
         Assert.True(new FileInfo(binary).Length < 1024, "precondition: the old behaviour leaves a placeholder");
 
-        ClientOn(inactive).EnsureFilesResolvedAsync(dest).GetAwaiter().GetResult();
+        await ClientOn(inactive).EnsureFilesResolvedAsync(dest);
 
         Assert.Equal(expected, Sha256(binary));
     }
