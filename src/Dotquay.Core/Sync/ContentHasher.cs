@@ -52,7 +52,11 @@ public static class ContentHasher {
     /// without the editor files. A recorded hash equal to any of these means the tree has not been
     /// edited.
     /// </param>
-    public sealed record TreeHashes(string Canonical, IReadOnlyList<string> Accepted);
+    /// <param name="CanonicalWithArtifacts">LF text like <see cref="Canonical"/>, but with the
+    /// editor files included: tells whether anything at all changed between two trees, line
+    /// endings aside, which a patch touching only editor files does.</param>
+    public sealed record TreeHashes(string Canonical, IReadOnlyList<string> Accepted,
+        string CanonicalWithArtifacts);
 
     /// <summary>Returns a <c>"sha256:&lt;hex&gt;"</c> string, matching the lockfile's
     /// <c>content_hash</c> format (SPEC.md §7.3). Line-ending independent: see the class
@@ -129,7 +133,7 @@ public static class ContentHasher {
                     .ToLowerInvariant())
                 .ToList();
 
-            return new TreeHashes(all[0], all.Distinct(StringComparer.Ordinal).ToList());
+            return new TreeHashes(all[0], all.Distinct(StringComparer.Ordinal).ToList(), all[3]);
         } finally {
             foreach (var (_, _, hash) in forms) {
                 hash.Dispose();

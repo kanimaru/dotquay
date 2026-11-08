@@ -413,6 +413,16 @@ public sealed class AddonInstaller {
             conflicts = await _patchReapplier.ReapplyAsync(
                 previous.Git, previous.PatchBaseSha!, previous.Path, patchText, stagingPath,
                 cancellationToken);
+        } catch (PatchHadNoEffectException ex) {
+            // Installing on would record the pristine tree's hash as the patched addon's, and the
+            // lockfile would then vouch for a tree without the patch. Refused before the swap, so
+            // addons/ and the lockfile keep what they had.
+            throw new SyncException(
+                $"'{previous.Name}': applying {patchFilePath} to its recorded base "
+                + $"{previous.PatchBaseSha} reported success but changed nothing, so the addon "
+                + $"would be installed without its patch. Nothing was installed and the "
+                + $"lockfile's content_hash is unchanged. Check that the patch still describes "
+                + $"your changes ('dotquay patch {previous.Name}' recaptures it).", ex);
         } catch (PatchException ex) {
             throw new SyncException(
                 $"'{previous.Name}': could not reconstruct its patch against its recorded base "

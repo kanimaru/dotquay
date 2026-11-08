@@ -2045,6 +2045,72 @@ public class DependencyWorkflowTests {
         Assert.Equal(locked.Resolved, lockedAfter.PatchBaseSha);
     }
 
+    /// <summary>
+    /// A patch that applies without error but changes nothing: what <c>git apply</c> did from a
+    /// staging folder inside the project's own repository (it skipped every path and exited 0).
+    /// The reinstalled tree was then the pristine one, and its hash went into the lockfile in
+    /// place of the patched one. The fake's apply of <c>fake-diff-text</c> changes nothing, as no
+    /// file changes are configured for it.
+    /// </summary>
+    [Theory]
+    [InlineData("install")]
+    [InlineData("update")]
+    public async Task ReinstallPatchedAddon_PatchChangesNothing_RefusesAndKeepsTheLockedHash(
+        string command) {
+        var (workflow, fileSystem, gitClient, patchTool) = BuildWithPatchTool();
+        SetTags(gitClient, "v1.0.0");
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+
+        fileSystem.WriteAllText($"{ProjectDir}/addons/dialogue_manager/plugin.cfg", "cfg-edited");
+        var basePath = PatchBaseStagingPath(fileSystem, "dialogue_manager");
+        var installedPath = fileSystem.CombinePath(ProjectDir, "addons", "dialogue_manager");
+        patchTool.DiffResults[(basePath, installedPath)] = "fake-diff-text";
+        var captured = await workflow.PatchAsync(ProjectDir, "dialogue_manager");
+        var hashBefore = ReadLocked(fileSystem).ContentHash;
+
+        var ex = await Assert.ThrowsAsync<WorkflowException>(() => command == "install"
+            ? workflow.InstallAsync(ProjectDir, force: true)
+            : workflow.UpdateAsync(ProjectDir, "dialogue_manager", force: true));
+
+        Assert.Contains("'dialogue_manager'", ex.Message);
+        Assert.Contains(captured.PatchFilePath, ex.Message);
+        Assert.Equal(hashBefore, ReadLocked(fileSystem).ContentHash);
+        Assert.Equal("cfg-edited",
+            fileSystem.ReadAllText($"{ProjectDir}/addons/dialogue_manager/plugin.cfg"));
+    }
+
+    [Theory]
+    [InlineData("install")]
+    [InlineData("update")]
+    public async Task ReinstallPatchedAddon_PatchApplies_RecordsThePatchedHash(string command) {
+        var (workflow, fileSystem, gitClient, patchTool) = BuildWithPatchTool();
+        SetTags(gitClient, "v1.0.0");
+        await workflow.AddAsync(ProjectDir, RepoUrl);
+
+        fileSystem.WriteAllText($"{ProjectDir}/addons/dialogue_manager/plugin.cfg", "cfg-edited");
+        var basePath = PatchBaseStagingPath(fileSystem, "dialogue_manager");
+        var installedPath = fileSystem.CombinePath(ProjectDir, "addons", "dialogue_manager");
+        patchTool.DiffResults[(basePath, installedPath)] = "fake-diff-text";
+        patchTool.FileChangesByPatchText["fake-diff-text"] = new Dictionary<string, string> {
+            ["plugin.cfg"] = "cfg-edited",
+        };
+        await workflow.PatchAsync(ProjectDir, "dialogue_manager");
+        var hashBefore = ReadLocked(fileSystem).ContentHash;
+
+        if (command == "install") {
+            await workflow.InstallAsync(ProjectDir, force: true);
+        } else {
+            await workflow.UpdateAsync(ProjectDir, "dialogue_manager", force: true);
+        }
+
+        Assert.Equal(hashBefore, ReadLocked(fileSystem).ContentHash);
+        Assert.Equal("cfg-edited",
+            fileSystem.ReadAllText($"{ProjectDir}/addons/dialogue_manager/plugin.cfg"));
+    }
+
+    private static LockedAddon ReadLocked(InMemoryFileSystem fileSystem) =>
+        LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock")).Addons.Single();
+
     [Fact]
     public async Task PatchAsync_NoDifferenceFromPristineBase_DoesNotCapture() {
         var (workflow, _, gitClient, _) = BuildWithPatchTool();

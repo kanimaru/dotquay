@@ -53,6 +53,7 @@ public sealed class PatchReapplier {
 
             CopyDirectory(oldBaseStagingPath, oursStagingPath);
             await _patchTool.ApplyPatchAsync(patchText, oursStagingPath, cancellationToken);
+            ThrowIfPatchChangedNothing(patchText, oldBaseStagingPath, oursStagingPath);
 
             var mergeResult = await _merger.MergeAsync(
                 oldBaseStagingPath, oursStagingPath, newVersionStagingPath, mergedStagingPath,
@@ -72,6 +73,29 @@ public sealed class PatchReapplier {
             // Only survives the try block if MoveDirectory above never ran (an exception was
             // thrown before it) — a no-op otherwise, since MoveDirectory already emptied it out.
             _fileSystem.DeleteDirectory(mergedStagingPath);
+        }
+    }
+
+    /// <summary>
+    /// Refuses a non-empty patch whose "ours" came out the same as the base it was applied to.
+    /// </summary>
+    /// <remarks>
+    /// Compared on the old base, not on the merge result: a merge legitimately equals the new
+    /// upstream when upstream took the patch's change itself, but a patch captured against this
+    /// very base always changes it. Line endings do not count (the canonical hash's LF view), and
+    /// editor files do: a patch may touch nothing else.
+    /// </remarks>
+    private void ThrowIfPatchChangedNothing(string patchText, string baseDirectory,
+        string oursDirectory) {
+        if (string.IsNullOrEmpty(patchText)) {
+            return;
+        }
+
+        var baseHash = ContentHasher.HashTree(_fileSystem, baseDirectory).CanonicalWithArtifacts;
+        var oursHash = ContentHasher.HashTree(_fileSystem, oursDirectory).CanonicalWithArtifacts;
+        if (string.Equals(baseHash, oursHash, StringComparison.Ordinal)) {
+            throw new PatchHadNoEffectException(
+                "the patch applied without error but changed nothing in its base");
         }
     }
 
