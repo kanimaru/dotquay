@@ -85,8 +85,16 @@ public sealed class ProcessPatchTool : IPatchTool {
             // passing an absolute, backslash-separated target there produces "error: invalid path"
             // (git's path-prefix concatenation doesn't handle it), whereas CWD-based resolution is
             // both simpler and portable.
+            //
+            // The target must not count as a subdirectory of some enclosing repository: staging
+            // lives under <project>/.dotquay/, and the project is usually a git repo itself. Run
+            // from a subdirectory of a work tree, `git apply` reads the patch's paths relative to
+            // that repository's top and silently skips every one outside the current directory,
+            // exiting 0 with nothing applied. A ceiling at the target's parent stops git's
+            // repository discovery there, so the patch applies as to a plain folder.
             var result = await RunGitAsync(
-                workingDirectory: targetDirectory, ["apply", "-p2", patchFile], cancellationToken);
+                workingDirectory: targetDirectory, ["apply", "-p2", patchFile], cancellationToken,
+                ceilingDirectory: Path.GetDirectoryName(Path.GetFullPath(targetDirectory)));
 
             if (result.ExitCode != 0) {
                 throw new PatchException(
@@ -153,7 +161,8 @@ public sealed class ProcessPatchTool : IPatchTool {
     }
 
     private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
-        string? workingDirectory, string[] args, CancellationToken cancellationToken) {
+        string? workingDirectory, string[] args, CancellationToken cancellationToken,
+        string? ceilingDirectory = null) {
         var startInfo = new ProcessStartInfo("git") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -167,6 +176,14 @@ public sealed class ProcessPatchTool : IPatchTool {
 
         if (workingDirectory is not null) {
             startInfo.WorkingDirectory = workingDirectory;
+        }
+
+        if (ceilingDirectory is not null) {
+            // An inherited GIT_DIR or GIT_WORK_TREE (dotquay run from a git hook, say) would
+            // bypass discovery and the ceiling with it.
+            startInfo.Environment.Remove("GIT_DIR");
+            startInfo.Environment.Remove("GIT_WORK_TREE");
+            startInfo.Environment["GIT_CEILING_DIRECTORIES"] = ceilingDirectory;
         }
 
         using var process = new Process { StartInfo = startInfo };
