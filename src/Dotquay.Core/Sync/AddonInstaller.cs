@@ -21,6 +21,10 @@ public sealed class AddonInstaller {
     private readonly SyncEngine _syncEngine;
     private readonly PatchReapplier _patchReapplier;
 
+    /// <summary>Patches an install found redundant, waiting for a lockfile that records the
+    /// addon unpatched (<see cref="CompleteDroppedPatches"/>).</summary>
+    private readonly List<DroppedPatch> _pendingDroppedPatches = [];
+
     public AddonInstaller(IFileSystem fileSystem, RepoCache cache, SyncEngine syncEngine,
         IPatchTool patchTool) {
         _fileSystem = fileSystem;
@@ -160,8 +164,9 @@ public sealed class AddonInstaller {
         var projectDirectory = layout.ProjectDirectory;
         SubtreeExtractor.Extract(_fileSystem, cachedRepoPath, resolved.Path, stagingPath);
 
+        var patchDropped = false;
         if (previous is { PatchHash: not null, PatchBaseSha: not null }) {
-            await ReapplyPatchOrThrowAsync(previous, resolved, layout, stagingPath,
+            patchDropped = await ReapplyPatchOrThrowAsync(previous, resolved, layout, stagingPath,
                 cancellationToken);
         }
 
@@ -198,16 +203,23 @@ public sealed class AddonInstaller {
             RetirePreviousFolder(previous!, projectDirectory);
         }
 
+        var version = await VersionForAsync(resolved, cancellationToken);
+        if (patchDropped) {
+            _pendingDroppedPatches.RemoveAll(d => d.Name == resolved.Name);
+            _pendingDroppedPatches.Add(new DroppedPatch(resolved.Name,
+                layout.PatchFilePath(_fileSystem, resolved.Name), version));
+        }
+
         return new LockedAddon {
             Name = resolved.Name,
             Git = resolved.Git,
             Resolved = resolved.ResolvedSha,
-            Version = await VersionForAsync(resolved, cancellationToken),
+            Version = version,
             Path = resolved.Path,
             Folder = resolved.InstallAs,
             ContentHash = contentHash,
-            PatchHash = previous?.PatchHash,
-            PatchBaseSha = previous?.PatchBaseSha,
+            PatchHash = patchDropped ? null : previous?.PatchHash,
+            PatchBaseSha = patchDropped ? null : previous?.PatchBaseSha,
 
             // Carried over, never reset. The installer resolves and swaps one addon; it never walks
             // the graph, so it has no basis for claiming this addon requires nothing. `update` does
@@ -392,7 +404,42 @@ public sealed class AddonInstaller {
         }
     }
 
-    private async Task ReapplyPatchOrThrowAsync(
+    /// <summary>
+    /// Deletes the patch files of addons this installer dropped a patch for, once
+    /// <paramref name="written"/> (the lockfile just written) records them unpatched, and
+    /// returns one notice per patch dropped.
+    /// </summary>
+    /// <remarks>
+    /// Deleted only after the lockfile says so. A run that fails after the swap never writes
+    /// it, and a deleted patch file under a lock entry still claiming the patch would make every
+    /// later install refuse.
+    /// </remarks>
+    public IReadOnlyList<string> CompleteDroppedPatches(DotquayLockfile written) {
+        var notes = new List<string>();
+
+        foreach (var dropped in _pendingDroppedPatches.ToList()) {
+            var entry = written.Addons.FirstOrDefault(a => a.Name == dropped.Name);
+            if (entry is null || entry.PatchHash is not null) {
+                continue;
+            }
+
+            if (_fileSystem.FileExists(dropped.PatchFilePath)) {
+                _fileSystem.DeleteFile(dropped.PatchFilePath);
+            }
+
+            _pendingDroppedPatches.Remove(dropped);
+            notes.Add($"'{dropped.Name}': dropped its patch: upstream {dropped.Version} already "
+                + $"contains every change it made (typically because the change was merged "
+                + $"upstream), so {dropped.PatchFilePath} is deleted and the addon is locked "
+                + $"unpatched.");
+        }
+
+        return notes;
+    }
+
+    /// <summary>Reapplies the addon's patch onto <paramref name="stagingPath"/>. Returns whether
+    /// the new version already contains the whole patch, which then is to be dropped.</summary>
+    private async Task<bool> ReapplyPatchOrThrowAsync(
         LockedAddon previous,
         ResolvedAddon resolved,
         ProjectLayout layout,
@@ -400,17 +447,21 @@ public sealed class AddonInstaller {
         CancellationToken cancellationToken) {
         var patchFilePath = layout.PatchFilePath(_fileSystem, previous.Name);
         if (!_fileSystem.FileExists(patchFilePath)) {
-            // The lockfile says there's a patch but the file itself is gone (deleted by hand,
-            // outside dotquay) — nothing to reapply. Not this method's job to flag that
-            // inconsistency (that's dotquay doctor's territory); just proceed as if unpatched.
-            return;
+            // Installing on would put the unpatched tree under a lock entry that still claims the
+            // patch, and record its hash as the patched addon's. Refused before the swap, so
+            // addons/ and the lockfile keep what they had.
+            throw new SyncException(
+                $"'{previous.Name}': the lockfile records a patch, but {patchFilePath} does not "
+                + $"exist, so the addon would be installed without it. Nothing was installed and "
+                + $"the lockfile is unchanged. Restore the file (from git, or a teammate), or run "
+                + $"'dotquay patch {previous.Name} --abandon' to install it without the patch.");
         }
 
         var patchText = _fileSystem.ReadAllText(patchFilePath);
 
-        IReadOnlyList<string> conflicts;
+        PatchReapplyResult reapplied;
         try {
-            conflicts = await _patchReapplier.ReapplyAsync(
+            reapplied = await _patchReapplier.ReapplyAsync(
                 previous.Git, previous.PatchBaseSha!, previous.Path, patchText, stagingPath,
                 cancellationToken);
         } catch (PatchHadNoEffectException ex) {
@@ -429,6 +480,7 @@ public sealed class AddonInstaller {
                 + $"({ex.Message}). Run 'dotquay patch {previous.Name}' again once resolved.", ex);
         }
 
+        var conflicts = reapplied.ConflictedPaths;
         if (conflicts.Count > 0) {
             // Record which commit the staged tree came from. The update is about to abort, so the
             // lockfile is never written and still names the *old* commit — without this note,
@@ -455,6 +507,8 @@ public sealed class AddonInstaller {
                 + $"  Or 'dotquay patch {previous.Name} --abandon' to drop the patch and take "
                 + $"upstream as-is.");
         }
+
+        return reapplied.UpstreamContainsPatch;
     }
 
     /// <summary>The lockfile's <c>version</c>: the tag when there is one, else a

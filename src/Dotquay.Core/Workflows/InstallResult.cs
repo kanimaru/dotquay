@@ -17,4 +17,13 @@ public sealed record InstallResult(IReadOnlyList<LockedAddon> Addons,
     /// <c>--json</c> and the MCP tool carry in <c>data.messages</c> (the field the editor plugin
     /// shows), built here so no surface composes its own.</summary>
     public IReadOnlyList<string> SourceBuildNotes => SourceBuilt.Select(s => s.Describe()).ToList();
+
+    /// <summary>One line per patch this run dropped because upstream now contains its change
+    /// (<see cref="Sync.AddonInstaller"/>): the patch file is deleted and the addon is locked
+    /// unpatched.</summary>
+    public IReadOnlyList<string> PatchNotes { get; init; } = [];
+
+    /// <summary>Every note for the person who ran it, after the results: what the CLI prints and
+    /// what <c>--json</c> and the MCP tool carry in <c>data.messages</c>.</summary>
+    public IReadOnlyList<string> Notes => [.. SourceBuildNotes, .. PatchNotes];
 }

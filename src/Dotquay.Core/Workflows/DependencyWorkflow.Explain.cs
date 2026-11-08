@@ -278,7 +278,7 @@ public sealed partial class DependencyWorkflow {
         }
 
         try {
-            var conflicts = await new PatchReapplier(_fileSystem, _repoCache, _patchTool)
+            var reapplied = await new PatchReapplier(_fileSystem, _repoCache, _patchTool)
                 .ReapplyAsync(
                 locked.Git,
                 locked.PatchBaseSha,
@@ -287,7 +287,7 @@ public sealed partial class DependencyWorkflow {
                 baselinePath,
                 cancellationToken);
 
-            if (conflicts.Count == 0) {
+            if (reapplied.ConflictedPaths.Count == 0) {
                 return new Baseline(IncludesPatch: true, PatchFailed: false);
             }
         } catch (Exception ex) when (ex is not OperationCanceledException) {
