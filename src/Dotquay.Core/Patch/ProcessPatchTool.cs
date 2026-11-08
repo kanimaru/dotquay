@@ -37,11 +37,15 @@ public sealed class ProcessPatchTool : IPatchTool {
             // targets win/linux/mac from one codebase) at the cost of a copy. Addon folders are
             // small enough (a few MB at most) that this is a non-issue for an occasional,
             // user-triggered `dotquay patch` call, not a hot path.
-            CopyDirectory(baseDirectory, baseAlias);
-            CopyDirectory(oursDirectory, oursAlias);
+            //
+            // Text files are copied with LF line endings (see LineEndings), so the patch never
+            // records how the two trees happened to be checked out, only what changed.
+            CopyDirectory(baseDirectory, baseAlias, toLf: true);
+            CopyDirectory(oursDirectory, oursAlias, toLf: true);
 
             var result = await RunGitAsync(parent,
-                ["diff", "--no-index", "--no-color", "--binary", "--", "base", "ours"],
+                ["-c", "core.autocrlf=false", "diff", "--no-index", "--no-color", "--binary", "--",
+                    "base", "ours"],
                 cancellationToken);
 
             // git diff --no-index: exit 0 = identical, exit 1 = differences found (NOT an error —
@@ -75,7 +79,11 @@ public sealed class ProcessPatchTool : IPatchTool {
             // through a line-ending-mangling path (PowerShell's own `>` redirection, when
             // hand-verifying this exact mechanism) produces git's literal "No valid patches in
             // input" error.
-            await File.WriteAllTextAsync(patchFile, patchText, cancellationToken);
+            //
+            // CRLF in the text itself is folded to LF: the target is applied to as an LF view
+            // (below), and a patch captured before capture normalised may carry CRLF lines.
+            await File.WriteAllTextAsync(patchFile, LineEndings.ToLf(patchText),
+                cancellationToken);
 
             // -p2 strips exactly "a/base/" or "b/ours/" (the fixed prefix DiffDirectoriesAsync
             // always produces — see its remarks), leaving the bare relative path, which git
@@ -85,8 +93,29 @@ public sealed class ProcessPatchTool : IPatchTool {
             // passing an absolute, backslash-separated target there produces "error: invalid path"
             // (git's path-prefix concatenation doesn't handle it), whereas CWD-based resolution is
             // both simpler and portable.
+            //
+            // The target must not count as a subdirectory of some enclosing repository: staging
+            // lives under <project>/.dotquay/, and the project is usually a git repo itself. Run
+            // from a subdirectory of a work tree, `git apply` reads the patch's paths relative to
+            // that repository's top and silently skips every one outside the current directory,
+            // exiting 0 with nothing applied. A ceiling at the target's parent stops git's
+            // repository discovery there, so the patch applies as to a plain folder.
+            //
+            // The patch holds LF, but the target may be checked out with CRLF. Its text files are
+            // turned to LF for the apply and each changed file is written back in its own style
+            // afterwards (LineEndings), so neither the checkout nor core.autocrlf decides whether
+            // the hunks match.
+            var originals = ToLfView(targetDirectory);
             var result = await RunGitAsync(
-                workingDirectory: targetDirectory, ["apply", "-p2", patchFile], cancellationToken);
+                workingDirectory: targetDirectory,
+                ["-c", "core.autocrlf=false", "apply", "-p2", patchFile], cancellationToken,
+                ceilingDirectory: Path.GetDirectoryName(Path.GetFullPath(targetDirectory)));
+
+            if (result.ExitCode == 0) {
+                RestoreLineEndings(targetDirectory, originals);
+            } else {
+                RestoreOriginals(targetDirectory, originals);
+            }
 
             if (result.ExitCode != 0) {
                 throw new PatchException(
@@ -119,7 +148,8 @@ public sealed class ProcessPatchTool : IPatchTool {
         return result.ExitCode;
     }
 
-    private static void CopyDirectory(string sourceDirectory, string destinationDirectory) {
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory,
+        bool toLf) {
         Directory.CreateDirectory(destinationDirectory);
 
         foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*",
@@ -127,7 +157,85 @@ public sealed class ProcessPatchTool : IPatchTool {
             var relative = Path.GetRelativePath(sourceDirectory, file);
             var destination = Path.Combine(destinationDirectory, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            File.Copy(file, destination, overwrite: true);
+
+            if (!toLf) {
+                File.Copy(file, destination, overwrite: true);
+                continue;
+            }
+
+            var content = File.ReadAllBytes(file);
+            File.WriteAllBytes(destination,
+                LineEndings.IsText(content) ? LineEndings.ToLf(content) : content);
+        }
+    }
+
+    /// <summary>Snapshots every text file of <paramref name="directory"/> by relative path and
+    /// rewrites those holding CRLF with LF, so an LF patch can match them.</summary>
+    private static Dictionary<string, byte[]> ToLfView(string directory) {
+        var originals = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*",
+            SearchOption.AllDirectories)) {
+            var content = File.ReadAllBytes(file);
+            if (!LineEndings.IsText(content)) {
+                continue;
+            }
+
+            originals[Path.GetRelativePath(directory, file)] = content;
+            if (LineEndings.HasCrlf(content)) {
+                File.WriteAllBytes(file, LineEndings.ToLf(content));
+            }
+        }
+
+        return originals;
+    }
+
+    /// <summary>After a successful apply: files the patch left alone get their exact original
+    /// bytes back, changed files their original's line endings, and new text files the style most
+    /// of the tree's text files use.</summary>
+    private static void RestoreLineEndings(string directory,
+        IReadOnlyDictionary<string, byte[]> originals) {
+        var crlfFiles = originals.Values.Count(v => LineEndings.Detect(v)
+            == LineEndings.Style.Crlf);
+        var treeStyle = crlfFiles * 2 > originals.Count ? LineEndings.Style.Crlf
+            : LineEndings.Style.Lf;
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*",
+            SearchOption.AllDirectories)) {
+            var relative = Path.GetRelativePath(directory, file);
+            var current = File.ReadAllBytes(file);
+
+            if (originals.TryGetValue(relative, out var original)) {
+                if (LineEndings.ToLf(original).AsSpan().SequenceEqual(current)) {
+                    if (!original.AsSpan().SequenceEqual(current)) {
+                        File.WriteAllBytes(file, original);
+                    }
+
+                    continue;
+                }
+
+                WriteIfDifferent(file, current,
+                    LineEndings.To(LineEndings.Detect(original), current));
+            } else if (LineEndings.IsText(current)) {
+                WriteIfDifferent(file, current, LineEndings.To(treeStyle, current));
+            }
+        }
+    }
+
+    /// <summary>After a failed apply: every file turned to LF gets its original bytes back.</summary>
+    private static void RestoreOriginals(string directory,
+        IReadOnlyDictionary<string, byte[]> originals) {
+        foreach (var (relative, original) in originals) {
+            var path = Path.Combine(directory, relative);
+            if (LineEndings.HasCrlf(original) && File.Exists(path)) {
+                File.WriteAllBytes(path, original);
+            }
+        }
+    }
+
+    private static void WriteIfDifferent(string path, byte[] current, byte[] wanted) {
+        if (!current.AsSpan().SequenceEqual(wanted)) {
+            File.WriteAllBytes(path, wanted);
         }
     }
 
@@ -153,7 +261,8 @@ public sealed class ProcessPatchTool : IPatchTool {
     }
 
     private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
-        string? workingDirectory, string[] args, CancellationToken cancellationToken) {
+        string? workingDirectory, string[] args, CancellationToken cancellationToken,
+        string? ceilingDirectory = null) {
         var startInfo = new ProcessStartInfo("git") {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -167,6 +276,14 @@ public sealed class ProcessPatchTool : IPatchTool {
 
         if (workingDirectory is not null) {
             startInfo.WorkingDirectory = workingDirectory;
+        }
+
+        if (ceilingDirectory is not null) {
+            // An inherited GIT_DIR or GIT_WORK_TREE (dotquay run from a git hook, say) would
+            // bypass discovery and the ceiling with it.
+            startInfo.Environment.Remove("GIT_DIR");
+            startInfo.Environment.Remove("GIT_WORK_TREE");
+            startInfo.Environment["GIT_CEILING_DIRECTORIES"] = ceilingDirectory;
         }
 
         using var process = new Process { StartInfo = startInfo };

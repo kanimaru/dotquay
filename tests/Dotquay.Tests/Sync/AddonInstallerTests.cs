@@ -304,7 +304,10 @@ public class AddonInstallerTests {
     }
 
     [Fact]
-    public async Task InstallAsync_LockfileSaysPatchedButPatchFileMissing_InstallsWithoutReapplying() {
+    public async Task InstallAsync_LockfileSaysPatchedButPatchFileMissing_RefusesAndNamesTheFile() {
+        // Installing on would put upstream's tree under a lock entry that still claims a patch,
+        // and record its hash as the patched addon's: the same lie as a patch that changes
+        // nothing. Refused instead, with addons/ and the lockfile as they were.
         var (installer, fileSystem, gitClient, _) = Build();
         gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string> {
             ["addons/dialogue_manager/plugin.cfg"] = "cfg-from-upstream",
@@ -327,12 +330,105 @@ public class AddonInstallerTests {
         var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, NewSha, DisplayVersion: null,
             "addons/dialogue_manager");
 
-        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"),
-            previous, force: true);
+        var ex = await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(resolved,
+            ProjectLayout.WithoutPatches("project"), previous, force: true));
 
-        Assert.Equal("cfg-from-upstream",
+        Assert.Contains("'dialogue_manager'", ex.Message);
+        Assert.Contains("project/.dotquay/patches/dialogue_manager.patch", ex.Message);
+        Assert.Equal("cfg-edited",
             fileSystem.ReadAllText("project/addons/dialogue_manager/plugin.cfg"));
-        Assert.Equal("sha256:deadbeef", locked.PatchHash);
+    }
+
+    [Fact]
+    public async Task InstallAsync_PatchOnlyChangesLineEndings_RefusesAsChangingNothing() {
+        // Line endings do not count as a change, as in the content hash: a patch whose whole
+        // effect is CRLF in place of LF would install the pristine tree under the patched name.
+        var (installer, fileSystem, gitClient, patchTool) = BuildPatchedAtBase(
+            out var previous, out var resolved);
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, Sha)] = new Dictionary<string, string> {
+            ["addons/dialogue_manager/plugin.cfg"] = "line\n",
+        };
+        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string> {
+            ["plugin.cfg"] = "line\r\n",
+        };
+
+        var ex = await Assert.ThrowsAsync<SyncException>(() => installer.InstallAsync(resolved,
+            ProjectLayout.WithoutPatches("project"), previous, force: true));
+
+        Assert.Contains("project/.dotquay/patches/dialogue_manager.patch", ex.Message);
+        Assert.Equal("cfg-edited",
+            fileSystem.ReadAllText("project/addons/dialogue_manager/plugin.cfg"));
+    }
+
+    [Fact]
+    public async Task InstallAsync_PatchOnlyTouchesEditorFiles_InstallsIt() {
+        // A capture can hold nothing but files Godot wrote (.uid); the content hash ignores them,
+        // but they are still a change the patch makes, not a sign it did nothing.
+        var (installer, fileSystem, _, patchTool) = BuildPatchedAtBase(
+            out var previous, out var resolved);
+        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string> {
+            ["dialogue_manager.gd.uid"] = "uid://bxwpwbdv4fm02",
+        };
+
+        await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"), previous,
+            force: true);
+
+        Assert.Equal("uid://bxwpwbdv4fm02",
+            fileSystem.ReadAllText("project/addons/dialogue_manager/dialogue_manager.gd.uid"));
+    }
+
+    [Fact]
+    public async Task CompleteDroppedPatches_LockfileStillRecordsThePatch_KeepsTheFile() {
+        // A run that fails after the swap never writes the lockfile, which then still records
+        // the patch. Deleting its file anyway would make every later install refuse.
+        var (installer, fileSystem, gitClient, patchTool) = BuildPatchedAtBase(
+            out var previous, out _);
+        gitClient.FetchedFilesByUrlAndSha[(RepoUrl, NewSha)] = new Dictionary<string, string> {
+            ["addons/dialogue_manager/plugin.cfg"] = "cfg-edited",
+        };
+        patchTool.FileChangesByPatchText["fake-patch-text"] = new Dictionary<string, string> {
+            ["plugin.cfg"] = "cfg-edited",
+        };
+        var resolved = new ResolvedAddon("dialogue_manager", RepoUrl, NewSha, DisplayVersion: null,
+            "addons/dialogue_manager");
+
+        var locked = await installer.InstallAsync(resolved, ProjectLayout.WithoutPatches("project"),
+            previous, force: false);
+        Assert.Null(locked.PatchHash);
+
+        var notWritten = installer.CompleteDroppedPatches(
+            new DotquayLockfile { Addons = [previous] });
+        Assert.Empty(notWritten);
+        Assert.True(fileSystem.FileExists("project/.dotquay/patches/dialogue_manager.patch"));
+
+        var written = installer.CompleteDroppedPatches(new DotquayLockfile { Addons = [locked] });
+        Assert.Single(written);
+        Assert.False(fileSystem.FileExists("project/.dotquay/patches/dialogue_manager.patch"));
+    }
+
+    /// <summary>An addon whose patch was captured against the very commit being installed, as
+    /// <c>install --force</c> replays it; the patch's effect is left to each test.</summary>
+    private static (AddonInstaller Installer, InMemoryFileSystem FileSystem,
+        FakeGitClient GitClient, FakePatchTool PatchTool) BuildPatchedAtBase(
+        out LockedAddon previous, out ResolvedAddon resolved) {
+        var built = Build();
+        built.FileSystem.WriteAllText("project/addons/dialogue_manager/plugin.cfg", "cfg-edited");
+        built.FileSystem.WriteAllText("project/.dotquay/patches/dialogue_manager.patch",
+            "fake-patch-text");
+
+        previous = new LockedAddon {
+            Name = "dialogue_manager",
+            Git = RepoUrl,
+            Resolved = Sha,
+            Path = "addons/dialogue_manager",
+            ContentHash = ContentHasher.HashDirectory(built.FileSystem,
+                "project/addons/dialogue_manager"),
+            PatchHash = "sha256:deadbeef",
+            PatchBaseSha = Sha,
+        };
+        resolved = new ResolvedAddon("dialogue_manager", RepoUrl, Sha, DisplayVersion: null,
+            "addons/dialogue_manager");
+        return built;
     }
 
     private static LockedAddon PreviousWithContentHash(string contentHash) => new() {

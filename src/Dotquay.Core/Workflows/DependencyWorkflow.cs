@@ -47,6 +47,11 @@ public sealed partial class DependencyWorkflow {
     private readonly IPatchTool _patchTool;
     private readonly DotnetInstaller _dotnetInstaller;
 
+    /// <summary>Notices about patches dropped since the last result was built: they are
+    /// confirmed when a lockfile is written (<see cref="WriteLockfile"/>) and handed to the
+    /// result of the install or update that wrote it.</summary>
+    private readonly List<string> _patchNotes = [];
+
     /// <summary>
     /// Consulted when an addon declares a NuGet feed whose host isn't in the project's
     /// <c>[nuget] trusted_hosts</c> (SPEC.md §11.3). Defaults to refusing everything.
@@ -539,7 +544,10 @@ public sealed partial class DependencyWorkflow {
 
         WriteLockfile(lockfilePath,
             lockfile with { Addons = installedAddons, Dotnet = installedDotnet });
-        return new InstallResult(installedAddons, installedDotnet) { SourceBuilt = sourceBuilt };
+        return new InstallResult(installedAddons, installedDotnet) {
+            SourceBuilt = sourceBuilt,
+            PatchNotes = TakePatchNotes(),
+        };
     }
 
     /// <summary>
@@ -693,6 +701,7 @@ public sealed partial class DependencyWorkflow {
         return new UpdateResult(addonResults, dotnetResults, graphWarnings.Select(w => w.Message)
             .ToList()) {
             SourceBuilt = sourceBuilt,
+            PatchNotes = TakePatchNotes(),
         };
     }
 
@@ -3123,8 +3132,19 @@ public sealed partial class DependencyWorkflow {
     private void WriteManifest(string manifestPath, ProjectManifest updated) =>
         _projectFiles.WriteManifest(manifestPath, updated);
 
-    private void WriteLockfile(string lockfilePath, DotquayLockfile updated) =>
+    /// <summary>Writes the lockfile, then removes the patch files of patches the install dropped
+    /// as redundant, now that the written lockfile no longer records them.</summary>
+    private void WriteLockfile(string lockfilePath, DotquayLockfile updated) {
         _projectFiles.WriteLockfile(lockfilePath, updated);
+        _patchNotes.AddRange(_addonInstaller.CompleteDroppedPatches(updated));
+    }
+
+    /// <summary>The patch notices collected so far, cleared for the next operation.</summary>
+    private IReadOnlyList<string> TakePatchNotes() {
+        var notes = _patchNotes.ToList();
+        _patchNotes.Clear();
+        return notes;
+    }
 
     /// <summary>Derives a manifest key from a git URL, e.g.
     /// <c>"https://github.com/nathanhoad/godot_dialogue_manager.git"</c> ->

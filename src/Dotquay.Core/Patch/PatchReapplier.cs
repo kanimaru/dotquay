@@ -29,12 +29,13 @@ public sealed class PatchReapplier {
     /// Reapplies <paramref name="patchText"/> on top of <paramref name="newVersionStagingPath"/>
     /// (already extracted at the new resolved SHA by the caller — this becomes "theirs"),
     /// overwriting it in place with the merge result. Returns the conflicted relative paths (empty
-    /// means clean). <paramref name="patchBaseSha"/>/<paramref name="baseSubtreePath"/> are the SHA
+    /// means clean) and whether the new version already holds everything the patch changes.
+    /// <paramref name="patchBaseSha"/>/<paramref name="baseSubtreePath"/> are the SHA
     /// and subtree the patch was captured against (<see cref="Lockfile.LockedAddon.PatchBaseSha"/>/
     /// <see cref="Lockfile.LockedAddon.Path"/> at capture time) — <em>not</em> necessarily the
     /// addon's current <c>Path</c>, though in practice they're almost always the same value.
     /// </summary>
-    public async Task<IReadOnlyList<string>> ReapplyAsync(
+    public async Task<PatchReapplyResult> ReapplyAsync(
         string repositoryUrl,
         string patchBaseSha,
         string baseSubtreePath,
@@ -53,10 +54,13 @@ public sealed class PatchReapplier {
 
             CopyDirectory(oldBaseStagingPath, oursStagingPath);
             await _patchTool.ApplyPatchAsync(patchText, oursStagingPath, cancellationToken);
+            ThrowIfPatchChangedNothing(patchText, oldBaseStagingPath, oursStagingPath);
 
             var mergeResult = await _merger.MergeAsync(
                 oldBaseStagingPath, oursStagingPath, newVersionStagingPath, mergedStagingPath,
                 cancellationToken);
+            var upstreamContainsPatch = !mergeResult.HasConflicts
+                && SameTree(mergedStagingPath, newVersionStagingPath);
 
             // Overwrite the new version's staging tree with the merge result either way — a
             // conflicted result still needs to land in staging with its markers per SPEC.md §10
@@ -64,7 +68,7 @@ public sealed class PatchReapplier {
             // staging").
             _fileSystem.MoveDirectory(mergedStagingPath, newVersionStagingPath);
 
-            return mergeResult.ConflictedPaths;
+            return new PatchReapplyResult(mergeResult.ConflictedPaths, upstreamContainsPatch);
         } finally {
             _fileSystem.DeleteDirectory(oldBaseStagingPath);
             _fileSystem.DeleteDirectory(oursStagingPath);
@@ -73,6 +77,36 @@ public sealed class PatchReapplier {
             // thrown before it) — a no-op otherwise, since MoveDirectory already emptied it out.
             _fileSystem.DeleteDirectory(mergedStagingPath);
         }
+    }
+
+    /// <summary>
+    /// Refuses a non-empty patch whose "ours" came out the same as the base it was applied to.
+    /// </summary>
+    /// <remarks>
+    /// Compared on the old base, not on the merge result: a merge legitimately equals the new
+    /// upstream when upstream took the patch's change itself, but a patch captured against this
+    /// very base always changes it. Line endings do not count (the canonical hash's LF view), and
+    /// editor files do: a patch may touch nothing else.
+    /// </remarks>
+    private void ThrowIfPatchChangedNothing(string patchText, string baseDirectory,
+        string oursDirectory) {
+        if (string.IsNullOrEmpty(patchText)) {
+            return;
+        }
+
+        if (SameTree(baseDirectory, oursDirectory)) {
+            throw new PatchHadNoEffectException(
+                "the patch applied without error but changed nothing in its base");
+        }
+    }
+
+    /// <summary>Whether two trees hold the same files, line endings aside and editor files
+    /// included: the one test for "the patch changed nothing" and "upstream already has the
+    /// patch", so the two can never disagree about what counts as a change.</summary>
+    private bool SameTree(string left, string right) {
+        var leftHash = ContentHasher.HashTree(_fileSystem, left).CanonicalWithArtifacts;
+        var rightHash = ContentHasher.HashTree(_fileSystem, right).CanonicalWithArtifacts;
+        return string.Equals(leftHash, rightHash, StringComparison.Ordinal);
     }
 
     /// <summary>Directory copy via <see cref="IFileSystem"/> rather than real OS calls — so this

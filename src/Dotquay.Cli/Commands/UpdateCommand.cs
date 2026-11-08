@@ -70,7 +70,7 @@ internal static class UpdateCommand {
                     ConsoleOutput.WriteRedacted(ConsoleColor.Yellow, warning);
                 }
 
-                foreach (var note in result.SourceBuildNotes) {
+                foreach (var note in result.Notes) {
                     Console.WriteLine();
                     ConsoleOutput.WriteLine(ConsoleColor.Yellow, note);
                 }

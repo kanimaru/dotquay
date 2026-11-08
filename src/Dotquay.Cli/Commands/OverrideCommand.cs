@@ -183,7 +183,7 @@ internal static class OverrideCommand {
                 messages.Add($"{change.Name}: {change.From ?? "(new)"} -> {change.To}");
             }
 
-            messages.AddRange(update.SourceBuildNotes);
+            messages.AddRange(update.Notes);
         }
 
         if (json) {

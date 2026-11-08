@@ -54,7 +54,7 @@ internal static class InstallCommand {
 
                 // After the summary, like update's warnings: the result someone waits for comes
                 // first.
-                foreach (var note in result.SourceBuildNotes) {
+                foreach (var note in result.Notes) {
                     ConsoleOutput.WriteLine(ConsoleColor.Yellow, note);
                 }
                 return 0;
