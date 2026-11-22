@@ -369,9 +369,10 @@ Four things this design left open, settled during implementation.
 
 **A linked package is never resolved remotely.** Not stated here, and load-bearing: the motivating case
 is a library that *isn't published yet*, so resolving it would refuse exactly the situation the
-feature exists for. `SyncDotnetAsync` now keeps a linked package's previously locked version, or on a
-first link the version the manifest declares. The lockfile therefore keeps describing what an
-unlinked machine would get, which is what makes unlinking a no-op rather than a repair.
+feature exists for. `SyncDotnetAsync` now keeps a linked package's previously locked version while
+the manifest's declaration still allows it, and otherwise (a first link, or a pin moved by hand) the
+version the manifest declares. The lockfile therefore keeps describing what an unlinked machine would
+get, which is what makes unlinking a no-op rather than a repair.
 
 **The dotted-key walk was written separately, not shared.** Action item 1 said to reuse
 `ManifestReader`'s recursive walk. In the event the two differ in what makes a leaf (`version` vs.

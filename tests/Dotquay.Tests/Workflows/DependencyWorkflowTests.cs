@@ -1,5 +1,6 @@
 using Dotquay.Core.Abstractions;
 using Dotquay.Core.Dotnet;
+using Dotquay.Core.Local;
 using Dotquay.Core.Lockfile;
 using Dotquay.Core.Manifest;
 using Dotquay.Core.Patch;
@@ -699,6 +700,48 @@ public class DependencyWorkflowTests {
         Assert.Single(result.Dotnet);
         Assert.False(result.Dotnet[0].Changed);
         Assert.Empty(runner.RestoreCalls);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LinkedDotnetPinMovedInTheManifest_RecordsTheNewPin() {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Acme.Client"] = ["0.1.0-ci.80"];
+        await workflow.AddDotnetAsync(ProjectDir, "Acme.Client", versionOverride: "0.1.0-ci.80");
+        LinkDotnet(fileSystem, "Acme.Client");
+
+        // Hand-edited, as someone moving the pin does; the link means no feed is asked.
+        fileSystem.WriteAllText($"{ProjectDir}/dotquay.toml",
+            "[dotnet.Acme.Client]\nversion = \"0.1.0-ci.84\"\n");
+        var result = await workflow.UpdateAsync(ProjectDir, "Acme.Client", force: false);
+
+        var updated = result.Dotnet.Single();
+        Assert.True(updated.Changed);
+        Assert.Equal("0.1.0-ci.84", updated.Locked.Resolved);
+        var lockfile = LockfileReader.Read(fileSystem.ReadAllText($"{ProjectDir}/dotquay.lock"));
+        Assert.Equal("0.1.0-ci.84", lockfile.Dotnet.Single().Resolved);
+        Assert.Contains("Version=\"0.1.0-ci.84\"",
+            fileSystem.ReadAllText($"{ProjectDir}/Game.csproj"));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LinkedDotnetLockStillInsideTheRange_KeepsTheLock() {
+        var (workflow, fileSystem, _, nuGetClient, _) = BuildWithDotnet();
+        nuGetClient.VersionsByPackageId["Acme.Client"] = ["1.2.3"];
+        await workflow.AddDotnetAsync(ProjectDir, "Acme.Client");
+        LinkDotnet(fileSystem, "Acme.Client");
+
+        nuGetClient.VersionsByPackageId["Acme.Client"] = ["1.2.3", "1.4.0"];
+        var result = await workflow.UpdateAsync(ProjectDir, "Acme.Client", force: false);
+
+        Assert.False(result.Dotnet.Single().Changed);
+        Assert.Equal("1.2.3", result.Dotnet.Single().Locked.Resolved);
+    }
+
+    private static void LinkDotnet(InMemoryFileSystem fileSystem, string packageId) {
+        var checkout = $"elsewhere/{packageId}";
+        fileSystem.WriteAllText($"{checkout}/{packageId}.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+        new LocalLinks(fileSystem).SetDotnet(ProjectDir, packageId, checkout, analyzer: false);
     }
 
     [Fact]

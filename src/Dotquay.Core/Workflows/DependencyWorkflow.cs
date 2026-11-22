@@ -2359,16 +2359,48 @@ public sealed partial class DependencyWorkflow {
     }
 
     /// <summary>
-    /// The version a package's first link records, before anything was ever resolved for it: the
-    /// declared version when it names one (<c>1.2.3</c>, or the base of
-    /// <c>^1.2.3</c>/<c>~1.2.3</c>).
+    /// The version a linked package records: the locked one while the project's declaration still
+    /// allows it, else the one the declaration names (<see cref="LinkedDeclaredVersion"/>).
+    /// </summary>
+    /// <remarks>
+    /// Keeping the lock unconditionally would make a moved pin (<c>0.1.0-ci.80</c> edited to
+    /// <c>0.1.0-ci.84</c>) a silent no-op for as long as the package stays linked, and unlinking
+    /// would then restore the old version the manifest no longer asks for.
+    /// </remarks>
+    private static string? LinkedVersion(string packageId, DotnetSpec? spec,
+        LockedDotnet? previous) {
+        if (previous is not null
+            && (spec is null || DeclarationAllows(packageId, spec, previous.Resolved))) {
+            return previous.Resolved;
+        }
+
+        return LinkedDeclaredVersion(packageId, spec);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="lockedVersion"/> satisfies the project's declared version. A locked
+    /// version that is not semver (nothing dotquay writes) counts as allowed, so it is never
+    /// replaced by a guess.
+    /// </summary>
+    private static bool DeclarationAllows(string packageId, DotnetSpec spec,
+        string lockedVersion) {
+        var constraint = ParseDotnetConstraintOrThrow(packageId, spec.Version);
+        return constraint is null
+            || !AddonVersion.TryParse(lockedVersion, out var version)
+            || version is null
+            || constraint.IsSatisfiedBy(version);
+    }
+
+    /// <summary>
+    /// The version a link records when the lock has none the declaration allows: the declared
+    /// version when it names one (<c>1.2.3</c>, or the base of <c>^1.2.3</c>/<c>~1.2.3</c>).
     /// </summary>
     /// <remarks>
     /// A link is never resolved remotely (SPEC.md §7.4), so there is nothing to pick a version
     /// inside a range from, and the <c>.csproj</c> needs a real one. A range with no single version
     /// in it (<c>1.2.*</c>, <c>&gt;=1 &lt;2</c>) is refused rather than guessed at.
     /// </remarks>
-    private static string? LinkedFirstVersion(string packageId, DotnetSpec? spec) {
+    private static string? LinkedDeclaredVersion(string packageId, DotnetSpec? spec) {
         if (spec is null) {
             return null;
         }
@@ -2379,9 +2411,9 @@ public sealed partial class DependencyWorkflow {
         }
 
         throw new WorkflowException(
-            $"'{packageId}' is linked but has never been resolved, and '{spec.Version}' names no "
-            + "single version to record. Unlink it and run 'dotquay update' once, or declare an "
-            + "exact version.");
+            $"'{packageId}' is linked, so no feed is asked, and '{spec.Version}' names no single "
+            + "version to record. Unlink it and run 'dotquay update' once, or declare an exact "
+            + "version.");
     }
 
     /// <summary>
@@ -3008,10 +3040,11 @@ public sealed partial class DependencyWorkflow {
             // A linked package is never resolved remotely (SPEC.md §7.4, v0.11). The point of
             // linking is to work on a library before it is published, so demanding that a published
             // version exist would refuse exactly the case the feature is for. The lockfile keeps
-            // saying whatever it already said — or, on a first link, the version the manifest
-            // declares — so unlinking still puts this machine back on something real.
+            // saying whatever it already said while the manifest still allows it — or, on a first
+            // link or a moved pin, the version the manifest declares — so unlinking still puts this
+            // machine back on what the manifest asks for.
             var linkedVersion = dotnetLinks.ContainsKey(targetName)
-                ? previous?.Resolved ?? LinkedFirstVersion(targetName, spec)
+                ? LinkedVersion(targetName, spec, previous)
                 : null;
 
             string version;
