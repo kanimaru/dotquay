@@ -110,6 +110,14 @@ Load-bearing details, each of which is silent when wrong:
   idempotently on first link.
 - **`dotquay.local.targets` is gitignored**, same as `dotquay.local.toml`, and the generated file
   carries the same self-describing header comment saying so.
+- **The `ProjectReference` carries the package's condition.** The `Remove` is harmless everywhere,
+  but an unconditional `ProjectReference` is not: a package the `.csproj` declares only in
+  `<ItemGroup Condition="'$(Configuration)' == 'Debug'">` came back, linked, in export builds (a
+  linked test server's apphost then collided with the game's, NETSDK1152). The overlay reads every
+  declaration of the package in the `.csproj` (`PackageReferenceCondition`): the element's own
+  `Condition` and those of its `ItemGroup` and `Choose` branches are and-ed, several declarations
+  or-ed, and one unconditional declaration keeps the link unconditional. Declarations in imported
+  files are not seen; those links stay unconditional, as before.
 
 Consequences of the overlay shape, all simplifications:
 

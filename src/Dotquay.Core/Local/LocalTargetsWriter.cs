@@ -78,11 +78,24 @@ public static class LocalTargetsWriter {
             return;
         }
 
-        fileSystem.WriteAllText(path, Render(links));
+        fileSystem.WriteAllText(path, Render(links, ReadProject(fileSystem, projectDirectory)));
         EnsureHook(fileSystem, projectDirectory);
     }
 
-    private static string Render(IReadOnlyDictionary<string, DotnetLink> links) {
+    /// <summary>The consuming project's root element, or null when there is none to read — which
+    /// <see cref="EnsureHook"/> then reports.</summary>
+    private static XElement? ReadProject(IFileSystem fileSystem, string projectDirectory) {
+        try {
+            var root = XDocument.Parse(fileSystem.ReadAllText(
+                CsprojLocator.Locate(fileSystem, projectDirectory))).Root;
+            return root?.Name.LocalName == "Project" ? root : null;
+        } catch (Exception ex) when (ex is DotnetSyncException or System.Xml.XmlException) {
+            return null;
+        }
+    }
+
+    private static string Render(IReadOnlyDictionary<string, DotnetLink> links,
+        XElement? consumer) {
         var itemGroup = new XElement("ItemGroup");
 
         foreach (var link in links.Values.OrderBy(l => l.PackageId, StringComparer.Ordinal)) {
@@ -94,6 +107,13 @@ public static class LocalTargetsWriter {
 
             var reference = new XElement(
                 "ProjectReference", new XAttribute("Include", link.ProjectPath));
+
+            // The Remove above is a no-op wherever the package was never added; the reference is
+            // not, so it applies only where the PackageReference it replaces does.
+            if (consumer is not null
+                && PackageReferenceCondition.Read(consumer, link.PackageId) is { } condition) {
+                reference.Add(new XAttribute("Condition", condition));
+            }
 
             if (link.Analyzer) {
                 reference.Add(new XAttribute("OutputItemType", "Analyzer"));
